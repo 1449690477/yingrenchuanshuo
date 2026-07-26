@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import { LockKeyhole, X } from '@lucide/vue';
 import { abbr } from '@/core/format';
 import { usePlayerStore } from '@/stores/player';
 import { useStageStore } from '@/stores/stage';
@@ -29,7 +30,9 @@ function pick(stageId: string) {
     <div class="sheet">
       <header class="head">
         <h3>选择关卡</h3>
-        <button class="x" @click="emit('close')">✕</button>
+        <button class="x" aria-label="关闭关卡选择" @click="emit('close')">
+          <X :size="17" :stroke-width="2.2" aria-hidden="true" />
+        </button>
       </header>
 
       <div class="body scroll-y">
@@ -75,7 +78,10 @@ function pick(stageId: string) {
                     <span v-if="s.bossId" class="s-boss">BOSS</span>
                   </span>
                   <span class="s-meta">
-                    <span v-if="!stage.isUnlocked(s.id)" class="s-lock">🔒 未解锁</span>
+                    <span v-if="!stage.isUnlocked(s.id)" class="s-lock">
+                      <LockKeyhole :size="10" :stroke-width="2.2" aria-hidden="true" />
+                      未解锁
+                    </span>
                     <span v-else class="s-cp num" :class="{ low: player.cp < s.recommendCP }">
                       战力 {{ abbr(s.recommendCP) }}
                     </span>
@@ -118,7 +124,8 @@ function pick(stageId: string) {
 }
 
 .x {
-  font-size: 15px;
+  display: grid;
+  place-items: center;
   color: var(--text-dim);
 }
 
@@ -307,6 +314,9 @@ function pick(stageId: string) {
 }
 
 .s-lock {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
   color: var(--text-dim);
 }
 

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { Sparkles } from '@lucide/vue';
 import { abbr, duration } from '@/core/format';
 import { useStageStore } from '@/stores/stage';
 import { getEquipment, requireEquipment } from '@/data/equipment';
@@ -46,7 +47,9 @@ const moreCount = computed(() => Math.max(0, (r.value?.yield.loot.length ?? 0) -
   <div v-if="r" class="overlay">
     <div class="sheet">
       <div class="top">
-        <div class="sparkle">✨</div>
+        <div class="sparkle">
+          <Sparkles :size="30" :stroke-width="2" aria-hidden="true" />
+        </div>
         <h3>欢迎回来</h3>
         <p class="sub">离线 {{ duration(r.seconds) }}，少女帮你打了一会儿</p>
       </div>
@@ -106,7 +109,9 @@ const moreCount = computed(() => Math.max(0, (r.value?.yield.loot.length ?? 0) -
 }
 
 .sparkle {
-  font-size: 30px;
+  display: grid;
+  place-items: center;
+  color: #f1b82f;
   animation: pop 0.5s ease-out;
 }
 

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { LockKeyhole } from '@lucide/vue';
 import type { VisualSkill } from '@/data/skills';
 
 const props = defineProps<{
@@ -18,7 +19,9 @@ const iconUrl = computed(() => `${import.meta.env.BASE_URL}${props.skill.icon}`)
     :aria-label="`${skill.name}技能图标`"
   >
     <img :src="iconUrl" alt="" draggable="false" decoding="async" />
-    <span v-if="locked" class="lock" aria-hidden="true">⌁</span>
+    <span v-if="locked" class="lock" aria-hidden="true">
+      <LockKeyhole :size="9" :stroke-width="2.4" />
+    </span>
   </span>
 </template>
 

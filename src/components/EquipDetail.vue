@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { X } from '@lucide/vue';
 import { abbr, signed } from '@/core/format';
 import { zeroStats } from '@/core/formula';
 import { instanceStats } from '@/core/equipment';
@@ -79,7 +80,9 @@ function doDecompose() {
             {{ SLOT_LABELS[def.slot] }} · {{ QUALITY_LABELS[def.quality] }} · 需求 Lv{{ def.level }}
           </span>
         </div>
-        <button class="x" @click="emit('close')">✕</button>
+        <button class="x" aria-label="关闭装备详情" @click="emit('close')">
+          <X :size="17" :stroke-width="2.2" aria-hidden="true" />
+        </button>
       </header>
 
       <div class="body scroll-y">

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref, watch } from 'vue';
+import { Coins, Swords, Zap } from '@lucide/vue';
 import { abbr, signed } from '@/core/format';
 import { usePlayerStore } from '@/stores/player';
 import { CLASS_INFO } from '@/data/constants';
@@ -46,7 +47,7 @@ const cls = computed(() => (playerStore.player ? CLASS_INFO[playerStore.player.c
 
     <div class="stats">
       <div class="stat cp-stat">
-        <span class="ic">⚔</span>
+        <Swords class="ic cp-icon" :size="12" :stroke-width="2.3" aria-hidden="true" />
         <span class="val num">{{ abbr(playerStore.cp) }}</span>
         <Transition name="float">
           <span
@@ -60,11 +61,11 @@ const cls = computed(() => (playerStore.player ? CLASS_INFO[playerStore.player.c
         </Transition>
       </div>
       <div class="stat">
-        <span class="ic">🪙</span>
+        <Coins class="ic coin-icon" :size="12" :stroke-width="2.3" aria-hidden="true" />
         <span class="val num">{{ abbr(playerStore.player.gold) }}</span>
       </div>
       <div class="stat">
-        <span class="ic">⚡</span>
+        <Zap class="ic stamina-icon" :size="12" :stroke-width="2.3" aria-hidden="true" />
         <span class="val num"> {{ playerStore.player.stamina }}/{{ playerStore.staminaMax }} </span>
       </div>
     </div>
@@ -162,8 +163,20 @@ const cls = computed(() => (playerStore.player ? CLASS_INFO[playerStore.player.c
 }
 
 .ic {
-  font-size: 10px;
-  opacity: 0.75;
+  flex-shrink: 0;
+  opacity: 0.86;
+}
+
+.cp-icon {
+  color: var(--blue-deep);
+}
+
+.coin-icon {
+  color: #e7a92d;
+}
+
+.stamina-icon {
+  color: #d88a31;
 }
 
 .val {

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref, watch } from 'vue';
+import { Swords } from '@lucide/vue';
 import { abbr } from '@/core/format';
 import { usePlayerStore } from '@/stores/player';
 import { useStageStore } from '@/stores/stage';
@@ -129,7 +130,7 @@ const cpWarn = computed(() => {
           <div class="hero-name">{{ player.player?.name }}</div>
         </div>
 
-        <div class="vs">⚔</div>
+        <Swords class="vs" :size="15" :stroke-width="2.2" aria-hidden="true" />
 
         <div class="mob-list">
           <div class="enemy-stage" :class="'enemy-' + target.type">

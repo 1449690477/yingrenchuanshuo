@@ -1,14 +1,16 @@
 <script setup lang="ts">
+import type { Component } from 'vue';
+import { Backpack, Castle, Menu, Sparkles, Swords } from '@lucide/vue';
 import { useUiStore, type TabKey } from '@/stores/ui';
 
 const ui = useUiStore();
 
-const tabs: { key: TabKey; label: string; icon: string }[] = [
-  { key: 'idle', label: '挂机', icon: '⚔' },
-  { key: 'bag', label: '背包', icon: '🎒' },
-  { key: 'growth', label: '养成', icon: '✨' },
-  { key: 'dungeon', label: '副本', icon: '🏰' },
-  { key: 'more', label: '更多', icon: '☰' },
+const tabs: { key: TabKey; label: string; icon: Component }[] = [
+  { key: 'idle', label: '挂机', icon: Swords },
+  { key: 'bag', label: '背包', icon: Backpack },
+  { key: 'growth', label: '养成', icon: Sparkles },
+  { key: 'dungeon', label: '副本', icon: Castle },
+  { key: 'more', label: '更多', icon: Menu },
 ];
 </script>
 
@@ -21,7 +23,9 @@ const tabs: { key: TabKey; label: string; icon: string }[] = [
       :class="{ active: ui.activeTab === tab.key }"
       @click="ui.setTab(tab.key)"
     >
-      <span class="icon">{{ tab.icon }}</span>
+      <span class="icon">
+        <component :is="tab.icon" :size="19" :stroke-width="2.2" aria-hidden="true" />
+      </span>
       <span class="label">{{ tab.label }}</span>
       <!-- 红点占位，M3-11 接入红点系统 -->
     </button>
@@ -68,8 +72,15 @@ const tabs: { key: TabKey; label: string; icon: string }[] = [
 }
 
 .icon {
-  font-size: 18px;
-  line-height: 1;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  transition: transform 0.16s ease;
+}
+
+.tab.active .icon {
+  transform: translateY(-1px) scale(1.08);
 }
 
 .label {

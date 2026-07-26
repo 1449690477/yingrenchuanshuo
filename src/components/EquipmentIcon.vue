@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { LockKeyhole } from '@lucide/vue';
 import type { EquipmentDef } from '@/core/types';
 
 const props = withDefaults(
@@ -26,7 +27,9 @@ const iconUrl = computed(() => `${import.meta.env.BASE_URL}${props.def.icon}`);
   >
     <span class="shine" aria-hidden="true"></span>
     <img :src="iconUrl" alt="" draggable="false" decoding="async" />
-    <span v-if="locked" class="lock" aria-hidden="true">◆</span>
+    <span v-if="locked" class="lock" aria-hidden="true">
+      <LockKeyhole :size="9" :stroke-width="2.4" />
+    </span>
   </span>
 </template>
 
