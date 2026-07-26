@@ -1,7 +1,15 @@
 import { describe, it, expect } from 'vitest';
-import { killsPerSecond, recoverStamina, settleIdle, settleOffline, settleSweep } from '../idle';
+import {
+  accumulateIdle,
+  killsPerSecond,
+  recoverStamina,
+  settleIdle,
+  settleOffline,
+  settleSweep,
+} from '../idle';
 import type { IdleContext } from '../idle';
 import { makeMonster, makePlayer } from '../progression';
+import { Rng } from '../rng';
 import type { LootTable } from '../types';
 import { OFFLINE_CAP_SECONDS, STAMINA_RECOVER_SECONDS } from '@/data/constants';
 
@@ -75,6 +83,121 @@ describe('settleIdle', () => {
     const y = settleIdle(c, 3600);
     expect(y.exp).toBe(y.kills * c.expPerKill);
     expect(y.gold).toBe(y.kills * c.goldPerKill);
+  });
+});
+
+describe('掉落结算模式（roll vs expected）', () => {
+  // 回归测试：曾经实时挂机也走期望值，1~2 只怪的期望值被 floor 成 0，
+  // 玩家挂机很久背包一个东西都没有。
+  it('roll 模式下少量击杀也能掉出东西', () => {
+    const c = ctx();
+    const rng = new Rng(2026);
+    let got = 0;
+    for (let i = 0; i < 40; i++) {
+      const y = settleIdle(c, 5, { mode: 'roll', rng });
+      got += y.loot.reduce((s, d) => s + d.count, 0);
+    }
+    expect(got).toBeGreaterThan(0);
+  });
+
+  it('expected 模式在少量击杀时会因取整而漏掉（这就是不能用它跑实时的原因）', () => {
+    // 低概率掉落表：每只怪只有 10% 概率掉，期望值 0.1，floor 后为 0
+    const rareTable: LootTable = {
+      id: 'loot_rare',
+      rolls: 1,
+      entries: [
+        { itemId: 'junk', weight: 90, minCount: 1, maxCount: 1 },
+        { itemId: 'rare', weight: 10, minCount: 1, maxCount: 1 },
+      ],
+    };
+    const c = ctx({ lootTable: rareTable });
+    const kps = killsPerSecond(c);
+    const y = settleIdle(c, 2 / kps, { mode: 'expected' });
+
+    expect(y.kills).toBeGreaterThanOrEqual(1);
+    // rare 的期望数量不足 1，被取整抹掉了
+    expect(y.loot.find((d) => d.itemId === 'rare')).toBeUndefined();
+
+    // 同样条件下 roll 模式跑多次一定能掉出来
+    let rareHits = 0;
+    const rng = new Rng(7);
+    for (let i = 0; i < 200; i++) {
+      const r = settleIdle(c, 2 / kps, { mode: 'roll', rng });
+      if (r.loot.some((d) => d.itemId === 'rare')) rareHits++;
+    }
+    expect(rareHits).toBeGreaterThan(0);
+  });
+
+  it('roll 模式可复现（同种子同结果）', () => {
+    const run = () => settleIdle(ctx(), 60, { mode: 'roll', rng: new Rng(99) }).loot;
+    expect(run()).toEqual(run());
+  });
+
+  it('roll 模式不会静默切换成期望值', () => {
+    const c = ctx();
+    const run = () => settleIdle(c, 1000, { mode: 'roll', rng: new Rng(1) });
+    expect(run()).toEqual(run());
+  });
+
+  it('roll 模式缺少 seeded RNG 时直接报错', () => {
+    expect(() => settleIdle(ctx(), 60, { mode: 'roll' })).toThrow('seeded RNG');
+  });
+});
+
+describe('accumulateIdle（逐帧累积）', () => {
+  // 这一组是回归测试：曾经每帧 floor 掉不足一只的部分，
+  // 导致玩家挂机 6 秒一个金币都拿不到。
+  it('单帧不足一只怪时不产出，但把时间攒进 carry', () => {
+    const c = ctx();
+    const kps = killsPerSecond(c);
+    const dt = 1 / kps / 3; // 只够三分之一只
+
+    const r = accumulateIdle(c, dt, 0);
+    expect(r.yield.kills).toBe(0);
+    expect(r.carrySec).toBeCloseTo(dt, 6);
+  });
+
+  it('多帧累积后能正常产出，不会丢失零头', () => {
+    const c = ctx();
+    const kps = killsPerSecond(c);
+    const dt = 1 / kps / 3;
+
+    let carry = 0;
+    let kills = 0;
+    for (let i = 0; i < 30; i++) {
+      const r = accumulateIdle(c, dt, carry);
+      carry = r.carrySec;
+      kills += r.yield.kills;
+    }
+
+    // 30 帧 × 1/3 只 = 10 只，允许 1 只的取整误差
+    expect(kills).toBeGreaterThanOrEqual(9);
+    expect(kills).toBeLessThanOrEqual(10);
+  });
+
+  it('长期累积的产出与一次性结算基本一致（不漏也不多给）', () => {
+    const c = ctx();
+    const totalSec = 600;
+    const dt = 0.4;
+
+    let carry = 0;
+    let kills = 0;
+    for (let i = 0; i < totalSec / dt; i++) {
+      const r = accumulateIdle(c, dt, carry);
+      carry = r.carrySec;
+      kills += r.yield.kills;
+    }
+
+    const oneShot = settleIdle(c, totalSec).kills;
+    expect(Math.abs(kills - oneShot) / oneShot).toBeLessThan(0.02);
+  });
+
+  it('打不动时不结算，时间全部留在 carry 里', () => {
+    const c = ctx();
+    c.player.stats.atk = 0;
+    const r = accumulateIdle(c, 5, 2);
+    expect(r.yield.kills).toBe(0);
+    expect(r.carrySec).toBe(7);
   });
 });
 

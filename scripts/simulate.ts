@@ -20,6 +20,7 @@ import type { ClassId, Combatant, EquipSlot, Quality, Stats } from '../src/core/
 import { combatPower, zeroStats } from '../src/core/formula';
 import {
   applyClassMods,
+  averageSkillMultiplier,
   baseStatsFor,
   expToNext,
   makeMonster,
@@ -97,21 +98,11 @@ function withGear(cls: ClassId, level: number): Stats {
     eva: base.eva + gear.eva,
     critRate: Math.min(CRIT_RATE_CAP, base.critRate + gear.critRate),
     critDmg: base.critDmg + gear.critDmg,
-    spd: base.spd,
+    spd: base.spd + gear.spd,
   };
 
   // 职业系数必须在装备累加之后应用，见 progression.applyClassMods 的注释
   return applyClassMods(cls, combined);
-}
-
-/** 玩家平均技能倍率。随等级解锁更多技能而提高。 */
-function avgSkillMultiplier(level: number): number {
-  if (level < 10) return 1.2;
-  if (level < 25) return 1.45;
-  if (level < 45) return 1.7;
-  if (level < 65) return 2.0;
-  if (level < 85) return 2.3;
-  return 2.6;
 }
 
 function buildContext(cls: ClassId, level: number, stageLevel: number): IdleContext {
@@ -132,7 +123,7 @@ function buildContext(cls: ClassId, level: number, stageLevel: number): IdleCont
     expPerKill: monsterExp(stageLevel),
     goldPerKill: monsterGold(stageLevel),
     lootTable: { id: 'sim', rolls: 1, entries: [] },
-    skillMultiplier: avgSkillMultiplier(level),
+    skillMultiplier: averageSkillMultiplier(level),
   };
 }
 
@@ -258,9 +249,9 @@ function classBalance() {
       剑姬: kps.swordsman.toFixed(3),
       魔女: kps.witch.toFixed(3),
       灵巫: kps.shaman.toFixed(3),
-      '剑姬偏离': dev(kps.swordsman),
-      '魔女偏离': dev(kps.witch),
-      '灵巫偏离': dev(kps.shaman),
+      剑姬偏离: dev(kps.swordsman),
+      魔女偏离: dev(kps.witch),
+      灵巫偏离: dev(kps.shaman),
     };
   });
 
@@ -308,11 +299,11 @@ function main() {
   const day30 = curve[curve.length - 1]!;
   console.log('【健康检查】');
   console.log(`  30 天后等级：Lv${day30.等级}`);
-  const stalled = curve.findIndex((r, i) => i > 0 && r.等级 === curve[i - 1]!.等级);
+  const stalled = curve.findIndex((r, i) => i > 0 && r.等级 < 120 && r.等级 === curve[i - 1]!.等级);
   if (stalled > 0) {
     console.log(`  ⚠ 第 ${curve[stalled]!.天} 天开始出现等级停滞（Lv${curve[stalled]!.等级}）`);
   } else {
-    console.log('  ✔ 30 天内无等级停滞');
+    console.log('  ✔ 满级前无等级停滞');
   }
 }
 

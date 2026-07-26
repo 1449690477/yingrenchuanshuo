@@ -1,47 +1,63 @@
 /* ============================================================
    樱刃传说 · 全局样式
+   视觉基调：可爱 / 青春 / 清纯 · 蓝白粉（见 docs/32 ADR-008）
    设计基准：390 × 844（iPhone 14 逻辑分辨率）
-   见 AGENTS.md 铁律 6 —— 竖屏优先
    ============================================================ */
 
 :root {
-  /* 背景层次 */
-  --bg-base: #14101c;
-  --bg-panel: #1f1830;
-  --bg-panel-2: #2a2140;
-  --bg-elevated: #352a4d;
+  /* ── 底色层次（浅色系）── */
+  --bg-base: #f2f8ff;
+  --bg-soft: #e9f3fd;
+  --panel: #ffffff;
+  --panel-2: #f7fbff;
+  --panel-3: #eef6fe;
 
-  /* 主题色 */
-  --accent: #ff7eb6; /* 樱粉 —— 主强调色 */
-  --accent-dim: #c4568a;
-  --purple: #a78bfa;
-  --gold: #ffd76e;
-  --cyan: #67e8f9;
+  /* ── 主题色 ── */
+  --pink: #ff9ec4;
+  --pink-deep: #f5799f;
+  --pink-soft: #ffeaf2;
+  --blue: #7ec8f2;
+  --blue-deep: #4aa8dd;
+  --blue-soft: #e6f4fd;
+  --mint: #8fe0c8;
+  --gold: #ffc860;
 
-  /* 文字 */
-  --text: #f2eef8;
-  --text-dim: #a89fc0;
-  --text-faint: #6f6688;
+  /* ── 文字 ── */
+  --text: #46596b;
+  --text-mid: #7b8fa3;
+  --text-dim: #a6b8c8;
+  --text-on-color: #ffffff;
 
-  /* 品质色（见 docs/12-装备体系.md） */
-  --q-common: #b0b0b0;
-  --q-fine: #4caf50;
-  --q-rare: #2196f3;
-  --q-epic: #9c27b0;
-  --q-legendary: #ff9800;
-  --q-mythic: #f44336;
-  --q-divine: #ffd700;
+  /* ── 描边与阴影（带蓝调，不用纯黑）── */
+  --line: #e2effa;
+  --line-strong: #cfe6f7;
+  --shadow-sm: 0 2px 8px rgb(122 165 200 / 12%);
+  --shadow: 0 4px 16px rgb(122 165 200 / 16%);
+  --shadow-lg: 0 8px 28px rgb(122 165 200 / 22%);
 
-  /* 语义色 */
-  --danger: #ff5c5c;
-  --success: #5cd67a;
+  /* ── 语义色 ── */
+  --danger: #ff8189;
+  --success: #5fcf95;
+  --warn: #ffb454;
 
-  /* 尺寸 */
-  --topbar-h: 56px;
-  --tabbar-h: 58px;
+  /* ── 品质色（在浅底上依然清晰）── */
+  --q-common: #9aa8b5;
+  --q-fine: #4fbe78;
+  --q-rare: #3fa3e8;
+  --q-epic: #ab6fe0;
+  --q-legendary: #ff9a3c;
+  --q-mythic: #ff6b7a;
+  --q-divine: #e8ac1f;
+
+  /* ── 尺寸 ── */
+  --topbar-h: 58px;
+  --tabbar-h: 60px;
   --app-max-w: 480px;
+  --r-sm: 10px;
+  --r: 16px;
+  --r-lg: 20px;
 
-  /* 安全区 */
+  /* ── 安全区 ── */
   --sat: env(safe-area-inset-top, 0px);
   --sab: env(safe-area-inset-bottom, 0px);
 }
@@ -57,7 +73,7 @@
 html,
 body {
   height: 100%;
-  overscroll-behavior: none; /* 禁止下拉刷新 / 橡皮筋 */
+  overscroll-behavior: none;
 }
 
 body {
@@ -70,30 +86,32 @@ body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 
-  /* 移动端体验：禁止长按选中、禁止点击高亮 */
+  /* 移动端体验 */
   -webkit-user-select: none;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
   -webkit-touch-callout: none;
 }
 
-/* 桌面端：信箱式居中，模拟手机 */
+/* 桌面端信箱式居中 */
 #app {
   width: 100%;
   max-width: var(--app-max-w);
   margin: 0 auto;
   height: 100dvh;
   position: relative;
-  background: var(--bg-base);
   overflow: hidden;
+  background:
+    radial-gradient(120% 60% at 50% 0%, var(--blue-soft) 0%, transparent 60%),
+    radial-gradient(100% 50% at 100% 100%, var(--pink-soft) 0%, transparent 55%), var(--bg-base);
 }
 
 @media (min-width: 481px) {
   body {
-    background: #0a0810;
+    background: linear-gradient(160deg, #e8f4ff, #fdf0f6);
   }
   #app {
-    box-shadow: 0 0 60px rgb(167 139 250 / 12%);
+    box-shadow: var(--shadow-lg);
   }
 }
 
@@ -103,15 +121,29 @@ button {
   background: none;
   border: none;
   cursor: pointer;
-  touch-action: manipulation; /* 消除移动端 300ms 点击延迟 */
+  touch-action: manipulation;
 }
 
-/* 可滚动区域统一样式 */
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+button:focus {
+  outline: none;
+}
+
+button:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: -2px;
+}
+
+/* ── 通用滚动容器 ── */
 .scroll-y {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
-  scrollbar-color: var(--bg-elevated) transparent;
+  scrollbar-color: var(--line-strong) transparent;
 }
 
 .scroll-y::-webkit-scrollbar {
@@ -119,6 +151,91 @@ button {
 }
 
 .scroll-y::-webkit-scrollbar-thumb {
-  background: var(--bg-elevated);
+  background: var(--line-strong);
   border-radius: 2px;
+}
+
+/* ── 通用卡片 ── */
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ── 通用按钮 ── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 9px 16px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  transition:
+    transform 0.12s,
+    filter 0.15s;
+}
+
+.btn:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.btn-pink {
+  color: var(--text-on-color);
+  background: linear-gradient(135deg, #ffb0d0, var(--pink-deep));
+  box-shadow: 0 3px 10px rgb(245 121 159 / 30%);
+}
+
+.btn-blue {
+  color: var(--text-on-color);
+  background: linear-gradient(135deg, #9fd8f7, var(--blue-deep));
+  box-shadow: 0 3px 10px rgb(74 168 221 / 28%);
+}
+
+.btn-plain {
+  color: var(--text-mid);
+  background: var(--panel-3);
+  border: 1px solid var(--line);
+}
+
+/* ── 品质文字与边框 ── */
+.q-common {
+  color: var(--q-common);
+}
+.q-fine {
+  color: var(--q-fine);
+}
+.q-rare {
+  color: var(--q-rare);
+}
+.q-epic {
+  color: var(--q-epic);
+}
+.q-legendary {
+  color: var(--q-legendary);
+}
+.q-mythic {
+  color: var(--q-mythic);
+}
+.q-divine {
+  color: var(--q-divine);
+}
+
+/* ── 数字统一等宽，避免跳动 ── */
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 弹窗遮罩 ── */
+.overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgb(70 89 107 / 35%);
+  backdrop-filter: blur(3px);
 }

@@ -2,6 +2,7 @@ import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import pluginVue from 'eslint-plugin-vue';
 import prettier from 'eslint-config-prettier';
+import globals from 'globals';
 
 export default tseslint.config(
   { ignores: ['dist/**', 'node_modules/**', 'coverage/**', 'dev-dist/**'] },
@@ -15,6 +16,12 @@ export default tseslint.config(
     languageOptions: {
       parserOptions: { parser: tseslint.parser },
     },
+  },
+
+  // UI 与 store 层跑在浏览器里
+  {
+    files: ['src/**/*.{ts,vue}'],
+    languageOptions: { globals: globals.browser },
   },
 
   // 构建脚本与配置文件跑在 Node 里，需要 Node 全局变量
@@ -58,14 +65,21 @@ export default tseslint.config(
             { name: 'idb', message: 'core 层禁止依赖存储实现 —— 见 AGENTS.md 铁律 1' },
           ],
           patterns: [
-            { group: ['@/stores/*', '@/views/*', '@/components/*', '@/save/*'], message: 'core 层只能被上层调用，不能反向依赖' },
+            {
+              group: ['@/stores/*', '@/views/*', '@/components/*', '@/save/*'],
+              message: 'core 层只能被上层调用，不能反向依赖',
+            },
           ],
         },
       ],
       // 铁律 4：随机必须可复现
       'no-restricted-properties': [
         'error',
-        { object: 'Math', property: 'random', message: '禁止 Math.random()，请使用 core/rng.ts —— 见 AGENTS.md 铁律 4' },
+        {
+          object: 'Math',
+          property: 'random',
+          message: '禁止 Math.random()，请使用 core/rng.ts —— 见 AGENTS.md 铁律 4',
+        },
       ],
     },
   },
@@ -78,7 +92,10 @@ export default tseslint.config(
         'error',
         {
           patterns: [
-            { group: ['@/stores/*', '@/views/*', '@/components/*'], message: 'data 层是纯配置，不得依赖上层' },
+            {
+              group: ['@/stores/*', '@/views/*', '@/components/*'],
+              message: 'data 层是纯配置，不得依赖上层',
+            },
           ],
         },
       ],

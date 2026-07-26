@@ -15,7 +15,7 @@ export class Rng {
 
   constructor(seed: number) {
     // 保证状态落在 uint32 范围内，且不为 0
-    this.state = (seed >>> 0) || 0x9e3779b9;
+    this.state = seed >>> 0 || 0x9e3779b9;
   }
 
   /** [0, 1) 均匀分布 */
@@ -69,7 +69,7 @@ export class Rng {
       r -= weightOf(it);
       if (r < 0) return it;
     }
-    // 浮点误差兜底
+    // 浮点边界归到最后一项，保持加权区间完整
     return items[items.length - 1]!;
   }
 
@@ -92,9 +92,4 @@ export class Rng {
   setState(state: number): void {
     this.state = state >>> 0;
   }
-}
-
-/** 用当前时间创建一个种子。仅用于新建存档时生成主种子。 */
-export function createSeed(): number {
-  return (Date.now() ^ (performance?.now?.() ?? 0)) >>> 0;
 }

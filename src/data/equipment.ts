@@ -1,0 +1,125 @@
+/**
+ * 装备表 —— 生成器 + 人工命名。
+ *
+ * 每个区域为 8 个槽位各生成若干品质档的装备。
+ * 基础属性**不在这里填** —— 由 core/equipment.ts 按
+ * 「等级 × 品质 × 部位权重」算出（见 docs/12）。
+ *
+ * 这里只负责：名字、等级、品质、槽位、图标。
+ */
+
+import type { EquipmentDef, EquipSlot, Quality } from '@/core/types';
+import { SLOT_ORDER } from './constants';
+
+/** 每个区域一套命名主题：8 个槽位各一个词根 */
+interface NamingTheme {
+  regionId: string;
+  /** 装备等级基准 */
+  level: number;
+  /** 该区域产出的品质档 */
+  qualities: Quality[];
+  /** 前缀，用于区分区域，如「樱」「草原」 */
+  names: Record<EquipSlot, string>;
+}
+
+const THEMES: NamingTheme[] = [
+  {
+    regionId: 'r1',
+    // 白装 Lv2 即可穿，和 docs/14 的「Lv2 解锁装备穿戴」一致。
+    level: 4,
+    qualities: ['common', 'fine', 'rare'],
+    names: {
+      weapon: '樱枝短剑',
+      head: '花冠',
+      body: '樱色连衣裙',
+      necklace: '花瓣项链',
+      bracelet: '藤编手环',
+      ring: '木铃戒',
+      belt: '缎带腰封',
+      shoes: '软草便鞋',
+    },
+  },
+  {
+    regionId: 'r2',
+    level: 16,
+    qualities: ['fine', 'rare', 'epic'],
+    names: {
+      weapon: '棉花糖锤',
+      head: '稻草帽',
+      body: '蜜蜂纹罩裙',
+      necklace: '蜜滴吊坠',
+      bracelet: '蜂蜡护腕',
+      ring: '结晶戒',
+      belt: '草编腰带',
+      shoes: '蓬松绒靴',
+    },
+  },
+];
+
+/** 品质前缀，让同名装备在背包里能区分开 */
+const QUALITY_PREFIX: Record<Quality, string> = {
+  common: '',
+  fine: '精制·',
+  rare: '秘银·',
+  epic: '灵纹·',
+  legendary: '传世·',
+  mythic: '神话·',
+  divine: '圣痕·',
+};
+
+/** 不同品质的等级偏移：高品质装备需求等级略高 */
+const QUALITY_LEVEL_OFFSET: Record<Quality, number> = {
+  common: -2,
+  fine: 0,
+  rare: 2,
+  epic: 4,
+  legendary: 6,
+  mythic: 8,
+  divine: 10,
+};
+
+function buildEquipment(): Record<string, EquipmentDef> {
+  const out: Record<string, EquipmentDef> = {};
+
+  for (const theme of THEMES) {
+    for (const slot of SLOT_ORDER) {
+      for (const quality of theme.qualities) {
+        const id = `eq_${theme.regionId}_${slot}_${quality}`;
+        out[id] = {
+          id,
+          name: QUALITY_PREFIX[quality] + theme.names[slot],
+          slot,
+          quality,
+          level: Math.max(1, theme.level + QUALITY_LEVEL_OFFSET[quality]),
+          icon: `equip/${slot}_${quality}.png`,
+        };
+      }
+    }
+  }
+
+  return out;
+}
+
+export const EQUIPMENT: Record<string, EquipmentDef> = buildEquipment();
+
+export function getEquipment(id: string): EquipmentDef | undefined {
+  return EQUIPMENT[id];
+}
+
+export function requireEquipment(id: string): EquipmentDef {
+  const equipment = EQUIPMENT[id];
+  if (!equipment) throw new Error(`[配置错误] 装备定义不存在：${id}`);
+  return equipment;
+}
+
+/** 某区域某品质的全部装备 id，掉落表生成时用 */
+export function equipIdsOf(regionId: string, quality: Quality): string[] {
+  return SLOT_ORDER.map((slot) => `eq_${regionId}_${slot}_${quality}`).filter(
+    (id) => id in EQUIPMENT,
+  );
+}
+
+/** 某区域产出的全部装备 id */
+export function equipIdsOfRegion(regionId: string): string[] {
+  return Object.keys(EQUIPMENT).filter((id) => id.startsWith(`eq_${regionId}_`));
+}

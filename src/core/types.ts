@@ -18,14 +18,7 @@ export type Quality = 'common' | 'fine' | 'rare' | 'epic' | 'legendary' | 'mythi
 
 /** 8 个装备槽位 */
 export type EquipSlot =
-  | 'weapon'
-  | 'head'
-  | 'body'
-  | 'necklace'
-  | 'bracelet'
-  | 'ring'
-  | 'belt'
-  | 'shoes';
+  'weapon' | 'head' | 'body' | 'necklace' | 'bracelet' | 'ring' | 'belt' | 'shoes';
 
 /** 怪物类型，决定属性系数 */
 export type MonsterType = 'normal' | 'elite' | 'boss';
@@ -199,6 +192,7 @@ export interface Stage {
   bossId?: string;
   /** 由 scripts/simulate.ts 生成，不要手填 */
   recommendCP: number;
+  firstClearRewards: LootResult[];
   lootTableId: string;
   /** 每秒击杀上限，防止高战玩家无限刷低级图 */
   maxKillsPerSec: number;

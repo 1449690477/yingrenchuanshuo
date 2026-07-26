@@ -116,16 +116,19 @@ export function expectedDamage(
  * 它不参与任何战斗计算。
  */
 export function combatPower(stats: Stats): number {
-  return Math.round(
+  const base =
     stats.atk * CP_WEIGHTS.atk +
-      stats.def * CP_WEIGHTS.def +
-      stats.hp * CP_WEIGHTS.hp +
-      stats.acc * CP_WEIGHTS.acc +
-      stats.eva * CP_WEIGHTS.eva +
-      (stats.critRate / 100) * CP_WEIGHTS.critRate +
-      (stats.critDmg / 100) * CP_WEIGHTS.critDmg +
-      (stats.spd - 1.0) * CP_WEIGHTS.spd,
-  );
+    stats.def * CP_WEIGHTS.def +
+    stats.hp * CP_WEIGHTS.hp +
+    stats.acc * CP_WEIGHTS.acc +
+    stats.eva * CP_WEIGHTS.eva +
+    (stats.critRate / 100) * CP_WEIGHTS.critRate +
+    (stats.critDmg / 100) * CP_WEIGHTS.critDmg;
+
+  // 攻速是 DPS 的乘数，不是加数 —— 见 ADR-009。
+  // 旧版用 (spd - 1) × 1500 作为加项，导致攻速 0.9 的魔女
+  // 在 Lv1 被扣掉 150 战力（总战力才 200 出头），直接打不了第一关。
+  return Math.round(base * stats.spd);
 }
 
 /** 空属性，用于累加 */

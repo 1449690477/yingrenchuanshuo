@@ -33,8 +33,9 @@ const tabs: { key: TabKey; label: string; icon: string }[] = [
   display: flex;
   height: calc(var(--tabbar-h) + var(--sab));
   padding-bottom: var(--sab);
-  background: var(--bg-panel);
-  border-top: 1px solid rgb(167 139 250 / 15%);
+  background: rgb(255 255 255 / 94%);
+  border-top: 1px solid var(--line);
+  box-shadow: 0 -3px 12px rgb(122 165 200 / 8%);
   flex-shrink: 0;
 }
 
@@ -45,13 +46,13 @@ const tabs: { key: TabKey; label: string; icon: string }[] = [
   align-items: center;
   justify-content: center;
   gap: 2px;
-  color: var(--text-faint);
+  color: var(--text-dim);
   transition: color 0.15s;
   position: relative;
 }
 
 .tab.active {
-  color: var(--accent);
+  color: var(--pink-deep);
 }
 
 .tab.active::before {
@@ -63,7 +64,7 @@ const tabs: { key: TabKey; label: string; icon: string }[] = [
   width: 24px;
   height: 2px;
   border-radius: 0 0 2px 2px;
-  background: var(--accent);
+  background: linear-gradient(90deg, var(--pink), var(--blue));
 }
 
 .icon {

@@ -1,14 +1,21 @@
 import { describe, it, expect } from 'vitest';
 import {
+  averageSkillMultiplier,
   baseStatsFor,
   expToNext,
   makeMonster,
   monsterAtk,
   monsterExp,
   monsterHp,
+  staminaMaxForLevel,
   totalExpTo,
 } from '../progression';
-import { CLASS_BASE_STATS, EXP_BASE } from '@/data/constants';
+import {
+  AVG_SKILL_MULTIPLIERS,
+  CLASS_BASE_STATS,
+  EXP_BASE,
+  STAMINA_BASE_MAX,
+} from '@/data/constants';
 
 describe('expToNext', () => {
   // 断言公式关系而非硬编码数字 —— 否则每次调平衡都要改测试
@@ -116,5 +123,31 @@ describe('makeMonster', () => {
     expect(m.stats.hp).toBe(monsterHp(20, 'normal'));
     expect(m.element).toBe('ice');
     expect(m.level).toBe(20);
+  });
+});
+
+describe('M2 等级档位配置', () => {
+  it('平均技能倍率读取 data 配置且随等级不下降', () => {
+    expect(averageSkillMultiplier(1)).toBe(
+      AVG_SKILL_MULTIPLIERS.find((entry) => entry.minLevel === 1)!.multiplier,
+    );
+    let previous = averageSkillMultiplier(1);
+    for (let level = 2; level <= 120; level++) {
+      const current = averageSkillMultiplier(level);
+      expect(current).toBeGreaterThanOrEqual(previous);
+      previous = current;
+    }
+  });
+
+  it('体力上限从基础值开始并按等级提升', () => {
+    expect(staminaMaxForLevel(1)).toBe(STAMINA_BASE_MAX);
+    expect(staminaMaxForLevel(39)).toBe(STAMINA_BASE_MAX);
+    expect(staminaMaxForLevel(40)).toBeGreaterThan(STAMINA_BASE_MAX);
+    expect(staminaMaxForLevel(100)).toBeGreaterThan(staminaMaxForLevel(70));
+  });
+
+  it('非法等级直接报错', () => {
+    expect(() => averageSkillMultiplier(0)).toThrow();
+    expect(() => staminaMaxForLevel(0)).toThrow();
   });
 });

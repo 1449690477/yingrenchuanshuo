@@ -6,21 +6,32 @@
 import type { ClassId, Combatant, Element, MonsterDef, MonsterType, Stats } from './types';
 import {
   ACC_PER_LEVEL,
+  AVG_SKILL_MULTIPLIERS,
   CLASS_ATK_MUL,
   CLASS_BASE_STATS,
   CLASS_GROWTH,
   EVA_PER_LEVEL,
   EXP_BASE,
   EXP_POW,
+  MONSTER_ACC_BASE,
+  MONSTER_ACC_PER_LEVEL,
   MONSTER_ATK_BASE,
   MONSTER_ATK_POW,
+  MONSTER_BASE_CRIT_DMG,
+  MONSTER_CRIT_RATE,
+  MONSTER_DEF_BASE,
+  MONSTER_DEF_POW,
+  MONSTER_DEF_TYPE_MUL,
+  MONSTER_EVA_PER_LEVEL,
   MONSTER_EXP_BASE,
   MONSTER_EXP_POW,
   MONSTER_GOLD_BASE,
   MONSTER_GOLD_POW,
   MONSTER_HP_BASE,
   MONSTER_HP_POW,
+  MONSTER_SPEED,
   MONSTER_TYPE_MUL,
+  STAMINA_CAPS,
 } from '@/data/constants';
 
 // ─────────────────────── 经验 ───────────────────────
@@ -66,7 +77,9 @@ export function baseStatsFor(classId: ClassId, level: number): Stats {
 // ─────────────────────── 怪物强度 ───────────────────────
 
 export function monsterHp(level: number, type: MonsterType = 'normal', mul = 1): number {
-  return Math.round(MONSTER_HP_BASE * Math.pow(level, MONSTER_HP_POW) * MONSTER_TYPE_MUL[type].hp * mul);
+  return Math.round(
+    MONSTER_HP_BASE * Math.pow(level, MONSTER_HP_POW) * MONSTER_TYPE_MUL[type].hp * mul,
+  );
 }
 
 export function monsterAtk(level: number, type: MonsterType = 'normal', mul = 1): number {
@@ -92,8 +105,9 @@ export function monsterGold(level: number, type: MonsterType = 'normal', mul = 1
  * 这样玩家的攻击力成长能有明确体感。
  */
 export function monsterDef(level: number, type: MonsterType = 'normal'): number {
-  const typeMul = type === 'boss' ? 2.0 : type === 'elite' ? 1.4 : 1.0;
-  return Math.round(4 * Math.pow(level, 1.3) * typeMul);
+  return Math.round(
+    MONSTER_DEF_BASE * Math.pow(level, MONSTER_DEF_POW) * MONSTER_DEF_TYPE_MUL[type],
+  );
 }
 
 /** 把配置表里的 MonsterDef 实例化成可参战的 Combatant */
@@ -108,11 +122,11 @@ export function makeMonster(def: MonsterDef): Combatant {
       atk: monsterAtk(def.level, def.type, def.atkMul ?? 1),
       def: monsterDef(def.level, def.type),
       hp,
-      acc: Math.round(80 + def.level * 1.2),
-      eva: Math.round(def.level * 0.6),
-      critRate: def.type === 'boss' ? 10 : def.type === 'elite' ? 5 : 2,
-      critDmg: 50,
-      spd: def.type === 'boss' ? 1.2 : 1.0,
+      acc: Math.round(MONSTER_ACC_BASE + def.level * MONSTER_ACC_PER_LEVEL),
+      eva: Math.round(def.level * MONSTER_EVA_PER_LEVEL),
+      critRate: MONSTER_CRIT_RATE[def.type],
+      critDmg: MONSTER_BASE_CRIT_DMG,
+      spd: MONSTER_SPEED[def.type],
     },
   };
 }
@@ -136,4 +150,15 @@ export function makePlayer(
   element: Element = 'none',
 ): Combatant {
   return { name, level, element, stats, currentHp: stats.hp };
+}
+
+/** M2 的平均技能倍率；M3-4 会替换成玩家实际技能栏计算。 */
+export function averageSkillMultiplier(level: number): number {
+  if (level < 1) throw new Error(`averageSkillMultiplier: 等级必须 >= 1，收到 ${level}`);
+  return AVG_SKILL_MULTIPLIERS.find((entry) => level >= entry.minLevel)!.multiplier;
+}
+
+export function staminaMaxForLevel(level: number): number {
+  if (level < 1) throw new Error(`staminaMaxForLevel: 等级必须 >= 1，收到 ${level}`);
+  return STAMINA_CAPS.find((entry) => level >= entry.minLevel)!.max;
 }

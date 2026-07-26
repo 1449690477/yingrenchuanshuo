@@ -1,38 +1,68 @@
 <script setup lang="ts">
-// M0 阶段为静态占位。真实数据在 M2-11 接入 player store。
-const placeholder = {
-  name: '未创建角色',
-  level: 1,
-  expPercent: 0,
-  cp: 0,
-  gold: 0,
-  stamina: 120,
-  staminaMax: 120,
-};
+import { computed, onUnmounted, ref, watch } from 'vue';
+import { abbr, signed } from '@/core/format';
+import { usePlayerStore } from '@/stores/player';
+import { CLASS_INFO } from '@/data/constants';
+
+const playerStore = usePlayerStore();
+
+/** 战力变化飘字。任何操作导致战力变化都要让玩家看见。 */
+const floatCp = ref<{ value: number; key: number } | null>(null);
+let seq = 0;
+let hideTimer = 0;
+
+watch(
+  () => playerStore.cpDelta,
+  (d) => {
+    if (!d) return;
+    floatCp.value = { value: d.value, key: ++seq };
+    clearTimeout(hideTimer);
+    hideTimer = window.setTimeout(() => (floatCp.value = null), 1400);
+  },
+);
+
+onUnmounted(() => clearTimeout(hideTimer));
+
+const cls = computed(() => (playerStore.player ? CLASS_INFO[playerStore.player.classId] : null));
 </script>
 
 <template>
-  <header class="topbar">
-    <div class="avatar">樱</div>
+  <header v-if="playerStore.player" class="topbar">
+    <div class="avatar">🌸</div>
 
     <div class="info">
       <div class="line1">
-        <span class="name">{{ placeholder.name }}</span>
-        <span class="lv">Lv.{{ placeholder.level }}</span>
+        <span class="name">{{ playerStore.player.name }}</span>
+        <span class="lv num">Lv.{{ playerStore.player.level }}</span>
+        <span v-if="cls" class="cls">{{ cls.name }}</span>
       </div>
       <div class="expbar">
-        <div class="expbar-fill" :style="{ width: placeholder.expPercent + '%' }" />
+        <div class="expbar-fill" :style="{ width: playerStore.expPercent + '%' }" />
       </div>
     </div>
 
     <div class="stats">
-      <div class="stat">
-        <span class="stat-icon">⚔</span>
-        <span class="stat-val">{{ placeholder.cp }}</span>
+      <div class="stat cp-stat">
+        <span class="ic">⚔</span>
+        <span class="val num">{{ abbr(playerStore.cp) }}</span>
+        <Transition name="float">
+          <span
+            v-if="floatCp"
+            :key="floatCp.key"
+            class="float"
+            :class="floatCp.value > 0 ? 'up' : 'down'"
+          >
+            {{ signed(floatCp.value) }}
+          </span>
+        </Transition>
       </div>
       <div class="stat">
-        <span class="stat-icon">⚡</span>
-        <span class="stat-val">{{ placeholder.stamina }}/{{ placeholder.staminaMax }}</span>
+        <span class="ic">🪙</span>
+        <span class="val num">{{ abbr(playerStore.player.gold) }}</span>
+      </div>
+      <div class="stat">
+        <span class="ic">⚡</span>
+        <span class="val num"> {{ playerStore.player.stamina }}/{{ playerStore.staminaMax }} </span>
       </div>
     </div>
   </header>
@@ -45,22 +75,21 @@ const placeholder = {
   gap: 10px;
   height: calc(var(--topbar-h) + var(--sat));
   padding: var(--sat) 12px 0;
-  background: linear-gradient(180deg, var(--bg-panel-2), var(--bg-panel));
-  border-bottom: 1px solid rgb(167 139 250 / 15%);
+  background: linear-gradient(160deg, #fff, var(--panel-2));
+  border-bottom: 1px solid var(--line);
   flex-shrink: 0;
 }
 
 .avatar {
   width: 36px;
   height: 36px;
-  border-radius: 50%;
+  flex-shrink: 0;
   display: grid;
   place-items: center;
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--bg-base);
-  background: linear-gradient(135deg, var(--accent), var(--purple));
-  flex-shrink: 0;
+  font-size: 18px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--pink-soft), var(--blue-soft));
+  border: 1.5px solid var(--pink);
 }
 
 .info {
@@ -76,7 +105,7 @@ const placeholder = {
 
 .name {
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -84,47 +113,101 @@ const placeholder = {
 
 .lv {
   font-size: 11px;
-  color: var(--gold);
+  font-weight: 600;
+  color: var(--blue-deep);
+  flex-shrink: 0;
+}
+
+.cls {
+  padding: 0 6px;
+  font-size: 9px;
+  color: var(--pink-deep);
+  background: var(--pink-soft);
+  border-radius: 999px;
   flex-shrink: 0;
 }
 
 .expbar {
-  height: 4px;
+  height: 5px;
   margin-top: 4px;
-  border-radius: 2px;
-  background: rgb(0 0 0 / 40%);
+  border-radius: 3px;
+  background: var(--panel-3);
   overflow: hidden;
 }
 
 .expbar-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--accent), var(--gold));
-  transition: width 0.3s;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--pink), var(--gold));
+  transition: width 0.35s;
 }
 
 .stats {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  font-size: 11px;
-  text-align: right;
   flex-shrink: 0;
 }
 
 .stat {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 3px;
+  gap: 4px;
+  font-size: 11px;
 }
 
-.stat-icon {
+.ic {
   font-size: 10px;
-  opacity: 0.7;
+  opacity: 0.75;
 }
 
-.stat-val {
-  color: var(--text-dim);
-  font-variant-numeric: tabular-nums;
+.val {
+  min-width: 42px;
+  text-align: right;
+  font-weight: 600;
+  color: var(--text-mid);
+}
+
+.cp-stat .val {
+  color: var(--blue-deep);
+}
+
+/* 战力飘字 */
+.float {
+  position: absolute;
+  right: 0;
+  top: -2px;
+  font-size: 11px;
+  font-weight: 800;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.float.up {
+  color: var(--success);
+}
+
+.float.down {
+  color: var(--danger);
+}
+
+.float-enter-from {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+.float-enter-active {
+  transition: all 0.25s;
+}
+
+.float-leave-to {
+  opacity: 0;
+  transform: translateY(-14px);
+}
+
+.float-leave-active {
+  transition: all 0.6s;
 }
 </style>
