@@ -6,6 +6,7 @@ import { usePlayerStore } from '@/stores/player';
 import { useStageStore } from '@/stores/stage';
 import { REGIONS } from '@/data/regions';
 import { stagesOfChapter } from '@/data/stages';
+import SystemArtwork from '@/components/SystemArtwork.vue';
 
 const emit = defineEmits<{ close: [] }>();
 const player = usePlayerStore();
@@ -90,6 +91,15 @@ function pick(stageId: string) {
               </div>
             </div>
           </div>
+        </div>
+
+        <div class="sweep-teaser">
+          <SystemArtwork kind="sweep" class="sweep-art" />
+          <span class="sweep-copy">
+            <strong>疾风扫荡 · M3-7</strong>
+            <span>击败章节 BOSS 后开放，用体力快速领取挂机收益。</span>
+          </span>
+          <span class="sweep-badge">筹备中</span>
         </div>
 
         <p class="tip">通关一关后才会解锁下一关。挂机会自动累计击杀数来通关。</p>
@@ -326,5 +336,71 @@ function pick(stageId: string) {
   line-height: 1.6;
   color: var(--text-dim);
   text-align: center;
+}
+
+.sweep-teaser {
+  position: relative;
+  min-height: 84px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  padding: 8px 10px 8px 84px;
+  background: linear-gradient(105deg, #effaff, #fff4f9);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+}
+
+.sweep-art {
+  position: absolute;
+  left: -8px;
+  bottom: -20px;
+  width: 100px;
+  height: 100px;
+  animation: sweep-breeze 3s ease-in-out infinite;
+}
+
+.sweep-copy {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.sweep-copy strong {
+  font-size: 11px;
+}
+
+.sweep-copy > span {
+  font-size: 9px;
+  line-height: 1.45;
+  color: var(--text-dim);
+}
+
+.sweep-badge {
+  flex-shrink: 0;
+  padding: 3px 7px;
+  font-size: 8px;
+  font-weight: 700;
+  color: var(--blue-deep);
+  background: rgb(255 255 255 / 78%);
+  border-radius: 999px;
+}
+
+@keyframes sweep-breeze {
+  0%,
+  100% {
+    transform: translateX(0) rotate(-1deg);
+  }
+  50% {
+    transform: translateX(4px) rotate(1deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sweep-art {
+    animation: none;
+  }
 }
 </style>

@@ -9,11 +9,13 @@ import { QUALITY_LABELS, SLOT_LABELS } from '@/data/constants';
 import EquipDetail from '@/components/EquipDetail.vue';
 import EquipmentIcon from '@/components/EquipmentIcon.vue';
 import ItemIcon from '@/components/ItemIcon.vue';
+import SystemArtwork from '@/components/SystemArtwork.vue';
 
 const inventory = useInventoryStore();
 const tab = ref<'equip' | 'item'>('equip');
 const detail = ref<EquipmentInstance | null>(null);
 const toast = ref('');
+const salvageBurst = ref(false);
 
 const bagEquips = computed(() => {
   const list = inventory.bag?.equipment ?? [];
@@ -47,6 +49,7 @@ function decomposeJunk() {
     return;
   }
   const r = inventory.decompose(targets);
+  playSalvageBurst();
   show(`分解 ${r.count} 件，获得 ${abbr(r.gold)} 金币`);
 }
 
@@ -56,10 +59,20 @@ function equipBest() {
 }
 
 let toastTimer = 0;
+let effectTimer = 0;
 function show(msg: string) {
   toast.value = msg;
   clearTimeout(toastTimer);
   toastTimer = window.setTimeout(() => (toast.value = ''), 2000);
+}
+
+function playSalvageBurst() {
+  salvageBurst.value = false;
+  window.requestAnimationFrame(() => {
+    salvageBurst.value = true;
+    clearTimeout(effectTimer);
+    effectTimer = window.setTimeout(() => (salvageBurst.value = false), 1250);
+  });
 }
 </script>
 
@@ -120,6 +133,16 @@ function show(msg: string) {
 
     <Transition name="fade">
       <div v-if="toast" class="toast">{{ toast }}</div>
+    </Transition>
+
+    <Transition name="salvage-pop">
+      <div v-if="salvageBurst" class="salvage-burst" aria-live="polite">
+        <SystemArtwork kind="salvage" class="salvage-art" />
+        <span class="salvage-copy">星屑回收完成</span>
+        <i class="salvage-particle p1" />
+        <i class="salvage-particle p2" />
+        <i class="salvage-particle p3" />
+      </div>
     </Transition>
 
     <EquipDetail v-if="detail" :inst="detail" from="bag" @close="detail = null" />
@@ -275,6 +298,97 @@ function show(msg: string) {
   border-radius: 999px;
   white-space: nowrap;
   z-index: 20;
+}
+
+.salvage-burst {
+  position: absolute;
+  top: 42%;
+  left: 50%;
+  z-index: 25;
+  width: 174px;
+  height: 174px;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  filter: drop-shadow(0 12px 22px rgb(74 111 142 / 24%));
+}
+
+.salvage-art {
+  width: 148px;
+  height: 148px;
+}
+
+.salvage-copy {
+  position: absolute;
+  bottom: -6px;
+  padding: 5px 12px;
+  font-size: 10px;
+  font-weight: 800;
+  color: #fff;
+  background: linear-gradient(120deg, var(--blue-deep), var(--pink-deep));
+  border: 2px solid #fff;
+  border-radius: 999px;
+  box-shadow: var(--shadow);
+}
+
+.salvage-particle {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  background: #ffb6d2;
+  border: 1px solid #fff;
+  transform: rotate(45deg);
+  box-shadow: 0 0 8px #ff9dc2;
+}
+
+.p1 {
+  top: 20px;
+  left: 17px;
+}
+
+.p2 {
+  top: 8px;
+  right: 23px;
+  background: #8ce5f7;
+}
+
+.p3 {
+  right: 7px;
+  bottom: 35px;
+  background: #ffd476;
+}
+
+.salvage-pop-enter-active {
+  animation: salvage-in 0.32s cubic-bezier(0.2, 1.5, 0.4, 1);
+}
+
+.salvage-pop-leave-active {
+  transition:
+    opacity 0.22s,
+    transform 0.22s;
+}
+
+.salvage-pop-leave-to {
+  opacity: 0;
+  transform: translate(-50%, -54%) scale(0.92);
+}
+
+@keyframes salvage-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -44%) scale(0.52) rotate(-8deg);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1) rotate(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .salvage-pop-enter-active {
+    animation: none;
+  }
 }
 
 .fade-enter-from,

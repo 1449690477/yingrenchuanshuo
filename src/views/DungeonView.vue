@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Component } from 'vue';
-import { CalendarDays, Castle, Crown, Gem, TowerControl, UsersRound } from '@lucide/vue';
+import { CalendarDays, Crown, Gem, TowerControl, UsersRound } from '@lucide/vue';
+import SystemArtwork from '@/components/SystemArtwork.vue';
 
 const planned = [
   {
@@ -39,13 +40,12 @@ const planned = [
 <template>
   <div class="dungeon scroll-y">
     <div class="banner">
-      <div class="banner-icon">
-        <Castle :size="28" :stroke-width="1.9" aria-hidden="true" />
-      </div>
       <div class="banner-text">
+        <span class="eyebrow">樱境传送门</span>
         <strong>副本还没开放</strong>
         <span>先把挂机和装备玩起来，副本会按下面的顺序逐个上线。</span>
       </div>
+      <SystemArtwork kind="dungeon" class="banner-art" />
     </div>
 
     <div v-for="p in planned" :key="p.name" class="row card">
@@ -70,17 +70,38 @@ const planned = [
 }
 
 .banner {
+  position: relative;
   display: flex;
+  align-items: center;
   gap: 12px;
-  padding: 14px;
+  min-height: 112px;
+  padding: 16px 126px 16px 16px;
   background: linear-gradient(100deg, var(--blue-soft), var(--pink-soft));
   border-radius: var(--r);
+  overflow: hidden;
 }
 
-.banner-icon {
-  display: grid;
-  place-items: center;
-  color: var(--blue-deep);
+.banner::after {
+  position: absolute;
+  right: 42px;
+  bottom: 4px;
+  width: 64px;
+  height: 12px;
+  content: '';
+  background: rgb(126 204 234 / 22%);
+  border-radius: 50%;
+  filter: blur(5px);
+  animation: portal-glow 2.1s ease-in-out infinite;
+}
+
+.banner-art {
+  position: absolute;
+  right: 2px;
+  bottom: -6px;
+  width: 128px;
+  height: 128px;
+  z-index: 1;
+  animation: portal-float 3.4s ease-in-out infinite;
 }
 
 .row-icon {
@@ -95,12 +116,24 @@ const planned = [
 }
 
 .banner-text {
+  position: relative;
+  z-index: 2;
   display: flex;
   flex-direction: column;
   gap: 3px;
   font-size: 11px;
   color: var(--text-mid);
   line-height: 1.6;
+}
+
+.eyebrow {
+  width: fit-content;
+  padding: 2px 7px;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--blue-deep);
+  background: rgb(255 255 255 / 70%);
+  border-radius: 999px;
 }
 
 .banner-text strong {
@@ -141,5 +174,34 @@ const planned = [
   color: var(--blue-deep);
   background: var(--blue-soft);
   border-radius: 999px;
+}
+
+@keyframes portal-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes portal-glow {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scaleX(0.9);
+  }
+  50% {
+    opacity: 1;
+    transform: scaleX(1.14);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .banner-art,
+  .banner::after {
+    animation: none;
+  }
 }
 </style>

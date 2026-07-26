@@ -10,6 +10,7 @@ import { MONSTERS } from '../monsters';
 import { MONSTER_VISUALS } from '../monsterVisuals';
 import { ALL_CHAPTERS, REGIONS } from '../regions';
 import { FIRST_STAGE_ID, ORDERED_STAGE_IDS, STAGES } from '../stages';
+import { SYSTEM_VISUALS } from '../systemVisuals';
 
 describe('区域 1–2 内容完整性', () => {
   it('已登记的职业立绘文件都真实存在', () => {
@@ -198,6 +199,16 @@ describe('区域 1–2 内容完整性', () => {
     for (const [id, item] of Object.entries(ITEMS)) {
       expect(item.icon).toBe(`assets/items/${id}.png`);
       expect(existsSync(resolve('public', item.icon)), `${id} → ${item.icon}`).toBe(true);
+    }
+  });
+
+  it('强化、分解、扫荡与副本系统插画文件完整', () => {
+    expect(Object.keys(SYSTEM_VISUALS)).toEqual(['enhance', 'salvage', 'sweep', 'dungeon']);
+    for (const visual of Object.values(SYSTEM_VISUALS)) {
+      expect(visual.asset).toBe(`assets/system/${visual.asset.split('/').at(-1)}`);
+      expect(existsSync(resolve('public', visual.asset)), `${visual.id} → ${visual.asset}`).toBe(
+        true,
+      );
     }
   });
 });
