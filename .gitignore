@@ -1,0 +1,31 @@
+node_modules/
+dist/
+dist-ssr/
+*.local
+.DS_Store
+Thumbs.db
+
+# 编辑器
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# 日志
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# 测试与构建产物
+coverage/
+.vite/
+*.tsbuildinfo
+
+# 数值模拟输出
+scripts/out/
+
+# 环境变量（Supabase 密钥等，M7 阶段会用到）
+.env
+.env.local
+.env.*.local

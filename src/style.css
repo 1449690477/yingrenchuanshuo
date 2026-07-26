@@ -1,0 +1,124 @@
+/* ============================================================
+   樱刃传说 · 全局样式
+   设计基准：390 × 844（iPhone 14 逻辑分辨率）
+   见 AGENTS.md 铁律 6 —— 竖屏优先
+   ============================================================ */
+
+:root {
+  /* 背景层次 */
+  --bg-base: #14101c;
+  --bg-panel: #1f1830;
+  --bg-panel-2: #2a2140;
+  --bg-elevated: #352a4d;
+
+  /* 主题色 */
+  --accent: #ff7eb6; /* 樱粉 —— 主强调色 */
+  --accent-dim: #c4568a;
+  --purple: #a78bfa;
+  --gold: #ffd76e;
+  --cyan: #67e8f9;
+
+  /* 文字 */
+  --text: #f2eef8;
+  --text-dim: #a89fc0;
+  --text-faint: #6f6688;
+
+  /* 品质色（见 docs/12-装备体系.md） */
+  --q-common: #b0b0b0;
+  --q-fine: #4caf50;
+  --q-rare: #2196f3;
+  --q-epic: #9c27b0;
+  --q-legendary: #ff9800;
+  --q-mythic: #f44336;
+  --q-divine: #ffd700;
+
+  /* 语义色 */
+  --danger: #ff5c5c;
+  --success: #5cd67a;
+
+  /* 尺寸 */
+  --topbar-h: 56px;
+  --tabbar-h: 58px;
+  --app-max-w: 480px;
+
+  /* 安全区 */
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  height: 100%;
+  overscroll-behavior: none; /* 禁止下拉刷新 / 橡皮筋 */
+}
+
+body {
+  background: var(--bg-base);
+  color: var(--text);
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', Roboto,
+    sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+
+  /* 移动端体验：禁止长按选中、禁止点击高亮 */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+}
+
+/* 桌面端：信箱式居中，模拟手机 */
+#app {
+  width: 100%;
+  max-width: var(--app-max-w);
+  margin: 0 auto;
+  height: 100dvh;
+  position: relative;
+  background: var(--bg-base);
+  overflow: hidden;
+}
+
+@media (min-width: 481px) {
+  body {
+    background: #0a0810;
+  }
+  #app {
+    box-shadow: 0 0 60px rgb(167 139 250 / 12%);
+  }
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+  touch-action: manipulation; /* 消除移动端 300ms 点击延迟 */
+}
+
+/* 可滚动区域统一样式 */
+.scroll-y {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: var(--bg-elevated) transparent;
+}
+
+.scroll-y::-webkit-scrollbar {
+  width: 4px;
+}
+
+.scroll-y::-webkit-scrollbar-thumb {
+  background: var(--bg-elevated);
+  border-radius: 2px;
+}
