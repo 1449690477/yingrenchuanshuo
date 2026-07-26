@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
+import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
 import { CLASS_VISUALS } from '../classVisuals';
 import { SHAMAN_VISUAL_SKILLS, SWORDSMAN_VISUAL_SKILLS, WITCH_VISUAL_SKILLS } from '../skills';
@@ -154,7 +155,43 @@ describe('区域 1–2 内容完整性', () => {
     }
   });
 
-  it('全部区域和章节都引用真实存在的地图场景', () => {
+  it('49 张怪物运行时贴图均为统一尺寸、透明画布与脚底锚点', async () => {
+    const assets = Object.values(MONSTER_VISUALS).map((visual) => visual.asset);
+    expect(assets).toHaveLength(49);
+
+    for (const asset of assets) {
+      expect(asset.endsWith('.webp'), asset).toBe(true);
+      const assetPath = resolve('public', asset);
+      const { data, info } = await sharp(assetPath).ensureAlpha().raw().toBuffer({
+        resolveWithObject: true,
+      });
+      expect({ width: info.width, height: info.height, channels: info.channels }, asset).toEqual({
+        width: 512,
+        height: 512,
+        channels: 4,
+      });
+
+      const cornerAlpha = [
+        data[3],
+        data[(info.width - 1) * info.channels + 3],
+        data[(info.height - 1) * info.width * info.channels + 3],
+        data[(info.height * info.width - 1) * info.channels + 3],
+      ];
+      expect(cornerAlpha, `${asset} 四角透明`).toEqual([0, 0, 0, 0]);
+
+      let bottomVisibleY = -1;
+      for (let y = 0; y < info.height; y++) {
+        for (let x = 0; x < info.width; x++) {
+          if (data[(y * info.width + x) * info.channels + 3]! > 8) {
+            bottomVisibleY = y;
+          }
+        }
+      }
+      expect(bottomVisibleY, `${asset} 脚底锚点`).toBe(503);
+    }
+  });
+
+  it('全部区域和章节都引用真实存在的地图场景', async () => {
     for (const region of REGIONS) {
       expect(region.mapAsset).toBe(`assets/maps/${region.id}.webp`);
       expect(existsSync(resolve('public', region.mapAsset)), region.id).toBe(true);
@@ -164,6 +201,23 @@ describe('区域 1–2 内容完整性', () => {
           existsSync(resolve('public', chapter.mapAsset)),
           `${chapter.id} → ${chapter.mapAsset}`,
         ).toBe(true);
+
+        expect(chapter.battleAsset).toBe(`assets/battlefields/chapter-${chapter.id}.webp`);
+        const battlefieldPath = resolve('public', chapter.battleAsset);
+        expect(existsSync(battlefieldPath), `${chapter.id} → ${chapter.battleAsset}`).toBe(true);
+        const battlefieldMetadata = await sharp(battlefieldPath).metadata();
+        expect(
+          {
+            format: battlefieldMetadata.format,
+            width: battlefieldMetadata.width,
+            height: battlefieldMetadata.height,
+          },
+          `${chapter.id} → ${chapter.battleAsset}`,
+        ).toEqual({
+          format: 'webp',
+          width: 1536,
+          height: 1024,
+        });
       }
     }
   });

@@ -197,7 +197,6 @@ export interface Stage {
   /** 每秒击杀上限，防止高战玩家无限刷低级图 */
   maxKillsPerSec: number;
   element: Element;
-  bg: string;
 }
 
 // ─────────────────────────── 战斗结果 ───────────────────────────

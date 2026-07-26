@@ -13,6 +13,7 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "icons": "node scripts/gen-icons.mjs",
+    "monsters": "node scripts/gen-battle-monsters.mjs",
     "typecheck": "vue-tsc --noEmit",
     "verify": "npm run lint && npm run typecheck && npm run test",
     "sim": "tsx scripts/simulate.ts"

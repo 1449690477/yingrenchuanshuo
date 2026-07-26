@@ -12,7 +12,7 @@
 import type { Stage, Wave } from '@/core/types';
 import { combatPower } from '@/core/formula';
 import { baseStatsFor, monsterHp } from '@/core/progression';
-import { ALL_CHAPTERS, STAGES_PER_CHAPTER, regionOfChapter, type ChapterSpec } from './regions';
+import { ALL_CHAPTERS, STAGES_PER_CHAPTER, type ChapterSpec } from './regions';
 import { bossOfChapter, eliteOfChapter, lootTableIdFor, normalsOfChapter } from './monsters';
 import { DEFAULT_MAX_KILLS_PER_SEC } from './constants';
 
@@ -78,9 +78,6 @@ function buildStages(): Record<string, Stage> {
   const out: Record<string, Stage> = {};
 
   for (const spec of ALL_CHAPTERS) {
-    const region = regionOfChapter(spec.id);
-    if (!region) throw new Error(`[配置错误] 章节没有所属区域：${spec.id}`);
-
     for (let idx = 0; idx < STAGES_PER_CHAPTER; idx++) {
       const level = stageLevel(spec, idx);
       const { waves, bossId } = buildWaves(spec, idx);
@@ -104,7 +101,6 @@ function buildStages(): Record<string, Stage> {
         lootTableId: lootTableIdFor(spec.id, isFinal && bossId ? 'boss' : 'normal'),
         maxKillsPerSec: DEFAULT_MAX_KILLS_PER_SEC,
         element: spec.element,
-        bg: `bg/${region.id}.png`,
       };
     }
   }
