@@ -610,6 +610,24 @@ const cpWarn = computed(() => {
   animation: flame-cast 0.8s ease-out both;
 }
 
+.kind-heal img {
+  animation: heal-cast 0.9s ease-out both;
+}
+
+.spell-fx.kind-heal {
+  right: auto;
+  left: -4px;
+  width: 138px;
+}
+
+.kind-poison img {
+  animation: poison-cast 0.86s ease-out both;
+}
+
+.kind-summon img {
+  animation: summon-cast 0.94s ease-out both;
+}
+
 .spell-name {
   position: absolute;
   right: 15px;
@@ -634,6 +652,15 @@ const cpWarn = computed(() => {
 
 .kind-flame .spell-name {
   color: #e25f63;
+}
+
+.kind-heal .spell-name {
+  color: #548fc4;
+}
+
+.kind-poison .spell-name,
+.kind-summon .spell-name {
+  color: #7661b7;
 }
 
 .fx-particle {
@@ -774,6 +801,53 @@ const cpWarn = computed(() => {
   100% {
     opacity: 0;
     transform: translateY(-5px) scale(1.08);
+  }
+}
+
+@keyframes heal-cast {
+  0% {
+    opacity: 0;
+    transform: translateY(18px) scale(0.3);
+  }
+  42%,
+  70% {
+    opacity: 1;
+    filter: brightness(1.12) drop-shadow(0 0 9px rgb(126 194 255 / 48%));
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-8px) scale(1.08);
+  }
+}
+
+@keyframes poison-cast {
+  0% {
+    opacity: 0;
+    transform: scale(0.25) rotate(-24deg);
+  }
+  38%,
+  65% {
+    opacity: 0.92;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.12) rotate(8deg);
+  }
+}
+
+@keyframes summon-cast {
+  0% {
+    opacity: 0;
+    transform: translateY(32px) scaleY(0.35) scaleX(0.72);
+  }
+  46%,
+  72% {
+    opacity: 1;
+    filter: drop-shadow(0 0 8px rgb(139 125 231 / 48%));
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-4px) scale(1.05);
   }
 }
 

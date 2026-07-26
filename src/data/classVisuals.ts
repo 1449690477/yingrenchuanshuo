@@ -29,7 +29,7 @@ export const CLASS_VISUALS: Record<ClassId, ClassVisual> = {
   },
   shaman: {
     symbol: '🌿',
-    portrait: null,
-    castPortrait: null,
+    portrait: 'assets/characters/shaman-spirit.png',
+    castPortrait: 'assets/characters/shaman-spirit-cast.png',
   },
 };

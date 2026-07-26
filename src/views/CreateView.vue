@@ -132,6 +132,10 @@ async function start() {
   animation: swordsman-ready 3.2s ease-in-out infinite;
 }
 
+.portrait-stage.class-shaman :deep(.portrait) {
+  animation: shaman-breathe 3.8s ease-in-out infinite;
+}
+
 .magic-ring {
   position: absolute;
   z-index: 1;
@@ -193,6 +197,18 @@ async function start() {
   }
   50% {
     transform: translateY(-3px) rotate(0.25deg);
+  }
+}
+
+@keyframes shaman-breathe {
+  0%,
+  100% {
+    transform: translateY(2px);
+    filter: drop-shadow(0 0 0 rgb(142 132 226 / 0%));
+  }
+  50% {
+    transform: translateY(-4px);
+    filter: drop-shadow(0 5px 8px rgb(142 132 226 / 20%));
   }
 }
 

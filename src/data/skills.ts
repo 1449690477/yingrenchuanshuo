@@ -7,7 +7,8 @@
 
 import type { ClassId, Skill } from '@/core/types';
 
-export type SkillVisualKind = 'projectile' | 'ring' | 'lightning' | 'slash' | 'arc' | 'flame';
+export type SkillVisualKind =
+  'projectile' | 'ring' | 'lightning' | 'slash' | 'arc' | 'flame' | 'heal' | 'poison' | 'summon';
 
 export interface VisualSkill extends Skill {
   effectAsset: string;
@@ -122,10 +123,64 @@ export const WITCH_VISUAL_SKILLS: readonly VisualSkill[] = [
   },
 ];
 
+export const SHAMAN_VISUAL_SKILLS: readonly VisualSkill[] = [
+  {
+    id: 'skill_shaman_heal',
+    name: '治愈术',
+    class: 'shaman',
+    type: 'active',
+    element: 'none',
+    unlockLevel: 1,
+    baseMultiplier: 0,
+    perLevelMultiplier: 0.06,
+    cooldown: 10,
+    targets: 1,
+    priority: 10,
+    icon: 'assets/effects/shaman-heal.png',
+    effectAsset: 'assets/effects/shaman-heal.png',
+    visualKind: 'heal',
+    desc: '水晶莲心绽开柔光，为少女回复元气。',
+  },
+  {
+    id: 'skill_shaman_poison',
+    name: '施毒术',
+    class: 'shaman',
+    type: 'active',
+    element: 'none',
+    unlockLevel: 10,
+    baseMultiplier: 0.6,
+    perLevelMultiplier: 0.06,
+    cooldown: 6,
+    targets: 1,
+    priority: 20,
+    icon: 'assets/effects/shaman-poison.png',
+    effectAsset: 'assets/effects/shaman-poison.png',
+    visualKind: 'poison',
+    desc: '紫雾与荆棘缠住目标，持续侵蚀敌人的生命。',
+  },
+  {
+    id: 'skill_shaman_skeleton',
+    name: '召唤骷髅',
+    class: 'shaman',
+    type: 'active',
+    element: 'none',
+    unlockLevel: 20,
+    baseMultiplier: 0,
+    perLevelMultiplier: 0.06,
+    cooldown: 30,
+    targets: 1,
+    priority: 30,
+    icon: 'assets/effects/shaman-skeleton.png',
+    effectAsset: 'assets/effects/shaman-skeleton.png',
+    visualKind: 'summon',
+    desc: '灵铃唤醒圆眼骷髅，替主人守在战场前方。',
+  },
+];
+
 const VISUAL_SKILLS_BY_CLASS: Readonly<Record<ClassId, readonly VisualSkill[]>> = {
   swordsman: SWORDSMAN_VISUAL_SKILLS,
   witch: WITCH_VISUAL_SKILLS,
-  shaman: [],
+  shaman: SHAMAN_VISUAL_SKILLS,
 };
 
 export function visualSkillsFor(classId: ClassId): readonly VisualSkill[] {

@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { CLASS_VISUALS } from '../classVisuals';
-import { SWORDSMAN_VISUAL_SKILLS, WITCH_VISUAL_SKILLS } from '../skills';
+import { SHAMAN_VISUAL_SKILLS, SWORDSMAN_VISUAL_SKILLS, WITCH_VISUAL_SKILLS } from '../skills';
 import { EQUIPMENT } from '../equipment';
 import { ITEMS } from '../items';
 import { LOOT_TABLES } from '../lootTables';
@@ -48,6 +48,22 @@ describe('区域 1–2 内容完整性', () => {
     ]);
     for (const skill of SWORDSMAN_VISUAL_SKILLS) {
       expect(skill.class).toBe('swordsman');
+      expect(skill.type).toBe('active');
+      expect(skill.unlockLevel).toBeGreaterThan(0);
+      expect(existsSync(resolve('public', skill.icon)), `${skill.id} icon`).toBe(true);
+      expect(existsSync(resolve('public', skill.effectAsset)), `${skill.id} effect`).toBe(true);
+    }
+  });
+
+  it('灵巫首批技能特效配置与文件完整', () => {
+    expect(SHAMAN_VISUAL_SKILLS).toHaveLength(3);
+    expect(SHAMAN_VISUAL_SKILLS.map((skill) => skill.name)).toEqual([
+      '治愈术',
+      '施毒术',
+      '召唤骷髅',
+    ]);
+    for (const skill of SHAMAN_VISUAL_SKILLS) {
+      expect(skill.class).toBe('shaman');
       expect(skill.type).toBe('active');
       expect(skill.unlockLevel).toBeGreaterThan(0);
       expect(existsSync(resolve('public', skill.icon)), `${skill.id} icon`).toBe(true);
