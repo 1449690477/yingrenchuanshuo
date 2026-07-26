@@ -130,4 +130,12 @@ describe('区域 1–2 内容完整性', () => {
       expect(existsSync(resolve('public', equipment.icon)), `${id} → ${equipment.icon}`).toBe(true);
     }
   });
+
+  it('全部物品都引用真实存在的正式图标', () => {
+    expect(Object.keys(ITEMS)).toHaveLength(16);
+    for (const [id, item] of Object.entries(ITEMS)) {
+      expect(item.icon).toBe(`assets/items/${id}.png`);
+      expect(existsSync(resolve('public', item.icon)), `${id} → ${item.icon}`).toBe(true);
+    }
+  });
 });

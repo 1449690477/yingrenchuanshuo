@@ -8,6 +8,7 @@ import { requireItem } from '@/data/items';
 import { QUALITY_LABELS, SLOT_LABELS } from '@/data/constants';
 import EquipDetail from '@/components/EquipDetail.vue';
 import EquipmentIcon from '@/components/EquipmentIcon.vue';
+import ItemIcon from '@/components/ItemIcon.vue';
 
 const inventory = useInventoryStore();
 const tab = ref<'equip' | 'item'>('equip');
@@ -105,7 +106,7 @@ function show(msg: string) {
       <template v-else>
         <p v-if="bagItems.length === 0" class="empty">还没有材料。</p>
         <div v-for="it in bagItems" :key="it.id" class="row static">
-          <span class="item-icon" :class="'bg-' + it.def.tier">◆</span>
+          <ItemIcon :item="it.def" size="md" />
           <span class="mid">
             <span class="name" :class="'q-' + it.def.tier">
               {{ it.def.name }}
@@ -214,38 +215,6 @@ function show(msg: string) {
 .equip-row {
   min-height: 66px;
   padding: 7px 9px;
-}
-
-.item-icon {
-  width: 30px;
-  height: 30px;
-  flex-shrink: 0;
-  display: grid;
-  place-items: center;
-  font-size: 15px;
-  border-radius: 10px;
-}
-
-.bg-common {
-  background: #f0f3f6;
-}
-.bg-fine {
-  background: #e8f8ee;
-}
-.bg-rare {
-  background: #e6f2fd;
-}
-.bg-epic {
-  background: #f4ecfd;
-}
-.bg-legendary {
-  background: #fff2e2;
-}
-.bg-mythic {
-  background: #ffeaec;
-}
-.bg-divine {
-  background: #fdf5dd;
 }
 
 .mid {

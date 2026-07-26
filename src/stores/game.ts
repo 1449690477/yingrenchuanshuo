@@ -48,6 +48,7 @@ import { clearSave, loadSave, saveSave } from '@/save/storage';
 /** 掉落流水的一条记录，UI 用 */
 export interface LootLogEntry {
   id: number;
+  itemId: string;
   name: string;
   count: number;
   /** 品质，用于配色。材料用 tier，装备用 quality */
@@ -355,17 +356,30 @@ export const useGameStore = defineStore('game', () => {
         s.nextUid++;
         s.bag.equipment.push(inst);
       }
-      if (log) pushLog(eqDef.name, drop.count, eqDef.quality, true);
+      if (log) pushLog(drop.itemId, eqDef.name, drop.count, eqDef.quality, true);
       return;
     }
 
     const item = requireItem(drop.itemId);
     s.bag.items[drop.itemId] = (s.bag.items[drop.itemId] ?? 0) + drop.count;
-    if (log) pushLog(item.name, drop.count, item.tier, false);
+    if (log) pushLog(drop.itemId, item.name, drop.count, item.tier, false);
   }
 
-  function pushLog(name: string, count: number, quality: string, isEquipment: boolean): void {
-    lootLog.value.unshift({ id: ++lootLogSeq, name, count, quality, isEquipment });
+  function pushLog(
+    itemId: string,
+    name: string,
+    count: number,
+    quality: string,
+    isEquipment: boolean,
+  ): void {
+    lootLog.value.unshift({
+      id: ++lootLogSeq,
+      itemId,
+      name,
+      count,
+      quality,
+      isEquipment,
+    });
     if (lootLog.value.length > LOOT_LOG_MAX) lootLog.value.length = LOOT_LOG_MAX;
   }
 

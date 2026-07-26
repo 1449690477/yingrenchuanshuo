@@ -2,8 +2,10 @@
 import { computed } from 'vue';
 import { abbr, duration } from '@/core/format';
 import { useStageStore } from '@/stores/stage';
-import { getEquipment } from '@/data/equipment';
+import { getEquipment, requireEquipment } from '@/data/equipment';
 import { requireItem } from '@/data/items';
+import EquipmentIcon from '@/components/EquipmentIcon.vue';
+import ItemIcon from '@/components/ItemIcon.vue';
 
 const stage = useStageStore();
 
@@ -20,6 +22,7 @@ const drops = computed(() => {
       if (!eq) {
         const item = requireItem(d.itemId);
         return {
+          itemId: d.itemId,
           name: item.name,
           count: d.count,
           quality: item.tier,
@@ -27,6 +30,7 @@ const drops = computed(() => {
         };
       }
       return {
+        itemId: d.itemId,
         name: eq.name,
         count: d.count,
         quality: eq.quality,
@@ -66,8 +70,10 @@ const moreCount = computed(() => Math.max(0, (r.value?.yield.loot.length ?? 0) -
         <div class="drops-head">掉落</div>
         <div class="drop-list">
           <div v-for="(d, i) in drops" :key="i" class="drop">
+            <EquipmentIcon v-if="d.isEquip" :def="requireEquipment(d.itemId)" size="sm" />
+            <ItemIcon v-else :item="requireItem(d.itemId)" />
             <span class="d-name" :class="'q-' + d.quality">
-              {{ d.isEquip ? '⚔' : '◆' }} {{ d.name }}
+              {{ d.name }}
             </span>
             <span class="d-count num">×{{ abbr(d.count) }}</span>
           </div>
@@ -180,11 +186,15 @@ h3 {
 
 .drop {
   display: flex;
+  align-items: center;
+  gap: 6px;
   justify-content: space-between;
   font-size: 12px;
 }
 
 .d-name {
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

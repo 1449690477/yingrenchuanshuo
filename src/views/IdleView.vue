@@ -5,10 +5,14 @@ import { usePlayerStore } from '@/stores/player';
 import { useStageStore } from '@/stores/stage';
 import { requireChapter, requireRegionOfChapter } from '@/data/regions';
 import { requireMonster } from '@/data/monsters';
+import { requireEquipment } from '@/data/equipment';
+import { requireItem } from '@/data/items';
 import { unlockedWitchVisualSkills, type VisualSkill } from '@/data/skills';
 import StageSelect from '@/components/StageSelect.vue';
 import ClassArtwork from '@/components/ClassArtwork.vue';
 import MonsterArtwork from '@/components/MonsterArtwork.vue';
+import EquipmentIcon from '@/components/EquipmentIcon.vue';
+import ItemIcon from '@/components/ItemIcon.vue';
 
 const player = usePlayerStore();
 const stage = useStageStore();
@@ -182,8 +186,10 @@ const cpWarn = computed(() => {
       <div v-if="stage.lootLog.length === 0" class="loot-empty">还没有掉落，稍等一下…</div>
       <TransitionGroup v-else name="drop" tag="div" class="loot-list scroll-y">
         <div v-for="e in stage.lootLog" :key="e.id" class="loot-row">
+          <EquipmentIcon v-if="e.isEquipment" :def="requireEquipment(e.itemId)" size="sm" />
+          <ItemIcon v-else :item="requireItem(e.itemId)" />
           <span class="loot-name" :class="'q-' + e.quality">
-            {{ e.isEquipment ? '⚔' : '◆' }} {{ e.name }}
+            {{ e.name }}
           </span>
           <span class="loot-count num">×{{ e.count }}</span>
         </div>
@@ -736,8 +742,9 @@ const cpWarn = computed(() => {
 .loot-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 4px 6px;
+  gap: 7px;
+  min-height: 38px;
+  padding: 3px 6px;
   font-size: 12px;
   border-radius: 6px;
 }
@@ -747,6 +754,8 @@ const cpWarn = computed(() => {
 }
 
 .loot-name {
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

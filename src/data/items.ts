@@ -26,7 +26,15 @@ function mat(
   sellPrice: number,
   desc: string,
 ): ItemDef {
-  return { id, name, kind: 'material', tier, desc, icon: `items/${id}.png`, sellPrice };
+  return {
+    id,
+    name,
+    kind: 'material',
+    tier,
+    desc,
+    icon: `assets/items/${id}.png`,
+    sellPrice,
+  };
 }
 
 export const ITEMS: Record<string, ItemDef> = {
@@ -37,7 +45,7 @@ export const ITEMS: Record<string, ItemDef> = {
     kind: 'currency',
     tier: 'common',
     desc: '通用货币，强化和购买都要用。',
-    icon: 'items/gold.png',
+    icon: 'assets/items/gold.png',
     sellPrice: 0,
   },
 
@@ -79,7 +87,7 @@ export const ITEMS: Record<string, ItemDef> = {
     kind: 'consumable',
     tier: 'common',
     desc: '恢复 30 点体力。',
-    icon: 'items/potion_hp_s.png',
+    icon: 'assets/items/potion_hp_s.png',
     sellPrice: 50,
   },
   exp_book_s: {
@@ -88,7 +96,7 @@ export const ITEMS: Record<string, ItemDef> = {
     kind: 'consumable',
     tier: 'fine',
     desc: '使用后立即获得一定经验。',
-    icon: 'items/exp_book_s.png',
+    icon: 'assets/items/exp_book_s.png',
     sellPrice: 120,
   },
 };
