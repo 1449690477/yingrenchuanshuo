@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { CLASS_VISUALS } from '../classVisuals';
-import { WITCH_VISUAL_SKILLS } from '../skills';
+import { SWORDSMAN_VISUAL_SKILLS, WITCH_VISUAL_SKILLS } from '../skills';
 import { EQUIPMENT } from '../equipment';
 import { ITEMS } from '../items';
 import { LOOT_TABLES } from '../lootTables';
@@ -32,6 +32,22 @@ describe('区域 1–2 内容完整性', () => {
     ]);
     for (const skill of WITCH_VISUAL_SKILLS) {
       expect(skill.class).toBe('witch');
+      expect(skill.type).toBe('active');
+      expect(skill.unlockLevel).toBeGreaterThan(0);
+      expect(existsSync(resolve('public', skill.icon)), `${skill.id} icon`).toBe(true);
+      expect(existsSync(resolve('public', skill.effectAsset)), `${skill.id} effect`).toBe(true);
+    }
+  });
+
+  it('剑姬首批技能特效配置与文件完整', () => {
+    expect(SWORDSMAN_VISUAL_SKILLS).toHaveLength(3);
+    expect(SWORDSMAN_VISUAL_SKILLS.map((skill) => skill.name)).toEqual([
+      '攻杀剑术',
+      '半月弯刀',
+      '烈火剑法',
+    ]);
+    for (const skill of SWORDSMAN_VISUAL_SKILLS) {
+      expect(skill.class).toBe('swordsman');
       expect(skill.type).toBe('active');
       expect(skill.unlockLevel).toBeGreaterThan(0);
       expect(existsSync(resolve('public', skill.icon)), `${skill.id} icon`).toBe(true);

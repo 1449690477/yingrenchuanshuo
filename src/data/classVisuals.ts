@@ -19,8 +19,8 @@ export interface ClassVisual {
 export const CLASS_VISUALS: Record<ClassId, ClassVisual> = {
   swordsman: {
     symbol: '🗡️',
-    portrait: null,
-    castPortrait: null,
+    portrait: 'assets/characters/swordsman-sakura.png',
+    castPortrait: 'assets/characters/swordsman-sakura-cast.png',
   },
   witch: {
     symbol: '🔮',

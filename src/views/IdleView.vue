@@ -7,7 +7,7 @@ import { requireChapter, requireRegionOfChapter } from '@/data/regions';
 import { requireMonster } from '@/data/monsters';
 import { requireEquipment } from '@/data/equipment';
 import { requireItem } from '@/data/items';
-import { unlockedWitchVisualSkills, type VisualSkill } from '@/data/skills';
+import { unlockedVisualSkills, type VisualSkill } from '@/data/skills';
 import StageSelect from '@/components/StageSelect.vue';
 import ClassArtwork from '@/components/ClassArtwork.vue';
 import MonsterArtwork from '@/components/MonsterArtwork.vue';
@@ -46,8 +46,8 @@ const hpPercent = computed(() => Math.max(1, (1 - stage.battleProgress) * 100));
 const activeVisualSkill = computed<VisualSkill | null>(() => {
   const p = player.player;
   const pulse = stage.battlePulse;
-  if (!p || !pulse || p.classId !== 'witch') return null;
-  const skills = unlockedWitchVisualSkills(p.level);
+  if (!p || !pulse) return null;
+  const skills = unlockedVisualSkills(p.classId, p.level);
   if (skills.length === 0) return null;
   return skills[Math.floor((pulse.id - 1) / 3) % skills.length]!;
 });
@@ -61,7 +61,7 @@ const activeEffectUrl = computed(() =>
 watch(
   () => stage.battlePulse?.id,
   (pulseId) => {
-    if (!pulseId || player.player?.classId !== 'witch') return;
+    if (!pulseId || !activeVisualSkill.value) return;
     casting.value = true;
     clearTimeout(castTimer);
     castTimer = window.setTimeout(() => (casting.value = false), 720);
@@ -598,6 +598,18 @@ const cpWarn = computed(() => {
   animation: lightning-cast 0.72s ease-out both;
 }
 
+.kind-slash img {
+  animation: slash-cast 0.64s ease-out both;
+}
+
+.kind-arc img {
+  animation: arc-cast 0.78s ease-out both;
+}
+
+.kind-flame img {
+  animation: flame-cast 0.8s ease-out both;
+}
+
 .spell-name {
   position: absolute;
   right: 15px;
@@ -613,6 +625,15 @@ const cpWarn = computed(() => {
 
 .kind-lightning .spell-name {
   color: var(--blue-deep);
+}
+
+.kind-slash .spell-name,
+.kind-arc .spell-name {
+  color: #526fae;
+}
+
+.kind-flame .spell-name {
+  color: #e25f63;
 }
 
 .fx-particle {
@@ -708,6 +729,51 @@ const cpWarn = computed(() => {
   100% {
     opacity: 0;
     transform: translateY(2px) scale(1.06);
+  }
+}
+
+@keyframes slash-cast {
+  0% {
+    opacity: 0;
+    transform: translate(-28px, 18px) scale(0.48) rotate(-15deg);
+  }
+  32% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(5px, -3px) scale(1.06) rotate(2deg);
+  }
+}
+
+@keyframes arc-cast {
+  0% {
+    opacity: 0;
+    transform: translateX(-22px) scale(0.38) rotate(-20deg);
+  }
+  42% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(6px) scale(1.14) rotate(8deg);
+  }
+}
+
+@keyframes flame-cast {
+  0% {
+    opacity: 0;
+    transform: translateY(24px) scale(0.38);
+    filter: brightness(1.4);
+  }
+  34%,
+  60% {
+    opacity: 1;
+    filter: brightness(1.12) drop-shadow(0 0 8px rgb(255 132 136 / 58%));
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-5px) scale(1.08);
   }
 }
 

@@ -36,7 +36,7 @@ async function start() {
       <div class="magic-ring ring-two" />
       <ClassArtwork :class-id="picked" variant="preview" />
       <span v-if="!CLASS_VISUALS[picked].portrait" class="art-pending">角色立绘制作中</span>
-      <span v-else class="art-ready">首位实装角色</span>
+      <span v-else class="art-ready">正式立绘已实装</span>
     </section>
 
     <section class="block">
@@ -128,6 +128,10 @@ async function start() {
   animation: portrait-float 3.4s ease-in-out infinite;
 }
 
+.portrait-stage.class-swordsman :deep(.portrait) {
+  animation: swordsman-ready 3.2s ease-in-out infinite;
+}
+
 .magic-ring {
   position: absolute;
   z-index: 1;
@@ -179,6 +183,16 @@ async function start() {
   }
   50% {
     transform: translateY(-4px);
+  }
+}
+
+@keyframes swordsman-ready {
+  0%,
+  100% {
+    transform: translateY(1px) rotate(-0.25deg);
+  }
+  50% {
+    transform: translateY(-3px) rotate(0.25deg);
   }
 }
 

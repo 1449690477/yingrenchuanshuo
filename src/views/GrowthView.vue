@@ -6,7 +6,7 @@ import { useInventoryStore } from '@/stores/inventory';
 import { usePlayerStore } from '@/stores/player';
 import { requireEquipment } from '@/data/equipment';
 import { CLASS_INFO, SLOT_LABELS, SLOT_ORDER, STAT_LABELS } from '@/data/constants';
-import { WITCH_VISUAL_SKILLS } from '@/data/skills';
+import { visualSkillsFor } from '@/data/skills';
 import EquipDetail from '@/components/EquipDetail.vue';
 import ClassArtwork from '@/components/ClassArtwork.vue';
 import SkillIcon from '@/components/SkillIcon.vue';
@@ -17,6 +17,7 @@ const player = usePlayerStore();
 const detail = ref<EquipmentInstance | null>(null);
 
 const equipped = computed(() => inventory.equipped);
+const visualSkills = computed(() => (player.player ? visualSkillsFor(player.player.classId) : []));
 
 const statRows = computed(() => {
   const s = player.finalStats;
@@ -74,14 +75,14 @@ function open(slot: EquipSlot) {
       </div>
     </section>
 
-    <section v-if="player.player.classId === 'witch'" class="card skills-card">
+    <section v-if="visualSkills.length > 0" class="card skills-card">
       <div class="card-head">
-        <span>魔女技能演出</span>
+        <span>{{ CLASS_INFO[player.player.classId].name }}技能演出</span>
         <span class="skill-hint">随等级解锁</span>
       </div>
       <div class="skills">
         <div
-          v-for="skill in WITCH_VISUAL_SKILLS"
+          v-for="skill in visualSkills"
           :key="skill.id"
           class="skill-row"
           :class="{ locked: player.player.level < skill.unlockLevel }"
