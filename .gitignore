@@ -20,6 +20,7 @@ pnpm-debug.log*
 # 测试与构建产物
 coverage/
 .vite/
+tmp/
 *.tsbuildinfo
 
 # 数值模拟输出

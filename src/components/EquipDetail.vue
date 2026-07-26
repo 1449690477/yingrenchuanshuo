@@ -8,6 +8,7 @@ import { useInventoryStore } from '@/stores/inventory';
 import { usePlayerStore } from '@/stores/player';
 import { requireEquipment } from '@/data/equipment';
 import { AFFIX_LABELS, QUALITY_LABELS, SLOT_LABELS, STAT_LABELS } from '@/data/constants';
+import EquipmentIcon from '@/components/EquipmentIcon.vue';
 
 const props = defineProps<{ inst: EquipmentInstance; from: 'bag' | 'equipped' }>();
 const emit = defineEmits<{ close: [] }>();
@@ -68,6 +69,7 @@ function doDecompose() {
   <div class="overlay" @click.self="emit('close')">
     <div v-if="def" class="sheet">
       <header class="head" :class="'hq-' + def.quality">
+        <EquipmentIcon :def="def" size="lg" :locked="inst.locked" />
         <div class="title">
           <span class="name" :class="'q-' + def.quality">
             {{ def.name }}
@@ -140,8 +142,7 @@ function doDecompose() {
 
 .head {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+  align-items: center;
   gap: 10px;
   padding: 14px 16px;
 }
@@ -169,6 +170,7 @@ function doDecompose() {
 }
 
 .title {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 3px;

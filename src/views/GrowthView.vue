@@ -10,6 +10,7 @@ import { WITCH_VISUAL_SKILLS } from '@/data/skills';
 import EquipDetail from '@/components/EquipDetail.vue';
 import ClassArtwork from '@/components/ClassArtwork.vue';
 import SkillIcon from '@/components/SkillIcon.vue';
+import EquipmentIcon from '@/components/EquipmentIcon.vue';
 
 const inventory = useInventoryStore();
 const player = usePlayerStore();
@@ -111,9 +112,19 @@ function open(slot: EquipSlot) {
           :class="['sq-' + qualityOf(slot), { filled: !!slotOf(slot) }]"
           @click="open(slot)"
         >
-          <span class="slot-label">{{ SLOT_LABELS[slot] }}</span>
-          <span class="slot-name" :class="slotOf(slot) ? 'q-' + qualityOf(slot) : 'dim'">
-            {{ slotOf(slot) ? nameOf(slot) : '空' }}
+          <EquipmentIcon
+            v-if="slotOf(slot)"
+            :def="requireEquipment(slotOf(slot)!.defId)"
+            size="sm"
+          />
+          <span v-else class="empty-slot" aria-hidden="true">{{
+            SLOT_LABELS[slot].slice(0, 1)
+          }}</span>
+          <span class="slot-copy">
+            <span class="slot-label">{{ SLOT_LABELS[slot] }}</span>
+            <span class="slot-name" :class="slotOf(slot) ? 'q-' + qualityOf(slot) : 'dim'">
+              {{ slotOf(slot) ? nameOf(slot) : '尚未装备' }}
+            </span>
           </span>
           <span v-if="slotOf(slot)?.enhance" class="slot-enh">+{{ slotOf(slot)!.enhance }}</span>
         </button>
@@ -307,13 +318,34 @@ function open(slot: EquipSlot) {
 .slot {
   position: relative;
   display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 8px 10px;
+  align-items: center;
+  gap: 7px;
+  min-height: 54px;
+  padding: 7px;
   background: var(--panel-2);
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
   text-align: left;
+}
+
+.empty-slot {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  color: var(--text-dim);
+  background: var(--panel-3);
+  border: 1px dashed var(--line-strong);
+  border-radius: 11px;
+}
+
+.slot-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .slot.filled {

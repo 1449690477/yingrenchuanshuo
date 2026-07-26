@@ -111,6 +111,7 @@ describe('区域 1–2 内容完整性', () => {
       expect(equipment.level).toBeGreaterThan(0);
       expect(equipment.name.length).toBeGreaterThan(0);
       expect(equipment.icon.length).toBeGreaterThan(0);
+      expect(existsSync(resolve('public', equipment.icon)), `${id} → ${equipment.icon}`).toBe(true);
     }
   });
 });

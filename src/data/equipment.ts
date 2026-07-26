@@ -18,7 +18,8 @@ interface NamingTheme {
   level: number;
   /** 该区域产出的品质档 */
   qualities: Quality[];
-  /** 前缀，用于区分区域，如「樱」「草原」 */
+  /** 同区域同部位共用基础图，品质由 UI 边框和光效表达 */
+  icons: Record<EquipSlot, string>;
   names: Record<EquipSlot, string>;
 }
 
@@ -28,6 +29,16 @@ const THEMES: NamingTheme[] = [
     // 白装 Lv2 即可穿，和 docs/14 的「Lv2 解锁装备穿戴」一致。
     level: 4,
     qualities: ['common', 'fine', 'rare'],
+    icons: {
+      weapon: 'assets/equipment/r1/weapon.png',
+      head: 'assets/equipment/r1/head.png',
+      body: 'assets/equipment/r1/body.png',
+      necklace: 'assets/equipment/r1/necklace.png',
+      bracelet: 'assets/equipment/r1/bracelet.png',
+      ring: 'assets/equipment/r1/ring.png',
+      belt: 'assets/equipment/r1/belt.png',
+      shoes: 'assets/equipment/r1/shoes.png',
+    },
     names: {
       weapon: '樱枝短剑',
       head: '花冠',
@@ -43,6 +54,16 @@ const THEMES: NamingTheme[] = [
     regionId: 'r2',
     level: 16,
     qualities: ['fine', 'rare', 'epic'],
+    icons: {
+      weapon: 'assets/equipment/r2/weapon.png',
+      head: 'assets/equipment/r2/head.png',
+      body: 'assets/equipment/r2/body.png',
+      necklace: 'assets/equipment/r2/necklace.png',
+      bracelet: 'assets/equipment/r2/bracelet.png',
+      ring: 'assets/equipment/r2/ring.png',
+      belt: 'assets/equipment/r2/belt.png',
+      shoes: 'assets/equipment/r2/shoes.png',
+    },
     names: {
       weapon: '棉花糖锤',
       head: '稻草帽',
@@ -91,7 +112,7 @@ function buildEquipment(): Record<string, EquipmentDef> {
           slot,
           quality,
           level: Math.max(1, theme.level + QUALITY_LEVEL_OFFSET[quality]),
-          icon: `equip/${slot}_${quality}.png`,
+          icon: theme.icons[slot],
         };
       }
     }

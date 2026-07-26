@@ -7,6 +7,7 @@ import { requireEquipment } from '@/data/equipment';
 import { requireItem } from '@/data/items';
 import { QUALITY_LABELS, SLOT_LABELS } from '@/data/constants';
 import EquipDetail from '@/components/EquipDetail.vue';
+import EquipmentIcon from '@/components/EquipmentIcon.vue';
 
 const inventory = useInventoryStore();
 const tab = ref<'equip' | 'item'>('equip');
@@ -77,13 +78,11 @@ function show(msg: string) {
       <button class="btn btn-plain sm" @click="decomposeJunk">分解白绿</button>
     </div>
 
-    <div class="list scroll-y">
+    <div class="list scroll-y" :class="{ 'equip-list': tab === 'equip' }">
       <template v-if="tab === 'equip'">
         <p v-if="bagEquips.length === 0" class="empty">背包空空的，去挂机打点装备吧～</p>
-        <button v-for="e in bagEquips" :key="e.uid" class="row" @click="detail = e">
-          <span class="icon" :class="'bg-' + requireEquipment(e.defId).quality">
-            {{ e.locked ? '🔒' : '⚔' }}
-          </span>
+        <button v-for="e in bagEquips" :key="e.uid" class="row equip-row" @click="detail = e">
+          <EquipmentIcon :def="requireEquipment(e.defId)" :locked="e.locked" />
           <span class="mid">
             <span class="name" :class="'q-' + requireEquipment(e.defId).quality">
               {{ requireEquipment(e.defId).name }}
@@ -96,14 +95,17 @@ function show(msg: string) {
               }}
             </span>
           </span>
-          <span class="cp num">{{ abbr(scoreOf(e)) }}</span>
+          <span class="cp">
+            <span class="cp-label">战力</span>
+            <span class="num">{{ abbr(scoreOf(e)) }}</span>
+          </span>
         </button>
       </template>
 
       <template v-else>
         <p v-if="bagItems.length === 0" class="empty">还没有材料。</p>
         <div v-for="it in bagItems" :key="it.id" class="row static">
-          <span class="icon" :class="'bg-' + it.def.tier">◆</span>
+          <span class="item-icon" :class="'bg-' + it.def.tier">◆</span>
           <span class="mid">
             <span class="name" :class="'q-' + it.def.tier">
               {{ it.def.name }}
@@ -181,6 +183,11 @@ function show(msg: string) {
   gap: 6px;
 }
 
+.list.equip-list {
+  grid-template-columns: 1fr;
+  gap: 7px;
+}
+
 .empty {
   grid-column: 1 / -1;
   padding: 30px 10px;
@@ -204,7 +211,12 @@ function show(msg: string) {
   cursor: default;
 }
 
-.icon {
+.equip-row {
+  min-height: 66px;
+  padding: 7px 9px;
+}
+
+.item-icon {
   width: 30px;
   height: 30px;
   flex-shrink: 0;
@@ -267,9 +279,19 @@ function show(msg: string) {
 
 .cp {
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
   font-size: 10px;
   font-weight: 700;
   color: var(--blue-deep);
+}
+
+.cp-label {
+  font-size: 8px;
+  font-weight: 500;
+  color: var(--text-dim);
 }
 
 .toast {
