@@ -211,4 +211,18 @@ describe('区域 1–2 内容完整性', () => {
       );
     }
   });
+
+  it('PWA 品牌徽记与各尺寸安装图标文件完整', () => {
+    const brandAssets = [
+      'assets/brand/sakura-blade-emblem.png',
+      'icons/icon-192.png',
+      'icons/icon-512.png',
+      'icons/icon-maskable-512.png',
+      'icons/apple-touch-icon.png',
+      'favicon-32.png',
+    ];
+    for (const asset of brandAssets) {
+      expect(existsSync(resolve('public', asset)), asset).toBe(true);
+    }
+  });
 });

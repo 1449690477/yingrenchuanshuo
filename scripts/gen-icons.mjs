@@ -1,97 +1,78 @@
 /**
- * 生成 PWA 占位图标（纯色渐变 + 中心方块）。
- *
- * 这是临时占位资源，M12-3 阶段应替换为正式美术图标。
- * 之所以用脚本生成而不是提交二进制图片，是为了让任何人都能复现，
- * 且不需要安装图像处理依赖（只用 Node 内置的 zlib）。
+ * 从正式品牌徽记生成 PWA / iOS / favicon 图标。
  *
  * 用法：node scripts/gen-icons.mjs
+ * 依赖：sharp（devDependency）
  */
-import { deflateSync } from 'node:zlib';
-import { writeFileSync, mkdirSync } from 'node:fs';
+import { mkdir } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import sharp from 'sharp';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const OUT_DIR = resolve(__dirname, '../public/icons');
+const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
+const ROOT = resolve(SCRIPT_DIR, '..');
+const EMBLEM = resolve(ROOT, 'public/assets/brand/sakura-blade-emblem.png');
+const ICON_DIR = resolve(ROOT, 'public/icons');
+const PUBLIC_DIR = resolve(ROOT, 'public');
 
-// ---- CRC32（PNG 分块校验）----
-const CRC_TABLE = (() => {
-  const t = new Uint32Array(256);
-  for (let n = 0; n < 256; n++) {
-    let c = n;
-    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
-    t[n] = c >>> 0;
-  }
-  return t;
-})();
-
-function crc32(buf) {
-  let c = 0xffffffff;
-  for (let i = 0; i < buf.length; i++) c = CRC_TABLE[(c ^ buf[i]) & 0xff] ^ (c >>> 8);
-  return (c ^ 0xffffffff) >>> 0;
+function backgroundSvg(size) {
+  return Buffer.from(`
+    <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#fff7fb"/>
+          <stop offset="0.48" stop-color="#f4cce0"/>
+          <stop offset="1" stop-color="#a8ddf5"/>
+        </linearGradient>
+        <radialGradient id="halo">
+          <stop offset="0" stop-color="#ffffff" stop-opacity="0.82"/>
+          <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+        </radialGradient>
+      </defs>
+      <rect width="${size}" height="${size}" fill="url(#bg)"/>
+      <circle cx="${size * 0.5}" cy="${size * 0.46}" r="${size * 0.43}" fill="url(#halo)"/>
+      <g fill="#ffffff" opacity="0.46">
+        <ellipse cx="${size * 0.13}" cy="${size * 0.2}" rx="${size * 0.017}" ry="${size * 0.036}" transform="rotate(-30 ${size * 0.13} ${size * 0.2})"/>
+        <ellipse cx="${size * 0.87}" cy="${size * 0.27}" rx="${size * 0.014}" ry="${size * 0.03}" transform="rotate(34 ${size * 0.87} ${size * 0.27})"/>
+        <ellipse cx="${size * 0.16}" cy="${size * 0.8}" rx="${size * 0.013}" ry="${size * 0.028}" transform="rotate(27 ${size * 0.16} ${size * 0.8})"/>
+        <ellipse cx="${size * 0.85}" cy="${size * 0.76}" rx="${size * 0.017}" ry="${size * 0.034}" transform="rotate(-35 ${size * 0.85} ${size * 0.76})"/>
+      </g>
+      <circle cx="${size * 0.5}" cy="${size * 0.5}" r="${size * 0.43}" fill="none" stroke="#ffffff" stroke-opacity="0.34" stroke-width="${size * 0.012}"/>
+    </svg>
+  `);
 }
 
-function chunk(type, data) {
-  const len = Buffer.alloc(4);
-  len.writeUInt32BE(data.length);
-  const typeBuf = Buffer.from(type, 'ascii');
-  const crcBuf = Buffer.alloc(4);
-  crcBuf.writeUInt32BE(crc32(Buffer.concat([typeBuf, data])));
-  return Buffer.concat([len, typeBuf, data, crcBuf]);
+async function renderSquare(size, emblemSize, outFile) {
+  const emblem = await sharp(EMBLEM)
+    .resize(emblemSize, emblemSize, { fit: 'contain' })
+    .png()
+    .toBuffer();
+  const offset = Math.round((size - emblemSize) / 2);
+  await sharp(backgroundSvg(size))
+    .composite([{ input: emblem, left: offset, top: offset }])
+    .png({ compressionLevel: 9, adaptiveFiltering: true, palette: true, quality: 100 })
+    .toFile(outFile);
+  console.log(`✔ ${outFile}`);
 }
 
-/** 生成 size×size 的 RGBA PNG，像素由 painter(x, y) 决定 */
-function makePng(size, painter) {
-  const raw = Buffer.alloc(size * (size * 4 + 1));
-  let p = 0;
-  for (let y = 0; y < size; y++) {
-    raw[p++] = 0; // filter type: None
-    for (let x = 0; x < size; x++) {
-      const [r, g, b, a] = painter(x, y, size);
-      raw[p++] = r;
-      raw[p++] = g;
-      raw[p++] = b;
-      raw[p++] = a;
-    }
-  }
+await mkdir(ICON_DIR, { recursive: true });
 
-  const ihdr = Buffer.alloc(13);
-  ihdr.writeUInt32BE(size, 0);
-  ihdr.writeUInt32BE(size, 4);
-  ihdr[8] = 8; // bit depth
-  ihdr[9] = 6; // color type: RGBA
-  ihdr[10] = 0;
-  ihdr[11] = 0;
-  ihdr[12] = 0;
+await renderSquare(512, 390, resolve(ICON_DIR, 'icon-512.png'));
+await renderSquare(512, 300, resolve(ICON_DIR, 'icon-maskable-512.png'));
 
-  return Buffer.concat([
-    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-    chunk('IHDR', ihdr),
-    chunk('IDAT', deflateSync(raw, { level: 9 })),
-    chunk('IEND', Buffer.alloc(0)),
-  ]);
-}
+await sharp(resolve(ICON_DIR, 'icon-512.png'))
+  .resize(192, 192)
+  .png({ compressionLevel: 9, adaptiveFiltering: true, palette: true, quality: 100 })
+  .toFile(resolve(ICON_DIR, 'icon-192.png'));
 
-// 樱粉 → 紫 的对角渐变，中心一个亮色菱形（象征刀刃）
-function painter(x, y, size) {
-  const t = (x + y) / (2 * size);
-  const r = Math.round(255 + (167 - 255) * t);
-  const g = Math.round(126 + (139 - 126) * t);
-  const b = Math.round(182 + (250 - 182) * t);
+await sharp(resolve(ICON_DIR, 'icon-512.png'))
+  .resize(180, 180)
+  .png({ compressionLevel: 9, adaptiveFiltering: true, palette: true, quality: 100 })
+  .toFile(resolve(ICON_DIR, 'apple-touch-icon.png'));
 
-  const cx = size / 2;
-  const cy = size / 2;
-  const d = Math.abs(x - cx) + Math.abs(y - cy); // 曼哈顿距离 → 菱形
-  if (d < size * 0.26) return [250, 245, 255, 255];
-  if (d < size * 0.3) return [90, 60, 120, 255];
+await sharp(resolve(ICON_DIR, 'icon-512.png'))
+  .resize(32, 32)
+  .png({ compressionLevel: 9, adaptiveFiltering: true, palette: true, quality: 100 })
+  .toFile(resolve(PUBLIC_DIR, 'favicon-32.png'));
 
-  return [r, g, b, 255];
-}
-
-mkdirSync(OUT_DIR, { recursive: true });
-for (const size of [192, 512]) {
-  const file = resolve(OUT_DIR, `icon-${size}.png`);
-  writeFileSync(file, makePng(size, painter));
-  console.log(`✔ ${file}`);
-}
+console.log('正式品牌图标已全部生成。');

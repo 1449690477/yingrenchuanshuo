@@ -11,10 +11,11 @@ export default defineConfig({
     vue(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg'],
+      includeAssets: ['favicon-32.png', 'icons/apple-touch-icon.png'],
       manifest: {
         name: '樱刃传说',
         short_name: '樱刃传说',
+        lang: 'zh-CN',
         description: '二次元竖版放置类传奇',
         theme_color: '#f2f8ff',
         background_color: '#f2f8ff',
@@ -26,7 +27,7 @@ export default defineConfig({
           { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png' },
           {
-            src: 'icons/icon-512.png',
+            src: 'icons/icon-maskable-512.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'maskable',
