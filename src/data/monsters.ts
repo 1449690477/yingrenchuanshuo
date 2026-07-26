@@ -12,6 +12,7 @@
 
 import type { MonsterDef, MonsterType } from '@/core/types';
 import { ALL_CHAPTERS, type ChapterSpec } from './regions';
+import { getMonsterVisual } from './monsterVisuals';
 
 /**
  * 个别怪物的手工微调。
@@ -51,7 +52,7 @@ function make(
     type,
     element: spec.element,
     lootTableId: lootTableIdFor(chapterId, type),
-    sprite: `monsters/${id}.png`,
+    sprite: getMonsterVisual(id)?.asset ?? '',
     desc: type === 'boss' ? `${spec.name}的守护者。` : undefined,
   };
   return { ...base, ...MONSTER_OVERRIDES[id] };

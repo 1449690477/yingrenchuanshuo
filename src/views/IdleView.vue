@@ -8,6 +8,7 @@ import { requireMonster } from '@/data/monsters';
 import { unlockedWitchVisualSkills, type VisualSkill } from '@/data/skills';
 import StageSelect from '@/components/StageSelect.vue';
 import ClassArtwork from '@/components/ClassArtwork.vue';
+import MonsterArtwork from '@/components/MonsterArtwork.vue';
 
 const player = usePlayerStore();
 const stage = useStageStore();
@@ -24,7 +25,13 @@ const monsters = computed(() => {
   for (const w of stage.current.waves) for (const m of w.monsters) ids.add(m.id);
   return [...ids].map((id) => requireMonster(id));
 });
-const target = computed(() => monsters.value[0]!);
+/** BOSS / 精英关优先展示该关最重要的敌人，不再永远显示第一只小怪。 */
+const target = computed(
+  () =>
+    monsters.value.find((monster) => monster.type === 'boss') ??
+    monsters.value.find((monster) => monster.type === 'elite') ??
+    monsters.value[0]!,
+);
 const hpPercent = computed(() => Math.max(1, (1 - stage.battleProgress) * 100));
 
 /**
@@ -116,27 +123,41 @@ const cpWarn = computed(() => {
         <div class="vs">⚔</div>
 
         <div class="mob-list">
-          <div class="target">
-            <div class="target-line">
-              <span>{{ target.name }}</span>
-              <span class="num">Lv.{{ target.level }}</span>
-            </div>
-            <div class="hpbar">
-              <div class="hpbar-fill" :style="{ width: hpPercent + '%' }" />
-            </div>
-            <Transition name="damage">
-              <span v-if="stage.battlePulse" :key="stage.battlePulse.id" class="damage num">
-                -{{ abbr(stage.battlePulse.damage) }}
-                <small v-if="stage.battlePulse.kills > 1">×{{ stage.battlePulse.kills }}</small>
+          <div class="enemy-stage" :class="'enemy-' + target.type">
+            <div
+              :key="`${target.id}-${stage.battlePulse?.id ?? 0}`"
+              class="enemy-art"
+              :class="{ hit: !!stage.battlePulse }"
+            >
+              <MonsterArtwork :monster="target" />
+              <span v-if="target.type !== 'normal'" class="target-tag">
+                {{ target.type === 'boss' ? 'BOSS' : '精英' }}
               </span>
-            </Transition>
+            </div>
+            <div class="target">
+              <div class="target-line">
+                <span>{{ target.name }}</span>
+                <span class="num">Lv.{{ target.level }}</span>
+              </div>
+              <div class="hpbar">
+                <div class="hpbar-fill" :style="{ width: hpPercent + '%' }" />
+              </div>
+              <Transition name="damage">
+                <span v-if="stage.battlePulse" :key="stage.battlePulse.id" class="damage num">
+                  -{{ abbr(stage.battlePulse.damage) }}
+                  <small v-if="stage.battlePulse.kills > 1">×{{ stage.battlePulse.kills }}</small>
+                </span>
+              </Transition>
+            </div>
           </div>
-          <div v-for="m in monsters.slice(0, 4)" :key="m!.id" class="mob">
-            <span class="mob-dot" :class="'t-' + m!.type" />
-            <span class="mob-name">{{ m!.name }}</span>
-            <span v-if="m!.type !== 'normal'" class="mob-tag">
-              {{ m!.type === 'boss' ? 'BOSS' : '精英' }}
-            </span>
+          <div class="mob-grid">
+            <div v-for="m in monsters.slice(0, 4)" :key="m!.id" class="mob">
+              <MonsterArtwork :monster="m!" variant="thumb" />
+              <span class="mob-name">{{ m!.name }}</span>
+              <span v-if="m!.type !== 'normal'" class="mob-tag">
+                {{ m!.type === 'boss' ? 'B' : '精' }}
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -350,12 +371,58 @@ const cpWarn = computed(() => {
   gap: 4px;
 }
 
-.target {
-  position: relative;
-  padding: 6px 9px 8px;
-  background: var(--pink-soft);
+.enemy-stage {
+  display: flex;
+  align-items: center;
+  min-height: 90px;
+  padding: 3px 6px 3px 2px;
+  background:
+    radial-gradient(circle at 26% 72%, #fff 0 18%, transparent 42%),
+    linear-gradient(145deg, #fff7fb, var(--pink-soft));
   border: 1px solid #ffd7e6;
   border-radius: var(--r-sm);
+}
+
+.enemy-stage.enemy-elite {
+  background: linear-gradient(145deg, #f9fbff, #edf5ff);
+  border-color: #cbe4f8;
+}
+
+.enemy-stage.enemy-boss {
+  background: linear-gradient(145deg, #fffaf2, #fff0dd);
+  border-color: #ffd39d;
+}
+
+.enemy-art {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 88px;
+  height: 84px;
+  flex-shrink: 0;
+}
+
+.enemy-art.hit {
+  animation: enemy-hit 0.34s ease-out;
+}
+
+.target-tag {
+  position: absolute;
+  left: 4px;
+  bottom: 2px;
+  padding: 1px 5px;
+  font-size: 7px;
+  font-weight: 800;
+  color: #fff;
+  background: var(--q-legendary);
+  border-radius: 999px;
+}
+
+.target {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  padding: 6px 9px 8px;
 }
 
 .target-line {
@@ -412,6 +479,18 @@ const cpWarn = computed(() => {
 
 .damage-leave-active {
   transition: all 0.6s ease-in;
+}
+
+@keyframes enemy-hit {
+  0%,
+  100% {
+    transform: translateX(0) scale(1);
+    filter: brightness(1);
+  }
+  35% {
+    transform: translateX(4px) scale(0.95);
+    filter: brightness(1.18);
+  }
 }
 
 .spell-fx {
@@ -588,25 +667,18 @@ const cpWarn = computed(() => {
 .mob {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px 9px;
-  font-size: 11px;
+  gap: 3px;
+  min-width: 0;
+  padding: 2px 5px 2px 2px;
+  font-size: 9px;
   background: var(--panel-3);
-  border-radius: 999px;
+  border-radius: 10px;
 }
 
-.mob-dot {
-  width: 6px;
-  height: 6px;
-  flex-shrink: 0;
-  border-radius: 50%;
-  background: var(--q-common);
-}
-.mob-dot.t-elite {
-  background: var(--q-rare);
-}
-.mob-dot.t-boss {
-  background: var(--q-legendary);
+.mob-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
 }
 
 .mob-name {
@@ -617,7 +689,7 @@ const cpWarn = computed(() => {
 
 .mob-tag {
   margin-left: auto;
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 700;
   color: var(--q-legendary);
 }
