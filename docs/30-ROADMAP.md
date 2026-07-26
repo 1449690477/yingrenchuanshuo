@@ -4,7 +4,7 @@
 > 每个任务设计成「一次 AI 会话可完成」的大小。做不完就拆，不要硬做。
 > **未跑通 `npm run verify` 不许打勾。**
 
-进度总览：`7 / 178` 已完成（M0 完成）
+进度总览：`17 / 178` 已完成（M0 + M1 完成）
 
 ---
 
@@ -18,18 +18,18 @@
 - [x] **M0-6** 竖屏基础布局：顶部状态栏 + 主内容区 + 底部 5 Tab（空壳）
 - [x] **M0-7** 移动端适配：`dvh`、`safe-area-inset`、禁止双击缩放、禁止长按选中
 
-## M1 · 核心数值层（第 2–3 周）
+## M1 · 核心数值层（第 2–3 周）✅ 已完成
 
-- [ ] **M1-1** `core/types.ts`：定义 Stats / Combatant / Equipment / Skill / Monster 等全局类型
-- [ ] **M1-2** `core/rng.ts`：mulberry32 seeded RNG + 子种子派生 + 单元测试
-- [ ] **M1-3** `data/constants.ts`：录入 `docs/10` 的全部曲线参数
-- [ ] **M1-4** `core/formula.ts`：伤害、命中、暴击、减伤、克制公式 + 测试
-- [ ] **M1-5** `core/progression.ts`：经验曲线、升级、职业成长、CP 计算 + 测试
-- [ ] **M1-6** `core/combat.ts`：单次战斗模拟（玩家 vs 一波怪），返回耗时与结果 + 测试
-- [ ] **M1-7** `core/loot.ts`：权重掉落表、保底计数 + 测试
-- [ ] **M1-8** `core/idle.ts`：挂机每秒产出、离线时长结算 + 测试
-- [ ] **M1-9** `scripts/simulate.ts`：数值模拟器，输出「30 天成长曲线」CSV
-- [ ] **M1-10** 用模拟器校验 `docs/10` 的关键校验点表，偏差超 15% 就调参并记录
+- [x] **M1-1** `core/types.ts`：定义 Stats / Combatant / Equipment / Skill / Monster 等全局类型
+- [x] **M1-2** `core/rng.ts`：mulberry32 seeded RNG + 子种子派生 + 单元测试
+- [x] **M1-3** `data/constants.ts`：录入 `docs/10` 的全部曲线参数
+- [x] **M1-4** `core/formula.ts`：伤害、命中、暴击、减伤、克制公式 + 测试
+- [x] **M1-5** `core/progression.ts`：经验曲线、升级、职业成长、CP 计算 + 测试
+- [x] **M1-6** `core/combat.ts`：单次战斗模拟（玩家 vs 一波怪），返回耗时与结果 + 测试
+- [x] **M1-7** `core/loot.ts`：权重掉落表、保底计数 + 测试
+- [x] **M1-8** `core/idle.ts`：挂机每秒产出、离线时长结算 + 测试
+- [x] **M1-9** `scripts/simulate.ts`：数值模拟器，输出「30 天成长曲线」CSV
+- [x] **M1-10** 用模拟器校验 `docs/10` 的关键校验点表，偏差超 15% 就调参并记录
 
 ## M2 · 最小可玩闭环（第 4–6 周）
 

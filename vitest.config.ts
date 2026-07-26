@@ -8,7 +8,5 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['src/**/__tests__/**/*.spec.ts'],
-    // M0 阶段尚无测试。M1-2 写下第一个 rng 测试后，请删除这一行。
-    passWithNoTests: true,
   },
 });

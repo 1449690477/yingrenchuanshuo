@@ -1,0 +1,150 @@
+import { describe, it, expect } from 'vitest';
+import { killsPerSecond, recoverStamina, settleIdle, settleOffline, settleSweep } from '../idle';
+import type { IdleContext } from '../idle';
+import { makeMonster, makePlayer } from '../progression';
+import type { LootTable } from '../types';
+import { OFFLINE_CAP_SECONDS, STAMINA_RECOVER_SECONDS } from '@/data/constants';
+
+const lootTable: LootTable = {
+  id: 'loot_idle',
+  rolls: 1,
+  entries: [{ itemId: 'stone', weight: 1, minCount: 1, maxCount: 1 }],
+};
+
+function ctx(overrides: Partial<IdleContext> = {}): IdleContext {
+  const player = makePlayer('剑姬', 30, {
+    atk: 2000,
+    def: 300,
+    hp: 5000,
+    acc: 200,
+    eva: 30,
+    critRate: 10,
+    critDmg: 50,
+    spd: 1.0,
+  });
+  const monster = makeMonster({
+    id: 'm',
+    name: '测试怪',
+    level: 30,
+    type: 'normal',
+    element: 'none',
+    lootTableId: 'loot_idle',
+    sprite: '',
+  });
+  return { player, monster, expPerKill: 100, goldPerKill: 50, lootTable, ...overrides };
+}
+
+describe('killsPerSecond', () => {
+  it('受关卡上限约束（防止高战刷低级图）', () => {
+    const c = ctx({ maxKillsPerSec: 2.0 });
+    c.player.stats.atk = 1e9;
+    expect(killsPerSecond(c)).toBe(2.0);
+  });
+
+  it('打不动时为 0', () => {
+    const c = ctx();
+    c.player.stats.atk = 0;
+    expect(killsPerSecond(c)).toBe(0);
+  });
+
+  it('攻击力越高击杀越快', () => {
+    const weak = ctx();
+    const strong = ctx();
+    strong.player.stats.atk = weak.player.stats.atk * 3;
+    expect(killsPerSecond(strong)).toBeGreaterThan(killsPerSecond(weak));
+  });
+});
+
+describe('settleIdle', () => {
+  it('0 秒无产出', () => {
+    expect(settleIdle(ctx(), 0)).toEqual({ exp: 0, gold: 0, kills: 0, loot: [] });
+  });
+
+  it('负数秒数无产出（防御性）', () => {
+    expect(settleIdle(ctx(), -100).kills).toBe(0);
+  });
+
+  it('产出与时长成正比', () => {
+    const a = settleIdle(ctx(), 600);
+    const b = settleIdle(ctx(), 1200);
+    expect(b.kills).toBeGreaterThanOrEqual(a.kills * 2 - 1);
+  });
+
+  it('经验金币等于击杀数乘单只收益', () => {
+    const c = ctx();
+    const y = settleIdle(c, 3600);
+    expect(y.exp).toBe(y.kills * c.expPerKill);
+    expect(y.gold).toBe(y.kills * c.goldPerKill);
+  });
+});
+
+describe('settleOffline', () => {
+  const now = 1_800_000_000_000;
+
+  it('正常时长全额结算', () => {
+    const r = settleOffline(ctx(), now - 3600_000, now);
+    expect(r.seconds).toBe(3600);
+    expect(r.cappedSeconds).toBe(0);
+    expect(r.yield.kills).toBeGreaterThan(0);
+  });
+
+  it('超过 8 小时上限被截断，并报告溢出量', () => {
+    const twelveHours = 12 * 3600 * 1000;
+    const r = settleOffline(ctx(), now - twelveHours, now);
+    expect(r.seconds).toBe(OFFLINE_CAP_SECONDS);
+    expect(r.cappedSeconds).toBe(4 * 3600);
+  });
+
+  it('系统时间回拨时不产生负收益', () => {
+    const r = settleOffline(ctx(), now + 999_999, now);
+    expect(r.seconds).toBe(0);
+    expect(r.yield.kills).toBe(0);
+  });
+
+  it('相同参数结果一致（期望值结算，无随机方差）', () => {
+    const a = settleOffline(ctx(), now - 7200_000, now);
+    const b = settleOffline(ctx(), now - 7200_000, now);
+    expect(a).toEqual(b);
+  });
+});
+
+describe('settleSweep', () => {
+  it('一次扫荡等同 30 分钟挂机', () => {
+    const sweep = settleSweep(ctx(), 1);
+    const idle30 = settleIdle(ctx(), 30 * 60);
+    expect(sweep.kills).toBe(idle30.kills);
+  });
+
+  it('10 次扫荡产出约为 1 次的 10 倍', () => {
+    const one = settleSweep(ctx(), 1);
+    const ten = settleSweep(ctx(), 10);
+    expect(ten.kills).toBeGreaterThanOrEqual(one.kills * 10 - 1);
+  });
+});
+
+describe('recoverStamina', () => {
+  const now = 1_800_000_000_000;
+
+  it('每 5 分钟回 1 点', () => {
+    const r = recoverStamina(0, 120, now - STAMINA_RECOVER_SECONDS * 3 * 1000, now);
+    expect(r.stamina).toBe(3);
+  });
+
+  it('不超过上限', () => {
+    const r = recoverStamina(119, 120, now - 999_999_999, now);
+    expect(r.stamina).toBe(120);
+  });
+
+  it('已满时不推进', () => {
+    const r = recoverStamina(120, 120, now - 999_999, now);
+    expect(r.stamina).toBe(120);
+    expect(r.nextRecoverAt).toBe(now);
+  });
+
+  it('不足一个周期时不回复，且保留已等待时间', () => {
+    const last = now - 60_000;
+    const r = recoverStamina(10, 120, last, now);
+    expect(r.stamina).toBe(10);
+    expect(r.nextRecoverAt).toBe(last);
+  });
+});
