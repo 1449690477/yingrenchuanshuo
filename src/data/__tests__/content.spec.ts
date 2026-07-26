@@ -105,6 +105,20 @@ describe('区域 1–2 内容完整性', () => {
     }
   });
 
+  it('全部区域和章节都引用真实存在的地图场景', () => {
+    for (const region of REGIONS) {
+      expect(region.mapAsset).toBe(`assets/maps/${region.id}.webp`);
+      expect(existsSync(resolve('public', region.mapAsset)), region.id).toBe(true);
+      for (const chapter of region.chapters) {
+        expect(chapter.mapAsset).toBe(`assets/maps/chapter-${chapter.id}.webp`);
+        expect(
+          existsSync(resolve('public', chapter.mapAsset)),
+          `${chapter.id} → ${chapter.mapAsset}`,
+        ).toBe(true);
+      }
+    }
+  });
+
   it('所有掉落项都能解析成装备或物品，权重和数量合法', () => {
     for (const table of Object.values(LOOT_TABLES)) {
       expect(table.rolls).toBeGreaterThanOrEqual(0);

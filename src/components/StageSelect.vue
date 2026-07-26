@@ -15,6 +15,10 @@ const openChapter = ref(stage.current.chapterId);
 
 const regions = computed(() => REGIONS);
 
+function assetUrl(asset: string): string {
+  return `${import.meta.env.BASE_URL}${asset}`;
+}
+
 function pick(stageId: string) {
   if (stage.select(stageId)) emit('close');
 }
@@ -30,11 +34,9 @@ function pick(stageId: string) {
 
       <div class="body scroll-y">
         <div v-for="r in regions" :key="r.id" class="region">
-          <button
-            class="region-head"
-            :style="{ background: `linear-gradient(100deg, ${r.theme[0]}, ${r.theme[1]})` }"
-            @click="openRegion = openRegion === r.id ? '' : r.id"
-          >
+          <button class="region-head" @click="openRegion = openRegion === r.id ? '' : r.id">
+            <img class="region-cover" :src="assetUrl(r.mapAsset)" :alt="`${r.name}区域地图`" />
+            <span class="region-shade" />
             <span class="r-left">
               <span class="r-name">{{ r.index }} · {{ r.name }}</span>
               <span class="r-sub">{{ r.subtitle }}</span>
@@ -44,7 +46,13 @@ function pick(stageId: string) {
 
           <div v-if="openRegion === r.id" class="chapters">
             <div v-for="c in r.chapters" :key="c.id" class="chapter">
-              <button class="chapter-head" @click="openChapter = openChapter === c.id ? '' : c.id">
+              <button
+                class="chapter-head"
+                :class="{ open: openChapter === c.id }"
+                @click="openChapter = openChapter === c.id ? '' : c.id"
+              >
+                <img class="chapter-cover" :src="assetUrl(c.mapAsset)" :alt="`${c.name}章节场景`" />
+                <span class="chapter-shade" />
                 <span class="c-name">{{ c.id }} {{ c.name }}</span>
                 <span class="c-lv num">Lv {{ c.levelFrom }}–{{ c.levelTo }}</span>
               </button>
@@ -122,16 +130,40 @@ function pick(stageId: string) {
 }
 
 .region-head {
+  position: relative;
   width: 100%;
+  min-height: 84px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 14px;
+  overflow: hidden;
+  padding: 14px;
   border-radius: var(--r);
   text-align: left;
+  color: #fff;
+  box-shadow: 0 4px 14px rgb(65 92 120 / 14%);
+}
+
+.region-cover,
+.region-shade {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.region-cover {
+  object-fit: cover;
+  object-position: center 45%;
+}
+
+.region-shade {
+  background: linear-gradient(90deg, rgb(32 48 67 / 74%), rgb(40 62 82 / 20%));
 }
 
 .r-left {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   gap: 1px;
@@ -140,17 +172,21 @@ function pick(stageId: string) {
 .r-name {
   font-size: 14px;
   font-weight: 700;
+  text-shadow: 0 1px 4px rgb(25 40 55 / 55%);
 }
 
 .r-sub {
   font-size: 10px;
-  color: var(--text-mid);
+  color: rgb(255 255 255 / 82%);
 }
 
 .r-lv {
+  position: relative;
+  z-index: 1;
   font-size: 11px;
-  font-weight: 600;
-  color: var(--text-mid);
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 1px 4px rgb(25 40 55 / 55%);
 }
 
 .chapters {
@@ -161,25 +197,56 @@ function pick(stageId: string) {
 }
 
 .chapter-head {
+  position: relative;
   width: 100%;
+  min-height: 68px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 9px 12px;
-  background: var(--panel-2);
+  overflow: hidden;
+  padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
   text-align: left;
+  color: #fff;
+}
+
+.chapter-head.open {
+  border-color: var(--pink);
+  box-shadow: 0 0 0 2px rgb(255 139 180 / 14%);
+}
+
+.chapter-cover,
+.chapter-shade {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.chapter-cover {
+  object-fit: cover;
+  object-position: center 48%;
+}
+
+.chapter-shade {
+  background: linear-gradient(90deg, rgb(37 52 70 / 72%), rgb(37 52 70 / 24%));
 }
 
 .c-name {
+  position: relative;
+  z-index: 1;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
+  text-shadow: 0 1px 4px rgb(20 34 48 / 62%);
 }
 
 .c-lv {
+  position: relative;
+  z-index: 1;
   font-size: 10px;
-  color: var(--text-dim);
+  color: rgb(255 255 255 / 86%);
+  text-shadow: 0 1px 4px rgb(20 34 48 / 62%);
 }
 
 .stages {

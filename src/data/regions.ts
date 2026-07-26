@@ -27,6 +27,8 @@ export interface ChapterSpec {
   materials: string[];
   /** 首次通关的引导提示，用于新手教学 */
   tutorial?: string;
+  /** 章节场景图，用于关卡选择与挂机战场背景 */
+  mapAsset: string;
 }
 
 export interface RegionSpec {
@@ -38,6 +40,8 @@ export interface RegionSpec {
   levelTo: number;
   /** 主题色，用于区域卡片渐变 */
   theme: [string, string];
+  /** 区域总览图 */
+  mapAsset: string;
   chapters: ChapterSpec[];
 }
 
@@ -53,6 +57,7 @@ const REGION_1: RegionSpec = {
   levelFrom: 1,
   levelTo: 10,
   theme: ['#ffd6e7', '#ffeef5'],
+  mapAsset: 'assets/maps/r1.webp',
   chapters: [
     {
       id: '1-1',
@@ -63,6 +68,7 @@ const REGION_1: RegionSpec = {
       normals: ['樱花精灵', '迷路兔娘', '小花妖', '飘叶灵'],
       materials: ['petal_sakura', 'grass_soft'],
       tutorial: '挂机会自动打怪，离开后回来能领取离线收益。',
+      mapAsset: 'assets/maps/chapter-1-1.webp',
     },
     {
       id: '1-2',
@@ -73,6 +79,7 @@ const REGION_1: RegionSpec = {
       normals: ['蘑菇娘', '野猫娘', '草团子', '风铃精'],
       materials: ['petal_sakura', 'grass_soft'],
       tutorial: '掉落的装备可以在「养成」里穿上，战力会提升。',
+      mapAsset: 'assets/maps/chapter-1-2.webp',
     },
     {
       id: '1-3',
@@ -84,6 +91,7 @@ const REGION_1: RegionSpec = {
       elite: '温室看守',
       materials: ['petal_sakura', 'bell_wood'],
       tutorial: '装备可以强化，+5 以内绝对不会失败，放心点。',
+      mapAsset: 'assets/maps/chapter-1-3.webp',
     },
     {
       id: '1-4',
@@ -95,6 +103,7 @@ const REGION_1: RegionSpec = {
       elite: '古木守卫',
       materials: ['bell_wood', 'grass_soft'],
       tutorial: '等级到了会解锁新技能，技能在挂机时自动释放。',
+      mapAsset: 'assets/maps/chapter-1-4.webp',
     },
     {
       id: '1-5',
@@ -107,6 +116,7 @@ const REGION_1: RegionSpec = {
       boss: '樱守·绯',
       materials: ['core_barrier', 'petal_sakura'],
       tutorial: '打过 BOSS 后就能「扫荡」这一关，用体力换收益，不用一直挂着。',
+      mapAsset: 'assets/maps/chapter-1-5.webp',
     },
   ],
 };
@@ -123,6 +133,7 @@ const REGION_2: RegionSpec = {
   levelFrom: 10,
   levelTo: 20,
   theme: ['#cdeafd', '#eaf7ff'],
+  mapAsset: 'assets/maps/r2.webp',
   chapters: [
     {
       id: '2-1',
@@ -132,6 +143,7 @@ const REGION_2: RegionSpec = {
       element: 'none',
       normals: ['棉花糖史莱姆', '云朵兔', '软糖小怪', '糖霜蝶'],
       materials: ['jelly_cotton', 'grass_soft'],
+      mapAsset: 'assets/maps/chapter-2-1.webp',
     },
     {
       id: '2-2',
@@ -142,6 +154,7 @@ const REGION_2: RegionSpec = {
       normals: ['稻草人娘', '瞌睡麻雀', '草垛怪', '晒谷灵'],
       elite: '稻草田监工',
       materials: ['straw_sleepy', 'grass_soft'],
+      mapAsset: 'assets/maps/chapter-2-2.webp',
     },
     {
       id: '2-3',
@@ -152,6 +165,7 @@ const REGION_2: RegionSpec = {
       normals: ['小蜜蜂娘', '花粉精', '巢穴守卫', '蜜滴怪'],
       elite: '蜂后侍卫',
       materials: ['honey_bee', 'jelly_cotton'],
+      mapAsset: 'assets/maps/chapter-2-3.webp',
     },
     {
       id: '2-4',
@@ -162,6 +176,7 @@ const REGION_2: RegionSpec = {
       normals: ['迷路旅人', '营火精', '行囊怪', '路标灵'],
       elite: '营地首领',
       materials: ['straw_sleepy', 'honey_bee'],
+      mapAsset: 'assets/maps/chapter-2-4.webp',
     },
     {
       id: '2-5',
@@ -174,6 +189,7 @@ const REGION_2: RegionSpec = {
       boss: '大史莱姆女王',
       materials: ['crystal_altar', 'jelly_cotton'],
       tutorial: '有些关卡的怪带属性。炎克冰、冰克雷、雷克炎，穿对属性装备伤害更高。',
+      mapAsset: 'assets/maps/chapter-2-5.webp',
     },
   ],
 };

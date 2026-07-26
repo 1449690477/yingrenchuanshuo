@@ -22,6 +22,7 @@ let castTimer = 0;
 
 const region = computed(() => requireRegionOfChapter(stage.current.chapterId));
 const chapter = computed(() => requireChapter(stage.current.chapterId));
+const chapterMapUrl = computed(() => `${import.meta.env.BASE_URL}${chapter.value.mapAsset}`);
 
 /** 本关出现的怪物，做一个简单的「战场」展示 */
 const monsters = computed(() => {
@@ -81,6 +82,8 @@ const cpWarn = computed(() => {
 <template>
   <div class="idle">
     <button class="stage-bar" @click="showStages = true">
+      <img class="stage-map" :src="chapterMapUrl" :alt="`${chapter.name}章节场景`" />
+      <span class="stage-map-shade" />
       <span class="stage-info">
         <span class="region">{{ region.name }} · {{ chapter.name }}</span>
         <span class="stage-name">{{ stage.current.name }}</span>
@@ -109,6 +112,8 @@ const cpWarn = computed(() => {
       </div>
 
       <div class="arena">
+        <img class="arena-map" :src="chapterMapUrl" alt="" aria-hidden="true" />
+        <span class="arena-shade" />
         <div class="hero-slot">
           <div
             class="avatar-big"
@@ -210,17 +215,40 @@ const cpWarn = computed(() => {
 }
 
 .stage-bar {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  min-height: 64px;
+  overflow: hidden;
   padding: 11px 14px;
   background: linear-gradient(100deg, var(--blue-soft), var(--pink-soft));
   border: 1px solid var(--line);
   border-radius: var(--r);
   text-align: left;
+  color: #fff;
+}
+
+.stage-map,
+.stage-map-shade {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.stage-map {
+  object-fit: cover;
+  object-position: center 48%;
+}
+
+.stage-map-shade {
+  background: linear-gradient(90deg, rgb(39 54 73 / 72%), rgb(39 54 73 / 24%));
 }
 
 .stage-info {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   gap: 1px;
@@ -229,15 +257,18 @@ const cpWarn = computed(() => {
 
 .region {
   font-size: 10px;
-  color: var(--text-dim);
+  color: rgb(255 255 255 / 78%);
 }
 
 .stage-name {
   font-size: 15px;
   font-weight: 700;
+  text-shadow: 0 1px 4px rgb(24 38 52 / 58%);
 }
 
 .stage-right {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -245,15 +276,19 @@ const cpWarn = computed(() => {
 }
 
 .lv {
+  padding: 2px 6px;
   font-size: 11px;
-  font-weight: 600;
-  color: var(--blue-deep);
+  font-weight: 700;
+  color: #fff;
+  background: rgb(255 255 255 / 18%);
+  border-radius: 999px;
 }
 
 .chev {
   font-size: 11px;
-  font-weight: 600;
-  color: var(--pink-deep);
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 1px 4px rgb(24 38 52 / 58%);
 }
 
 .warn {
@@ -304,9 +339,40 @@ const cpWarn = computed(() => {
 }
 
 .arena {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 10px;
+  min-height: 112px;
+  overflow: hidden;
+  padding: 6px;
+  border: 1px solid rgb(255 255 255 / 82%);
+  border-radius: var(--r);
+}
+
+.arena-map,
+.arena-shade {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.arena-map {
+  object-fit: cover;
+  object-position: center 48%;
+}
+
+.arena-shade {
+  background: linear-gradient(90deg, rgb(255 255 255 / 58%), rgb(255 255 255 / 34%));
+  backdrop-filter: blur(0.5px);
+}
+
+.hero-slot,
+.vs,
+.mob-list {
+  position: relative;
+  z-index: 1;
 }
 
 .hero-slot {
@@ -362,6 +428,8 @@ const cpWarn = computed(() => {
 .hero-name {
   font-size: 11px;
   font-weight: 600;
+  color: #33465b;
+  text-shadow: 0 1px 2px #fff;
 }
 
 .vs {
