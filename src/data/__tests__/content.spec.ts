@@ -95,8 +95,24 @@ describe('区域 1–2 内容完整性', () => {
       monster.id.startsWith('mon_1-'),
     );
     expect(region1Monsters).toHaveLength(24);
-    expect(Object.keys(MONSTER_VISUALS)).toHaveLength(24);
+    expect(Object.keys(MONSTER_VISUALS).filter((id) => id.startsWith('mon_1-'))).toHaveLength(24);
     for (const monster of region1Monsters) {
+      expect(monster.sprite, monster.id).toBe(MONSTER_VISUALS[monster.id]?.asset);
+      expect(
+        existsSync(resolve('public', monster.sprite)),
+        `${monster.id} → ${monster.sprite}`,
+      ).toBe(true);
+    }
+  });
+
+  it('区域 2 的全部怪物都有经过注册和校验的正式立绘', () => {
+    const region2Monsters = Object.values(MONSTERS).filter((monster) =>
+      monster.id.startsWith('mon_2-'),
+    );
+    expect(region2Monsters).toHaveLength(25);
+    expect(Object.keys(MONSTER_VISUALS).filter((id) => id.startsWith('mon_2-'))).toHaveLength(25);
+    expect(Object.keys(MONSTER_VISUALS)).toHaveLength(49);
+    for (const monster of region2Monsters) {
       expect(monster.sprite, monster.id).toBe(MONSTER_VISUALS[monster.id]?.asset);
       expect(
         existsSync(resolve('public', monster.sprite)),
