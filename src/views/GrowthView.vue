@@ -6,7 +6,10 @@ import { useInventoryStore } from '@/stores/inventory';
 import { usePlayerStore } from '@/stores/player';
 import { requireEquipment } from '@/data/equipment';
 import { CLASS_INFO, SLOT_LABELS, SLOT_ORDER, STAT_LABELS } from '@/data/constants';
+import { WITCH_VISUAL_SKILLS } from '@/data/skills';
 import EquipDetail from '@/components/EquipDetail.vue';
+import ClassArtwork from '@/components/ClassArtwork.vue';
+import SkillIcon from '@/components/SkillIcon.vue';
 
 const inventory = useInventoryStore();
 const player = usePlayerStore();
@@ -55,7 +58,9 @@ function open(slot: EquipSlot) {
   <div v-if="player.player" class="growth scroll-y">
     <!-- 角色卡 -->
     <section class="hero card">
-      <div class="hero-face">🌸</div>
+      <div class="hero-face">
+        <ClassArtwork :class-id="player.player.classId" variant="avatar" />
+      </div>
       <div class="hero-info">
         <div class="hero-name">
           {{ player.player.name }}
@@ -64,6 +69,30 @@ function open(slot: EquipSlot) {
         <div class="hero-role">{{ CLASS_INFO[player.player.classId].role }}</div>
         <div class="hero-cp">
           战力 <span class="num">{{ abbr(player.cp) }}</span>
+        </div>
+      </div>
+    </section>
+
+    <section v-if="player.player.classId === 'witch'" class="card skills-card">
+      <div class="card-head">
+        <span>魔女技能演出</span>
+        <span class="skill-hint">随等级解锁</span>
+      </div>
+      <div class="skills">
+        <div
+          v-for="skill in WITCH_VISUAL_SKILLS"
+          :key="skill.id"
+          class="skill-row"
+          :class="{ locked: player.player.level < skill.unlockLevel }"
+        >
+          <SkillIcon :skill="skill" :locked="player.player.level < skill.unlockLevel" />
+          <span class="skill-copy">
+            <span class="skill-name">{{ skill.name }}</span>
+            <span class="skill-desc">{{ skill.desc }}</span>
+          </span>
+          <span class="skill-level">
+            {{ player.player.level >= skill.unlockLevel ? '已解锁' : `Lv${skill.unlockLevel}` }}
+          </span>
         </div>
       </div>
     </section>
@@ -141,10 +170,73 @@ function open(slot: EquipSlot) {
   flex-shrink: 0;
   display: grid;
   place-items: center;
-  font-size: 26px;
+  overflow: hidden;
   background: #fff;
   border: 2px solid var(--pink);
   border-radius: 50%;
+}
+
+.skill-hint {
+  font-size: 9px;
+  color: var(--blue-deep);
+}
+
+.skills {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 9px;
+}
+
+.skill-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px;
+  background: linear-gradient(100deg, #fff8fb, #f5f8ff);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+}
+
+.skill-row.locked {
+  background: var(--panel-2);
+}
+
+.skill-copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.skill-name {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.skill-desc {
+  overflow: hidden;
+  color: var(--text-dim);
+  font-size: 9px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.skill-level {
+  flex-shrink: 0;
+  padding: 2px 6px;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--pink-deep);
+  background: var(--pink-soft);
+  border-radius: 999px;
+}
+
+.locked .skill-level {
+  color: var(--text-dim);
+  background: var(--panel-3);
 }
 
 .hero-info {

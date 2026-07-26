@@ -2,26 +2,24 @@
 import { ref } from 'vue';
 import type { ClassId } from '@/core/types';
 import { CLASS_INFO } from '@/data/constants';
+import { CLASS_VISUALS } from '@/data/classVisuals';
 import { usePlayerStore } from '@/stores/player';
+import { useUiStore } from '@/stores/ui';
+import ClassArtwork from '@/components/ClassArtwork.vue';
 
 const player = usePlayerStore();
+const ui = useUiStore();
 const name = ref('');
 const picked = ref<ClassId>('swordsman');
 const busy = ref(false);
 
 const classes: ClassId[] = ['swordsman', 'witch', 'shaman'];
 
-// 三职业的占位形象。正式立绘见 ROADMAP M12-3。
-const emoji: Record<ClassId, string> = {
-  swordsman: '🗡️',
-  witch: '🔮',
-  shaman: '🌿',
-};
-
 async function start() {
   if (busy.value) return;
   busy.value = true;
   await player.create(name.value, picked.value);
+  ui.setTab('idle');
   busy.value = false;
 }
 </script>
@@ -32,6 +30,14 @@ async function start() {
       <div class="logo">樱刃传说</div>
       <p class="tagline">挂着自动打 · 回来收装备</p>
     </header>
+
+    <section class="portrait-stage" :class="`class-${picked}`">
+      <div class="magic-ring ring-one" />
+      <div class="magic-ring ring-two" />
+      <ClassArtwork :class-id="picked" variant="preview" />
+      <span v-if="!CLASS_VISUALS[picked].portrait" class="art-pending">角色立绘制作中</span>
+      <span v-else class="art-ready">首位实装角色</span>
+    </section>
 
     <section class="block">
       <label class="label">给你的少女起个名字</label>
@@ -54,7 +60,7 @@ async function start() {
           :class="{ on: picked === c }"
           @click="picked = c"
         >
-          <span class="cls-face">{{ emoji[c] }}</span>
+          <ClassArtwork :class-id="c" variant="thumb" />
           <span class="cls-name">{{ CLASS_INFO[c].name }}</span>
           <span class="cls-role">{{ CLASS_INFO[c].role }}</span>
         </button>
@@ -73,10 +79,10 @@ async function start() {
 <style scoped>
 .create {
   height: 100dvh;
-  padding: calc(var(--sat) + 28px) 20px calc(var(--sab) + 24px);
+  padding: calc(var(--sat) + 20px) 20px calc(var(--sab) + 24px);
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 14px;
 }
 
 .hero {
@@ -97,6 +103,89 @@ async function start() {
   margin-top: 6px;
   font-size: 12px;
   color: var(--text-mid);
+}
+
+.portrait-stage {
+  position: relative;
+  height: 224px;
+  flex-shrink: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 68%, rgb(255 255 255 / 92%) 0 22%, transparent 46%),
+    linear-gradient(145deg, var(--blue-soft), var(--pink-soft));
+  border: 1px solid rgb(255 255 255 / 80%);
+  border-radius: 28px;
+  box-shadow: var(--shadow);
+}
+
+.portrait-stage :deep(.is-preview) {
+  z-index: 2;
+  padding: 4px 46px 0;
+  filter: drop-shadow(0 12px 12px rgb(74 103 143 / 16%));
+}
+
+.portrait-stage.class-witch :deep(.portrait) {
+  animation: portrait-float 3.4s ease-in-out infinite;
+}
+
+.magic-ring {
+  position: absolute;
+  z-index: 1;
+  border: 1px solid rgb(255 255 255 / 76%);
+  border-radius: 50%;
+}
+
+.ring-one {
+  width: 170px;
+  height: 170px;
+  left: calc(50% - 85px);
+  bottom: -82px;
+  box-shadow: 0 0 0 13px rgb(255 255 255 / 18%);
+}
+
+.ring-two {
+  width: 52px;
+  height: 52px;
+  right: 26px;
+  top: 24px;
+  border-style: dashed;
+  animation: ring-spin 14s linear infinite;
+}
+
+.art-pending,
+.art-ready {
+  position: absolute;
+  z-index: 3;
+  right: 12px;
+  bottom: 10px;
+  padding: 4px 8px;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--text-dim);
+  background: rgb(255 255 255 / 78%);
+  border: 1px solid rgb(255 255 255 / 90%);
+  border-radius: 999px;
+  backdrop-filter: blur(5px);
+}
+
+.art-ready {
+  color: var(--blue-deep);
+}
+
+@keyframes portrait-float {
+  0%,
+  100% {
+    transform: translateY(2px);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes ring-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .block {
@@ -140,7 +229,7 @@ async function start() {
   flex-direction: column;
   align-items: center;
   gap: 3px;
-  padding: 14px 6px;
+  padding: 8px 5px 9px;
   background: var(--panel);
   border: 2px solid var(--line);
   border-radius: var(--r);
@@ -152,10 +241,6 @@ async function start() {
   background: var(--pink-soft);
   transform: translateY(-2px);
   box-shadow: var(--shadow);
-}
-
-.cls-face {
-  font-size: 26px;
 }
 
 .cls-name {

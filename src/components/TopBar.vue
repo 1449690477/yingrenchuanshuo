@@ -3,6 +3,7 @@ import { computed, onUnmounted, ref, watch } from 'vue';
 import { abbr, signed } from '@/core/format';
 import { usePlayerStore } from '@/stores/player';
 import { CLASS_INFO } from '@/data/constants';
+import ClassArtwork from '@/components/ClassArtwork.vue';
 
 const playerStore = usePlayerStore();
 
@@ -28,7 +29,9 @@ const cls = computed(() => (playerStore.player ? CLASS_INFO[playerStore.player.c
 
 <template>
   <header v-if="playerStore.player" class="topbar">
-    <div class="avatar">🌸</div>
+    <div class="avatar">
+      <ClassArtwork :class-id="playerStore.player.classId" variant="avatar" />
+    </div>
 
     <div class="info">
       <div class="line1">

@@ -1,15 +1,19 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onUnmounted, ref, watch } from 'vue';
 import { abbr } from '@/core/format';
 import { usePlayerStore } from '@/stores/player';
 import { useStageStore } from '@/stores/stage';
 import { requireChapter, requireRegionOfChapter } from '@/data/regions';
 import { requireMonster } from '@/data/monsters';
+import { unlockedWitchVisualSkills, type VisualSkill } from '@/data/skills';
 import StageSelect from '@/components/StageSelect.vue';
+import ClassArtwork from '@/components/ClassArtwork.vue';
 
 const player = usePlayerStore();
 const stage = useStageStore();
 const showStages = ref(false);
+const casting = ref(false);
+let castTimer = 0;
 
 const region = computed(() => requireRegionOfChapter(stage.current.chapterId));
 const chapter = computed(() => requireChapter(stage.current.chapterId));
@@ -22,6 +26,37 @@ const monsters = computed(() => {
 });
 const target = computed(() => monsters.value[0]!);
 const hpPercent = computed(() => Math.max(1, (1 - stage.battleProgress) * 100));
+
+/**
+ * M3 技能自动释放尚未接入前，视觉演出只跟随真实击杀脉冲。
+ * 技能按玩家等级解锁，绝不提前展示未学会的技能；伤害仍由 M2 平均技能倍率结算。
+ */
+const activeVisualSkill = computed<VisualSkill | null>(() => {
+  const p = player.player;
+  const pulse = stage.battlePulse;
+  if (!p || !pulse || p.classId !== 'witch') return null;
+  const skills = unlockedWitchVisualSkills(p.level);
+  if (skills.length === 0) return null;
+  return skills[Math.floor((pulse.id - 1) / 3) % skills.length]!;
+});
+
+const activeEffectUrl = computed(() =>
+  activeVisualSkill.value
+    ? `${import.meta.env.BASE_URL}${activeVisualSkill.value.effectAsset}`
+    : null,
+);
+
+watch(
+  () => stage.battlePulse?.id,
+  (pulseId) => {
+    if (!pulseId || player.player?.classId !== 'witch') return;
+    casting.value = true;
+    clearTimeout(castTimer);
+    castTimer = window.setTimeout(() => (casting.value = false), 720);
+  },
+);
+
+onUnmounted(() => clearTimeout(castTimer));
 
 /** 战力提示。宁可提示得保守，也不要让玩家白挂。 */
 const cpWarn = computed(() => {
@@ -64,7 +99,17 @@ const cpWarn = computed(() => {
 
       <div class="arena">
         <div class="hero-slot">
-          <div class="avatar-big" :class="{ fighting: stage.canIdle }">🌸</div>
+          <div
+            class="avatar-big"
+            :class="{ fighting: stage.canIdle && !casting, casting: casting }"
+          >
+            <ClassArtwork
+              v-if="player.player"
+              :class-id="player.player.classId"
+              variant="battle"
+              :action="casting ? 'cast' : 'idle'"
+            />
+          </div>
           <div class="hero-name">{{ player.player?.name }}</div>
         </div>
 
@@ -94,6 +139,18 @@ const cpWarn = computed(() => {
             </span>
           </div>
         </div>
+      </div>
+
+      <div
+        v-if="activeVisualSkill && activeEffectUrl && stage.battlePulse"
+        :key="stage.battlePulse.id"
+        class="spell-fx"
+        :class="`kind-${activeVisualSkill.visualKind}`"
+        aria-hidden="true"
+      >
+        <img :src="activeEffectUrl" alt="" draggable="false" />
+        <span v-for="n in 6" :key="n" class="fx-particle" />
+        <span class="spell-name">{{ activeVisualSkill.name }}</span>
       </div>
 
       <div v-if="stage.cleared" class="cleared">✓ 本关已通关，可继续挂机刷材料</div>
@@ -201,6 +258,8 @@ const cpWarn = computed(() => {
 }
 
 .battle {
+  position: relative;
+  overflow: hidden;
   padding: 12px;
 }
 
@@ -232,18 +291,25 @@ const cpWarn = computed(() => {
 }
 
 .avatar-big {
-  width: 56px;
-  height: 56px;
+  width: 72px;
+  height: 100px;
   display: grid;
   place-items: center;
-  font-size: 28px;
-  border-radius: 50%;
-  background: linear-gradient(140deg, #fff, var(--pink-soft));
-  border: 2px solid var(--pink);
+  overflow: hidden;
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 50% 76%, #fff 0 20%, transparent 42%),
+    linear-gradient(145deg, var(--blue-soft), var(--pink-soft));
+  border: 1.5px solid rgb(255 180 210 / 78%);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 65%);
 }
 
 .avatar-big.fighting {
   animation: bob 2.2s ease-in-out infinite;
+}
+
+.avatar-big.casting {
+  animation: cast-lunge 0.72s ease-out both;
 }
 
 @keyframes bob {
@@ -253,6 +319,16 @@ const cpWarn = computed(() => {
   }
   50% {
     transform: translateY(-5px);
+  }
+}
+
+@keyframes cast-lunge {
+  0%,
+  100% {
+    transform: translateX(0) scale(1);
+  }
+  32% {
+    transform: translateX(5px) scale(1.05) rotate(1.5deg);
   }
 }
 
@@ -336,6 +412,177 @@ const cpWarn = computed(() => {
 
 .damage-leave-active {
   transition: all 0.6s ease-in;
+}
+
+.spell-fx {
+  position: absolute;
+  z-index: 8;
+  right: 2px;
+  top: 35px;
+  width: 166px;
+  height: 150px;
+  pointer-events: none;
+}
+
+.spell-fx img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 7px rgb(129 93 157 / 20%));
+}
+
+.kind-projectile img {
+  animation: fireball-cast 0.78s ease-out both;
+}
+
+.kind-ring img {
+  animation: ring-cast 0.86s ease-out both;
+}
+
+.kind-lightning img {
+  animation: lightning-cast 0.72s ease-out both;
+}
+
+.spell-name {
+  position: absolute;
+  right: 15px;
+  bottom: 10px;
+  padding: 2px 7px;
+  font-size: 9px;
+  font-weight: 800;
+  color: var(--pink-deep);
+  background: rgb(255 255 255 / 82%);
+  border-radius: 999px;
+  animation: spell-label 0.85s ease-out both;
+}
+
+.kind-lightning .spell-name {
+  color: var(--blue-deep);
+}
+
+.fx-particle {
+  --dx: 0px;
+  --dy: -28px;
+  position: absolute;
+  left: 52%;
+  top: 53%;
+  width: 7px;
+  height: 7px;
+  background: var(--pink);
+  border: 1px solid #fff;
+  border-radius: 2px;
+  transform: rotate(45deg);
+  animation: particle-pop 0.76s ease-out both;
+}
+
+.fx-particle:nth-of-type(2) {
+  --dx: 44px;
+  --dy: -24px;
+  animation-delay: 0.05s;
+}
+
+.fx-particle:nth-of-type(3) {
+  --dx: 52px;
+  --dy: 18px;
+  width: 5px;
+  height: 5px;
+  background: var(--blue);
+  animation-delay: 0.09s;
+}
+
+.fx-particle:nth-of-type(4) {
+  --dx: -44px;
+  --dy: 25px;
+  animation-delay: 0.04s;
+}
+
+.fx-particle:nth-of-type(5) {
+  --dx: -48px;
+  --dy: -20px;
+  width: 5px;
+  height: 5px;
+  background: var(--gold);
+  animation-delay: 0.11s;
+}
+
+.fx-particle:nth-of-type(6) {
+  --dx: 8px;
+  --dy: 42px;
+  background: #c7bdff;
+  animation-delay: 0.08s;
+}
+
+@keyframes fireball-cast {
+  0% {
+    opacity: 0;
+    transform: translate(-78px, 22px) scale(0.24) rotate(-18deg);
+  }
+  48% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(4px, 0) scale(0.94) rotate(2deg);
+  }
+}
+
+@keyframes ring-cast {
+  0% {
+    opacity: 0;
+    transform: scale(0.18) rotate(-55deg);
+  }
+  45% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.18) rotate(18deg);
+  }
+}
+
+@keyframes lightning-cast {
+  0% {
+    opacity: 0;
+    transform: translateY(-30px) scaleY(1.24) scaleX(0.75);
+  }
+  24%,
+  48% {
+    opacity: 1;
+    filter: brightness(1.22) drop-shadow(0 0 8px rgb(137 151 255 / 60%));
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(2px) scale(1.06);
+  }
+}
+
+@keyframes particle-pop {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) rotate(45deg) scale(0.2);
+  }
+  35% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--dx), var(--dy)) rotate(130deg) scale(1);
+  }
+}
+
+@keyframes spell-label {
+  0%,
+  100% {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  26%,
+  68% {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .mob {

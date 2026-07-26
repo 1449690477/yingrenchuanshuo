@@ -1,4 +1,8 @@
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { CLASS_VISUALS } from '../classVisuals';
+import { WITCH_VISUAL_SKILLS } from '../skills';
 import { EQUIPMENT } from '../equipment';
 import { ITEMS } from '../items';
 import { LOOT_TABLES } from '../lootTables';
@@ -7,6 +11,33 @@ import { ALL_CHAPTERS, REGIONS } from '../regions';
 import { FIRST_STAGE_ID, ORDERED_STAGE_IDS, STAGES } from '../stages';
 
 describe('区域 1–2 内容完整性', () => {
+  it('已登记的职业立绘文件都真实存在', () => {
+    for (const [classId, visual] of Object.entries(CLASS_VISUALS)) {
+      for (const asset of [visual.portrait, visual.castPortrait]) {
+        if (!asset) continue;
+        expect(existsSync(resolve('public', asset)), `${classId} → ${asset}`).toBe(true);
+      }
+    }
+    expect(CLASS_VISUALS.witch.portrait).toBe('assets/characters/witch-sakura.png');
+    expect(CLASS_VISUALS.witch.castPortrait).toBe('assets/characters/witch-sakura-cast.png');
+  });
+
+  it('魔女首批技能特效配置与文件完整', () => {
+    expect(WITCH_VISUAL_SKILLS).toHaveLength(3);
+    expect(WITCH_VISUAL_SKILLS.map((skill) => skill.name)).toEqual([
+      '火球术',
+      '抗拒火环',
+      '地狱雷光',
+    ]);
+    for (const skill of WITCH_VISUAL_SKILLS) {
+      expect(skill.class).toBe('witch');
+      expect(skill.type).toBe('active');
+      expect(skill.unlockLevel).toBeGreaterThan(0);
+      expect(existsSync(resolve('public', skill.icon)), `${skill.id} icon`).toBe(true);
+      expect(existsSync(resolve('public', skill.effectAsset)), `${skill.id} effect`).toBe(true);
+    }
+  });
+
   it('数量达到 M2 内容目标', () => {
     expect(REGIONS).toHaveLength(2);
     expect(ALL_CHAPTERS).toHaveLength(10);
