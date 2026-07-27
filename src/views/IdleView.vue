@@ -24,6 +24,9 @@ const casting = ref(false);
 const monsterCasting = ref(false);
 let castTimer = 0;
 let monsterCastTimer = 0;
+let monsterHpResetTimer = 0;
+let monsterHpSequence = 0;
+const monsterHitTimers = new Set<number>();
 let cooldownRaf = 0;
 const COOLDOWN_CLOCK_STEP_SECONDS = 0.1;
 const cooldownClock = ref(0);
@@ -45,10 +48,13 @@ const visualMonsterCursor = computed(() =>
 const target = computed(() =>
   requireMonster(battleMonsterIdAt(stage.current, visualMonsterCursor.value)),
 );
-const hpPercent = computed(() => Math.max(1, (1 - stage.battleProgress) * 100));
 const targetMaxHp = computed(() => makeMonster(target.value).stats.hp);
+const displayedMonsterHp = ref(1);
+const hpPercent = computed(() =>
+  Math.max(0, Math.min(100, (displayedMonsterHp.value / targetMaxHp.value) * 100)),
+);
 const targetCurrentHp = computed(() =>
-  Math.max(1, Math.ceil((targetMaxHp.value * hpPercent.value) / 100)),
+  Math.max(0, Math.min(targetMaxHp.value, Math.ceil(displayedMonsterHp.value))),
 );
 const playerMaxHp = computed(() => Math.max(1, player.finalStats.hp));
 const playerCurrentHp = computed(() =>
@@ -86,17 +92,46 @@ watch(
   () => stage.battlePulse?.id,
   (pulseId) => {
     if (!pulseId) return;
-    casting.value = true;
-    clearTimeout(castTimer);
-    castTimer = window.setTimeout(() => (casting.value = false), 720);
-
     const now = performance.now() / 1000;
     const ready = [...unlockedSkills.value]
       .filter((skill) => (skillReadyAt.value[skill.id] ?? 0) <= now)
       .sort((a, b) => b.priority - a.priority)[0];
     activeSkillCast.value = ready ? { pulseId, skill: ready } : null;
     if (ready) skillReadyAt.value[ready.id] = now + ready.cooldown;
+
+    casting.value = true;
+    clearTimeout(castTimer);
+    castTimer = window.setTimeout(() => (casting.value = false), ready ? 840 : 640);
+
+    const pulse = stage.battlePulse;
+    if (!pulse) return;
+    const impactDelay = ready ? 300 : 110;
+    const hitTimer = window.setTimeout(() => {
+      monsterHitTimers.delete(hitTimer);
+      const sequence = ++monsterHpSequence;
+      if (pulse.kills > 0) {
+        displayedMonsterHp.value = 0;
+        clearTimeout(monsterHpResetTimer);
+        monsterHpResetTimer = window.setTimeout(() => {
+          if (monsterHpSequence === sequence) displayedMonsterHp.value = targetMaxHp.value;
+        }, 180);
+        return;
+      }
+      displayedMonsterHp.value = Math.max(
+        1,
+        displayedMonsterHp.value - pulse.damage * pulse.hits,
+      );
+    }, impactDelay);
+    monsterHitTimers.add(hitTimer);
   },
+);
+
+watch(
+  () => [stage.current.id, target.value.id, targetMaxHp.value] as const,
+  () => {
+    displayedMonsterHp.value = targetMaxHp.value;
+  },
+  { immediate: true },
 );
 
 watch(
@@ -105,7 +140,7 @@ watch(
     if (!pulseId) return;
     monsterCasting.value = true;
     clearTimeout(monsterCastTimer);
-    monsterCastTimer = window.setTimeout(() => (monsterCasting.value = false), 520);
+    monsterCastTimer = window.setTimeout(() => (monsterCasting.value = false), 740);
   },
 );
 
@@ -121,6 +156,9 @@ onMounted(() => {
 onUnmounted(() => {
   clearTimeout(castTimer);
   clearTimeout(monsterCastTimer);
+  clearTimeout(monsterHpResetTimer);
+  monsterHitTimers.forEach((timer) => clearTimeout(timer));
+  monsterHitTimers.clear();
   cancelAnimationFrame(cooldownRaf);
 });
 

@@ -141,7 +141,7 @@ const basicEffectUrl = computed(
     </Transition>
 
     <div
-      v-if="pulse && !skill"
+      v-if="pulse && casting && !skill"
       :key="`basic-${pulse.id}`"
       class="basic-attack-fx"
       :class="`basic-${classId}`"
@@ -178,7 +178,7 @@ const basicEffectUrl = computed(
     </div>
 
     <div
-      v-if="skill && effectUrl && pulse"
+      v-if="skill && effectUrl && pulse && casting"
       :key="pulse.id"
       class="spell-fx"
       :class="`kind-${skill.visualKind}`"
@@ -468,14 +468,6 @@ const basicEffectUrl = computed(
   transform-origin: 50% 92%;
 }
 
-.active:not(.casting) .hero-actor {
-  animation: hero-idle 2.25s ease-in-out infinite;
-}
-
-.casting .hero-actor {
-  animation: hero-cast 0.72s ease-out both;
-}
-
 .enemy-unit {
   z-index: 6;
   right: 2.5%;
@@ -509,10 +501,6 @@ const basicEffectUrl = computed(
 .enemy-unit.hit .enemy-actor {
   animation: enemy-hit 0.42s ease-out;
   animation-delay: var(--impact-delay);
-}
-
-.hero-unit.hit .hero-actor {
-  animation: hero-hit 0.42s ease-out;
 }
 
 .enemy-unit.attacking .enemy-actor {
@@ -1031,29 +1019,6 @@ const basicEffectUrl = computed(
   animation-delay: -2.9s;
 }
 
-@keyframes hero-idle {
-  0%,
-  100% {
-    transform: translateY(0) rotate(0);
-  }
-  50% {
-    transform: translateY(-4px) rotate(-0.6deg);
-  }
-}
-
-@keyframes hero-cast {
-  0%,
-  100% {
-    transform: translate(0) scale(1);
-  }
-  30% {
-    transform: translate(10px, -3px) scale(1.04) rotate(1.5deg);
-  }
-  58% {
-    transform: translate(7px, 0) scale(1.02);
-  }
-}
-
 @keyframes enemy-idle {
   0%,
   100% {
@@ -1151,21 +1116,6 @@ const basicEffectUrl = computed(
   100% {
     opacity: 0;
     transform: translate(var(--spark-x), var(--spark-y)) rotate(135deg) scale(1);
-  }
-}
-
-@keyframes hero-hit {
-  0%,
-  100% {
-    transform: translateX(0) scale(1);
-    filter: brightness(1);
-  }
-  30% {
-    transform: translateX(-7px) scale(0.95);
-    filter: brightness(1.65) saturate(0.7);
-  }
-  58% {
-    transform: translateX(3px) scale(1.01);
   }
 }
 
