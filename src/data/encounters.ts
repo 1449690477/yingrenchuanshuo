@@ -3,7 +3,7 @@ import type { EncounterDefinition, EncounterTiming } from '@/core/encounters';
 /** 首次 60 秒便于试玩，之后约每 10 分钟一次。 */
 export const ENCOUNTER_TIMING: EncounterTiming = { firstSec: 60, intervalSec: 600, queueMax: 3 };
 
-const DEFINITIONS = [
+const DEFINITIONS: EncounterDefinition[] = [
   {
     id: 'enc_r1_petalsmith',
     regionIds: ['r1'],
@@ -13,9 +13,18 @@ const DEFINITIONS = [
       {
         id: 'trade',
         label: '送她一些材料',
-        outcome: '刀匠把打磨剩下的强化石送给了你。',
+        outcome: '刀匠把一份沉甸甸的谢礼塞到了你手里。',
         costs: { items: { petal_sakura: 3, grass_soft: 2 } },
-        rewards: { gold: 30, items: { stone_enhance: 2 } },
+        rewardPool: [
+          {
+            weight: 90,
+            rewards: { gold: { min: 20, max: 60 }, items: { stone_enhance: { min: 1, max: 3 } } },
+          },
+          {
+            weight: 10,
+            rewards: { gold: { min: 60, max: 120 }, items: { stone_reforge: { min: 1, max: 1 } } },
+          },
+        ],
       },
       { id: 'leave', label: '祝她顺利', outcome: '你们互相挥手，继续各自的旅程。' },
     ],
@@ -31,7 +40,16 @@ const DEFINITIONS = [
         label: '归还木铃',
         outcome: '小木灵开心地翻出一袋旧日矿石作为谢礼。',
         costs: { items: { bell_wood: 3 } },
-        rewards: { gold: 80, items: { stone_enhance: 3 } },
+        rewardPool: [
+          {
+            weight: 85,
+            rewards: { gold: { min: 60, max: 100 }, items: { stone_enhance: { min: 2, max: 4 } } },
+          },
+          {
+            weight: 15,
+            rewards: { gold: { min: 100, max: 160 }, items: { stone_reforge: { min: 1, max: 1 } } },
+          },
+        ],
       },
       { id: 'listen', label: '听一会儿铃声', outcome: '风声和铃声交织，让这段路轻快了不少。' },
     ],
@@ -45,9 +63,18 @@ const DEFINITIONS = [
       {
         id: 'mend',
         label: '修补结界',
-        outcome: '裂隙恢复平静，一块洗练石从光芒中落入掌心。',
+        outcome: '裂隙恢复平静，结界凝成了一份看不透的回礼。',
         costs: { items: { core_barrier: 1, petal_sakura: 4 } },
-        rewards: { gold: 150, items: { stone_reforge: 1 } },
+        rewardPool: [
+          {
+            weight: 75,
+            rewards: { gold: { min: 120, max: 220 }, items: { stone_reforge: { min: 1, max: 2 } } },
+          },
+          {
+            weight: 25,
+            rewards: { gold: { min: 220, max: 300 }, items: { stone_enhance: { min: 5, max: 8 } } },
+          },
+        ],
       },
       { id: 'leave', label: '先不触碰', outcome: '你记下了位置，安静地离开了结界。' },
     ],
@@ -61,9 +88,18 @@ const DEFINITIONS = [
       {
         id: 'bundle',
         label: '帮她重新捆好',
-        outcome: '包裹终于扎稳，信使送出几块随身强化石。',
+        outcome: '包裹终于扎稳，信使从行囊里摸出了一份谢礼。',
         costs: { items: { straw_sleepy: 4, jelly_cotton: 3 } },
-        rewards: { gold: 60, items: { stone_enhance: 3 } },
+        rewardPool: [
+          {
+            weight: 90,
+            rewards: { gold: { min: 40, max: 80 }, items: { stone_enhance: { min: 2, max: 4 } } },
+          },
+          {
+            weight: 10,
+            rewards: { gold: { min: 80, max: 140 }, items: { stone_reforge: { min: 1, max: 1 } } },
+          },
+        ],
       },
       { id: 'wake', label: '提醒她别再睡了', outcome: '她认真地点头，然后站着又打了个哈欠。' },
     ],
@@ -77,9 +113,18 @@ const DEFINITIONS = [
       {
         id: 'tea',
         label: '凑齐茶会材料',
-        outcome: '茶会大成功，蜂娘拿出珍藏的强化石与你分享。',
+        outcome: '茶会大成功，蜂娘神秘地递来一个甜香的小包。',
         costs: { items: { honey_bee: 2, jelly_cotton: 4 } },
-        rewards: { gold: 100, items: { stone_enhance: 4 } },
+        rewardPool: [
+          {
+            weight: 85,
+            rewards: { gold: { min: 70, max: 130 }, items: { stone_enhance: { min: 3, max: 5 } } },
+          },
+          {
+            weight: 15,
+            rewards: { gold: { min: 130, max: 190 }, items: { stone_reforge: { min: 1, max: 1 } } },
+          },
+        ],
       },
       { id: 'decline', label: '下次再来', outcome: '蜂娘给你指了路，继续忙着准备茶点。' },
     ],
@@ -93,14 +138,23 @@ const DEFINITIONS = [
       {
         id: 'answer',
         label: '回应祭坛',
-        outcome: '祭坛亮起星光，凝成两块可以洗练装备的石头。',
+        outcome: '祭坛亮起星光，一份古老的馈赠落入你的掌心。',
         costs: { items: { crystal_altar: 1, straw_sleepy: 5 } },
-        rewards: { gold: 180, items: { stone_reforge: 2 } },
+        rewardPool: [
+          {
+            weight: 75,
+            rewards: { gold: { min: 180, max: 280 }, items: { stone_reforge: { min: 1, max: 2 } } },
+          },
+          {
+            weight: 25,
+            rewards: { gold: { min: 280, max: 380 }, items: { stone_enhance: { min: 6, max: 9 } } },
+          },
+        ],
       },
       { id: 'leave', label: '尊重这份安静', outcome: '回声渐渐远去，草浪重新盖住祭坛。' },
     ],
   },
-] satisfies EncounterDefinition[];
+];
 
 export const ENCOUNTERS: Record<string, EncounterDefinition> = Object.fromEntries(
   DEFINITIONS.map((encounter) => [encounter.id, encounter]),

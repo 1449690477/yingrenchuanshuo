@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { Gift, Sparkles, X } from '@lucide/vue';
+import { Sparkles, X } from '@lucide/vue';
 import { canAfford, type EncounterChoice, type ResourceBundle } from '@/core/encounters';
 import { abbr } from '@/core/format';
 import { requireEncounter } from '@/data/encounters';
@@ -22,14 +22,14 @@ const wallet = computed(() => ({
   items: inventory.bag?.items ?? {},
 }));
 
-function resourceText(bundle: ResourceBundle | undefined): string {
-  if (!bundle) return '无需材料';
+function resourceText(bundle: ResourceBundle | undefined, emptyLabel = '无需材料'): string {
+  if (!bundle) return emptyLabel;
   const parts: string[] = [];
   if (bundle.gold) parts.push(`金币 ×${abbr(bundle.gold)}`);
   for (const [id, count] of Object.entries(bundle.items ?? {})) {
     parts.push(`${requireItem(id).name} ×${abbr(count)}`);
   }
-  return parts.length > 0 ? parts.join('、') : '无需材料';
+  return parts.length > 0 ? parts.join('、') : emptyLabel;
 }
 
 function choose(choice: EncounterChoice): void {
@@ -40,7 +40,8 @@ function choose(choice: EncounterChoice): void {
       result.reason === 'insufficient-resource' ? '材料还不够，可以稍后再来' : '这段奇遇已经结束了';
     return;
   }
-  feedback.value = result.outcome;
+  const reveal = resourceText(result.rewards, '');
+  feedback.value = reveal ? `${result.outcome} 获得：${reveal}` : result.outcome;
 }
 </script>
 
@@ -69,9 +70,6 @@ function choose(choice: EncounterChoice): void {
           >
             <span class="choice-title">{{ choice.label }}</span>
             <span class="cost">需要：{{ resourceText(choice.costs) }}</span>
-            <span v-if="choice.rewards" class="reward">
-              <Gift :size="13" aria-hidden="true" /> 获得：{{ resourceText(choice.rewards) }}
-            </span>
             <span v-if="!canAfford(choice.costs, wallet)" class="lack">当前材料不足</span>
           </button>
         </div>
@@ -189,19 +187,12 @@ function choose(choice: EncounterChoice): void {
   color: var(--blue-deep);
 }
 .cost,
-.reward,
 .lack {
   font-size: 10px;
   line-height: 1.45;
 }
 .cost {
   color: var(--text-dim);
-}
-.reward {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  color: var(--pink-deep);
 }
 .lack {
   color: var(--warn);

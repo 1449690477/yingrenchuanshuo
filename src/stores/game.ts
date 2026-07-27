@@ -49,7 +49,12 @@ import {
   type EnhanceGainGrade,
 } from '@/core/equipment';
 import { decomposeGold } from '@/core/economy';
-import { advanceEncounterState, resolveEncounterChoice } from '@/core/encounters';
+import {
+  advanceEncounterState,
+  encounterRewardSeed,
+  resolveEncounterChoice,
+  type ResourceBundle,
+} from '@/core/encounters';
 import { rollLoot } from '@/core/loot';
 import { assessShopOffer, type ShopBlockReason } from '@/core/shop';
 import { advanceStageKillProgress } from '@/core/stageProgress';
@@ -141,7 +146,8 @@ export type EnhanceEquipmentResult =
       cpDelta: number;
     };
 export type EncounterResolveResult =
-  { ok: true; outcome: string } | { ok: false; reason: 'not-found' | 'insufficient-resource' };
+  | { ok: true; outcome: string; rewards: ResourceBundle }
+  | { ok: false; reason: 'not-found' | 'insufficient-resource' };
 
 const AUTO_SAVE_INTERVAL_MS = 3_000;
 const LOOT_LOG_MAX = 40;
@@ -685,10 +691,11 @@ export const useGameStore = defineStore('game', () => {
     const choice = encounter.choices.find((candidate) => candidate.id === choiceId);
     if (!choice) return { ok: false, reason: 'not-found' };
 
-    const result = resolveEncounterChoice(choice, {
-      gold: save.value.player.gold,
-      items: save.value.bag.items,
-    });
+    const result = resolveEncounterChoice(
+      choice,
+      { gold: save.value.player.gold, items: save.value.bag.items },
+      new Rng(encounterRewardSeed(save.value.seed, entry.uid, choice.id)),
+    );
     if (!result.ok) return result;
 
     save.value.player.gold = result.wallet.gold;
@@ -696,7 +703,7 @@ export const useGameStore = defineStore('game', () => {
     save.value.encounters.pending.splice(index, 1);
     save.value.encounters.resolvedCount += 1;
     void persist();
-    return { ok: true, outcome: choice.outcome };
+    return { ok: true, outcome: choice.outcome, rewards: result.rewards };
   }
 
   // ─────────── 装备操作 ───────────

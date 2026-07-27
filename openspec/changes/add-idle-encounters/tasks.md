@@ -23,3 +23,10 @@
 - [x] 4.1 更新 ROADMAP、PROGRESS 和系统设计文档，记录首版范围与后续扩展点
 - [x] 4.2 运行 `openspec validate add-idle-encounters --strict`
 - [x] 4.3 运行 `npm run verify`、`npm run sim` 和 `npm run build`
+
+## 5. 隐藏随机奖励迭代
+
+- [x] 5.1 将固定奖励改为配置化加权随机范围，并使用独立可复现 RNG
+- [x] 5.2 隐藏选择前奖励信息，结算后展示实际获得内容
+- [x] 5.3 补齐奖励复现、变化、非空保底和原子结算测试
+- [x] 5.4 更新说明并重新运行 OpenSpec、verify、sim 与 build
