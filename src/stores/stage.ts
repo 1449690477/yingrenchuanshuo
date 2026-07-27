@@ -19,6 +19,7 @@ export const useStageStore = defineStore('stage', () => {
   const battlePulse = computed(() => game.battlePulse);
   const battleTargetId = computed(() => game.battleTargetId);
   const offlineResult = computed(() => game.offlineResult);
+  const pendingEncounters = computed(() => game.pendingEncounters);
 
   return {
     current,
@@ -33,10 +34,12 @@ export const useStageStore = defineStore('stage', () => {
     battlePulse,
     battleTargetId,
     offlineResult,
+    pendingEncounters,
     select: game.selectStage,
     advance: game.advanceStage,
     isUnlocked: game.isStageUnlocked,
     takeTutorial: game.takeTutorial,
+    resolveEncounter: game.resolvePendingEncounter,
     dismissOffline: game.dismissOffline,
   };
 });

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { ChevronDown } from '@lucide/vue';
+import { ChevronDown, Sparkles } from '@lucide/vue';
 import { abbr } from '@/core/format';
 import { battleVitalsAtProgress } from '@/core/battleVisual';
 import { aggregateLootEntries, type LootDisplayCategory } from '@/core/lootGrouping';
@@ -17,11 +17,13 @@ import StageSelect from '@/components/StageSelect.vue';
 import BattleScene from '@/components/BattleScene.vue';
 import EquipmentIcon from '@/components/EquipmentIcon.vue';
 import ItemIcon from '@/components/ItemIcon.vue';
+import EncounterPanel from '@/components/EncounterPanel.vue';
 
 const player = usePlayerStore();
 const inventory = useInventoryStore();
 const stage = useStageStore();
 const showStages = ref(false);
+const showEncounters = ref(false);
 const collapsedLoot = ref<Record<LootDisplayCategory, boolean>>({
   equipment: false,
   material: false,
@@ -172,6 +174,17 @@ const cpWarn = computed(() => {
       <div v-if="stage.cleared" class="cleared">✓ 本关已通关，可继续挂机刷材料</div>
     </section>
 
+    <button
+      v-if="stage.pendingEncounters.length > 0"
+      class="encounter-entry"
+      @click="showEncounters = true"
+    >
+      <span class="encounter-icon"><Sparkles :size="16" aria-hidden="true" /></span>
+      <span><strong>旅途中出现了奇遇</strong><small>不会打断挂机，有空再处理</small></span>
+      <b class="num">{{ stage.pendingEncounters.length }}</b>
+      <i>查看 ›</i>
+    </button>
+
     <section class="loot card">
       <div class="loot-head">
         <span>
@@ -215,6 +228,7 @@ const cpWarn = computed(() => {
     </section>
 
     <StageSelect v-if="showStages" @close="showStages = false" />
+    <EncounterPanel v-if="showEncounters" @close="showEncounters = false" />
   </div>
 </template>
 
@@ -346,6 +360,60 @@ const cpWarn = computed(() => {
   color: var(--success);
   background: #eafaf1;
   border-radius: var(--r-sm);
+}
+
+.encounter-entry {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 46px;
+  padding: 7px 10px;
+  text-align: left;
+  color: var(--text-mid);
+  background: linear-gradient(100deg, #fff4f8, var(--blue-soft));
+  border: 1px solid #f3d9e7;
+  border-radius: var(--r);
+  box-shadow: var(--shadow-sm);
+}
+
+.encounter-icon {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  color: var(--pink-deep);
+  background: #fff;
+  border-radius: 50%;
+}
+
+.encounter-entry > span:nth-child(2) {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+.encounter-entry strong {
+  font-size: 11px;
+  color: var(--text);
+}
+.encounter-entry small {
+  font-size: 8px;
+  color: var(--text-dim);
+}
+.encounter-entry b {
+  display: grid;
+  min-width: 22px;
+  height: 22px;
+  place-items: center;
+  font-size: 10px;
+  color: #fff;
+  background: var(--pink-deep);
+  border-radius: 999px;
+}
+.encounter-entry i {
+  font-size: 9px;
+  font-style: normal;
+  color: var(--blue-deep);
 }
 
 .loot {

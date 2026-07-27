@@ -10,6 +10,7 @@
  */
 
 import { z } from 'zod';
+import type { EncounterState } from '@/core/encounters';
 import type { ClassId, EquipmentInstance, EquipSlot, Quality } from '@/core/types';
 import {
   CLASS_BASE_STATS,
@@ -23,7 +24,7 @@ import {
 import { FIRST_STAGE_ID } from '@/data/stages';
 
 /** 当前存档版本。加字段就 +1。 */
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 5;
 
 export const SAVE_KEY = 'main';
 
@@ -100,6 +101,8 @@ export interface SaveData {
   settings: SettingsSave;
   stats: StatsSave;
   shop: ShopSave;
+  /** 不打断挂机的待处理奇遇与累计进度。 */
+  encounters: EncounterState;
 }
 
 export function emptyEquipped(): Record<EquipSlot, EquipmentInstance | null> {
@@ -150,6 +153,7 @@ export function createSave(name: string, classId: ClassId, seed: number, now: nu
     },
     stats: { totalKills: 0, totalPlaySec: 0, bossKills: {} },
     shop: { purchasedOfferIds: [] },
+    encounters: { progressSec: 0, generatedCount: 0, resolvedCount: 0, pending: [] },
   };
 }
 
@@ -300,6 +304,24 @@ export const saveDataSchema = z
     shop: z
       .object({
         purchasedOfferIds: z.array(z.string().min(1)),
+      })
+      .strict(),
+    encounters: z
+      .object({
+        progressSec: nonNegativeNumber,
+        generatedCount: nonNegativeInteger,
+        resolvedCount: nonNegativeInteger,
+        pending: z
+          .array(
+            z
+              .object({
+                uid: z.string().min(1),
+                encounterId: z.string().min(1),
+                regionId: z.string().min(1),
+              })
+              .strict(),
+          )
+          .max(3),
       })
       .strict(),
   })

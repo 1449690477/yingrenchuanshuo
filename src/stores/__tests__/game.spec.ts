@@ -62,6 +62,55 @@ describe('game store persistence', () => {
     expect(game.currentStage.id).toBe(expectedNextStageId);
     expect(game.save?.progress.stageKills[game.currentStage.id]).toBeUndefined();
     expect(game.save?.bag.items.stone_enhance).toBeGreaterThan(0);
+    expect(game.save?.encounters.pending.length).toBeGreaterThan(0);
+    await game.persist();
+  });
+});
+
+describe('encounter transaction', () => {
+  it('材料充足时只结算一次并移除待处理奇遇', async () => {
+    const game = useGameStore();
+    const save = createSave('奇遇测试', 'witch', 99, Date.now());
+    save.bag.items = { petal_sakura: 3, grass_soft: 2 };
+    save.encounters.pending.push({
+      uid: 'enc_1',
+      encounterId: 'enc_r1_petalsmith',
+      regionId: 'r1',
+    });
+    save.encounters.generatedCount = 1;
+    game.loadFrom(save);
+
+    expect(game.resolvePendingEncounter('enc_1', 'trade')).toEqual({
+      ok: true,
+      outcome: '刀匠把打磨剩下的强化石送给了你。',
+    });
+    expect(game.save?.player.gold).toBe(30);
+    expect(game.save?.bag.items).toEqual({ stone_enhance: 2 });
+    expect(game.save?.encounters.pending).toHaveLength(0);
+    expect(game.resolvePendingEncounter('enc_1', 'trade')).toEqual({
+      ok: false,
+      reason: 'not-found',
+    });
+    await game.persist();
+  });
+
+  it('材料不足时资产和奇遇都保持不变', async () => {
+    const game = useGameStore();
+    const save = createSave('奇遇测试', 'witch', 100, Date.now());
+    save.bag.items = { petal_sakura: 3, grass_soft: 1 };
+    save.encounters.pending.push({
+      uid: 'enc_1',
+      encounterId: 'enc_r1_petalsmith',
+      regionId: 'r1',
+    });
+    game.loadFrom(save);
+    const before = JSON.parse(JSON.stringify(game.save));
+
+    expect(game.resolvePendingEncounter('enc_1', 'trade')).toEqual({
+      ok: false,
+      reason: 'insufficient-resource',
+    });
+    expect(game.save).toEqual(before);
     await game.persist();
   });
 
