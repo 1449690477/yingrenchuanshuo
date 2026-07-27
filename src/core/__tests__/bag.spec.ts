@@ -120,6 +120,22 @@ describe('trimBag', () => {
     expect(Math.min(...keptValues)).toBe(4700);
   });
 
+  // 回归测试：曾经在 sort 比较器里现算战力，
+  // 1.5 万件会触发约 43 万次计算，直接把页面卡死。
+  it('每件装备只计算一次战力（不能在排序比较器里现算）', () => {
+    const list = Array.from({ length: 2000 }, (_, i) => mk('e' + i, { value: i % 97 }));
+    let calls = 0;
+    const countingCtx: TrimContext = {
+      ...ctx,
+      valueOf: (i) => {
+        calls++;
+        return ctx.valueOf(i);
+      },
+    };
+    trimBag(list, 100, countingCtx);
+    expect(calls).toBe(list.length);
+  });
+
   it('不修改传入的数组', () => {
     const list = [mk('a', { value: 1 }), mk('b', { value: 2 }), mk('c', { value: 3 })];
     const copy = [...list];
