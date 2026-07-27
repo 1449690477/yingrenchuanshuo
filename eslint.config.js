@@ -33,18 +33,16 @@ export default tseslint.config(
     languageOptions: { globals: globals.browser },
   },
 
-  // 构建脚本与配置文件跑在 Node 里，需要 Node 全局变量
+  // 构建脚本与配置文件跑在 Node 里，需要 Node 全局变量。
+  //
+  // ⚠ 这里必须用 globals.node 整套，不要手写白名单。
+  // 早期只列了 Buffer/console/process/__dirname/__filename 五个，
+  // 等 scripts/ 里出现常驻服务（聊天室、广播桥接）后立刻不够用了 ——
+  // setInterval / setTimeout / fetch / WebSocket 全是 Node 18+ 的合法全局，
+  // 却被报成 no-undef，一度把所有人的 npm run verify 卡死。
   {
     files: ['scripts/**', '*.config.{js,ts,mjs}'],
-    languageOptions: {
-      globals: {
-        Buffer: 'readonly',
-        console: 'readonly',
-        process: 'readonly',
-        __dirname: 'readonly',
-        __filename: 'readonly',
-      },
-    },
+    languageOptions: { globals: globals.node },
   },
 
   {
@@ -55,6 +53,9 @@ export default tseslint.config(
       ],
       '@typescript-eslint/no-explicit-any': 'warn',
       'vue/multi-word-component-names': 'off',
+      // 「尽力而为、失败不管」的 catch {} 是常驻服务里的正当写法
+      // （心跳应答、断线清理），不该逼着每处都写一行占位注释。
+      'no-empty': ['error', { allowEmptyCatch: true }],
     },
   },
 
