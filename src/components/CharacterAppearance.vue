@@ -380,7 +380,7 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
 }
 
 .action-attack .weapon-trail {
-  animation: weapon-sweep 0.58s ease-out;
+  animation: weapon-sweep 0.62s ease-out;
 }
 
 .action-cast .doll {
@@ -466,17 +466,24 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
 }
 
 @keyframes weapon-sweep {
-  0%,
-  100% {
+  0% {
     opacity: 0;
     transform: translate(-8%, 6%) rotate(-34deg) scale(0.4);
   }
-  35%,
-  58% {
+  18% {
+    opacity: 0.72;
+  }
+  42%,
+  68% {
     opacity: 0.9;
   }
-  76% {
+  82% {
+    opacity: 0.42;
     transform: translate(15%, -5%) rotate(-18deg) scale(1.16);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(18%, -7%) rotate(-16deg) scale(1.2);
   }
 }
 

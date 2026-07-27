@@ -598,8 +598,7 @@ const basicEffectUrl = computed(
   height: 100%;
   object-fit: contain;
   filter: drop-shadow(0 2px 7px rgb(91 92 148 / 35%));
-  animation: basic-impact 0.58s ease-out both;
-  animation-delay: 70ms;
+  animation: basic-impact 0.62s ease-out both;
 }
 
 .basic-swordsman {
@@ -1046,9 +1045,15 @@ const basicEffectUrl = computed(
     opacity: 0;
     transform: translate(-18px, 10px) scale(0.28) rotate(-14deg);
   }
-  34%,
-  58% {
+  18% {
+    opacity: 0.7;
+  }
+  38%,
+  70% {
     opacity: 1;
+  }
+  84% {
+    opacity: 0.45;
   }
   100% {
     opacity: 0;
