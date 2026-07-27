@@ -16,9 +16,18 @@ import { lootTableIdFor } from './monsters';
 import { boutiqueBossDropIds } from './shop';
 
 /** 各怪物类型能掉的装备品质及权重 */
+/**
+ * 各怪物类型能掉的装备品质及权重。
+ *
+ * ⚠ 这些权重是相对材料权重（MATERIAL_WEIGHT）而言的。
+ * 原本小怪的装备总权重是 49、材料 560，即每只怪 8% 出装备 ——
+ * 按满速 3 只/秒算就是 864 件/小时，背包必然爆炸。
+ * 现在下调到约 2%（1/50 只），装备重新变成「偶尔出一件」的惊喜，
+ * 而不是刷屏的垃圾。精英与 BOSS 保持较高产出，维持「打 BOSS 才有好东西」的手感。
+ */
 const QUALITY_WEIGHTS: Record<MonsterType, Partial<Record<Quality, number>>> = {
-  normal: { common: 40, fine: 8, rare: 1 },
-  elite: { common: 20, fine: 30, rare: 10, epic: 1 },
+  normal: { common: 8, fine: 3, rare: 0.6 },
+  elite: { common: 12, fine: 20, rare: 8, epic: 1 },
   boss: { fine: 20, rare: 40, epic: 12 },
 };
 

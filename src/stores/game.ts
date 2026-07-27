@@ -54,6 +54,7 @@ import { assessShopOffer, type ShopBlockReason } from '@/core/shop';
 import { advanceStageKillProgress } from '@/core/stageProgress';
 import { advanceBattleVisualCursor, battleMonsterIdAt } from '@/core/battleVisual';
 import { accumulateIdle, killsPerSecond, recoverStamina, settleOffline } from '@/core/idle';
+import { trimBag } from '@/core/bag';
 import type { IdleContext } from '@/core/idle';
 
 import {
@@ -61,6 +62,7 @@ import {
   ENHANCE_MAX,
   ENHANCE_MATERIAL_IDS,
   LUCK_FULL,
+  BAG_CAPACITY,
   SLOT_ORDER,
 } from '@/data/constants';
 import { getEquipment, requireEquipment } from '@/data/equipment';
@@ -168,6 +170,8 @@ export const useGameStore = defineStore('game', () => {
   const offlineResult = ref<{ seconds: number; cappedSeconds: number; yield: IdleYield } | null>(
     null,
   );
+  /** 背包超容自动分解的提示，UI 可据此弹 toast */
+  const autoDecomposed = ref<{ count: number; gold: number; at: number } | null>(null);
   /** 战力变化提示，UI 飘字用 */
   const cpDelta = ref<{ value: number; at: number } | null>(null);
   /** 最近一次自动存档错误；成功保存后清空。 */
@@ -476,6 +480,38 @@ export const useGameStore = defineStore('game', () => {
     for (const drop of y.loot) {
       addLoot(drop, log);
     }
+
+    // 产出全部入包后统一裁剪一次，避免背包无限膨胀
+    enforceBagCapacity();
+  }
+
+  /**
+   * 背包超容时自动分解最不值钱的白/绿装。
+   *
+   * 放在产出结算之后统一做一次，而不是每掉一件就检查 ——
+   * 一次离线结算可能塞进几千件，逐件裁剪会非常慢。
+   */
+  function enforceBagCapacity(): number {
+    if (!save.value) return 0;
+    const s = save.value;
+    if (s.bag.equipment.length <= BAG_CAPACITY) return 0;
+
+    const { kept, removed } = trimBag(s.bag.equipment, BAG_CAPACITY, {
+      valueOf: (inst) => equipmentContributionCp(inst),
+      slotOf: (inst) => getEquipment(inst.defId)?.slot,
+      qualityOf: (inst) => getEquipment(inst.defId)?.quality,
+    });
+    if (removed.length === 0) return 0;
+
+    let gold = 0;
+    for (const inst of removed) {
+      const def = getEquipment(inst.defId);
+      if (def) gold += decomposeGold(def, inst);
+    }
+    s.bag.equipment = kept;
+    s.player.gold += gold;
+    autoDecomposed.value = { count: removed.length, gold, at: Date.now() };
+    return removed.length;
   }
 
   function addLoot(drop: LootResult, log: boolean): void {
@@ -881,25 +917,32 @@ export const useGameStore = defineStore('game', () => {
     };
   }
 
-  /** 分解装备换金币。locked 的跳过。 */
+  /**
+   * 分解装备换金币。locked 的跳过。
+   *
+   * ⚠ 必须是 O(n)。早先的实现是「对每个 uid 做 findIndex + splice」，
+   * 批量分解 1.5 万件时是 O(n²)，直接把页面卡死。
+   * 现在改成一次 Set 查表 + 一次 filter 重建数组。
+   */
   function decompose(uids: string[]): { count: number; gold: number } {
     if (!save.value) return { count: 0, gold: 0 };
     const s = save.value;
+    const targets = new Set(uids);
     let gold = 0;
     let count = 0;
 
-    for (const uid of uids) {
-      const idx = s.bag.equipment.findIndex((e) => e.uid === uid);
-      if (idx < 0) continue;
-      const inst = s.bag.equipment[idx]!;
-      if (inst.locked) continue;
-      const def = requireEquipment(inst.defId);
-      gold += decomposeGold(def, inst);
-      s.bag.equipment.splice(idx, 1);
+    const kept: EquipmentInstance[] = [];
+    for (const inst of s.bag.equipment) {
+      if (!targets.has(inst.uid) || inst.locked) {
+        kept.push(inst);
+        continue;
+      }
+      gold += decomposeGold(requireEquipment(inst.defId), inst);
       count++;
     }
 
     if (count > 0) {
+      s.bag.equipment = kept;
       s.player.gold += gold;
       void persist();
     }
@@ -995,6 +1038,7 @@ export const useGameStore = defineStore('game', () => {
     lootLog,
     offlineResult,
     cpDelta,
+    autoDecomposed,
     saveError,
     loadError,
     battleProgress,

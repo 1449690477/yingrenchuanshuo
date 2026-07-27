@@ -30,3 +30,7 @@ scripts/out/
 .env
 .env.local
 .env.*.local
+
+# 美术合成过程中的临时产物（Codex 生成，不入库）
+tmp-*.png
+tmp-*.jpg
