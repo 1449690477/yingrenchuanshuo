@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onUnmounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { Backpack, Coins, PackageOpen, ShieldCheck, X } from '@lucide/vue';
 import { planBulkDecompose } from '@/core/bag';
 import { decomposeGold } from '@/core/economy';
@@ -50,13 +50,20 @@ const HIGH_RISK_QUALITIES: ReadonlySet<Quality> = new Set([
 ]);
 
 /**
- * 一次渲染的最大条数。
+ * 滚动分页。
  *
- * 背包可能堆到上万件（挂机一下午就能到 1.5 万），
- * 全部渲染成 DOM 会直接把浏览器卡死 —— 真出过这个事故。
- * 只渲染战力最高的一批，剩下的用「一键分解」处理。
+ * 背包可能堆到上万件，一次性渲染成 DOM 会把浏览器卡死（真出过这个事故）。
+ * 但早先用「硬上限 150 件」的做法有个明显缺陷：第 151 件之后玩家**根本看不到**，
+ * 只能靠一键分解盲操作。
+ *
+ * 现在改成滚动加载：先渲染一屏，滚到底部再追加一页。
+ * 既不会一次性压垮渲染，玩家也能翻到背包里的每一件装备。
  */
-const RENDER_LIMIT = 150;
+const PAGE_SIZE = 60;
+const renderCount = ref(PAGE_SIZE);
+/** 滚动哨兵，进入视口即加载下一页 */
+const sentinel = ref<HTMLElement | null>(null);
+let observer: IntersectionObserver | null = null;
 
 /** 装备总数。只读长度，不做任何战力计算。 */
 const equipCount = computed(() => inventory.bag?.equipment.length ?? 0);
@@ -79,11 +86,46 @@ const bagEquips = computed(() => {
   return scored;
 });
 
-/** 实际渲染的那一批 */
-const visibleEquips = computed(() => bagEquips.value.slice(0, RENDER_LIMIT));
+/** 当前已渲染的那一批 */
+const visibleEquips = computed(() => bagEquips.value.slice(0, renderCount.value));
 
-/** 被折叠没显示的数量 */
-const hiddenEquipCount = computed(() => Math.max(0, bagEquips.value.length - RENDER_LIMIT));
+/** 还没渲染出来的数量 */
+const hiddenEquipCount = computed(() => Math.max(0, bagEquips.value.length - renderCount.value));
+
+function loadMore(): void {
+  if (hiddenEquipCount.value <= 0) return;
+  renderCount.value = Math.min(bagEquips.value.length, renderCount.value + PAGE_SIZE);
+}
+
+/** 切页签、清空背包或重新排序后，回到第一页 */
+function resetPaging(): void {
+  renderCount.value = PAGE_SIZE;
+}
+
+watch(tab, resetPaging);
+// 背包件数变化（分解、掉落）也要重置，否则 renderCount 会停在旧的大数上
+watch(equipCount, resetPaging);
+
+onMounted(() => {
+  observer = new IntersectionObserver(
+    (entries) => {
+      if (entries.some((e) => e.isIntersecting)) loadMore();
+    },
+    // 提前 200px 触发，滚动时感觉不到加载
+    { rootMargin: '200px' },
+  );
+});
+
+/** 哨兵元素挂载/卸载时接管观察，v-if 会反复创建销毁它 */
+watch(sentinel, (el, prev) => {
+  if (prev) observer?.unobserve(prev);
+  if (el) observer?.observe(el);
+});
+
+onUnmounted(() => {
+  observer?.disconnect();
+  observer = null;
+});
 
 const bagItems = computed(() => {
   const items = inventory.bag?.items ?? {};
@@ -296,11 +338,20 @@ onUnmounted(() => {
           </span>
         </button>
 
-        <p v-if="hiddenEquipCount > 0" class="more-hint">
-          只显示战力最高的 {{ RENDER_LIMIT }} 件，还有
-          <b class="num">{{ abbr(hiddenEquipCount) }}</b> 件未显示。
+        <!--
+          滚动哨兵：进入视口即加载下一页。
+          放在列表末尾，靠 IntersectionObserver 的 rootMargin 提前 200px 触发，
+          玩家滚动时感觉不到分页边界。
+        -->
+        <div v-if="hiddenEquipCount > 0" ref="sentinel" class="load-more">
+          <span class="load-dots" aria-hidden="true"><i /><i /><i /></span>
+          <span>正在载入更多（还有 {{ abbr(hiddenEquipCount) }} 件）</span>
+        </div>
+
+        <p v-else-if="equipCount > PAGE_SIZE" class="more-hint">
+          已显示全部 <b class="num">{{ abbr(equipCount) }}</b> 件。
           <br />
-          背包太满会拖慢游戏，建议点上面的「批量分解」按品质清理。
+          背包太满会拖慢游戏，建议用上面的「批量分解」按品质清理。
         </p>
       </template>
 
@@ -532,6 +583,55 @@ onUnmounted(() => {
 .list.equip-list {
   grid-template-columns: 1fr;
   gap: 7px;
+}
+
+.load-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 18px 12px 26px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.load-dots {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.load-dots i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--pink);
+  animation: load-bounce 1s ease-in-out infinite;
+}
+
+.load-dots i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.load-dots i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes load-bounce {
+  0%,
+  100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .load-dots i {
+    animation: none;
+  }
 }
 
 .more-hint {
