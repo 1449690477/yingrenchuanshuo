@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, onUnmounted, ref, watch } from 'vue';
 import { ChevronLeft, ChevronRight, Sparkles, X } from '@lucide/vue';
 import { canAfford, type EncounterChoice, type ResourceBundle } from '@/core/encounters';
 import { abbr } from '@/core/format';
@@ -29,20 +29,84 @@ const lineIndex = ref(0);
 
 const dialogue = computed(() => encounter.value?.dialogue ?? []);
 const hasDialogue = computed(() => dialogue.value.length > 0);
-/** 已经念到第几句（含当前句） */
-const visibleLines = computed(() => dialogue.value.slice(0, lineIndex.value + 1));
-const dialogueDone = computed(
+
+/** 当前正在念的这一句。galgame 一次只显示一句，而不是堆成列表。 */
+const currentLine = computed(() => dialogue.value[lineIndex.value] ?? null);
+const isLastLine = computed(
   () => !hasDialogue.value || lineIndex.value >= dialogue.value.length - 1,
 );
 
-function advanceDialogue(): void {
-  if (dialogueDone.value) return;
-  lineIndex.value = Math.min(lineIndex.value + 1, dialogue.value.length - 1);
+// ── 打字机 ──
+//
+// 逐字显示是 galgame 的灵魂：文字一次性糊上去就没有「在跟你说话」的感觉。
+// 打到一半时点击先补完整句，再点才推进 —— 这是玩家最熟悉的交互习惯。
+
+/** 每个字的间隔（毫秒）。中文比英文慢一点更好读。 */
+const TYPE_SPEED_MS = 34;
+
+const typedCount = ref(0);
+let typeTimer = 0;
+
+const typedText = computed(() => (currentLine.value?.text ?? '').slice(0, typedCount.value));
+const isTyping = computed(() => typedCount.value < (currentLine.value?.text.length ?? 0));
+
+function startTyping(): void {
+  stopTyping();
+  typedCount.value = 0;
+  const full = currentLine.value?.text ?? '';
+  if (!full) return;
+
+  // 尊重系统的「减弱动效」设置，直接整句显示
+  if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+    typedCount.value = full.length;
+    return;
+  }
+
+  typeTimer = window.setInterval(() => {
+    if (typedCount.value >= full.length) {
+      stopTyping();
+      return;
+    }
+    typedCount.value++;
+  }, TYPE_SPEED_MS);
 }
 
+function stopTyping(): void {
+  if (typeTimer) {
+    clearInterval(typeTimer);
+    typeTimer = 0;
+  }
+}
+
+/** 整句立刻显示完 */
+function completeLine(): void {
+  stopTyping();
+  typedCount.value = currentLine.value?.text.length ?? 0;
+}
+
+/**
+ * 点击对话区：正在打字就补完，已打完就推进下一句。
+ * 这是 galgame 的标准手感。
+ */
+function advanceDialogue(): void {
+  if (isTyping.value) {
+    completeLine();
+    return;
+  }
+  if (isLastLine.value) return;
+  lineIndex.value++;
+}
+
+/** 跳过整段对话，直接看选项 */
 function skipDialogue(): void {
   lineIndex.value = Math.max(0, dialogue.value.length - 1);
+  completeLine();
 }
+
+/** 对话是否已经念完（最后一句且打完字），选项在此之后才出现 */
+const dialogueDone = computed(() => isLastLine.value && !isTyping.value);
+
+onUnmounted(stopTyping);
 
 /** 换奇遇时对话要从头开始 */
 watch(selectedUid, () => {
@@ -81,6 +145,16 @@ const wallet = computed(() => ({
   gold: player.player?.gold ?? 0,
   items: inventory.bag?.items ?? {},
 }));
+
+/**
+ * 换一句就重新打字。
+ *
+ * ⚠ 这个 watch 必须放在 encounter / entry 声明之后。
+ * immediate 会在 setup 阶段立刻求值 currentLine → dialogue → encounter，
+ * 而 encounter 是下面才声明的 const，提前访问会触发 TDZ 报错，
+ * 整个面板会渲染失败且只在控制台留下一行错误（真踩过这个坑）。
+ */
+watch(currentLine, startTyping, { immediate: true });
 
 function resourceText(bundle: ResourceBundle | undefined, emptyLabel = '无需材料'): string {
   if (!bundle) return emptyLabel;
@@ -183,20 +257,33 @@ function choose(choice: EncounterChoice): void {
           </button>
         </div>
 
-        <!-- 对话区 -->
-        <div v-if="hasDialogue" class="dialogue" @click="advanceDialogue">
-          <TransitionGroup name="line" tag="div" class="line-list">
-            <p
-              v-for="(line, i) in visibleLines"
+        <!-- 对话区：galgame 式单行打字机 -->
+        <div
+          v-if="hasDialogue && currentLine"
+          class="dialogue"
+          role="button"
+          tabindex="0"
+          :aria-label="isTyping ? '点击立即显示整句' : '点击继续对话'"
+          @click="advanceDialogue"
+          @keydown.enter.prevent="advanceDialogue"
+          @keydown.space.prevent="advanceDialogue"
+        >
+          <!-- 名牌做成对话框上沿的一个小标签，旁白时不显示 -->
+          <span v-if="currentLine.speaker" class="nameplate">{{ currentLine.speaker }}</span>
+
+          <p class="line" :class="{ narration: !currentLine.speaker }">
+            {{ typedText }}<span v-if="isTyping" class="caret" aria-hidden="true" />
+          </p>
+
+          <span class="progress-dots" aria-hidden="true">
+            <i
+              v-for="(_, i) in dialogue"
               :key="i"
-              class="line"
-              :class="{ narration: !line.speaker, latest: i === visibleLines.length - 1 }"
-            >
-              <span v-if="line.speaker" class="speaker">{{ line.speaker }}</span>
-              <span class="line-text">{{ line.text }}</span>
-            </p>
-          </TransitionGroup>
-          <span v-if="!dialogueDone" class="tap-hint">轻触继续 ▾</span>
+              :class="{ on: i <= lineIndex }"
+            />
+          </span>
+
+          <span v-if="!isTyping && !isLastLine" class="tap-hint" aria-hidden="true">▼</span>
         </div>
 
         <p v-else class="story">{{ encounter.story }}</p>
@@ -415,17 +502,17 @@ function choose(choice: EncounterChoice): void {
   min-height: 44px;
 }
 /* ─────────────────────────────────────────
-   奇遇演出：场景舞台 + 立绘 + 逐句对话
+   奇遇演出（galgame 式）
+   大场景舞台 + 立绘 + 底部单行打字机对话框
    ───────────────────────────────────────── */
 
 .stage-view {
   position: relative;
-  height: 148px;
-  margin: 0 14px 10px;
-  border-radius: var(--r);
+  height: 190px;
+  margin: 0 14px;
+  border-radius: var(--r) var(--r) 0 0;
   overflow: hidden;
   background: linear-gradient(150deg, var(--blue-soft), var(--pink-soft));
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 60%);
 }
 
 .stage-view.tappable {
@@ -438,7 +525,18 @@ function choose(choice: EncounterChoice): void {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: center 42%;
+  object-position: center 40%;
+  /* 场景缓慢推近，静止画面也有呼吸感 */
+  animation: scene-drift 18s ease-in-out infinite alternate;
+}
+
+@keyframes scene-drift {
+  from {
+    transform: scale(1.02) translateX(-1%);
+  }
+  to {
+    transform: scale(1.08) translateX(1%);
+  }
 }
 
 .scene-veil {
@@ -446,21 +544,33 @@ function choose(choice: EncounterChoice): void {
   inset: 0;
   background: linear-gradient(
     180deg,
-    rgb(255 255 255 / 10%) 0%,
-    rgb(255 255 255 / 5%) 45%,
-    rgb(255 255 255 / 72%) 100%
+    rgb(30 45 65 / 18%) 0%,
+    rgb(30 45 65 / 4%) 40%,
+    rgb(20 32 48 / 42%) 100%
   );
 }
 
-/* 立绘 / 占位头像 */
+/* ── 立绘 ── */
 .portrait {
   position: absolute;
-  right: 16px;
+  right: 14px;
   bottom: 0;
-  width: 96px;
-  height: 128px;
+  width: 128px;
+  height: 178px;
   display: grid;
-  place-items: center;
+  place-items: end center;
+  animation: portrait-enter 0.45s var(--ease-out-back, cubic-bezier(0.34, 1.56, 0.64, 1));
+}
+
+@keyframes portrait-enter {
+  from {
+    opacity: 0;
+    transform: translateX(26px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .portrait.is-art img {
@@ -468,22 +578,23 @@ function choose(choice: EncounterChoice): void {
   height: 100%;
   object-fit: contain;
   object-position: bottom center;
-  filter: drop-shadow(0 4px 10px rgb(90 110 140 / 35%));
+  filter: drop-shadow(0 6px 14px rgb(30 45 70 / 45%));
 }
 
-/* 还没出立绘时的风格化占位：一枚发光的圆牌 */
+/* 还没出立绘时的风格化占位 */
 .portrait-glyph {
-  width: 74px;
-  height: 74px;
+  align-self: center;
+  width: 86px;
+  height: 86px;
   display: grid;
   place-items: center;
-  font-size: 34px;
+  font-size: 40px;
   border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #fff, var(--pink-soft) 65%, var(--blue-soft));
+  background: radial-gradient(circle at 35% 30%, #fff, var(--pink-soft) 62%, var(--blue-soft));
   box-shadow:
-    0 0 0 3px rgb(255 255 255 / 85%),
-    0 6px 18px rgb(120 140 175 / 35%);
-  animation: portrait-float 3.4s ease-in-out infinite;
+    0 0 0 4px rgb(255 255 255 / 78%),
+    0 8px 22px rgb(60 90 130 / 40%);
+  animation: portrait-float 3.6s ease-in-out infinite;
 }
 
 @keyframes portrait-float {
@@ -492,106 +603,141 @@ function choose(choice: EncounterChoice): void {
     transform: translateY(0);
   }
   50% {
-    transform: translateY(-6px);
+    transform: translateY(-7px);
   }
 }
 
 .skip {
   position: absolute;
   right: 10px;
-  top: 8px;
-  padding: 3px 10px;
+  top: 10px;
+  padding: 4px 12px;
   font-size: 10px;
-  color: var(--text-mid);
-  background: rgb(255 255 255 / 82%);
+  font-weight: 600;
+  color: #fff;
+  background: rgb(30 45 65 / 52%);
   border-radius: 999px;
-  backdrop-filter: blur(2px);
+  backdrop-filter: blur(3px);
 }
 
-/* 对话区 */
+/* ── 对话框 ── */
 .dialogue {
   position: relative;
   margin: 0 14px 12px;
-  padding: 12px 14px 20px;
-  background: var(--panel);
+  padding: 20px 16px 22px;
+  min-height: 104px;
+  background: linear-gradient(180deg, rgb(255 255 255 / 96%), rgb(248 252 255 / 98%));
   border: 1px solid var(--line);
-  border-radius: var(--r);
+  border-top: none;
+  border-radius: 0 0 var(--r) var(--r);
+  box-shadow: 0 6px 18px rgb(90 120 160 / 14%);
   cursor: pointer;
-  min-height: 92px;
+  user-select: none;
 }
 
-.line-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+.dialogue:focus-visible {
+  outline: 2px solid var(--pink);
+  outline-offset: 2px;
 }
 
-.line {
-  font-size: 13px;
-  line-height: 1.75;
-  color: var(--text);
-}
-
-.line.narration {
+/* 名牌骑在对话框上沿 */
+.nameplate {
+  position: absolute;
+  left: 14px;
+  top: -13px;
+  padding: 4px 14px;
   font-size: 12px;
-  color: var(--text-mid);
-  font-style: italic;
-  text-align: center;
-}
-
-.line:not(.latest) {
-  opacity: 0.5;
-}
-
-.speaker {
-  display: inline-block;
-  margin-right: 6px;
-  padding: 1px 9px;
-  font-size: 11px;
   font-weight: 700;
   color: #fff;
   background: linear-gradient(135deg, #ffb0d0, var(--pink-deep));
   border-radius: 999px;
-  vertical-align: 2px;
+  box-shadow: 0 3px 10px rgb(245 121 159 / 38%);
+  white-space: nowrap;
+}
+
+.line {
+  font-size: 14px;
+  line-height: 1.85;
+  color: var(--text);
+  min-height: 3.7em;
+}
+
+.line.narration {
+  font-size: 13px;
+  color: var(--text-mid);
+  font-style: italic;
+}
+
+/* 打字机光标 */
+.caret {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: -2px;
+  background: var(--pink-deep);
+  animation: caret-blink 0.8s step-end infinite;
+}
+
+@keyframes caret-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+/* 进度点：让玩家知道这段话还有多长 */
+.progress-dots {
+  position: absolute;
+  left: 16px;
+  bottom: 8px;
+  display: flex;
+  gap: 4px;
+}
+
+.progress-dots i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--line-strong);
+  transition: background 0.2s;
+}
+
+.progress-dots i.on {
+  background: var(--pink);
 }
 
 .tap-hint {
   position: absolute;
-  right: 12px;
-  bottom: 6px;
-  font-size: 10px;
-  color: var(--text-dim);
-  animation: tap-blink 1.4s ease-in-out infinite;
+  right: 14px;
+  bottom: 8px;
+  font-size: 11px;
+  color: var(--pink-deep);
+  animation: tap-bounce 1.1s ease-in-out infinite;
 }
 
-@keyframes tap-blink {
+@keyframes tap-bounce {
   0%,
   100% {
-    opacity: 0.35;
+    transform: translateY(0);
+    opacity: 0.45;
   }
   50% {
+    transform: translateY(3px);
     opacity: 1;
   }
 }
 
-.line-enter-from {
-  opacity: 0;
-  transform: translateY(8px);
-}
-
-.line-enter-active {
-  transition: all 0.24s ease-out;
-}
-
 @media (prefers-reduced-motion: reduce) {
+  .scene-art,
+  .portrait,
   .portrait-glyph,
-  .tap-hint {
+  .tap-hint,
+  .caret {
     animation: none;
   }
-
-  .line-enter-active {
-    transition-duration: 0.01ms;
-  }
 }
-
 </style>
