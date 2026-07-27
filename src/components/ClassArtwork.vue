@@ -3,12 +3,17 @@ import { computed } from 'vue';
 import type { ClassId } from '@/core/types';
 import { CLASS_INFO } from '@/data/constants';
 import { CLASS_VISUALS } from '@/data/classVisuals';
+import {
+  getClassBattleAnimation,
+  type BattleVisualAction,
+} from '@/data/spriteAnimations';
+import SpriteSheet from '@/components/SpriteSheet.vue';
 
 const props = withDefaults(
   defineProps<{
     classId: ClassId;
     variant?: 'preview' | 'thumb' | 'battle' | 'avatar';
-    action?: 'idle' | 'cast';
+    action?: BattleVisualAction;
   }>(),
   {
     variant: 'preview',
@@ -17,8 +22,9 @@ const props = withDefaults(
 );
 
 const visual = computed(() => CLASS_VISUALS[props.classId]);
+const animation = computed(() => getClassBattleAnimation(props.classId, props.action));
 const portraitPath = computed(() =>
-  props.action === 'cast' ? visual.value.castPortrait : visual.value.portrait,
+  props.action === 'attack' ? visual.value.castPortrait : visual.value.portrait,
 );
 const portraitUrl = computed(() =>
   portraitPath.value ? `${import.meta.env.BASE_URL}${portraitPath.value}` : null,
@@ -32,8 +38,9 @@ const portraitUrl = computed(() =>
     role="img"
     :aria-label="`${CLASS_INFO[classId].name}角色形象`"
   >
+    <SpriteSheet v-if="variant === 'battle' && animation" :animation="animation" />
     <img
-      v-if="portraitUrl"
+      v-else-if="portraitUrl"
       class="portrait"
       :src="portraitUrl"
       alt=""

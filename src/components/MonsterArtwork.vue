@@ -1,20 +1,28 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { MonsterDef } from '@/core/types';
+import {
+  getMonsterBattleAnimation,
+  type BattleVisualAction,
+} from '@/data/spriteAnimations';
+import SpriteSheet from '@/components/SpriteSheet.vue';
 
 const props = withDefaults(
   defineProps<{
     monster: MonsterDef;
     variant?: 'battle' | 'thumb';
+    action?: BattleVisualAction;
   }>(),
   {
     variant: 'battle',
+    action: 'idle',
   },
 );
 
 const spriteUrl = computed(() =>
   props.monster.sprite ? `${import.meta.env.BASE_URL}${props.monster.sprite}` : null,
 );
+const animation = computed(() => getMonsterBattleAnimation(props.monster.id, props.action));
 </script>
 
 <template>
@@ -24,7 +32,8 @@ const spriteUrl = computed(() =>
     role="img"
     :aria-label="`${monster.name}怪物形象`"
   >
-    <img v-if="spriteUrl" :src="spriteUrl" alt="" draggable="false" decoding="async" />
+    <SpriteSheet v-if="variant === 'battle' && animation" :animation="animation" />
+    <img v-else-if="spriteUrl" :src="spriteUrl" alt="" draggable="false" decoding="async" />
     <span v-else class="placeholder" aria-hidden="true">{{ monster.name.slice(0, 1) }}</span>
   </span>
 </template>

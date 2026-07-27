@@ -27,6 +27,7 @@ import {
 import { createInstance, totalEquipStats } from '@/core/equipment';
 import { accumulateIdle, killsPerSecond, recoverStamina, settleOffline } from '@/core/idle';
 import type { IdleContext } from '@/core/idle';
+import { advanceAttackPulse } from '@/core/battleVisual';
 
 import { CRIT_RATE_CAP, DECOMPOSE_GOLD_PER_LEVEL, SLOT_ORDER } from '@/data/constants';
 import { getEquipment, requireEquipment } from '@/data/equipment';
@@ -58,8 +59,12 @@ export interface LootLogEntry {
 
 export interface BattlePulse {
   id: number;
+  /** 单次攻击的平均伤害；hits > 1 时由 UI 显示合并次数。 */
   damage: number;
+  hits: number;
   kills: number;
+  /** 本次进入挂机后累计击杀数，仅用于已通关关卡循环切换视觉目标。 */
+  killCursor: number;
 }
 
 const AUTO_SAVE_INTERVAL_MS = 3_000;
@@ -96,6 +101,8 @@ export const useGameStore = defineStore('game', () => {
   let rng = new Rng(1);
   let lootLogSeq = 0;
   let battlePulseSeq = 0;
+  let battleKillCursor = 0;
+  let attackVisualCarrySec = 0;
   /** 挂机零头秒数。不足一只怪的时间攒在这里，见 core/idle.accumulateIdle */
   let idleCarrySec = 0;
   let lastTickAt = 0;
@@ -207,6 +214,9 @@ export const useGameStore = defineStore('game', () => {
     save.value = createSave(name.trim() || '无名少女', classId, seed, now);
     rng = new Rng(seed);
     lootLog.value = [];
+    idleCarrySec = 0;
+    attackVisualCarrySec = 0;
+    battleKillCursor = 0;
     battleProgress.value = 0;
     battlePulse.value = null;
     await persist();
@@ -217,6 +227,9 @@ export const useGameStore = defineStore('game', () => {
     save.value = null;
     lootLog.value = [];
     offlineResult.value = null;
+    idleCarrySec = 0;
+    attackVisualCarrySec = 0;
+    battleKillCursor = 0;
     battleProgress.value = 0;
     battlePulse.value = null;
   }
@@ -297,14 +310,25 @@ export const useGameStore = defineStore('game', () => {
         pity: save.value.progress.pity,
       });
       idleCarrySec = acc.carrySec;
-      battleProgress.value = Math.min(0.99, idleCarrySec * killsPerSecond(ctx));
+      const kpsNow = killsPerSecond(ctx);
+      battleProgress.value = Math.min(0.99, idleCarrySec * kpsNow);
       const y = acc.yield;
-      if (y.kills > 0) {
+      battleKillCursor += y.kills;
+
+      const attackStep = advanceAttackPulse(dt, attackVisualCarrySec, ctx.player.stats.spd);
+      attackVisualCarrySec = attackStep.carrySec;
+      // 如果本帧已经真实击杀，至少补一段攻击反馈，避免极端掉帧时怪物无声消失。
+      const visualHits = Math.max(attackStep.hits, y.kills > 0 ? 1 : 0);
+      if (visualHits > 0) {
         battlePulse.value = {
           id: ++battlePulseSeq,
-          damage: ctx.monster.stats.hp,
+          damage: Math.max(1, Math.round((ctx.monster.stats.hp * kpsNow) / ctx.player.stats.spd)),
+          hits: visualHits,
           kills: y.kills,
+          killCursor: battleKillCursor,
         };
+      }
+      if (y.kills > 0) {
         applyYield(y, true);
         save.value.stats.totalKills += y.kills;
         applyStageKills(y.kills, true);
@@ -312,6 +336,7 @@ export const useGameStore = defineStore('game', () => {
     } else {
       // 战力不足时不能把等待时间攒着，切回低级图后一次性领取。
       idleCarrySec = 0;
+      attackVisualCarrySec = 0;
       battleProgress.value = 0;
     }
     save.value.stats.totalPlaySec += dt;
@@ -433,6 +458,8 @@ export const useGameStore = defineStore('game', () => {
     if (!isStageUnlocked(stageId)) return false;
     save.value.progress.currentStageId = stageId;
     idleCarrySec = 0;
+    attackVisualCarrySec = 0;
+    battleKillCursor = 0;
     battleProgress.value = 0;
     battlePulse.value = null;
     void persist();
@@ -628,6 +655,8 @@ export const useGameStore = defineStore('game', () => {
     rng = new Rng(data.rngState);
     lootLog.value = [];
     idleCarrySec = 0;
+    attackVisualCarrySec = 0;
+    battleKillCursor = 0;
     battleProgress.value = 0;
     battlePulse.value = null;
     settleOfflineNow();

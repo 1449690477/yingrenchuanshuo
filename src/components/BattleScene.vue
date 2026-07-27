@@ -14,9 +14,12 @@ defineProps<{
   active: boolean;
   casting: boolean;
   hpPercent: number;
+  currentHp: number;
+  maxHp: number;
+  attack: number;
   statusText: string;
   progressText: string;
-  pulse: { id: number; damage: number; kills: number } | null;
+  pulse: { id: number; damage: number; hits: number; kills: number } | null;
   skill: VisualSkill | null;
   effectUrl: string | null;
 }>();
@@ -55,20 +58,24 @@ defineProps<{
         role="meter"
         aria-label="目标生命"
         aria-valuemin="0"
-        aria-valuemax="100"
-        :aria-valuenow="hpPercent"
+        :aria-valuemax="maxHp"
+        :aria-valuenow="currentHp"
       >
         <span class="hpbar-fill" :style="{ width: `${hpPercent}%` }" />
         <span class="hp-shine" />
+        <strong class="hp-value num">生命 {{ abbr(currentHp) }} / {{ abbr(maxHp) }}</strong>
       </div>
     </div>
 
     <div class="hero-unit">
       <span class="actor-shadow" aria-hidden="true" />
-      <div class="hero-actor">
-        <ClassArtwork :class-id="classId" variant="battle" :action="casting ? 'cast' : 'idle'" />
+      <div :key="pulse?.id ?? 0" class="hero-actor">
+        <ClassArtwork :class-id="classId" variant="battle" :action="casting ? 'attack' : 'idle'" />
       </div>
-      <span class="actor-name hero-name">{{ playerName }}</span>
+      <span class="actor-name hero-name">
+        <strong>{{ playerName }}</strong>
+        <small class="num">攻击 {{ abbr(attack) }}</small>
+      </span>
     </div>
 
     <div
@@ -82,10 +89,10 @@ defineProps<{
       <MonsterArtwork :monster="support" />
     </div>
 
-    <div :key="`${monster.id}-${pulse?.id ?? 0}`" class="enemy-unit" :class="{ hit: !!pulse }">
+    <div :key="`${monster.id}-${pulse?.id ?? 0}`" class="enemy-unit" :class="{ hit: casting }">
       <span class="actor-shadow" aria-hidden="true" />
       <div class="enemy-actor">
-        <MonsterArtwork :monster="monster" />
+        <MonsterArtwork :monster="monster" :action="casting ? 'hit' : 'idle'" />
       </div>
       <span class="actor-name enemy-name">{{ monster.name }}</span>
     </div>
@@ -93,7 +100,7 @@ defineProps<{
     <Transition name="damage">
       <span v-if="pulse" :key="pulse.id" class="damage num">
         -{{ abbr(pulse.damage) }}
-        <small v-if="pulse.kills > 1">×{{ pulse.kills }}</small>
+        <small v-if="pulse.hits > 1">×{{ pulse.hits }}</small>
       </span>
     </Transition>
 
@@ -270,11 +277,23 @@ defineProps<{
 .hpbar {
   position: relative;
   display: block;
-  height: 5px;
+  height: 15px;
   overflow: hidden;
   background: rgb(15 21 32 / 52%);
   border: 1px solid rgb(255 255 255 / 24%);
   border-radius: 999px;
+}
+
+.hp-value {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 8px;
+  line-height: 1;
+  color: #fff;
+  text-shadow: 0 1px 2px rgb(25 29 42 / 92%);
 }
 
 .hpbar-fill {
@@ -416,7 +435,7 @@ defineProps<{
 
 .actor-name {
   position: absolute;
-  bottom: -1px;
+  bottom: -3px;
   max-width: 104px;
   overflow: hidden;
   padding: 2px 7px;
@@ -427,6 +446,17 @@ defineProps<{
   background: rgb(32 46 62 / 56%);
   border: 1px solid rgb(255 255 255 / 28%);
   border-radius: 999px;
+}
+
+.actor-name strong,
+.actor-name small {
+  display: block;
+}
+
+.actor-name small {
+  margin-top: 1px;
+  font-size: 8px;
+  color: #fff2b8;
 }
 
 .hero-name {

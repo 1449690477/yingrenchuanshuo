@@ -2,6 +2,7 @@
 import { computed, onUnmounted, ref, watch } from 'vue';
 import { abbr } from '@/core/format';
 import { battleMonsterIdAt } from '@/core/battleVisual';
+import { makeMonster } from '@/core/progression';
 import { usePlayerStore } from '@/stores/player';
 import { useStageStore } from '@/stores/stage';
 import { requireChapter, requireRegionOfChapter } from '@/data/regions';
@@ -37,7 +38,7 @@ const monsters = computed(() => {
  * 它只改变画面，不改动 M2 的收益与伤害公式。
  */
 const visualMonsterCursor = computed(() =>
-  stage.cleared ? (stage.battlePulse?.id ?? 0) : stage.kills,
+  stage.cleared ? (stage.battlePulse?.killCursor ?? 0) : stage.kills,
 );
 const target = computed(() =>
   requireMonster(battleMonsterIdAt(stage.current, visualMonsterCursor.value)),
@@ -46,9 +47,13 @@ const supportMonsters = computed(() =>
   monsters.value.filter((monster) => monster.id !== target.value.id).slice(0, 2),
 );
 const hpPercent = computed(() => Math.max(1, (1 - stage.battleProgress) * 100));
+const targetMaxHp = computed(() => makeMonster(target.value).stats.hp);
+const targetCurrentHp = computed(() =>
+  Math.max(1, Math.ceil((targetMaxHp.value * hpPercent.value) / 100)),
+);
 
 /**
- * M3 技能自动释放尚未接入前，视觉演出只跟随真实击杀脉冲。
+ * M3 技能自动释放尚未接入前，视觉演出跟随按真实攻速生成的攻击脉冲。
  * 技能按玩家等级解锁，绝不提前展示未学会的技能；伤害仍由 M2 平均技能倍率结算。
  */
 const activeVisualSkill = computed<VisualSkill | null>(() => {
@@ -120,6 +125,9 @@ const cpWarn = computed(() => {
         :active="stage.canIdle"
         :casting="casting"
         :hp-percent="hpPercent"
+        :current-hp="targetCurrentHp"
+        :max-hp="targetMaxHp"
+        :attack="player.finalStats.atk"
         :status-text="stage.canIdle ? '自动战斗中' : '战斗已暂停'"
         :progress-text="
           stage.cleared ? `${stage.kps.toFixed(2)} 只/秒` : `${stage.kills}/${stage.killTarget}`

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { battleMonsterIdAt, flattenBattleMonsterIds } from '../battleVisual';
+import {
+  advanceAttackPulse,
+  battleMonsterIdAt,
+  flattenBattleMonsterIds,
+} from '../battleVisual';
 import type { Stage, Wave } from '../types';
 
 function visualStage(id: string, waves: Wave[]): Pick<Stage, 'id' | 'waves'> {
@@ -77,5 +81,27 @@ describe('battleMonsterIdAt', () => {
   it('拒绝负数或非整数游标', () => {
     expect(() => battleMonsterIdAt(stage, -1)).toThrow('怪物游标必须是非负整数');
     expect(() => battleMonsterIdAt(stage, 0.5)).toThrow('怪物游标必须是非负整数');
+  });
+});
+
+describe('advanceAttackPulse', () => {
+  it('按攻速跨帧累计，并在到达出手时间时触发', () => {
+    const first = advanceAttackPulse(0.4, 0, 1);
+    expect(first).toEqual({ hits: 0, carrySec: 0.4 });
+
+    const second = advanceAttackPulse(0.6, first.carrySec, 1);
+    expect(second.hits).toBe(1);
+    expect(second.carrySec).toBeCloseTo(0);
+  });
+
+  it('掉帧时合并返回多次攻击并保留余量', () => {
+    const result = advanceAttackPulse(1.25, 0, 2);
+    expect(result.hits).toBe(2);
+    expect(result.carrySec).toBeCloseTo(0.25);
+  });
+
+  it('拒绝负时间和无效攻速', () => {
+    expect(() => advanceAttackPulse(-0.1, 0, 1)).toThrow('帧时长');
+    expect(() => advanceAttackPulse(0.1, 0, 0)).toThrow('攻速');
   });
 });
