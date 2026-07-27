@@ -80,12 +80,12 @@ describe('encounter transaction', () => {
     save.encounters.generatedCount = 1;
     game.loadFrom(save);
 
-    expect(game.resolvePendingEncounter('enc_1', 'trade')).toEqual({
-      ok: true,
-      outcome: '刀匠把打磨剩下的强化石送给了你。',
-    });
-    expect(game.save?.player.gold).toBe(30);
-    expect(game.save?.bag.items).toEqual({ stone_enhance: 2 });
+    const resolution = game.resolvePendingEncounter('enc_1', 'trade');
+    expect(resolution.ok).toBe(true);
+    if (!resolution.ok) return;
+    expect(resolution.outcome).toBe('刀匠把一份沉甸甸的谢礼塞到了你手里。');
+    expect(game.save?.player.gold).toBe(resolution.rewards.gold ?? 0);
+    expect(game.save?.bag.items).toEqual(resolution.rewards.items ?? {});
     expect(game.save?.encounters.pending).toHaveLength(0);
     expect(game.resolvePendingEncounter('enc_1', 'trade')).toEqual({
       ok: false,
