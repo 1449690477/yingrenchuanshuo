@@ -881,25 +881,32 @@ export const useGameStore = defineStore('game', () => {
     };
   }
 
-  /** 分解装备换金币。locked 的跳过。 */
+  /**
+   * 分解装备换金币。locked 的跳过。
+   *
+   * ⚠ 必须是 O(n)。早先的实现是「对每个 uid 做 findIndex + splice」，
+   * 批量分解 1.5 万件时是 O(n²)，直接把页面卡死。
+   * 现在改成一次 Set 查表 + 一次 filter 重建数组。
+   */
   function decompose(uids: string[]): { count: number; gold: number } {
     if (!save.value) return { count: 0, gold: 0 };
     const s = save.value;
+    const targets = new Set(uids);
     let gold = 0;
     let count = 0;
 
-    for (const uid of uids) {
-      const idx = s.bag.equipment.findIndex((e) => e.uid === uid);
-      if (idx < 0) continue;
-      const inst = s.bag.equipment[idx]!;
-      if (inst.locked) continue;
-      const def = requireEquipment(inst.defId);
-      gold += decomposeGold(def, inst);
-      s.bag.equipment.splice(idx, 1);
+    const kept: EquipmentInstance[] = [];
+    for (const inst of s.bag.equipment) {
+      if (!targets.has(inst.uid) || inst.locked) {
+        kept.push(inst);
+        continue;
+      }
+      gold += decomposeGold(requireEquipment(inst.defId), inst);
       count++;
     }
 
     if (count > 0) {
+      s.bag.equipment = kept;
       s.player.gold += gold;
       void persist();
     }

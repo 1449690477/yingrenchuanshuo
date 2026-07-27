@@ -17,11 +17,41 @@ const detail = ref<EquipmentInstance | null>(null);
 const toast = ref('');
 const salvageBurst = ref(false);
 
+/**
+ * 一次渲染的最大条数。
+ *
+ * 背包可能堆到上万件（挂机一下午就能到 1.5 万），
+ * 全部渲染成 DOM 会直接把浏览器卡死 —— 真出过这个事故。
+ * 只渲染战力最高的一批，剩下的用「一键分解」处理。
+ */
+const RENDER_LIMIT = 150;
+
+/** 装备总数。只读长度，不做任何战力计算。 */
+const equipCount = computed(() => inventory.bag?.equipment.length ?? 0);
+
 const bagEquips = computed(() => {
+  // 只在装备页激活时才做昂贵的评分与排序
+  if (tab.value !== 'equip') return [];
   const list = inventory.bag?.equipment ?? [];
-  // 战力高的排前面，玩家一眼看到值钱的
-  return [...list].sort((a, b) => scoreOf(b) - scoreOf(a));
+  if (list.length === 0) return [];
+
+  // ⚠ 关键：战力只算一遍。
+  // 早先写成 sort((a,b) => scoreOf(b) - scoreOf(a))，
+  // 1.5 万件时 sort 会触发约 43 万次战力计算，页面直接假死。
+  const scored = list.map((inst) => ({
+    inst,
+    def: requireEquipment(inst.defId),
+    score: scoreOf(inst),
+  }));
+  scored.sort((a, b) => b.score - a.score);
+  return scored;
 });
+
+/** 实际渲染的那一批 */
+const visibleEquips = computed(() => bagEquips.value.slice(0, RENDER_LIMIT));
+
+/** 被折叠没显示的数量 */
+const hiddenEquipCount = computed(() => Math.max(0, bagEquips.value.length - RENDER_LIMIT));
 
 const bagItems = computed(() => {
   const items = inventory.bag?.items ?? {};
@@ -38,11 +68,8 @@ function scoreOf(inst: EquipmentInstance): number {
 /** 一键分解：白绿装且未锁定的 */
 function decomposeJunk() {
   const targets = bagEquips.value
-    .filter((e) => {
-      const d = requireEquipment(e.defId);
-      return (d.quality === 'common' || d.quality === 'fine') && !e.locked;
-    })
-    .map((e) => e.uid);
+    .filter((r) => (r.def.quality === 'common' || r.def.quality === 'fine') && !r.inst.locked)
+    .map((r) => r.inst.uid);
 
   if (targets.length === 0) {
     show('没有可分解的白/绿装备');
@@ -80,7 +107,9 @@ function playSalvageBurst() {
   <div class="bag">
     <div class="tabs">
       <button class="t" :class="{ on: tab === 'equip' }" @click="tab = 'equip'">
-        装备 <span class="n num">{{ bagEquips.length }}</span>
+        <!-- 用 equipCount 而不是 bagEquips.length：后者会触发全量战力计算，
+             而这个标签是常驻渲染的，挂机时每次掉落都会重算一遍 -->
+        装备 <span class="n num">{{ equipCount }}</span>
       </button>
       <button class="t" :class="{ on: tab === 'item' }" @click="tab = 'item'">
         材料 <span class="n num">{{ bagItems.length }}</span>
@@ -94,26 +123,37 @@ function playSalvageBurst() {
 
     <div class="list scroll-y" :class="{ 'equip-list': tab === 'equip' }">
       <template v-if="tab === 'equip'">
-        <p v-if="bagEquips.length === 0" class="empty">背包空空的，去挂机打点装备吧～</p>
-        <button v-for="e in bagEquips" :key="e.uid" class="row equip-row" @click="detail = e">
-          <EquipmentIcon :def="requireEquipment(e.defId)" :enhance="e.enhance" :locked="e.locked" />
+        <p v-if="equipCount === 0" class="empty">背包空空的，去挂机打点装备吧～</p>
+        <button
+          v-for="row in visibleEquips"
+          :key="row.inst.uid"
+          class="row equip-row"
+          @click="detail = row.inst"
+        >
+          <EquipmentIcon :def="row.def" :enhance="row.inst.enhance" :locked="row.inst.locked" />
           <span class="mid">
-            <span class="name" :class="'q-' + requireEquipment(e.defId).quality">
-              {{ requireEquipment(e.defId).name }}
-              <span v-if="e.enhance > 0" class="enh">+{{ e.enhance }}</span>
+            <span class="name" :class="'q-' + row.def.quality">
+              {{ row.def.name }}
+              <span v-if="row.inst.enhance > 0" class="enh">+{{ row.inst.enhance }}</span>
             </span>
             <span class="sub">
-              {{ SLOT_LABELS[requireEquipment(e.defId).slot] }} ·
-              {{ QUALITY_LABELS[requireEquipment(e.defId).quality] }} · Lv{{
-                requireEquipment(e.defId).level
+              {{ SLOT_LABELS[row.def.slot] }} · {{ QUALITY_LABELS[row.def.quality] }} · Lv{{
+                row.def.level
               }}
             </span>
           </span>
           <span class="cp">
             <span class="cp-label">战力</span>
-            <span class="num">{{ abbr(scoreOf(e)) }}</span>
+            <span class="num">{{ abbr(row.score) }}</span>
           </span>
         </button>
+
+        <p v-if="hiddenEquipCount > 0" class="more-hint">
+          只显示战力最高的 {{ RENDER_LIMIT }} 件，还有
+          <b class="num">{{ abbr(hiddenEquipCount) }}</b> 件未显示。
+          <br />
+          背包太满会拖慢游戏，建议点上面的「分解白绿」清理一下。
+        </p>
       </template>
 
       <template v-else>
@@ -210,6 +250,18 @@ function playSalvageBurst() {
 .list.equip-list {
   grid-template-columns: 1fr;
   gap: 7px;
+}
+
+.more-hint {
+  padding: 14px 12px 22px;
+  font-size: 11px;
+  line-height: 1.8;
+  text-align: center;
+  color: var(--text-dim);
+}
+
+.more-hint b {
+  color: var(--pink-deep);
 }
 
 .empty {
