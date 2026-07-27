@@ -419,16 +419,16 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
 @keyframes character-attack {
   0%,
   100% {
-    transform: translate(0) scale(1) rotate(0);
+    transform: scale(1) rotate(0);
   }
   18% {
-    transform: translate(0.5%, 0.2%) scale(0.995) rotate(-0.25deg);
+    transform: scale(0.995) rotate(-0.2deg);
   }
   50% {
-    transform: translate(7%, -1.5%) scale(1.035) rotate(2deg);
+    transform: scale(1.018) rotate(0.45deg);
   }
   72% {
-    transform: translate(2.5%, -0.4%) scale(1.012) rotate(0.7deg);
+    transform: scale(1.006) rotate(0.15deg);
   }
 }
 

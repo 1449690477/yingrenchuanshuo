@@ -110,6 +110,10 @@ watch(
 
     const pulse = stage.battlePulse;
     if (!pulse) return;
+    const hpAfterPulse = Math.max(
+      1,
+      Math.ceil(targetMaxHp.value * (1 - stage.battleProgress)),
+    );
     const impactDelay = ready ? SKILL_IMPACT_MS : BASIC_ATTACK_IMPACT_MS;
     const hitTimer = window.setTimeout(() => {
       monsterHitTimers.delete(hitTimer);
@@ -122,10 +126,7 @@ watch(
         }, 180);
         return;
       }
-      displayedMonsterHp.value = Math.max(
-        1,
-        displayedMonsterHp.value - pulse.damage * pulse.hits,
-      );
+      displayedMonsterHp.value = hpAfterPulse;
     }, impactDelay);
     monsterHitTimers.add(hitTimer);
   },
