@@ -532,6 +532,15 @@ export const OFFLINE_EFFICIENCY = 1.0;
 /** 每秒击杀数的全局上限 */
 export const DEFAULT_MAX_KILLS_PER_SEC = 3.0;
 
+/**
+ * 背包装备容量上限。
+ *
+ * 挂机产出无限，不设上限的话装备会无限堆积 —— 实测一天能堆到 1.5 万件，
+ * 存档体积、战力计算和界面渲染会被一起拖垮。
+ * 超出后自动分解最不值钱的白/绿装，见 core/bag.ts 的三条保护规则。
+ */
+export const BAG_CAPACITY = 300;
+
 /** 体力 */
 export const STAMINA_BASE_MAX = 120;
 export const STAMINA_RECOVER_SECONDS = 300; // 5 分钟 1 点
