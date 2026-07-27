@@ -763,14 +763,14 @@ onUnmounted(() => {
   position: fixed;
   z-index: 140;
   align-items: end;
-  padding: 14px;
+  padding: calc(14px + var(--sat)) 14px calc(14px + var(--sab));
   background: rgb(45 52 68 / 52%);
   backdrop-filter: blur(6px);
 }
 
 .decompose-sheet {
   width: min(100%, 390px);
-  max-height: calc(100dvh - 28px);
+  max-height: 100%;
   overflow-y: auto;
   padding: 14px;
   color: var(--text);
@@ -784,7 +784,7 @@ onUnmounted(() => {
 
 .decompose-head {
   display: grid;
-  grid-template-columns: 50px 1fr 34px;
+  grid-template-columns: 50px 1fr 44px;
   align-items: center;
   gap: 9px;
 }
@@ -815,8 +815,8 @@ onUnmounted(() => {
 }
 
 .decompose-close {
-  width: 32px;
-  height: 32px;
+  width: 44px;
+  height: 44px;
   display: grid;
   place-items: center;
   color: var(--text-mid);
@@ -840,6 +840,7 @@ onUnmounted(() => {
 
 .quality-choice {
   min-width: 0;
+  min-height: 44px;
   display: grid;
   grid-template-columns: 10px 1fr auto;
   align-items: center;
@@ -1033,7 +1034,7 @@ onUnmounted(() => {
 
 .confirm-decompose {
   grid-column: 1 / -1;
-  min-height: 40px;
+  min-height: 44px;
   padding: 9px 12px;
   font-size: 12px;
   font-weight: 800;
