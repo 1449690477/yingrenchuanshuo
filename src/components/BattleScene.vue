@@ -64,7 +64,10 @@ onUnmounted(() => clearTimeout(spawnTimer));
 <template>
   <div
     class="battle-scene"
-    :class="[`target-${monster.type}`, { active, casting: !!skill && !!pulse }]"
+    :class="[
+      `target-${monster.type}`,
+      { active, casting: !!skill && !!pulse, 'player-low': playerHpPercent <= 25 },
+    ]"
     :style="{ '--impact-delay': skill ? '300ms' : '110ms' }"
     :aria-label="`${playerName}正在与${monster.name}战斗`"
   >
@@ -244,6 +247,23 @@ onUnmounted(() => clearTimeout(spawnTimer));
   object-fit: cover;
   object-position: center;
   transform: scale(1.012);
+}
+
+/* 极慢的背景漂移让战场保持活力，同时不会干扰角色和技能演出。 */
+.active .scene-background {
+  animation: bg-drift 26s ease-in-out infinite alternate;
+}
+
+/* 玩家濒危时以边缘红晕提醒，避免遮挡战斗主体。 */
+.player-low::after {
+  position: absolute;
+  z-index: 30;
+  inset: 0;
+  content: '';
+  border-radius: inherit;
+  box-shadow: inset 0 0 26px 4px rgb(255 90 110 / 42%);
+  pointer-events: none;
+  animation: danger-vignette 1.1s ease-in-out infinite;
 }
 
 .scene-haze {
@@ -1087,6 +1107,25 @@ onUnmounted(() => clearTimeout(spawnTimer));
   }
 }
 
+@keyframes bg-drift {
+  0% {
+    transform: scale(1.03) translate(0.4%, 0.3%);
+  }
+  100% {
+    transform: scale(1.08) translate(-0.7%, -0.5%);
+  }
+}
+
+@keyframes danger-vignette {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
 @keyframes hp-low-pulse {
   0%,
   100% {
@@ -1381,6 +1420,8 @@ onUnmounted(() => clearTimeout(spawnTimer));
   .enemy-actor,
   .enemy-unit,
   .hpbar.low .hpbar-fill,
+  .scene-background,
+  .player-low::after,
   .support-unit,
   .ambient-particles i,
   .basic-attack-fx,

@@ -34,6 +34,9 @@ async function start() {
     <section class="portrait-stage row-in" style="--row-delay: 70ms" :class="`class-${picked}`">
       <div class="magic-ring ring-one" />
       <div class="magic-ring ring-two" />
+      <i class="stage-petal sp-1" aria-hidden="true" />
+      <i class="stage-petal sp-2" aria-hidden="true" />
+      <i class="stage-petal sp-3" aria-hidden="true" />
       <ClassArtwork :class-id="picked" variant="preview" />
       <span v-if="!CLASS_VISUALS[picked].portrait" class="art-pending">角色立绘制作中</span>
       <span v-else class="art-ready">正式立绘已实装</span>
@@ -129,6 +132,53 @@ async function start() {
   z-index: 2;
   padding: 4px 46px 0;
   filter: drop-shadow(0 12px 12px rgb(74 103 143 / 16%));
+}
+
+/* 舞台花瓣放在角色身后，增强氛围但不遮挡脸部与服装。 */
+.stage-petal {
+  --petal-scale: 1;
+  position: absolute;
+  z-index: 1;
+  top: -12px;
+  width: 7px;
+  height: 9px;
+  opacity: 0;
+  background: linear-gradient(160deg, #ffd9e8, #ffb0cd);
+  border-radius: 78% 22% 68% 32%;
+  pointer-events: none;
+  animation: stage-petal-fall 7s linear infinite;
+}
+
+.sp-1 {
+  left: 16%;
+  animation-delay: -1.4s;
+}
+
+.sp-2 {
+  --petal-scale: 0.8;
+  left: 78%;
+  animation-delay: -4.2s;
+}
+
+.sp-3 {
+  --petal-scale: 0.66;
+  left: 52%;
+  animation-delay: -6s;
+}
+
+@keyframes stage-petal-fall {
+  0% {
+    opacity: 0;
+    transform: translate(0, -14px) rotate(0deg) scale(var(--petal-scale));
+  }
+  14%,
+  74% {
+    opacity: 0.85;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(26px, 210px) rotate(300deg) scale(var(--petal-scale));
+  }
 }
 
 .portrait-stage.class-witch :deep(.portrait) {
@@ -320,5 +370,11 @@ async function start() {
   line-height: 1.6;
   color: var(--text-dim);
   text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stage-petal {
+    display: none;
+  }
 }
 </style>

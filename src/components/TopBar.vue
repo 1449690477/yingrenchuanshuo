@@ -25,9 +25,33 @@ watch(
   },
 );
 
-onUnmounted(() => clearTimeout(hideTimer));
-
 const cls = computed(() => (playerStore.player ? CLASS_INFO[playerStore.player.classId] : null));
+
+/** 金币增加时给图标一次轻微弹跳；消费金币不会触发。 */
+const goldBump = ref(false);
+let bumpFrame = 0;
+let bumpTimer = 0;
+
+watch(
+  () => playerStore.player?.gold ?? 0,
+  (now, before) => {
+    if (before === undefined || now <= before) return;
+
+    goldBump.value = false;
+    clearTimeout(bumpTimer);
+    window.cancelAnimationFrame(bumpFrame);
+    bumpFrame = window.requestAnimationFrame(() => {
+      goldBump.value = true;
+      bumpTimer = window.setTimeout(() => (goldBump.value = false), 380);
+    });
+  },
+);
+
+onUnmounted(() => {
+  clearTimeout(hideTimer);
+  clearTimeout(bumpTimer);
+  window.cancelAnimationFrame(bumpFrame);
+});
 </script>
 
 <template>
@@ -70,7 +94,13 @@ const cls = computed(() => (playerStore.player ? CLASS_INFO[playerStore.player.c
         </Transition>
       </div>
       <div class="stat">
-        <Coins class="ic coin-icon" :size="12" :stroke-width="2.3" aria-hidden="true" />
+        <Coins
+          class="ic coin-icon"
+          :class="{ bump: goldBump }"
+          :size="12"
+          :stroke-width="2.3"
+          aria-hidden="true"
+        />
         <span class="val num">{{ abbr(playerStore.player.gold) }}</span>
       </div>
       <div class="stat">
@@ -214,6 +244,22 @@ const cls = computed(() => (playerStore.player ? CLASS_INFO[playerStore.player.c
   color: #e7a92d;
 }
 
+.coin-icon.bump {
+  animation: coin-bump 0.36s var(--ease-out-back);
+}
+
+@keyframes coin-bump {
+  0% {
+    transform: scale(1);
+  }
+  45% {
+    transform: scale(1.35) rotate(-8deg);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
 .stamina-icon {
   color: #d88a31;
 }
@@ -290,7 +336,8 @@ const cls = computed(() => (playerStore.player ? CLASS_INFO[playerStore.player.c
 
 @media (prefers-reduced-motion: reduce) {
   .expbar-fill::after,
-  .avatar-halo::after {
+  .avatar-halo::after,
+  .coin-icon.bump {
     animation: none;
   }
 }

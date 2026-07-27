@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onUnmounted, ref } from 'vue';
+import { Backpack, PackageOpen } from '@lucide/vue';
 import { abbr } from '@/core/format';
 import type { EquipmentInstance } from '@/core/types';
 import { useInventoryStore } from '@/stores/inventory';
@@ -60,6 +61,7 @@ function equipBest() {
 
 let toastTimer = 0;
 let effectTimer = 0;
+let effectFrame = 0;
 function show(msg: string) {
   toast.value = msg;
   clearTimeout(toastTimer);
@@ -68,12 +70,19 @@ function show(msg: string) {
 
 function playSalvageBurst() {
   salvageBurst.value = false;
-  window.requestAnimationFrame(() => {
+  clearTimeout(effectTimer);
+  window.cancelAnimationFrame(effectFrame);
+  effectFrame = window.requestAnimationFrame(() => {
     salvageBurst.value = true;
-    clearTimeout(effectTimer);
     effectTimer = window.setTimeout(() => (salvageBurst.value = false), 1250);
   });
 }
+
+onUnmounted(() => {
+  clearTimeout(toastTimer);
+  clearTimeout(effectTimer);
+  window.cancelAnimationFrame(effectFrame);
+});
 </script>
 
 <template>
@@ -94,11 +103,15 @@ function playSalvageBurst() {
 
     <div class="list scroll-y" :class="{ 'equip-list': tab === 'equip' }">
       <template v-if="tab === 'equip'">
-        <p v-if="bagEquips.length === 0" class="empty">背包空空的，去挂机打点装备吧～</p>
+        <p v-if="bagEquips.length === 0" class="empty">
+          <Backpack class="empty-icon" :size="27" :stroke-width="1.8" aria-hidden="true" />
+          背包空空的，去挂机打点装备吧～
+        </p>
         <button
           v-for="(e, i) in bagEquips"
           :key="e.uid"
           class="row equip-row row-clickable"
+          :class="'q-accent-' + requireEquipment(e.defId).quality"
           :style="{ '--row-delay': `${Math.min(i, 9) * 32}ms` }"
           @click="detail = e"
         >
@@ -123,7 +136,10 @@ function playSalvageBurst() {
       </template>
 
       <template v-else>
-        <p v-if="bagItems.length === 0" class="empty">还没有材料。</p>
+        <p v-if="bagItems.length === 0" class="empty">
+          <PackageOpen class="empty-icon" :size="27" :stroke-width="1.8" aria-hidden="true" />
+          还没有材料。
+        </p>
         <div
           v-for="(it, i) in bagItems"
           :key="it.id"
@@ -235,10 +251,30 @@ function playSalvageBurst() {
 
 .empty {
   grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
   padding: 30px 10px;
   font-size: 12px;
   text-align: center;
   color: var(--text-dim);
+}
+
+.empty-icon {
+  color: var(--pink-deep);
+  filter: opacity(85%);
+  animation: empty-bob 2.6s ease-in-out infinite;
+}
+
+@keyframes empty-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
 }
 
 .row {
@@ -261,6 +297,35 @@ function playSalvageBurst() {
 .equip-row {
   min-height: 66px;
   padding: 7px 9px;
+}
+
+/* 左边品质色条让玩家不打开详情也能快速筛选稀有装备。 */
+.q-accent-common {
+  box-shadow: inset 3px 0 0 var(--q-common);
+}
+
+.q-accent-fine {
+  box-shadow: inset 3px 0 0 var(--q-fine);
+}
+
+.q-accent-rare {
+  box-shadow: inset 3px 0 0 var(--q-rare);
+}
+
+.q-accent-epic {
+  box-shadow: inset 3px 0 0 var(--q-epic);
+}
+
+.q-accent-legendary {
+  box-shadow: inset 3px 0 0 var(--q-legendary);
+}
+
+.q-accent-mythic {
+  box-shadow: inset 3px 0 0 var(--q-mythic);
+}
+
+.q-accent-divine {
+  box-shadow: inset 3px 0 0 var(--q-divine);
 }
 
 .mid {
@@ -410,6 +475,10 @@ function playSalvageBurst() {
 
 @media (prefers-reduced-motion: reduce) {
   .salvage-pop-enter-active {
+    animation: none;
+  }
+
+  .empty-icon {
     animation: none;
   }
 }

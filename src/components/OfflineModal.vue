@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Sparkles } from '@lucide/vue';
+import { Coins, Sparkles, Star, Swords } from '@lucide/vue';
 import { abbr, duration } from '@/core/format';
 import { useStageStore } from '@/stores/stage';
 import { getEquipment, requireEquipment } from '@/data/equipment';
@@ -56,15 +56,24 @@ const moreCount = computed(() => Math.max(0, (r.value?.yield.loot.length ?? 0) -
         </div>
 
         <div class="gains">
-          <div class="gain">
+          <div class="gain exp">
+            <span class="g-icon" aria-hidden="true">
+              <Star :size="15" :stroke-width="2.2" />
+            </span>
             <span class="g-label">经验</span>
             <span class="g-value num">+{{ abbr(r.yield.exp) }}</span>
           </div>
-          <div class="gain">
+          <div class="gain gold">
+            <span class="g-icon" aria-hidden="true">
+              <Coins :size="15" :stroke-width="2.2" />
+            </span>
             <span class="g-label">金币</span>
             <span class="g-value num">+{{ abbr(r.yield.gold) }}</span>
           </div>
-          <div class="gain">
+          <div class="gain kills">
+            <span class="g-icon" aria-hidden="true">
+              <Swords :size="15" :stroke-width="2.2" />
+            </span>
             <span class="g-label">击杀</span>
             <span class="g-value num">{{ abbr(r.yield.kills) }}</span>
           </div>
@@ -102,13 +111,27 @@ const moreCount = computed(() => Math.max(0, (r.value?.yield.loot.length ?? 0) -
 
 <style scoped>
 .sheet {
+  position: relative;
   width: 100%;
   max-width: 340px;
-  padding: 22px 18px 18px;
+  padding: 26px 18px 18px;
   background: linear-gradient(170deg, #fff, var(--blue-soft));
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-lg);
   text-align: center;
+  overflow: hidden;
+}
+
+/* 弹窗顶部沿用樱刃的粉、金、蓝品牌色。 */
+.sheet::before {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 4px;
+  content: '';
+  background: linear-gradient(90deg, var(--pink), var(--gold), var(--blue));
+  pointer-events: none;
 }
 
 .top {
@@ -156,11 +179,36 @@ h3 {
 .gain {
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 3px;
   padding: 10px 4px;
   background: #fff;
   border-radius: var(--r-sm);
   box-shadow: var(--shadow-sm);
+}
+
+.g-icon {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  margin-bottom: 1px;
+  border-radius: 50%;
+}
+
+.gain.exp .g-icon {
+  color: var(--blue-deep);
+  background: var(--blue-soft);
+}
+
+.gain.gold .g-icon {
+  color: #c99214;
+  background: #fdf3d7;
+}
+
+.gain.kills .g-icon {
+  color: var(--pink-deep);
+  background: var(--pink-soft);
 }
 
 .g-label {
@@ -234,5 +282,11 @@ h3 {
   width: 100%;
   padding: 12px;
   font-size: 15px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sparkle {
+    animation: none;
+  }
 }
 </style>

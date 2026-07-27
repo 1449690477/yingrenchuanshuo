@@ -146,6 +146,11 @@ button:focus-visible {
   outline-offset: -2px;
 }
 
+/* 选中文字时也延续品牌粉色。 */
+::selection {
+  background: rgb(255 158 196 / 45%);
+}
+
 /* ── 通用滚动容器 ── */
 .scroll-y {
   overflow-y: auto;

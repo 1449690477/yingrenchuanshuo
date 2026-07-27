@@ -185,7 +185,7 @@ function say(text: string, ok: boolean) {
 
       <p class="ver">樱刃传说 · 开发版 M2</p>
 
-      <Transition name="fade">
+      <Transition name="toast-up">
         <div v-if="msg" class="toast" :class="{ bad: !msg.ok }">{{ msg.text }}</div>
       </Transition>
     </div>
@@ -404,13 +404,33 @@ function say(text: string, ok: boolean) {
   background: rgb(200 70 80 / 94%);
 }
 
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
+/* 小店横幅低频扫光，用位移动画提示入口可点击。 */
+.boutique-shade::after {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 36%;
+  content: '';
+  background: linear-gradient(100deg, transparent, rgb(255 255 255 / 16%), transparent);
+  pointer-events: none;
+  animation: boutique-shine 6.4s var(--ease-soft) infinite;
 }
 
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.2s;
+@keyframes boutique-shine {
+  0%,
+  62% {
+    transform: translate3d(-130%, 0, 0) skewX(-18deg);
+  }
+  84%,
+  100% {
+    transform: translate3d(420%, 0, 0) skewX(-18deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .boutique-shade::after {
+    animation: none;
+  }
 }
 </style>

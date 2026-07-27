@@ -193,6 +193,7 @@ function doDecompose() {
 
 <style scoped>
 .sheet {
+  position: relative;
   width: 100%;
   max-height: 78dvh;
   display: flex;
@@ -201,6 +202,19 @@ function doDecompose() {
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-lg);
   overflow: hidden;
+}
+
+/* 和离线收益弹窗共用一条品牌渐变顶边。 */
+.sheet::before {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 4px;
+  content: '';
+  background: linear-gradient(90deg, var(--pink), var(--gold), var(--blue));
+  pointer-events: none;
 }
 
 .head {

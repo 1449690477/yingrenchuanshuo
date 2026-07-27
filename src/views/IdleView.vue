@@ -206,6 +206,7 @@ const cpWarn = computed(() => {
                 v-for="(e, i) in group.items"
                 :key="e.itemId"
                 class="loot-row"
+                :class="'q-' + e.quality"
                 :style="{ '--row-delay': `${Math.min(i, 8) * 28}ms` }"
               >
                 <EquipmentIcon v-if="e.isEquipment" :def="requireEquipment(e.itemId)" size="sm" />
@@ -247,6 +248,30 @@ const cpWarn = computed(() => {
   border-radius: var(--r);
   text-align: left;
   color: #fff;
+}
+
+/* 低频扫光提示关卡横幅可点击；只移动合成层，不触发布局重排。 */
+.stage-bar::after {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 34%;
+  content: '';
+  background: linear-gradient(100deg, transparent, rgb(255 255 255 / 22%), transparent);
+  pointer-events: none;
+  animation: stage-shine 5.6s var(--ease-soft) infinite;
+}
+
+@keyframes stage-shine {
+  0%,
+  62% {
+    transform: translate3d(-130%, 0, 0) skewX(-18deg);
+  }
+  82%,
+  100% {
+    transform: translate3d(430%, 0, 0) skewX(-18deg);
+  }
 }
 
 .stage-map,
@@ -356,11 +381,31 @@ const cpWarn = computed(() => {
 }
 
 .loot {
+  position: relative;
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
   padding: 12px;
+  overflow: hidden;
+}
+
+/* 极淡的樱花纹理只填补留白，不影响掉落内容与点击。 */
+.loot::after {
+  position: absolute;
+  inset: 0;
+  content: '';
+  background-image:
+    radial-gradient(circle at 88% 82%, rgb(255 190 216 / 14%) 0 5px, transparent 6px),
+    radial-gradient(circle at 78% 92%, rgb(159 216 247 / 13%) 0 4px, transparent 5px),
+    radial-gradient(circle at 93% 94%, rgb(255 190 216 / 11%) 0 3px, transparent 4px),
+    radial-gradient(circle at 70% 78%, rgb(255 190 216 / 9%) 0 3px, transparent 4px);
+  pointer-events: none;
+}
+
+.loot > * {
+  position: relative;
+  z-index: 1;
 }
 
 .loot-head {
@@ -469,6 +514,18 @@ const cpWarn = computed(() => {
   animation-delay: var(--row-delay, 0ms);
 }
 
+/* currentColor 来自行上的品质类，形成紧凑的稀有度提示。 */
+.loot-row::before {
+  width: 3px;
+  height: 16px;
+  margin-right: -2px;
+  flex-shrink: 0;
+  content: '';
+  background: currentColor;
+  border-radius: 2px;
+  opacity: 0.65;
+}
+
 .loot-row:nth-child(odd) {
   background: rgb(255 255 255 / 74%);
 }
@@ -494,6 +551,32 @@ const cpWarn = computed(() => {
 
 .loot-fold-enter-active,
 .loot-fold-leave-active {
-  transition: all var(--t-mid) var(--ease-soft);
+  transition:
+    opacity var(--t-mid) var(--ease-soft),
+    transform var(--t-mid) var(--ease-soft);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stage-bar::after {
+    animation: none;
+  }
+
+  .loot-row {
+    animation: none;
+  }
+
+  .loot-group-head svg {
+    transition: none;
+  }
+
+  .loot-fold-enter-from,
+  .loot-fold-leave-to {
+    transform: none;
+  }
+
+  .loot-fold-enter-active,
+  .loot-fold-leave-active {
+    transition: none;
+  }
 }
 </style>

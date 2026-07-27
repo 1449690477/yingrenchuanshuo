@@ -3,11 +3,11 @@
  * SakuraField —— 全局氛围粒子层
  *
  * 在整个应用背景上飘落的樱花花瓣与光斑，纯 CSS 动画，零 JS 开销。
- * 位于内容之下（z-index: 0），不拦截任何点击。
+ * 位于内容之下（隔离层中的 z-index: -1），不拦截任何点击。
  * 与战斗场景里的花瓣不同：这里更稀、更慢、更淡，只是氛围陪衬。
  */
-const PETALS = 8 as const;
-const ORBS = 2 as const;
+const PETALS = 14 as const;
+const ORBS = 3 as const;
 </script>
 
 <template>
@@ -105,6 +105,48 @@ const ORBS = 2 as const;
   --size: 7px;
   animation-delay: -13.4s;
 }
+.petal-9 {
+  --x: 71%;
+  --drift: 28px;
+  --dur: 11.5s;
+  --size: 6px;
+  animation-delay: -3.1s;
+}
+.petal-10 {
+  --x: 79%;
+  --drift: -34px;
+  --dur: 15.5s;
+  --size: 8px;
+  animation-delay: -9.7s;
+}
+.petal-11 {
+  --x: 86%;
+  --drift: 40px;
+  --dur: 13s;
+  --size: 5px;
+  animation-delay: -6.3s;
+}
+.petal-12 {
+  --x: 93%;
+  --drift: -28px;
+  --dur: 16s;
+  --size: 7px;
+  animation-delay: -0.6s;
+}
+.petal-13 {
+  --x: 17%;
+  --drift: -48px;
+  --dur: 18s;
+  --size: 5px;
+  animation-delay: -14.2s;
+}
+.petal-14 {
+  --x: 67%;
+  --drift: 52px;
+  --dur: 14s;
+  --size: 6px;
+  animation-delay: -10.8s;
+}
 @keyframes sakura-fall {
   0% {
     opacity: 0;
@@ -148,6 +190,16 @@ const ORBS = 2 as const;
   animation: orb-drift-2 32s ease-in-out infinite;
 }
 
+.orb-3 {
+  left: -12%;
+  bottom: -18%;
+  width: 34vmax;
+  height: 34vmax;
+  opacity: 0.11;
+  background: radial-gradient(circle, #ffe9d6, transparent 62%);
+  animation: orb-drift-3 38s ease-in-out infinite;
+}
+
 @keyframes orb-drift-1 {
   0%,
   100% {
@@ -165,6 +217,16 @@ const ORBS = 2 as const;
   }
   50% {
     transform: translate(-8vmax, -6vmax) scale(0.92);
+  }
+}
+
+@keyframes orb-drift-3 {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(7vmax, -8vmax) scale(1.08);
   }
 }
 
