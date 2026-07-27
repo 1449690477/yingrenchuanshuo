@@ -2,8 +2,9 @@
 import { computed, ref } from 'vue';
 import { ChevronDown } from '@lucide/vue';
 import { abbr } from '@/core/format';
-import { battleMonsterIdAt } from '@/core/battleVisual';
+import { battleVitalsAtProgress } from '@/core/battleVisual';
 import { aggregateLootEntries, type LootDisplayCategory } from '@/core/lootGrouping';
+import { averageSkillMultiplier, makeMonster, makePlayer } from '@/core/progression';
 import { useInventoryStore } from '@/stores/inventory';
 import { usePlayerStore } from '@/stores/player';
 import { useStageStore } from '@/stores/stage';
@@ -69,20 +70,21 @@ const monsters = computed(() => {
   return [...ids].map((id) => requireMonster(id));
 });
 
-/**
- * 视觉目标严格跟随波次顺序：BOSS 关使用持久化的循环进度，
- * 因而画面走到 BOSS 时才会触发 BOSS 掉落；普通已通关关卡继续用击杀脉冲循环。
- */
-const visualMonsterCursor = computed(() =>
-  stage.cleared && !stage.current.bossId ? (stage.battlePulse?.id ?? 0) : stage.kills,
-);
-const target = computed(() =>
-  requireMonster(battleMonsterIdAt(stage.current, visualMonsterCursor.value)),
-);
+/** 目标由 store 在结算前绑定，击杀演出结束后才切换下一只，避免旧伤害打到新怪。 */
+const target = computed(() => requireMonster(stage.battleTargetId));
 const supportMonsters = computed(() =>
   monsters.value.filter((monster) => monster.id !== target.value.id).slice(0, 2),
 );
-const hpPercent = computed(() => Math.max(1, (1 - stage.battleProgress) * 100));
+const battleVitals = computed(() => {
+  const currentPlayer = player.player;
+  if (!currentPlayer) return null;
+  return battleVitalsAtProgress(
+    makePlayer(currentPlayer.name, currentPlayer.level, player.finalStats),
+    makeMonster(target.value),
+    stage.battleProgress,
+    averageSkillMultiplier(currentPlayer.level),
+  );
+});
 
 /**
  * M3 技能自动释放尚未接入前，视觉演出只跟随真实击杀脉冲。
@@ -148,7 +150,7 @@ const cpWarn = computed(() => {
 
     <section class="battle">
       <BattleScene
-        v-if="player.player"
+        v-if="player.player && battleVitals"
         :class-id="player.player.classId"
         :level="player.player.level"
         :equipped="inventory.equipped"
@@ -157,7 +159,7 @@ const cpWarn = computed(() => {
         :support-monsters="supportMonsters"
         :background-url="battleMapUrl"
         :active="stage.canIdle"
-        :hp-percent="hpPercent"
+        :vitals="battleVitals"
         :status-text="stage.canIdle ? '自动战斗中' : '战斗已暂停'"
         :progress-text="
           stage.cleared ? `${stage.kps.toFixed(2)} 只/秒` : `${stage.kills}/${stage.killTarget}`

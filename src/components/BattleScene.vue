@@ -1,11 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { ClassId, MonsterDef } from '@/core/types';
+import type { BattleVitals } from '@/core/battleVisual';
 import { abbr } from '@/core/format';
-import {
-  BASIC_ATTACK_EFFECTS,
-  type EquippedRecord,
-} from '@/data/characterAppearance';
+import { BASIC_ATTACK_EFFECTS, type EquippedRecord } from '@/data/characterAppearance';
 import type { VisualSkill } from '@/data/skills';
 import CharacterAppearance from '@/components/CharacterAppearance.vue';
 import MonsterArtwork from '@/components/MonsterArtwork.vue';
@@ -19,10 +17,10 @@ const props = defineProps<{
   supportMonsters: MonsterDef[];
   backgroundUrl: string;
   active: boolean;
-  hpPercent: number;
+  vitals: BattleVitals;
   statusText: string;
   progressText: string;
-  pulse: { id: number; damage: number; kills: number } | null;
+  pulse: { id: number; targetId: string; damage: number; kills: number } | null;
   skill: VisualSkill | null;
   effectUrl: string | null;
   drop: { id: number; name: string; quality: string; assetUrl: string } | null;
@@ -30,6 +28,12 @@ const props = defineProps<{
 
 const basicEffectUrl = computed(
   () => `${import.meta.env.BASE_URL}${BASIC_ATTACK_EFFECTS[props.classId]}`,
+);
+const playerHpPercent = computed(
+  () => (props.vitals.player.currentHp / props.vitals.player.maxHp) * 100,
+);
+const monsterHpPercent = computed(
+  () => (props.vitals.monster.currentHp / props.vitals.monster.maxHp) * 100,
 );
 </script>
 
@@ -62,15 +66,43 @@ const basicEffectUrl = computed(
         <strong>{{ monster.name }}</strong>
         <span class="num">Lv.{{ monster.level }}</span>
       </div>
+      <div class="hp-readout">
+        <span>生命</span>
+        <strong class="num">
+          {{ abbr(vitals.monster.currentHp) }} / {{ abbr(vitals.monster.maxHp) }}
+        </strong>
+      </div>
       <div
         class="hpbar"
         role="meter"
         aria-label="目标生命"
         aria-valuemin="0"
-        aria-valuemax="100"
-        :aria-valuenow="hpPercent"
+        :aria-valuemax="vitals.monster.maxHp"
+        :aria-valuenow="vitals.monster.currentHp"
+        :aria-valuetext="`${vitals.monster.currentHp} / ${vitals.monster.maxHp}`"
       >
-        <span class="hpbar-fill" :style="{ width: `${hpPercent}%` }" />
+        <span class="hpbar-fill" :style="{ width: `${monsterHpPercent}%` }" />
+        <span class="hp-shine" />
+      </div>
+    </div>
+
+    <div class="hero-hud">
+      <div class="hp-readout hero-hp-line">
+        <strong>{{ playerName }}</strong>
+        <span class="num">
+          {{ abbr(vitals.player.currentHp) }} / {{ abbr(vitals.player.maxHp) }}
+        </span>
+      </div>
+      <div
+        class="hpbar hero-hpbar"
+        role="meter"
+        aria-label="玩家生命"
+        aria-valuemin="0"
+        :aria-valuemax="vitals.player.maxHp"
+        :aria-valuenow="vitals.player.currentHp"
+        :aria-valuetext="`${vitals.player.currentHp} / ${vitals.player.maxHp}`"
+      >
+        <span class="hpbar-fill" :style="{ width: `${playerHpPercent}%` }" />
         <span class="hp-shine" />
       </div>
     </div>
@@ -87,7 +119,6 @@ const basicEffectUrl = computed(
           :action="skill && pulse ? 'cast' : pulse ? 'attack' : 'idle'"
         />
       </div>
-      <span class="actor-name hero-name">{{ playerName }}</span>
     </div>
 
     <div
@@ -213,6 +244,7 @@ const basicEffectUrl = computed(
 
 .battle-status,
 .enemy-hud,
+.hero-hud,
 .actor-name {
   text-shadow: 0 1px 3px rgb(24 31 44 / 82%);
   backdrop-filter: blur(4px);
@@ -271,6 +303,19 @@ const basicEffectUrl = computed(
   box-shadow: 0 3px 8px rgb(25 33 47 / 15%);
 }
 
+.hero-hud {
+  position: absolute;
+  z-index: 12;
+  bottom: 9px;
+  left: 9px;
+  width: min(42%, 148px);
+  padding: 5px 7px 6px;
+  background: rgb(30 40 58 / 64%);
+  border: 1px solid rgb(255 255 255 / 30%);
+  border-radius: 9px;
+  box-shadow: 0 3px 8px rgb(25 33 47 / 15%);
+}
+
 .enemy-line {
   display: flex;
   align-items: center;
@@ -278,6 +323,33 @@ const basicEffectUrl = computed(
   min-width: 0;
   margin-bottom: 4px;
   font-size: 10px;
+}
+
+.hp-readout {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 5px;
+  min-width: 0;
+  margin-bottom: 3px;
+  font-size: 7px;
+  color: rgb(255 255 255 / 74%);
+}
+
+.hp-readout strong {
+  overflow: hidden;
+  font-size: 8px;
+  color: #fff;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hero-hp-line {
+  font-size: 7px;
+}
+
+.hero-hp-line > .num {
+  flex-shrink: 0;
 }
 
 .enemy-line strong {
@@ -333,6 +405,12 @@ const basicEffectUrl = computed(
 
 .target-boss .hpbar-fill {
   background: linear-gradient(90deg, #ff945b, #ffd47a);
+}
+
+.hero-hpbar .hpbar-fill,
+.target-elite .hero-hpbar .hpbar-fill,
+.target-boss .hero-hpbar .hpbar-fill {
+  background: linear-gradient(90deg, #54d6a0, #a1f0c8);
 }
 
 .hp-shine {
@@ -470,10 +548,6 @@ const basicEffectUrl = computed(
   background: rgb(32 46 62 / 56%);
   border: 1px solid rgb(255 255 255 / 28%);
   border-radius: 999px;
-}
-
-.hero-name {
-  left: 8px;
 }
 
 .enemy-name {

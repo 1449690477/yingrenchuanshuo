@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { battleMonsterIdAt, flattenBattleMonsterIds } from '../battleVisual';
-import type { Stage, Wave } from '../types';
+import {
+  advanceBattleVisualCursor,
+  battleMonsterIdAt,
+  battleVitalsAtProgress,
+  flattenBattleMonsterIds,
+} from '../battleVisual';
+import { estimateIncomingDps, timeToKill } from '../combat';
+import { makeMonster, makePlayer } from '../progression';
+import type { Combatant, Stage, Stats, Wave } from '../types';
 
 function visualStage(id: string, waves: Wave[]): Pick<Stage, 'id' | 'waves'> {
   return { id, waves };
@@ -77,5 +84,143 @@ describe('battleMonsterIdAt', () => {
   it('拒绝负数或非整数游标', () => {
     expect(() => battleMonsterIdAt(stage, -1)).toThrow('怪物游标必须是非负整数');
     expect(() => battleMonsterIdAt(stage, 0.5)).toThrow('怪物游标必须是非负整数');
+  });
+});
+
+describe('advanceBattleVisualCursor', () => {
+  const stage = visualStage('stage_batch', [
+    {
+      monsters: [
+        { id: 'a', count: 2 },
+        { id: 'b', count: 1 },
+      ],
+    },
+  ]);
+
+  it('单次击杀把演出绑定被击杀怪，并推进到下一只', () => {
+    expect(advanceBattleVisualCursor(stage, 1, 1)).toEqual({
+      defeatedTargetId: 'a',
+      nextCursor: 2,
+    });
+  });
+
+  it('单 tick 多杀绑定最后倒下的目标，并正确跨轮循环', () => {
+    expect(advanceBattleVisualCursor(stage, 2, 5)).toEqual({
+      defeatedTargetId: 'a',
+      nextCursor: 1,
+    });
+  });
+
+  it('拒绝非法游标和击杀数', () => {
+    expect(() => advanceBattleVisualCursor(stage, -1, 1)).toThrow('怪物游标');
+    expect(() => advanceBattleVisualCursor(stage, 0, 0)).toThrow('击杀数');
+    expect(() => advanceBattleVisualCursor(stage, 0, 1.5)).toThrow('击杀数');
+  });
+});
+
+const stats = (overrides: Partial<Stats> = {}): Stats => ({
+  atk: 1200,
+  def: 500,
+  hp: 20_000,
+  acc: 180,
+  eva: 30,
+  critRate: 10,
+  critDmg: 50,
+  spd: 1.2,
+  ...overrides,
+});
+
+function visualPlayer(): Combatant {
+  return makePlayer('小樱', 30, stats());
+}
+
+function visualMonster(id: string, level: number, type: 'normal' | 'boss'): Combatant {
+  return makeMonster({
+    id,
+    name: id,
+    level,
+    type,
+    element: 'none',
+    lootTableId: 'loot_test',
+    sprite: '',
+  });
+}
+
+describe('battleVitalsAtProgress', () => {
+  it('进度 0 / 0.5 / 1 分别显示满血、半血和怪物归零', () => {
+    const player = visualPlayer();
+    const monster = visualMonster('normal', 20, 'normal');
+
+    const start = battleVitalsAtProgress(player, monster, 0);
+    const middle = battleVitalsAtProgress(player, monster, 0.5);
+    const end = battleVitalsAtProgress(player, monster, 1);
+    const fullFightIncoming = estimateIncomingDps(player, monster) * timeToKill(player, monster);
+
+    expect(start).toEqual({
+      player: { currentHp: player.stats.hp, maxHp: player.stats.hp },
+      monster: { currentHp: monster.stats.hp, maxHp: monster.stats.hp },
+    });
+    expect(middle.monster.currentHp).toBe(Math.ceil(monster.stats.hp / 2));
+    expect(middle.player.currentHp).toBeLessThan(start.player.currentHp);
+    expect(end.monster.currentHp).toBe(0);
+    expect(end.player.currentHp).toBe(Math.max(0, Math.ceil(player.stats.hp - fullFightIncoming)));
+  });
+
+  it('遭遇推进时玩家生命单调不增且始终位于合法范围', () => {
+    const player = visualPlayer();
+    player.stats.hp = 20_000.75;
+    player.currentHp = player.stats.hp;
+    const monster = visualMonster('normal', 24, 'normal');
+    const values = [0, 0.25, 0.5, 0.75, 1].map(
+      (progress) => battleVitalsAtProgress(player, monster, progress).player.currentHp,
+    );
+
+    expect(values.every((value) => value >= 0 && value <= player.stats.hp)).toBe(true);
+    expect(values).toEqual([...values].sort((a, b) => b - a));
+  });
+
+  it('普通怪与 BOSS 各用自身最大生命，切回原目标不会串血', () => {
+    const player = visualPlayer();
+    const normal = visualMonster('normal', 20, 'normal');
+    const boss = visualMonster('boss', 20, 'boss');
+
+    const normalBefore = battleVitalsAtProgress(player, normal, 0.5);
+    const bossVitals = battleVitalsAtProgress(player, boss, 0.5);
+    const normalAfter = battleVitalsAtProgress(player, normal, 0.5);
+
+    expect(bossVitals.monster.maxHp).not.toBe(normalBefore.monster.maxHp);
+    expect(bossVitals.monster.currentHp).toBe(Math.ceil(bossVitals.monster.maxHp / 2));
+    expect(normalAfter).toEqual(normalBefore);
+  });
+
+  it('不修改传入的战斗单位', () => {
+    const player = visualPlayer();
+    const monster = visualMonster('normal', 20, 'normal');
+    const beforePlayer = structuredClone(player);
+    const beforeMonster = structuredClone(monster);
+
+    battleVitalsAtProgress(player, monster, 0.75, 1.4);
+
+    expect(player).toEqual(beforePlayer);
+    expect(monster).toEqual(beforeMonster);
+  });
+
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, -0.01, 1.01])(
+    '拒绝非法进度 %s',
+    (progress) => {
+      expect(() =>
+        battleVitalsAtProgress(visualPlayer(), visualMonster('normal', 20, 'normal'), progress),
+      ).toThrow('遭遇进度');
+    },
+  );
+
+  it('拒绝非法生命和技能倍率，不用 UI 兜底掩盖配置错误', () => {
+    const player = visualPlayer();
+    const monster = visualMonster('normal', 20, 'normal');
+    player.stats.hp = 0;
+    expect(() => battleVitalsAtProgress(player, monster, 0)).toThrow('玩家最大生命');
+
+    const validPlayer = visualPlayer();
+    expect(() => battleVitalsAtProgress(validPlayer, monster, 0, 0)).toThrow('技能倍率');
   });
 });

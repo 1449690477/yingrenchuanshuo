@@ -36,6 +36,7 @@ import { decomposeGold } from '@/core/economy';
 import { rollLoot } from '@/core/loot';
 import { assessShopOffer, type ShopBlockReason } from '@/core/shop';
 import { advanceStageKillProgress } from '@/core/stageProgress';
+import { advanceBattleVisualCursor, battleMonsterIdAt } from '@/core/battleVisual';
 import { accumulateIdle, killsPerSecond, recoverStamina, settleOffline } from '@/core/idle';
 import type { IdleContext } from '@/core/idle';
 
@@ -70,6 +71,8 @@ export interface LootLogEntry {
 
 export interface BattlePulse {
   id: number;
+  /** 这次演出实际击倒的怪物；不能在推进关卡后误绑到下一只怪。 */
+  targetId: string;
   damage: number;
   kills: number;
 }
@@ -80,6 +83,9 @@ export type ShopPurchaseResult =
 
 const AUTO_SAVE_INTERVAL_MS = 3_000;
 const LOOT_LOG_MAX = 40;
+const BATTLE_PULSE_SECONDS = 0.72;
+/** 高速挂机只采样部分击杀演出，给下一只怪留出可见的掉血阶段。 */
+const BATTLE_PULSE_COOLDOWN_SECONDS = 0.9;
 
 export const useGameStore = defineStore('game', () => {
   // ─────────── 状态 ───────────
@@ -108,10 +114,14 @@ export const useGameStore = defineStore('game', () => {
   /** 当前一只怪的击杀进度，0=满血，1=即将击杀。 */
   const battleProgress = ref(0);
   const battlePulse = ref<BattlePulse | null>(null);
+  /** 已通关普通关不再保存击杀余数，这里只维护其画面循环游标。 */
+  const battleVisualCursor = ref(0);
 
   let rng = new Rng(1);
   let lootLogSeq = 0;
   let battlePulseSeq = 0;
+  let battlePulseRemainingSec = 0;
+  let battlePulseCooldownSec = 0;
   /** 挂机零头秒数。不足一只怪的时间攒在这里，见 core/idle.accumulateIdle */
   let idleCarrySec = 0;
   let lastTickAt = 0;
@@ -165,6 +175,16 @@ export const useGameStore = defineStore('game', () => {
   const currentStageKills = computed(() =>
     Math.min(currentKillTarget.value, save.value?.progress.stageKills[currentStage.value.id] ?? 0),
   );
+  /** 没有击杀定格时，下一只应出场的视觉目标。 */
+  const nextBattleTargetId = computed(() => {
+    const cursor =
+      currentCleared.value && !currentStage.value.bossId
+        ? battleVisualCursor.value
+        : currentStageKills.value;
+    return battleMonsterIdAt(currentStage.value, cursor);
+  });
+  /** 击杀动画期间固定显示倒下的旧目标，动画结束后再切到下一只。 */
+  const battleTargetId = computed(() => battlePulse.value?.targetId ?? nextBattleTargetId.value);
 
   /** 战力是否够打当前关卡。低于 60% 禁止挂机，避免白耗时间 */
   const cpRatio = computed(() =>
@@ -202,12 +222,21 @@ export const useGameStore = defineStore('game', () => {
 
   // ─────────── 生命周期 ───────────
 
+  function resetBattleVisualState(): void {
+    battleProgress.value = 0;
+    battlePulse.value = null;
+    battleVisualCursor.value = 0;
+    battlePulseRemainingSec = 0;
+    battlePulseCooldownSec = 0;
+  }
+
   async function init(): Promise<void> {
     try {
       const data = await loadSave();
       if (data) {
         save.value = data;
         rng = new Rng(data.rngState);
+        resetBattleVisualState();
         settleOfflineNow();
       }
     } catch (error) {
@@ -223,8 +252,7 @@ export const useGameStore = defineStore('game', () => {
     save.value = createSave(name.trim() || '无名少女', classId, seed, now);
     rng = new Rng(seed);
     lootLog.value = [];
-    battleProgress.value = 0;
-    battlePulse.value = null;
+    resetBattleVisualState();
     await persist();
   }
 
@@ -233,8 +261,7 @@ export const useGameStore = defineStore('game', () => {
     save.value = null;
     lootLog.value = [];
     offlineResult.value = null;
-    battleProgress.value = 0;
-    battlePulse.value = null;
+    resetBattleVisualState();
   }
 
   function settleOfflineNow(): void {
@@ -304,6 +331,15 @@ export const useGameStore = defineStore('game', () => {
   function tick(dt: number): void {
     if (!save.value) return;
 
+    battlePulseCooldownSec = Math.max(0, battlePulseCooldownSec - dt);
+    if (battlePulse.value) {
+      battlePulseRemainingSec -= dt;
+      if (battlePulseRemainingSec <= 0) {
+        battlePulse.value = null;
+        battlePulseRemainingSec = 0;
+      }
+    }
+
     if (canIdle.value) {
       const ctx = buildIdleContext();
       if (!ctx) return;
@@ -316,14 +352,26 @@ export const useGameStore = defineStore('game', () => {
       battleProgress.value = Math.min(0.99, idleCarrySec * killsPerSecond(ctx));
       const y = acc.yield;
       if (y.kills > 0) {
-        battlePulse.value = {
-          id: ++battlePulseSeq,
-          damage: ctx.monster.stats.hp,
-          kills: y.kills,
-        };
+        const visualCursor =
+          currentCleared.value && !currentStage.value.bossId
+            ? battleVisualCursor.value
+            : currentStageKills.value;
+        const visualAdvance = advanceBattleVisualCursor(currentStage.value, visualCursor, y.kills);
+        if (!battlePulse.value && battlePulseCooldownSec <= 0) {
+          const defeatedMonster = makeMonster(requireMonster(visualAdvance.defeatedTargetId));
+          battlePulse.value = {
+            id: ++battlePulseSeq,
+            targetId: visualAdvance.defeatedTargetId,
+            damage: defeatedMonster.stats.hp,
+            kills: y.kills,
+          };
+          battlePulseRemainingSec = BATTLE_PULSE_SECONDS;
+          battlePulseCooldownSec = BATTLE_PULSE_COOLDOWN_SECONDS;
+        }
         applyYield(y, true);
         save.value.stats.totalKills += y.kills;
         applyStageKills(y.kills, true);
+        battleVisualCursor.value = visualAdvance.nextCursor;
       }
     } else {
       // 战力不足时不能把等待时间攒着，切回低级图后一次性领取。
@@ -466,8 +514,7 @@ export const useGameStore = defineStore('game', () => {
     if (!isStageUnlocked(stageId)) return false;
     save.value.progress.currentStageId = stageId;
     idleCarrySec = 0;
-    battleProgress.value = 0;
-    battlePulse.value = null;
+    resetBattleVisualState();
     void persist();
     return true;
   }
@@ -712,8 +759,7 @@ export const useGameStore = defineStore('game', () => {
     rng = new Rng(data.rngState);
     lootLog.value = [];
     idleCarrySec = 0;
-    battleProgress.value = 0;
-    battlePulse.value = null;
+    resetBattleVisualState();
     settleOfflineNow();
     void persist();
   }
@@ -734,6 +780,7 @@ export const useGameStore = defineStore('game', () => {
     loadError,
     battleProgress,
     battlePulse,
+    battleTargetId,
     // 派生
     player,
     finalStats,
