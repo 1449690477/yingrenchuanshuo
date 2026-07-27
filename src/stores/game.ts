@@ -50,6 +50,12 @@ import {
   type EnhanceGainGrade,
 } from '@/core/equipment';
 import { decomposeGold } from '@/core/economy';
+import {
+  advanceEncounterState,
+  encounterRewardSeed,
+  resolveEncounterChoice,
+  type ResourceBundle,
+} from '@/core/encounters';
 import { rollLoot } from '@/core/loot';
 import { assessShopOffer, type ShopBlockReason } from '@/core/shop';
 import { advanceStageKillProgress } from '@/core/stageProgress';
@@ -69,6 +75,7 @@ import {
 import { getEquipment, requireEquipment } from '@/data/equipment';
 import { requireMonster } from '@/data/monsters';
 import { requireLootTable } from '@/data/lootTables';
+import { ENCOUNTER_TIMING, encounterIdsForRegion, requireEncounter } from '@/data/encounters';
 import { requireItem } from '@/data/items';
 import {
   FIRST_STAGE_ID,
@@ -77,7 +84,7 @@ import {
   nextStageId,
   totalMonsterCount,
 } from '@/data/stages';
-import { requireChapter } from '@/data/regions';
+import { requireChapter, requireRegionOfChapter } from '@/data/regions';
 import { requireShopOffer } from '@/data/shop';
 
 import { createSave, type SaveData } from '@/save/schema';
@@ -139,6 +146,9 @@ export type EnhanceEquipmentResult =
       gainRoll: PermilleRoll<EnhanceGainGrade> | null;
       cpDelta: number;
     };
+export type EncounterResolveResult =
+  | { ok: true; outcome: string; rewards: ResourceBundle }
+  | { ok: false; reason: 'not-found' | 'insufficient-resource' };
 
 const AUTO_SAVE_INTERVAL_MS = 3_000;
 const LOOT_LOG_MAX = 40;
@@ -233,6 +243,7 @@ export const useGameStore = defineStore('game', () => {
   );
 
   const staminaMax = computed(() => staminaMaxForLevel(player.value?.level ?? 1));
+  const pendingEncounters = computed(() => save.value?.encounters.pending ?? []);
 
   /** 当前关卡是否已通关 */
   const currentCleared = computed(
@@ -342,6 +353,7 @@ export const useGameStore = defineStore('game', () => {
       const ctx = buildIdleContext();
       if (!ctx) return;
       const r = settleOffline(ctx, save.value.lastActiveAt, now);
+      advanceEncounters(r.seconds);
       if (r.yield.kills > 0) {
         applyYield(r.yield);
         save.value.stats.totalKills += r.yield.kills;
@@ -362,6 +374,19 @@ export const useGameStore = defineStore('game', () => {
     save.value.player.staminaRecoverAt = st.nextRecoverAt;
 
     advanceAfterFirstClear(firstClearedStageId);
+  }
+
+  function advanceEncounters(elapsedSec: number): void {
+    if (!save.value) return;
+    const regionId = requireRegionOfChapter(currentStage.value.chapterId).id;
+    save.value.encounters = advanceEncounterState(
+      save.value.encounters,
+      elapsedSec,
+      regionId,
+      encounterIdsForRegion(regionId),
+      save.value.seed,
+      ENCOUNTER_TIMING,
+    );
   }
 
   function startLoop(): void {
@@ -416,6 +441,7 @@ export const useGameStore = defineStore('game', () => {
     if (canIdle.value) {
       const ctx = buildIdleContext();
       if (!ctx) return;
+      advanceEncounters(dt);
       const acc = accumulateIdle(ctx, dt, idleCarrySec, {
         mode: 'roll',
         rng,
@@ -686,6 +712,30 @@ export const useGameStore = defineStore('game', () => {
     if (save.value.progress.seenTutorials.includes(chapter.id)) return null;
     save.value.progress.seenTutorials.push(chapter.id);
     return chapter.tutorial;
+  }
+
+  function resolvePendingEncounter(uid: string, choiceId: string): EncounterResolveResult {
+    if (!save.value) return { ok: false, reason: 'not-found' };
+    const index = save.value.encounters.pending.findIndex((entry) => entry.uid === uid);
+    if (index < 0) return { ok: false, reason: 'not-found' };
+    const entry = save.value.encounters.pending[index]!;
+    const encounter = requireEncounter(entry.encounterId);
+    const choice = encounter.choices.find((candidate) => candidate.id === choiceId);
+    if (!choice) return { ok: false, reason: 'not-found' };
+
+    const result = resolveEncounterChoice(
+      choice,
+      { gold: save.value.player.gold, items: save.value.bag.items },
+      new Rng(encounterRewardSeed(save.value.seed, entry.uid, choice.id)),
+    );
+    if (!result.ok) return result;
+
+    save.value.player.gold = result.wallet.gold;
+    save.value.bag.items = result.wallet.items;
+    save.value.encounters.pending.splice(index, 1);
+    save.value.encounters.resolvedCount += 1;
+    void persist();
+    return { ok: true, outcome: choice.outcome, rewards: result.rewards };
   }
 
   // ─────────── 装备操作 ───────────
@@ -1091,6 +1141,7 @@ export const useGameStore = defineStore('game', () => {
     expPercent,
     staminaMax,
     kps,
+    pendingEncounters,
     // 动作
     init,
     startNewGame,
@@ -1105,6 +1156,7 @@ export const useGameStore = defineStore('game', () => {
     advanceStage,
     isStageUnlocked,
     takeTutorial,
+    resolvePendingEncounter,
     equip,
     unequip,
     equipBest,

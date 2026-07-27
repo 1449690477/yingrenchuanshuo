@@ -76,6 +76,11 @@ export const migrations: Record<number, Migration> = {
       ),
     };
   },
+  4: (save) => ({
+    ...save,
+    version: 5,
+    encounters: { progressSec: 0, generatedCount: 0, resolvedCount: 0, pending: [] },
+  }),
 };
 
 export class SaveTooNewError extends Error {

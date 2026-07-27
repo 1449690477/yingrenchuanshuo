@@ -61,6 +61,12 @@ function v3Save(): Record<string, unknown> {
   };
 }
 
+function v4Save(): Record<string, unknown> {
+  const current = createSave('v4 少女', 'shaman', 27, 1_800_000_000_000);
+  const { encounters: _removed, ...legacy } = current;
+  return { ...legacy, version: 4 };
+}
+
 describe('save migrations', () => {
   it('v0 依次迁移到当前版本且不丢旧数据', () => {
     const migrated = migrate(v0Save());
@@ -99,7 +105,7 @@ describe('save migrations', () => {
     const equippedInstance = migrated.equipped.weapon!;
     const legacyGain = ENHANCE_PER_LEVEL * 1000;
 
-    expect(migrated.version).toBe(4);
+    expect(migrated.version).toBe(SAVE_VERSION);
     expect(bagInstance).toMatchObject({
       uid: 'e1',
       baseRollPermille: 1000,
@@ -147,7 +153,28 @@ describe('save migrations', () => {
     bag[0]!.enhanceGainPermille = [80, 81, 82, 83, 110, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
     bag[0]!.enhanceLuck = { '6': 17 };
 
-    expect(migrate(once)).toEqual(once);
+    const migrated = migrate(once);
+    expect(migrated.bag.equipment[0]?.baseRollPermille).toBe(1177);
+    expect(migrated.bag.equipment[0]?.enhanceGainPermille).toEqual([
+      80, 81, 82, 83, 110, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    ]);
+    expect(migrated.bag.equipment[0]?.enhanceLuck).toEqual({ '6': 17 });
+  });
+
+  it('v4 → v5 添加空奇遇状态且不丢强化装备与旧资产', () => {
+    const raw = v4Save();
+    const legacyPlayer = raw.player as { gold: number };
+    legacyPlayer.gold = 8_765_432;
+    const migrated = migrate(raw);
+
+    expect(migrated.encounters).toEqual({
+      progressSec: 0,
+      generatedCount: 0,
+      resolvedCount: 0,
+      pending: [],
+    });
+    expect(migrated.player.gold).toBe(8_765_432);
+    expect(migrated.player.name).toBe('v4 少女');
   });
 
   it('当前版本不迁移，只做严格结构校验', () => {
