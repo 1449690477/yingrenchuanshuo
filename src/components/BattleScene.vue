@@ -2,6 +2,7 @@
 import { computed, onUnmounted, ref, watch } from 'vue';
 import type { ClassId, MonsterDef } from '@/core/types';
 import type { BattleVitals } from '@/core/battleVisual';
+import type { BattleBeat } from '@/core/battleRhythm';
 import { abbr } from '@/core/format';
 import { BASIC_ATTACK_EFFECTS, type EquippedRecord } from '@/data/characterAppearance';
 import type { VisualSkill } from '@/data/skills';
@@ -26,11 +27,121 @@ const props = defineProps<{
   skill: VisualSkill | null;
   effectUrl: string | null;
   drop: { id: number; name: string; quality: string; assetUrl: string } | null;
+  /** 持续战斗演出的拍子流，见 core/battleRhythm */
+  beats: BattleBeat[];
 }>();
 
 const basicEffectUrl = computed(
   () => `${import.meta.env.BASE_URL}${BASIC_ATTACK_EFFECTS[props.classId]}`,
 );
+
+// ────────────────────────────────────────────────────────────
+// 持续战斗演出
+//
+// 早先所有动画都挂在 pulse（击杀）上，而击杀可能好几秒才一次，
+// 中间画面完全静止 —— 只有血条在掉。现在改由 core/battleRhythm
+// 产生的拍子驱动：角色按攻速持续挥砍、技能按冷却轮转、怪物持续反击。
+// ────────────────────────────────────────────────────────────
+
+/** 一拍演出在屏幕上存活多久（毫秒） */
+const BEAT_LIFE_MS = 620;
+/** 同屏最多几个飘字，防止高攻速时糊成一片 */
+const MAX_LIVE_BEATS = 6;
+
+interface LiveBeat {
+  seq: number;
+  kind: BattleBeat['kind'];
+  crit: boolean;
+  damage: number;
+  skillIndex: number | null;
+  /** 飘字的横向偏移，避免多个数字完全重叠 */
+  offset: number;
+}
+
+const liveBeats = ref<LiveBeat[]>([]);
+const timers = new Map<number, number>();
+let lastSeenSeq = 0;
+
+watch(
+  () => props.beats,
+  (beats) => {
+    if (!beats || beats.length === 0) return;
+    for (const beat of beats) {
+      if (beat.seq <= lastSeenSeq) continue;
+      lastSeenSeq = beat.seq;
+      addLiveBeat(beat);
+    }
+  },
+  { deep: false },
+);
+
+function addLiveBeat(beat: BattleBeat): void {
+  liveBeats.value.push({
+    seq: beat.seq,
+    kind: beat.kind,
+    crit: beat.crit,
+    damage: beat.damage,
+    skillIndex: beat.skillIndex,
+    // 用序号做伪随机偏移，无需引入随机源，且同一拍每次渲染位置稳定
+    offset: ((beat.seq * 37) % 46) - 23,
+  });
+  if (liveBeats.value.length > MAX_LIVE_BEATS) {
+    const dropped = liveBeats.value.shift();
+    if (dropped) clearBeatTimer(dropped.seq);
+  }
+  const id = window.setTimeout(() => removeLiveBeat(beat.seq), BEAT_LIFE_MS);
+  timers.set(beat.seq, id);
+}
+
+function removeLiveBeat(seq: number): void {
+  liveBeats.value = liveBeats.value.filter((b) => b.seq !== seq);
+  clearBeatTimer(seq);
+}
+
+function clearBeatTimer(seq: number): void {
+  const id = timers.get(seq);
+  if (id !== undefined) {
+    clearTimeout(id);
+    timers.delete(seq);
+  }
+}
+
+/** 玩家出手的拍子（普攻或技能） */
+const playerBeats = computed(() => liveBeats.value.filter((b) => b.kind !== 'monster-attack'));
+/** 怪物出手的拍子 */
+const monsterBeats = computed(() => liveBeats.value.filter((b) => b.kind === 'monster-attack'));
+
+/** 最近一次玩家出手，决定角色摆什么动作 */
+const latestPlayerBeat = computed(() => playerBeats.value.at(-1) ?? null);
+
+/**
+ * 角色动作。
+ * 施法优先于普攻，普攻优先于待机；击杀演出（pulse）仍然可以盖过节奏。
+ */
+const heroAction = computed<'idle' | 'attack' | 'cast'>(() => {
+  if (props.skill && props.pulse) return 'cast';
+  const beat = latestPlayerBeat.value;
+  if (beat?.kind === 'player-skill') return 'cast';
+  if (beat || props.pulse) return 'attack';
+  return 'idle';
+});
+
+/**
+ * 角色立绘的重挂 key。
+ * 每次出手都换 key，让 CharacterAppearance 重新播放一次动作，
+ * 否则连续攻击时立绘只会在第一次动一下。
+ */
+const heroActorKey = computed(() => latestPlayerBeat.value?.seq ?? props.pulse?.id ?? 0);
+
+/** 怪物正在挨打 */
+const enemyHit = computed(() => !!props.pulse || playerBeats.value.length > 0);
+/** 玩家正在挨打 */
+const heroHurt = computed(() => monsterBeats.value.length > 0);
+
+onUnmounted(() => {
+  for (const id of timers.values()) clearTimeout(id);
+  timers.clear();
+});
 const playerHpPercent = computed(
   () => (props.vitals.player.currentHp / props.vitals.player.maxHp) * 100,
 );
@@ -149,16 +260,16 @@ onUnmounted(() => clearTimeout(spawnTimer));
       </div>
     </div>
 
-    <div class="hero-unit">
+    <div class="hero-unit" :class="{ hurt: heroHurt }">
       <span class="actor-shadow" aria-hidden="true" />
       <div class="hero-actor">
         <CharacterAppearance
-          :key="pulse?.id ?? 0"
+          :key="heroActorKey"
           :class-id="classId"
           :level="level"
           :equipped="equipped"
           variant="battle"
-          :action="skill && pulse ? 'cast' : pulse ? 'attack' : 'idle'"
+          :action="heroAction"
         />
       </div>
     </div>
@@ -174,7 +285,7 @@ onUnmounted(() => clearTimeout(spawnTimer));
       <MonsterArtwork :monster="support" />
     </div>
 
-    <div :key="monster.id" class="enemy-unit" :class="{ hit: !!pulse, spawn: spawning }">
+    <div :key="monster.id" class="enemy-unit" :class="{ hit: enemyHit, spawn: spawning }">
       <span class="actor-shadow" aria-hidden="true" />
       <div class="enemy-actor">
         <MonsterArtwork :monster="monster" />
@@ -186,6 +297,32 @@ onUnmounted(() => clearTimeout(spawnTimer));
       -{{ abbr(pulse.damage) }}
       <small v-if="pulse.kills > 1">×{{ pulse.kills }}</small>
     </span>
+
+    <!-- 持续战斗飘字：每一拍一个数字，暴击更大更亮 -->
+    <TransitionGroup name="beat-float" tag="div" class="beat-layer" aria-hidden="true">
+      <span
+        v-for="b in liveBeats"
+        :key="b.seq"
+        class="beat-damage num"
+        :class="[b.kind === 'monster-attack' ? 'to-hero' : 'to-enemy', { crit: b.crit }]"
+        :style="{ '--beat-offset': b.offset + 'px' }"
+      >
+        <template v-if="b.kind === 'monster-attack'">-{{ abbr(b.damage) }}</template>
+        <template v-else>{{ b.crit ? '暴击 ' : '' }}-{{ abbr(b.damage) }}</template>
+      </span>
+    </TransitionGroup>
+
+    <!-- 持续普攻特效：每次玩家出手闪一次 -->
+    <TransitionGroup name="swing" tag="div" class="swing-layer" aria-hidden="true">
+      <div
+        v-for="b in playerBeats"
+        :key="b.seq"
+        class="swing-fx"
+        :class="[`swing-${classId}`, { 'is-skill': b.kind === 'player-skill', crit: b.crit }]"
+      >
+        <img :src="b.kind === 'player-skill' && effectUrl ? effectUrl : basicEffectUrl" alt="" draggable="false" />
+      </div>
+    </TransitionGroup>
 
     <div
       v-if="pulse && !skill"
@@ -1488,4 +1625,150 @@ onUnmounted(() => clearTimeout(spawnTimer));
     display: none;
   }
 }
+/* ─────────────────────────────────────────────
+   持续战斗演出
+   由 core/battleRhythm 的拍子驱动，独立于击杀
+   ───────────────────────────────────────────── */
+
+.beat-layer,
+.swing-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 6;
+}
+
+/* 飘字 */
+.beat-damage {
+  position: absolute;
+  font-weight: 800;
+  font-size: 15px;
+  white-space: nowrap;
+  text-shadow:
+    0 1px 0 rgb(255 255 255 / 85%),
+    0 2px 8px rgb(60 80 110 / 45%);
+  transform: translateX(var(--beat-offset, 0));
+}
+
+/* 打怪：数字出现在右侧怪物身上 */
+.beat-damage.to-enemy {
+  right: 22%;
+  top: 34%;
+  color: #ff7043;
+}
+
+.beat-damage.to-enemy.crit {
+  font-size: 20px;
+  color: #ff3d3d;
+  text-shadow:
+    0 1px 0 #fff,
+    0 0 14px rgb(255 120 90 / 80%);
+}
+
+/* 挨打：数字出现在左侧角色身上 */
+.beat-damage.to-hero {
+  left: 20%;
+  top: 52%;
+  font-size: 13px;
+  color: #7f8fa6;
+}
+
+.beat-float-enter-from {
+  opacity: 0;
+  transform: translate(var(--beat-offset, 0), 10px) scale(0.7);
+}
+
+.beat-float-enter-active {
+  transition: all 0.18s var(--ease-out-back, cubic-bezier(0.34, 1.56, 0.64, 1));
+}
+
+.beat-float-leave-to {
+  opacity: 0;
+  transform: translate(var(--beat-offset, 0), -34px) scale(1.05);
+}
+
+.beat-float-leave-active {
+  transition: all 0.44s ease-out;
+}
+
+/* 挥砍 / 技能特效 */
+.swing-fx {
+  position: absolute;
+  right: 20%;
+  top: 30%;
+  width: 96px;
+  height: 96px;
+  display: grid;
+  place-items: center;
+}
+
+.swing-fx img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 0 10px rgb(255 210 235 / 70%));
+}
+
+.swing-fx.is-skill {
+  width: 150px;
+  height: 150px;
+  right: 14%;
+  top: 20%;
+}
+
+.swing-fx.crit img {
+  filter: drop-shadow(0 0 16px rgb(255 140 120 / 95%)) saturate(1.3);
+}
+
+.swing-enter-from {
+  opacity: 0;
+  transform: scale(0.55) rotate(-16deg);
+}
+
+.swing-enter-active {
+  transition: all 0.14s ease-out;
+}
+
+.swing-leave-to {
+  opacity: 0;
+  transform: scale(1.28) rotate(10deg);
+}
+
+.swing-leave-active {
+  transition: all 0.34s ease-in;
+}
+
+/* 玩家受击时整个单元轻微后仰并泛红 */
+.hero-unit.hurt {
+  animation: hero-hurt 0.32s ease-out;
+}
+
+@keyframes hero-hurt {
+  0% {
+    transform: translateX(0);
+    filter: none;
+  }
+  35% {
+    transform: translateX(-7px);
+    filter: brightness(1.15) saturate(0.85) drop-shadow(0 0 8px rgb(255 110 110 / 70%));
+  }
+  100% {
+    transform: translateX(0);
+    filter: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .beat-float-enter-active,
+  .beat-float-leave-active,
+  .swing-enter-active,
+  .swing-leave-active {
+    transition-duration: 0.01ms;
+  }
+
+  .hero-unit.hurt {
+    animation: none;
+  }
+}
+
 </style>

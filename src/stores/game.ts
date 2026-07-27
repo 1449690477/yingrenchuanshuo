@@ -69,6 +69,13 @@ import { assessShopOffer, type ShopBlockReason } from '@/core/shop';
 import { advanceStageKillProgress } from '@/core/stageProgress';
 import { countStageMonsterKills, mergeLootResults } from '@/core/stageLoot';
 import { advanceBattleVisualCursor, battleMonsterIdAt } from '@/core/battleVisual';
+import {
+  advanceRhythm,
+  createRhythmState,
+  resizeSkillCds,
+  type BattleBeat,
+  type RhythmState,
+} from '@/core/battleRhythm';
 import { accumulateIdle, killsPerSecond, recoverStamina, settleOffline } from '@/core/idle';
 import { trimBag } from '@/core/bag';
 import type { IdleContext } from '@/core/idle';
@@ -95,6 +102,7 @@ import {
 } from '@/data/stages';
 import { requireChapter, requireRegionOfChapter } from '@/data/regions';
 import { requireShopOffer } from '@/data/shop';
+import { unlockedVisualSkills, type VisualSkill } from '@/data/skills';
 
 import { createSave, type SaveData } from '@/save/schema';
 import { clearSave, loadSave, saveSave } from '@/save/storage';
@@ -175,6 +183,8 @@ export type EncounterResolveResult =
 
 const AUTO_SAVE_INTERVAL_MS = 3_000;
 const LOOT_LOG_MAX = 40;
+/** 战斗拍子的环形缓冲长度。演出是瞬时的，留太多只会占内存。 */
+const BATTLE_BEAT_BUFFER = 14;
 const BATTLE_PULSE_SECONDS = 0.72;
 /** 高速挂机只采样部分击杀演出，给下一只怪留出可见的掉血阶段。 */
 const BATTLE_PULSE_COOLDOWN_SECONDS = 0.9;
@@ -218,12 +228,16 @@ export const useGameStore = defineStore('game', () => {
   /** 当前一只怪的击杀进度，0=满血，1=即将击杀。 */
   const battleProgress = ref(0);
   const battlePulse = ref<BattlePulse | null>(null);
+  /** 持续战斗演出的拍子流，由 core/battleRhythm 产生 */
+  const battleBeats = ref<BattleBeat[]>([]);
   /** 已通关普通关不再保存击杀余数，这里只维护其画面循环游标。 */
   const battleVisualCursor = ref(0);
 
   let rng = new Rng(1);
   let lootLogSeq = 0;
   let battlePulseSeq = 0;
+  let rhythmState: RhythmState = createRhythmState(0);
+  const rhythmRng = new Rng(0x5a6b7c8d);
   let battlePulseRemainingSec = 0;
   let battlePulseCooldownSec = 0;
   /** 挂机零头秒数。不足一只怪的时间攒在这里，见 core/idle.accumulateIdle */
@@ -333,6 +347,8 @@ export const useGameStore = defineStore('game', () => {
     battleVisualCursor.value = 0;
     battlePulseRemainingSec = 0;
     battlePulseCooldownSec = 0;
+    battleBeats.value = [];
+    rhythmState = createRhythmState(0);
   }
 
   async function init(): Promise<void> {
@@ -462,6 +478,50 @@ export const useGameStore = defineStore('game', () => {
     void persist();
   }
 
+  /**
+   * 推进战斗演出节奏。
+   *
+   * 与击杀结算完全解耦：即使几秒才杀掉一只怪，角色也会按攻速持续挥砍、
+   * 技能按冷却轮转、怪物持续反击。最初版本只在击杀时才有演出，
+   * 表现就是「角色杵着不动，只有血条在掉」。
+   *
+   * 这里产生的伤害数字仅供飘字展示，不参与任何真实结算。
+   */
+  function advanceBattleRhythm(dt: number, ctx: IdleContext): void {
+    const skills = unlockedVisualSkills(
+      save.value!.player.classId,
+      save.value!.player.level,
+    ).filter((s: VisualSkill) => s.type === 'active');
+
+    rhythmState = resizeSkillCds(rhythmState, skills.length);
+
+    const playerStats = ctx.player.stats;
+    const monsterStats = ctx.monster.stats;
+    // 展示伤害取「一次普攻的期望值」量级，让飘字和血条掉速看起来自洽
+    const perHit = Math.max(1, playerStats.atk * (ctx.skillMultiplier ?? 1) * 0.6);
+
+    const advance = advanceRhythm(
+      rhythmState,
+      dt,
+      {
+        playerInterval: 1 / Math.max(0.2, playerStats.spd),
+        monsterInterval: 1 / Math.max(0.2, monsterStats.spd),
+        skillCooldowns: skills.map((s: VisualSkill) => s.cooldown),
+        critRate: playerStats.critRate / 100,
+        playerHit: perHit,
+        monsterHit: Math.max(1, monsterStats.atk * 0.35),
+      },
+      rhythmRng,
+    );
+
+    rhythmState = advance.state;
+    if (advance.beats.length === 0) return;
+
+    // 只保留最近若干拍，UI 用 TransitionGroup 播完即弃
+    const merged = [...battleBeats.value, ...advance.beats];
+    battleBeats.value = merged.slice(-BATTLE_BEAT_BUFFER);
+  }
+
   /** 每帧推进：挂机结算 + 体力恢复 + 自动存档 */
   function tick(dt: number): void {
     if (!save.value) return;
@@ -479,6 +539,7 @@ export const useGameStore = defineStore('game', () => {
     if (canIdle.value) {
       const ctx = buildIdleContext();
       if (!ctx) return;
+      advanceBattleRhythm(dt, ctx);
       advanceEncounters(dt);
       const acc = accumulateIdle(ctx, dt, idleCarrySec, {
         mode: 'roll',
@@ -1302,6 +1363,7 @@ export const useGameStore = defineStore('game', () => {
     loadError,
     battleProgress,
     battlePulse,
+    battleBeats,
     battleTargetId,
     // 派生
     player,

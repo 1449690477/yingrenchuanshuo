@@ -167,6 +167,7 @@ const cpWarn = computed(() => {
           stage.cleared ? `${stage.kps.toFixed(2)} 只/秒` : `${stage.kills}/${stage.killTarget}`
         "
         :wave-ratio="stage.cleared ? undefined : stage.kills / stage.killTarget"
+        :beats="stage.battleBeats"
         :pulse="stage.battlePulse"
         :skill="activeVisualSkill"
         :effect-url="activeEffectUrl"

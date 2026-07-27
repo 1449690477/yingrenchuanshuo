@@ -17,6 +17,8 @@ export const useStageStore = defineStore('stage', () => {
   /** 击杀演出期间让旧目标完整归零，演出结束后再显示下一只的剩余进度。 */
   const battleProgress = computed(() => (game.battlePulse ? 1 : game.battleProgress));
   const battlePulse = computed(() => game.battlePulse);
+  /** 持续战斗演出的拍子流 */
+  const battleBeats = computed(() => game.battleBeats);
   const battleTargetId = computed(() => game.battleTargetId);
   const offlineResult = computed(() => game.offlineResult);
   const pendingEncounters = computed(() => game.pendingEncounters);
@@ -32,6 +34,7 @@ export const useStageStore = defineStore('stage', () => {
     lootLog,
     battleProgress,
     battlePulse,
+    battleBeats,
     battleTargetId,
     offlineResult,
     pendingEncounters,
