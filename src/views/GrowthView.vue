@@ -76,9 +76,13 @@ onUnmounted(() => clearTimeout(feedbackTimer));
       </div>
     </Transition>
 
-    <EnhancePanel class="row-in" style="--row-delay: 140ms" />
+    <EnhancePanel class="row-in" style="--row-delay: 40ms" />
 
-    <section v-if="visualSkills.length > 0" class="card skills-card row-in" style="--row-delay: 40ms">
+    <section
+      v-if="visualSkills.length > 0"
+      class="card skills-card row-in"
+      style="--row-delay: 90ms"
+    >
       <div class="card-head">
         <span>{{ CLASS_INFO[player.player.classId].name }}技能演出</span>
         <span class="skill-hint">随等级解锁</span>
@@ -103,7 +107,7 @@ onUnmounted(() => clearTimeout(feedbackTimer));
     </section>
 
     <!-- 属性面板 -->
-    <section class="card stats-card row-in" style="--row-delay: 90ms">
+    <section class="card stats-card row-in" style="--row-delay: 140ms">
       <div class="card-head"><span>属性</span></div>
       <div class="stats">
         <div v-for="r in statRows" :key="r.key" class="stat">

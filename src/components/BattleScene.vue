@@ -20,7 +20,7 @@ const props = defineProps<{
   vitals: BattleVitals;
   statusText: string;
   progressText: string;
-  /** 当前关卡波次进度（0-1），用于状态区的小进度条；通关后不传。 */
+  /** 当前关卡波次进度（0-1）；通关后不传。 */
   waveRatio?: number;
   pulse: { id: number; targetId: string; damage: number; kills: number } | null;
   skill: VisualSkill | null;
@@ -45,12 +45,18 @@ const monsterHpPercent = computed(
 const spawning = ref(false);
 let spawnTimer = 0;
 
+function playSpawn(): void {
+  spawning.value = true;
+  clearTimeout(spawnTimer);
+  spawnTimer = window.setTimeout(() => (spawning.value = false), 480);
+}
+
 watch(
-  () => props.monster.id,
-  () => {
-    spawning.value = true;
-    clearTimeout(spawnTimer);
-    spawnTimer = window.setTimeout(() => (spawning.value = false), 480);
+  [() => props.monster.id, () => props.pulse?.id ?? 0],
+  ([monsterId, pulseId], [previousMonsterId, previousPulseId]) => {
+    const speciesChanged = monsterId !== previousMonsterId;
+    const defeatedMonsterLeft = previousPulseId > 0 && pulseId === 0;
+    if (speciesChanged || defeatedMonsterLeft) playSpawn();
   },
 );
 
@@ -68,7 +74,13 @@ onUnmounted(() => clearTimeout(spawnTimer));
     :aria-label="`${playerName}正在与${monster.name}战斗`"
   >
     <Transition name="bg-fade">
-      <img :key="backgroundUrl" class="scene-background" :src="backgroundUrl" alt="" aria-hidden="true" />
+      <img
+        :key="backgroundUrl"
+        class="scene-background"
+        :src="backgroundUrl"
+        alt=""
+        aria-hidden="true"
+      />
     </Transition>
     <span class="scene-haze" aria-hidden="true" />
     <span class="scene-glow" aria-hidden="true" />
@@ -82,7 +94,7 @@ onUnmounted(() => clearTimeout(spawnTimer));
       <span>{{ statusText }}</span>
       <strong class="num">{{ progressText }}</strong>
       <span v-if="waveRatio !== undefined" class="wave-track" aria-hidden="true">
-        <i :style="{ width: `${Math.min(100, Math.max(0, waveRatio * 100))}%` }" />
+        <i :style="{ transform: `scaleX(${Math.min(1, Math.max(0, waveRatio))})` }" />
       </span>
     </div>
 
@@ -162,11 +174,7 @@ onUnmounted(() => clearTimeout(spawnTimer));
       <MonsterArtwork :monster="support" />
     </div>
 
-    <div
-      :key="`${monster.id}-${pulse?.id ?? 0}`"
-      class="enemy-unit"
-      :class="{ hit: !!pulse, spawn: spawning }"
-    >
+    <div :key="monster.id" class="enemy-unit" :class="{ hit: !!pulse, spawn: spawning }">
       <span class="actor-shadow" aria-hidden="true" />
       <div class="enemy-actor">
         <MonsterArtwork :monster="monster" />
@@ -254,21 +262,20 @@ onUnmounted(() => clearTimeout(spawnTimer));
   transform: scale(1.012);
 }
 
-/* 背景极缓慢地呼吸漂移，让战斗画面"活"起来 */
+/* 极慢的背景漂移让战场保持活力，同时不会干扰角色和技能演出。 */
 .active .scene-background {
   animation: bg-drift 26s ease-in-out infinite alternate;
-  will-change: transform;
 }
 
-/* 玩家濒危：屏幕边缘红晕脉冲 */
+/* 玩家濒危时以边缘红晕提醒，避免遮挡战斗主体。 */
 .player-low::after {
-  content: '';
   position: absolute;
   z-index: 30;
   inset: 0;
+  content: '';
   border-radius: inherit;
-  pointer-events: none;
   box-shadow: inset 0 0 26px 4px rgb(255 90 110 / 42%);
+  pointer-events: none;
   animation: danger-vignette 1.1s ease-in-out infinite;
 }
 
@@ -328,7 +335,6 @@ onUnmounted(() => clearTimeout(spawnTimer));
   color: #fff5c7;
 }
 
-/* 波次小进度条：推关过程一眼可见 */
 .wave-track {
   grid-column: 1 / -1;
   display: block;
@@ -341,14 +347,15 @@ onUnmounted(() => clearTimeout(spawnTimer));
 
 .wave-track i {
   display: block;
+  width: 100%;
   height: 100%;
   background: linear-gradient(90deg, #ffc2d9, #ffe596, #9fd8f7);
   border-radius: inherit;
   box-shadow: 0 0 5px rgb(255 194 217 / 70%);
-  transition: width 0.45s var(--ease-soft);
+  transform-origin: left center;
+  transition: transform 0.45s var(--ease-soft);
 }
 
-/* 切换关卡时新旧背景交叉淡化 */
 .bg-fade-enter-from,
 .bg-fade-leave-to {
   opacity: 0;
@@ -1466,6 +1473,12 @@ onUnmounted(() => clearTimeout(spawnTimer));
   .loot-burst,
   .loot-burst i {
     animation: none !important;
+  }
+
+  .wave-track i,
+  .bg-fade-enter-active,
+  .bg-fade-leave-active {
+    transition: none !important;
   }
 
   .spell-fx,

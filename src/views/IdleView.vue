@@ -269,28 +269,27 @@ const cpWarn = computed(() => {
   color: #fff;
 }
 
-/* 低频扫光：提示这条横幅是可以点的 */
+/* 低频扫光提示关卡横幅可点击；只移动合成层，不触发布局重排。 */
 .stage-bar::after {
-  content: '';
   position: absolute;
   top: 0;
   bottom: 0;
-  left: -40%;
+  left: 0;
   width: 34%;
+  content: '';
   background: linear-gradient(100deg, transparent, rgb(255 255 255 / 22%), transparent);
-  transform: skewX(-18deg);
-  animation: stage-shine 5.6s var(--ease-soft) infinite;
   pointer-events: none;
+  animation: stage-shine 5.6s var(--ease-soft) infinite;
 }
 
 @keyframes stage-shine {
   0%,
   62% {
-    left: -40%;
+    transform: translate3d(-130%, 0, 0) skewX(-18deg);
   }
   82%,
   100% {
-    left: 112%;
+    transform: translate3d(430%, 0, 0) skewX(-18deg);
   }
 }
 
@@ -478,17 +477,17 @@ const cpWarn = computed(() => {
   overflow: hidden;
 }
 
-/* 空区域铺一层极淡的樱花纹理，让留白显得有设计感 */
+/* 极淡的樱花纹理只填补留白，不影响掉落内容与点击。 */
 .loot::after {
-  content: '';
   position: absolute;
   inset: 0;
-  pointer-events: none;
+  content: '';
   background-image:
     radial-gradient(circle at 88% 82%, rgb(255 190 216 / 14%) 0 5px, transparent 6px),
     radial-gradient(circle at 78% 92%, rgb(159 216 247 / 13%) 0 4px, transparent 5px),
     radial-gradient(circle at 93% 94%, rgb(255 190 216 / 11%) 0 3px, transparent 4px),
-    radial-gradient(circle at 70% 78%, rgb(255 190 216 / 09%) 0 3px, transparent 4px);
+    radial-gradient(circle at 70% 78%, rgb(255 190 216 / 9%) 0 3px, transparent 4px);
+  pointer-events: none;
 }
 
 .loot > * {
@@ -602,15 +601,15 @@ const cpWarn = computed(() => {
   animation-delay: var(--row-delay, 0ms);
 }
 
-/* 品质色条：一眼分辨掉落稀有度（currentColor 取自行的 q-* 类） */
+/* currentColor 来自行上的品质类，形成紧凑的稀有度提示。 */
 .loot-row::before {
-  content: '';
-  flex-shrink: 0;
   width: 3px;
   height: 16px;
   margin-right: -2px;
-  border-radius: 2px;
+  flex-shrink: 0;
+  content: '';
   background: currentColor;
+  border-radius: 2px;
   opacity: 0.65;
 }
 
@@ -639,6 +638,33 @@ const cpWarn = computed(() => {
 
 .loot-fold-enter-active,
 .loot-fold-leave-active {
-  transition: all var(--t-mid) var(--ease-soft);
+  transition:
+    opacity var(--t-mid) var(--ease-soft),
+    transform var(--t-mid) var(--ease-soft);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stage-bar::after {
+    animation: none;
+  }
+
+  .cleared,
+  .loot-row {
+    animation: none;
+  }
+
+  .loot-group-head svg {
+    transition: none;
+  }
+
+  .loot-fold-enter-from,
+  .loot-fold-leave-to {
+    transform: none;
+  }
+
+  .loot-fold-enter-active,
+  .loot-fold-leave-active {
+    transition: none;
+  }
 }
 </style>

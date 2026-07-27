@@ -44,7 +44,7 @@ const moreCount = computed(() => Math.max(0, (r.value?.yield.loot.length ?? 0) -
 </script>
 
 <template>
-  <Transition name="modal-pop">
+  <Transition name="modal-pop" appear>
     <div v-if="r" class="overlay">
       <div class="sheet">
         <div class="top">
@@ -57,17 +57,23 @@ const moreCount = computed(() => Math.max(0, (r.value?.yield.loot.length ?? 0) -
 
         <div class="gains">
           <div class="gain exp">
-            <span class="g-icon" aria-hidden="true"><Star :size="15" :stroke-width="2.2" /></span>
+            <span class="g-icon" aria-hidden="true">
+              <Star :size="15" :stroke-width="2.2" />
+            </span>
             <span class="g-label">经验</span>
             <span class="g-value num">+{{ abbr(r.yield.exp) }}</span>
           </div>
           <div class="gain gold">
-            <span class="g-icon" aria-hidden="true"><Coins :size="15" :stroke-width="2.2" /></span>
+            <span class="g-icon" aria-hidden="true">
+              <Coins :size="15" :stroke-width="2.2" />
+            </span>
             <span class="g-label">金币</span>
             <span class="g-value num">+{{ abbr(r.yield.gold) }}</span>
           </div>
           <div class="gain kills">
-            <span class="g-icon" aria-hidden="true"><Swords :size="15" :stroke-width="2.2" /></span>
+            <span class="g-icon" aria-hidden="true">
+              <Swords :size="15" :stroke-width="2.2" />
+            </span>
             <span class="g-label">击杀</span>
             <span class="g-value num">{{ abbr(r.yield.kills) }}</span>
           </div>
@@ -116,15 +122,16 @@ const moreCount = computed(() => Math.max(0, (r.value?.yield.loot.length ?? 0) -
   overflow: hidden;
 }
 
-/* 面板顶部品牌渐变条 */
+/* 弹窗顶部沿用樱刃的粉、金、蓝品牌色。 */
 .sheet::before {
-  content: '';
   position: absolute;
   top: 0;
-  left: 0;
   right: 0;
+  left: 0;
   height: 4px;
+  content: '';
   background: linear-gradient(90deg, var(--pink), var(--gold), var(--blue));
+  pointer-events: none;
 }
 
 .top {
@@ -180,7 +187,6 @@ h3 {
   box-shadow: var(--shadow-sm);
 }
 
-/* 收益类别图标：经验蓝 / 金币金 / 击杀粉 */
 .g-icon {
   display: grid;
   place-items: center;
@@ -276,5 +282,11 @@ h3 {
   width: 100%;
   padding: 12px;
   font-size: 15px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sparkle {
+    animation: none;
+  }
 }
 </style>

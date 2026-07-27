@@ -23,25 +23,13 @@ const selectedId = ref<string | null>(null);
 const toast = ref('');
 const purchaseBurst = ref(0);
 const goldBump = ref(false);
-let bumpTimer = 0;
-
-watch(
-  () => shop.gold,
-  (now, before) => {
-    if (now <= before) return;
-    goldBump.value = false;
-    requestAnimationFrame(() => {
-      goldBump.value = true;
-      clearTimeout(bumpTimer);
-      bumpTimer = window.setTimeout(() => (goldBump.value = false), 420);
-    });
-  },
-);
 const backButton = ref<HTMLButtonElement | null>(null);
 const detailSheet = ref<HTMLElement | null>(null);
 const detailCloseButton = ref<HTMLButtonElement | null>(null);
 let detailReturnFocus: HTMLElement | null = null;
 let toastTimer = 0;
+let bumpTimer = 0;
+let bumpFrame = 0;
 const shopSceneUrl = `${import.meta.env.BASE_URL}assets/shops/sakura-boutique.webp`;
 
 const filters: readonly { id: FilterId; label: string }[] = [
@@ -186,6 +174,21 @@ watch(selectedId, async (offerId, previousOfferId) => {
   }
 });
 
+watch(
+  () => shop.gold,
+  (now, before) => {
+    if (now <= before) return;
+    goldBump.value = false;
+    clearTimeout(bumpTimer);
+    cancelAnimationFrame(bumpFrame);
+    bumpFrame = requestAnimationFrame(() => {
+      bumpFrame = 0;
+      goldBump.value = true;
+      bumpTimer = window.setTimeout(() => (goldBump.value = false), 420);
+    });
+  },
+);
+
 onMounted(() => {
   window.addEventListener('keydown', onShopKeydown);
   backButton.value?.focus();
@@ -194,6 +197,7 @@ onMounted(() => {
 onUnmounted(() => {
   clearTimeout(toastTimer);
   clearTimeout(bumpTimer);
+  cancelAnimationFrame(bumpFrame);
   window.removeEventListener('keydown', onShopKeydown);
 });
 </script>
@@ -208,7 +212,9 @@ onUnmounted(() => {
         <strong>樱花珍品店</strong>
         <small>装备靠打 · 金币保底收藏</small>
       </span>
-      <span class="gold-pill" :class="{ bump: goldBump }"><Coins :size="14" />{{ abbr(shop.gold) }}</span>
+      <span class="gold-pill" :class="{ bump: goldBump }">
+        <Coins :size="14" />{{ abbr(shop.gold) }}
+      </span>
     </header>
 
     <section class="shop-scene">
@@ -436,42 +442,41 @@ onUnmounted(() => {
   background: linear-gradient(90deg, rgb(48 38 57 / 64%), transparent 72%);
 }
 
-/* 店内樱花：与战斗场景呼应的慢速花瓣 */
 .scene-petal {
   position: absolute;
   z-index: 1;
   top: -12px;
   width: 7px;
   height: 9px;
+  opacity: 0;
   background: linear-gradient(160deg, #ffd9e8, #ffabc9);
   border-radius: 78% 22% 68% 32%;
-  opacity: 0;
   pointer-events: none;
   animation: scene-petal-fall 8s linear infinite;
 }
 
 .scene-petal.p1 {
   left: 46%;
+  --petal-scale: 1;
   animation-delay: -1.8s;
 }
 
 .scene-petal.p2 {
   left: 68%;
+  --petal-scale: 0.8;
   animation-delay: -5.1s;
-  transform: scale(0.8);
 }
 
 .scene-petal.p3 {
   left: 88%;
+  --petal-scale: 0.64;
   animation-delay: -7s;
-  transform: scale(0.64);
 }
 
 @keyframes scene-petal-fall {
   0% {
     opacity: 0;
-    translate: 0 0;
-    rotate: 0deg;
+    transform: translate3d(0, 0, 0) rotate(0) scale(var(--petal-scale));
   }
   16%,
   80% {
@@ -479,8 +484,7 @@ onUnmounted(() => {
   }
   100% {
     opacity: 0;
-    translate: 30px 168px;
-    rotate: 320deg;
+    transform: translate3d(30px, 168px, 0) rotate(320deg) scale(var(--petal-scale));
   }
 }
 
@@ -568,16 +572,15 @@ onUnmounted(() => {
   transform: scale(0.96);
 }
 
-/* 卡顶的品质色条 */
 .offer-card::before {
-  content: '';
   position: absolute;
   top: 0;
-  left: 10px;
   right: 10px;
+  left: 10px;
   height: 3px;
-  border-radius: 0 0 3px 3px;
+  content: '';
   background: var(--q-common);
+  border-radius: 0 0 3px 3px;
   opacity: 0.55;
 }
 
@@ -632,7 +635,7 @@ onUnmounted(() => {
   0%,
   100% {
     opacity: 0.45;
-    transform: scale(0.86) rotate(0deg);
+    transform: scale(0.86) rotate(0);
   }
   50% {
     opacity: 1;
@@ -709,16 +712,16 @@ onUnmounted(() => {
   box-shadow: 0 -12px 32px rgb(28 28 46 / 24%);
 }
 
-/* 面板顶部品牌渐变条 */
 .detail-sheet::before {
-  content: '';
   position: absolute;
   z-index: 5;
   top: 0;
-  left: 0;
   right: 0;
+  left: 0;
   height: 4px;
+  content: '';
   background: linear-gradient(90deg, var(--pink), var(--gold), var(--blue));
+  pointer-events: none;
 }
 
 .close {
@@ -871,9 +874,9 @@ onUnmounted(() => {
   gap: 5px;
   padding: 0 12px;
   overflow: hidden;
-  color: #fff;
   font-size: 10px;
   font-weight: 800;
+  color: #fff;
   background: linear-gradient(135deg, #f179a7, #8b80d7);
   border-radius: 14px;
   box-shadow: 0 6px 14px rgb(140 83 139 / 23%);
@@ -883,32 +886,30 @@ onUnmounted(() => {
 }
 
 .buy-button:active:not(:disabled) {
-  transform: scale(0.96);
   filter: brightness(1.06);
+  transform: scale(0.96);
 }
 
-/* 低频扫光，提示可购买 */
 .buy-button:not(:disabled)::after {
-  content: '';
   position: absolute;
   top: 0;
   bottom: 0;
-  left: -46%;
+  left: 0;
   width: 38%;
+  content: '';
   background: linear-gradient(100deg, transparent, rgb(255 255 255 / 30%), transparent);
-  transform: skewX(-18deg);
-  animation: stage-shine 4.8s var(--ease-soft) infinite;
   pointer-events: none;
+  animation: buy-shine 4.8s var(--ease-soft) infinite;
 }
 
-@keyframes stage-shine {
+@keyframes buy-shine {
   0%,
   58% {
-    left: -46%;
+    transform: translate3d(-130%, 0, 0) skewX(-18deg);
   }
   82%,
   100% {
-    left: 116%;
+    transform: translate3d(410%, 0, 0) skewX(-18deg);
   }
 }
 
@@ -964,9 +965,11 @@ onUnmounted(() => {
   .offer-card,
   .offer-spark,
   .scene-petal,
+  .buy-button,
   .buy-button::after,
   .gold-pill.bump {
     animation: none !important;
+    transition: none !important;
   }
 }
 </style>

@@ -19,6 +19,8 @@ import EquipmentIcon from '@/components/EquipmentIcon.vue';
 import ItemIcon from '@/components/ItemIcon.vue';
 import SystemArtwork from '@/components/SystemArtwork.vue';
 
+defineOptions({ inheritAttrs: false });
+
 interface EnhanceCandidate {
   instance: EquipmentInstance;
   definition: EquipmentDef;
@@ -285,7 +287,7 @@ function attempt(forceDanger = false): void {
 </script>
 
 <template>
-  <section class="enhance-panel card" aria-labelledby="enhance-title">
+  <section v-bind="$attrs" class="enhance-panel card" aria-labelledby="enhance-title">
     <div class="panel-art" aria-hidden="true">
       <SystemArtwork kind="enhance" />
     </div>
@@ -764,12 +766,12 @@ function attempt(forceDanger = false): void {
 }
 
 .luck-track i::after {
-  content: '';
   position: absolute;
   inset: 0;
-  border-radius: inherit;
+  content: '';
   background: linear-gradient(100deg, transparent 15%, rgb(255 255 255 / 70%) 50%, transparent 85%);
   background-size: 220% 100%;
+  border-radius: inherit;
   animation: luck-shimmer 2.4s var(--ease-soft) infinite;
 }
 
@@ -923,22 +925,20 @@ function attempt(forceDanger = false): void {
 }
 
 .enhance-button:active:not(:disabled) {
-  transform: scale(0.97);
   filter: brightness(1.07);
+  transform: scale(0.97);
 }
 
-/* 按钮上的低频扫光 */
 .enhance-button:not(:disabled)::after {
-  content: '';
   position: absolute;
   top: 0;
   bottom: 0;
-  left: -46%;
+  left: 0;
   width: 38%;
+  content: '';
   background: linear-gradient(100deg, transparent, rgb(255 255 255 / 34%), transparent);
-  transform: skewX(-18deg);
-  animation: forge-shine 4.2s var(--ease-soft) infinite;
   pointer-events: none;
+  animation: forge-shine 4.2s var(--ease-soft) infinite;
 }
 
 .enhance-button span {
@@ -950,11 +950,11 @@ function attempt(forceDanger = false): void {
 @keyframes forge-shine {
   0%,
   55% {
-    left: -46%;
+    transform: translate3d(-130%, 0, 0) skewX(-18deg);
   }
   82%,
   100% {
-    left: 116%;
+    transform: translate3d(410%, 0, 0) skewX(-18deg);
   }
 }
 
@@ -962,7 +962,7 @@ function attempt(forceDanger = false): void {
   0%,
   100% {
     opacity: 0.6;
-    transform: scale(0.9) rotate(0deg);
+    transform: scale(0.9) rotate(0);
   }
   50% {
     opacity: 1;
@@ -1048,16 +1048,15 @@ function attempt(forceDanger = false): void {
   border-radius: 13px;
 }
 
-/* 强化成功时四瓣樱花向外绽放 */
 .result-feedback.tone-success::before,
 .result-feedback.tone-success::after {
-  content: '';
   position: absolute;
-  left: 22px;
   top: 50%;
+  left: 22px;
   width: 7px;
   height: 9px;
   margin-top: -4px;
+  content: '';
   background: linear-gradient(160deg, #ffd9e8, #ff9fc4);
   border-radius: 78% 22% 68% 32%;
   pointer-events: none;
@@ -1075,33 +1074,33 @@ function attempt(forceDanger = false): void {
   animation-delay: 0.08s;
 }
 
+.result-feedback.tone-success .result-spark {
+  position: relative;
+}
+
 .result-feedback.tone-success .result-spark::before,
 .result-feedback.tone-success .result-spark::after {
-  content: '';
   position: absolute;
   width: 6px;
   height: 8px;
+  content: '';
   background: linear-gradient(160deg, #ffe9d0, #ffcf8a);
   border-radius: 78% 22% 68% 32%;
   pointer-events: none;
   animation: success-petal 0.9s var(--ease-soft) both;
 }
 
-.result-feedback.tone-success .result-spark {
-  position: relative;
-}
-
 .result-feedback.tone-success .result-spark::before {
-  left: 4px;
   top: 2px;
+  left: 4px;
   --px: 30px;
   --py: 26px;
   animation-delay: 0.04s;
 }
 
 .result-feedback.tone-success .result-spark::after {
-  left: 8px;
   top: 4px;
+  left: 8px;
   --px: -26px;
   --py: 22px;
   animation-delay: 0.12s;
@@ -1110,7 +1109,7 @@ function attempt(forceDanger = false): void {
 @keyframes success-petal {
   0% {
     opacity: 1;
-    transform: translate(0, 0) rotate(0deg) scale(0.7);
+    transform: translate(0, 0) rotate(0) scale(0.7);
   }
   100% {
     opacity: 0;
@@ -1244,16 +1243,16 @@ function attempt(forceDanger = false): void {
   box-shadow: 0 18px 48px rgb(32 39 56 / 30%);
 }
 
-/* 面板顶部品牌渐变条 */
 .picker-sheet::before {
-  content: '';
   position: absolute;
   z-index: 1;
   top: 0;
-  left: 0;
   right: 0;
+  left: 0;
   height: 4px;
+  content: '';
   background: linear-gradient(90deg, var(--pink), var(--gold), var(--blue));
+  pointer-events: none;
 }
 
 .picker-sheet header {

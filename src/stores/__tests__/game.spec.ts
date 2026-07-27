@@ -2,6 +2,7 @@ import 'fake-indexeddb/auto';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { battleMonsterIdAt } from '@/core/battleVisual';
+import { decomposeGold } from '@/core/economy';
 import { createInstance } from '@/core/equipment';
 import type { EquipmentInstance } from '@/core/types';
 import { Rng } from '@/core/rng';
@@ -260,6 +261,31 @@ describe('equipment decisions', () => {
     expect(game.equip(item.uid)).toBe(false);
     expect(game.equipBest()).toBe(0);
     expect(game.save?.equipped.weapon).toBeNull();
+    await game.persist();
+  });
+
+  it('批量分解可处理蓝色和紫色装备，但始终跳过锁定装备', async () => {
+    const game = useGameStore();
+    const save = createSave('分解测试', 'swordsman', 12, Date.now());
+    const blueDef = requireEquipment('eq_r1_weapon_rare');
+    const purpleDef = requireEquipment('eq_r2_weapon_epic');
+    const blue = createInstance(blueDef, new Rng(4), 'blue');
+    const purple = createInstance(purpleDef, new Rng(5), 'purple');
+    const locked = createInstance(purpleDef, new Rng(6), 'locked');
+    blue.locked = false;
+    purple.locked = false;
+    locked.locked = true;
+    save.bag.equipment.push(blue, purple, locked);
+    game.loadFrom(save);
+
+    const result = game.decompose([blue.uid, purple.uid, locked.uid]);
+
+    expect(result).toEqual({
+      count: 2,
+      gold: decomposeGold(blueDef, blue) + decomposeGold(purpleDef, purple),
+    });
+    expect(game.save?.bag.equipment.map((item) => item.uid)).toEqual([locked.uid]);
+    expect(game.save?.player.gold).toBe(result.gold);
     await game.persist();
   });
 });

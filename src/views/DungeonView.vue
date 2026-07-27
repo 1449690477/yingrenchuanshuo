@@ -52,6 +52,7 @@ const planned = [
       v-for="(p, i) in planned"
       :key="p.name"
       class="row card row-in"
+      :class="`tone-${i % 5}`"
       :style="{ '--row-delay': `${60 + i * 55}ms` }"
     >
       <span class="row-icon">
@@ -120,28 +121,28 @@ const planned = [
   border-radius: 11px;
 }
 
-/* 每个规划系统一个色调，扫一眼就能区分 */
-.row:nth-of-type(5n + 1) .row-icon {
+/* 每个规划系统固定一种色调，后续插入其他元素也不会打乱顺序。 */
+.tone-0 .row-icon {
   color: var(--blue-deep);
   background: linear-gradient(145deg, #e2f2ff, #f0f9ff);
 }
 
-.row:nth-of-type(5n + 2) .row-icon {
+.tone-1 .row-icon {
   color: var(--pink-deep);
   background: linear-gradient(145deg, #ffe7f0, #fff3f8);
 }
 
-.row:nth-of-type(5n + 3) .row-icon {
+.tone-2 .row-icon {
   color: #b07f10;
   background: linear-gradient(145deg, #fdf3d7, #fffaec);
 }
 
-.row:nth-of-type(5n + 4) .row-icon {
+.tone-3 .row-icon {
   color: #7a5fd0;
   background: linear-gradient(145deg, #efebfb, #f7f4ff);
 }
 
-.row:nth-of-type(5n + 5) .row-icon {
+.tone-4 .row-icon {
   color: #3a9e7c;
   background: linear-gradient(145deg, #dcf5ec, #f2fcf7);
 }

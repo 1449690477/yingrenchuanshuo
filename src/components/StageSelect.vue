@@ -41,9 +41,11 @@ function pick(stageId: string) {
           <button
             class="region-head"
             :class="{ open: openRegion === r.id }"
+            :aria-expanded="openRegion === r.id"
+            :aria-controls="`stage-region-${r.id}`"
             @click="openRegion = openRegion === r.id ? '' : r.id"
           >
-            <img class="region-cover" :src="assetUrl(r.mapAsset)" :alt="`${r.name}区域地图`" />
+            <img class="region-cover" :src="assetUrl(r.mapAsset)" alt="" aria-hidden="true" />
             <span class="region-shade" />
             <span class="r-left">
               <span class="r-name">{{ r.index }} · {{ r.name }}</span>
@@ -56,17 +58,20 @@ function pick(stageId: string) {
           </button>
 
           <Transition name="fold">
-            <div v-if="openRegion === r.id" class="chapters">
+            <div v-if="openRegion === r.id" :id="`stage-region-${r.id}`" class="chapters">
               <div v-for="c in r.chapters" :key="c.id" class="chapter">
                 <button
                   class="chapter-head"
                   :class="{ open: openChapter === c.id }"
+                  :aria-expanded="openChapter === c.id"
+                  :aria-controls="`stage-chapter-${c.id}`"
                   @click="openChapter = openChapter === c.id ? '' : c.id"
                 >
                   <img
                     class="chapter-cover"
                     :src="assetUrl(c.mapAsset)"
-                    :alt="`${c.name}章节场景`"
+                    alt=""
+                    aria-hidden="true"
                   />
                   <span class="chapter-shade" />
                   <span class="c-name">{{ c.id }} {{ c.name }}</span>
@@ -74,7 +79,7 @@ function pick(stageId: string) {
                 </button>
 
                 <Transition name="fold">
-                  <div v-if="openChapter === c.id" class="stages">
+                  <div v-if="openChapter === c.id" :id="`stage-chapter-${c.id}`" class="stages">
                     <button
                       v-for="s in stagesOfChapter(c.id)"
                       :key="s.id"
@@ -85,6 +90,7 @@ function pick(stageId: string) {
                         boss: !!s.bossId,
                       }"
                       :disabled="!stage.isUnlocked(s.id)"
+                      :aria-current="s.id === stage.current.id ? 'true' : undefined"
                       @click="pick(s.id)"
                     >
                       <span class="s-name">
@@ -190,13 +196,13 @@ function pick(stageId: string) {
   transition: transform var(--t-slow) var(--ease-soft);
 }
 
-/* 展开的区域封面轻微放大，层次分明 */
 .region-head.open .region-cover {
   transform: scale(1.045);
 }
 
 .r-right {
   position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   gap: 7px;
@@ -286,7 +292,6 @@ function pick(stageId: string) {
   transition: transform var(--t-slow) var(--ease-soft);
 }
 
-/* 展开的章节封面轻微放大 */
 .chapter-head.open .chapter-cover {
   transform: scale(1.05);
 }
@@ -343,30 +348,22 @@ function pick(stageId: string) {
   background: var(--pink-soft);
 }
 
-/* 当前关卡：粉色呼吸描边 */
+/* 当前关卡以轻微呼吸描边标记，不改变按钮内容布局。 */
 .stage.on::after {
-  content: '';
   position: absolute;
   inset: -1px;
-  border-radius: inherit;
+  content: '';
   border: 1.5px solid rgb(245 121 159 / 70%);
-  animation: stage-on-pulse 2s ease-in-out infinite;
+  border-radius: inherit;
   pointer-events: none;
-}
-
-@keyframes stage-on-pulse {
-  0%,
-  100% {
-    opacity: 0.25;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.85;
-    transform: scale(1.025);
-  }
+  animation: stage-on-pulse 2s ease-in-out infinite;
 }
 
 .stage.boss {
+  border-color: var(--q-legendary);
+}
+
+.stage.on.boss::after {
   border-color: var(--q-legendary);
 }
 
@@ -474,7 +471,21 @@ function pick(stageId: string) {
 
 .fold-enter-active,
 .fold-leave-active {
-  transition: all var(--t-mid) var(--ease-soft);
+  transition:
+    opacity var(--t-mid) var(--ease-soft),
+    transform var(--t-mid) var(--ease-soft);
+}
+
+@keyframes stage-on-pulse {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.025);
+  }
 }
 
 @keyframes sweep-breeze {
@@ -488,8 +499,30 @@ function pick(stageId: string) {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sweep-art {
+  .sweep-art,
+  .stage.on::after {
     animation: none;
+  }
+
+  .stage.on::after {
+    opacity: 0.55;
+    transform: none;
+  }
+
+  .region-cover,
+  .chapter-cover,
+  .r-chev {
+    transition: none;
+  }
+
+  .fold-enter-from,
+  .fold-leave-to {
+    transform: none;
+  }
+
+  .fold-enter-active,
+  .fold-leave-active {
+    transition: none;
   }
 }
 </style>

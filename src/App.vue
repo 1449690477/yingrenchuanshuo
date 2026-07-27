@@ -100,16 +100,11 @@ onUnmounted(() => {
 
 <style scoped>
 .shell {
+  isolation: isolate;
   display: flex;
   flex-direction: column;
   height: 100dvh;
   position: relative;
-}
-
-/* 粒子层垫在最底下，其余内容抬高一阶（弹窗遮罩保持原有绝对定位与层级） */
-.shell > :not(.sakura-field):not(.overlay) {
-  position: relative;
-  z-index: 1;
 }
 
 .main {

@@ -15,6 +15,7 @@ const msg = ref<{ text: string; ok: boolean } | null>(null);
 const confirmReset = ref(false);
 const pendingImport = ref<SaveData | null>(null);
 const showShop = ref(false);
+const shopLeaving = ref(false);
 const shopEntryButton = ref<HTMLButtonElement | null>(null);
 const shopSceneUrl = `${import.meta.env.BASE_URL}assets/shops/sakura-boutique.webp`;
 
@@ -31,11 +32,17 @@ function pickFile() {
 }
 
 function openShop() {
+  shopLeaving.value = false;
   showShop.value = true;
 }
 
-async function closeShop() {
+function closeShop() {
+  shopLeaving.value = true;
   showShop.value = false;
+}
+
+async function afterShopLeave() {
+  shopLeaving.value = false;
   await nextTick();
   shopEntryButton.value?.focus();
 }
@@ -79,7 +86,11 @@ function say(text: string, ok: boolean) {
 
 <template>
   <div class="more scroll-y">
-    <div class="more-content" :inert="showShop" :aria-hidden="showShop ? 'true' : undefined">
+    <div
+      class="more-content"
+      :inert="showShop || shopLeaving"
+      :aria-hidden="showShop || shopLeaving ? 'true' : undefined"
+    >
       <section class="boutique-entry" :style="{ backgroundImage: `url(${shopSceneUrl})` }">
         <span class="boutique-shade" />
         <span class="boutique-copy">
@@ -179,7 +190,7 @@ function say(text: string, ok: boolean) {
       </Transition>
     </div>
 
-    <Transition name="page-up">
+    <Transition name="page-up" @after-leave="afterShopLeave">
       <ShopView v-if="showShop" @close="closeShop" />
     </Transition>
   </div>
@@ -393,28 +404,33 @@ function say(text: string, ok: boolean) {
   background: rgb(200 70 80 / 94%);
 }
 
-/* 小店横幅低频扫光，提示可进入 */
+/* 小店横幅低频扫光，用位移动画提示入口可点击。 */
 .boutique-shade::after {
-  content: '';
   position: absolute;
   top: 0;
   bottom: 0;
-  left: -42%;
+  left: 0;
   width: 36%;
+  content: '';
   background: linear-gradient(100deg, transparent, rgb(255 255 255 / 16%), transparent);
-  transform: skewX(-18deg);
-  animation: stage-shine 6.4s var(--ease-soft) infinite;
   pointer-events: none;
+  animation: boutique-shine 6.4s var(--ease-soft) infinite;
 }
 
-@keyframes stage-shine {
+@keyframes boutique-shine {
   0%,
   62% {
-    left: -42%;
+    transform: translate3d(-130%, 0, 0) skewX(-18deg);
   }
   84%,
   100% {
-    left: 114%;
+    transform: translate3d(420%, 0, 0) skewX(-18deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .boutique-shade::after {
+    animation: none;
   }
 }
 </style>

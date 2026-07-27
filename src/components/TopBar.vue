@@ -25,39 +25,46 @@ watch(
   },
 );
 
-onUnmounted(() => clearTimeout(hideTimer));
-
 const cls = computed(() => (playerStore.player ? CLASS_INFO[playerStore.player.classId] : null));
 
-/** 金币增加时图标的轻微弹跳（只响应变多，花掉不跳）。 */
+/** 金币增加时给图标一次轻微弹跳；消费金币不会触发。 */
 const goldBump = ref(false);
+let bumpFrame = 0;
 let bumpTimer = 0;
 
 watch(
   () => playerStore.player?.gold ?? 0,
   (now, before) => {
-    if (now <= before) return;
+    if (before === undefined || now <= before) return;
+
     goldBump.value = false;
-    requestAnimationFrame(() => {
+    clearTimeout(bumpTimer);
+    window.cancelAnimationFrame(bumpFrame);
+    bumpFrame = window.requestAnimationFrame(() => {
       goldBump.value = true;
-      clearTimeout(bumpTimer);
       bumpTimer = window.setTimeout(() => (goldBump.value = false), 380);
     });
   },
 );
 
-onUnmounted(() => clearTimeout(bumpTimer));
+onUnmounted(() => {
+  clearTimeout(hideTimer);
+  clearTimeout(bumpTimer);
+  window.cancelAnimationFrame(bumpFrame);
+});
 </script>
 
 <template>
   <header v-if="playerStore.player" class="topbar">
-    <div class="avatar">
-      <CharacterAppearance
-        :class-id="playerStore.player.classId"
-        :level="playerStore.player.level"
-        :equipped="inventoryStore.equipped"
-        variant="avatar"
-      />
+    <div class="avatar-halo">
+      <div class="avatar">
+        <CharacterAppearance
+          :class-id="playerStore.player.classId"
+          :level="playerStore.player.level"
+          :equipped="inventoryStore.equipped"
+          variant="avatar"
+        />
+      </div>
     </div>
 
     <div class="info">
@@ -116,11 +123,16 @@ onUnmounted(() => clearTimeout(bumpTimer));
   flex-shrink: 0;
 }
 
-.avatar {
+.avatar-halo {
   position: relative;
   width: 36px;
   height: 36px;
   flex-shrink: 0;
+}
+
+.avatar {
+  width: 100%;
+  height: 100%;
   display: grid;
   place-items: center;
   font-size: 18px;
@@ -131,7 +143,7 @@ onUnmounted(() => clearTimeout(bumpTimer));
 }
 
 /* 头像外圈呼吸光环 */
-.avatar::after {
+.avatar-halo::after {
   content: '';
   position: absolute;
   inset: -5px;
@@ -324,7 +336,8 @@ onUnmounted(() => clearTimeout(bumpTimer));
 
 @media (prefers-reduced-motion: reduce) {
   .expbar-fill::after,
-  .avatar::after {
+  .avatar-halo::after,
+  .coin-icon.bump {
     animation: none;
   }
 }

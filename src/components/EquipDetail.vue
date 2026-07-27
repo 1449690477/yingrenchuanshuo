@@ -204,16 +204,17 @@ function doDecompose() {
   overflow: hidden;
 }
 
-/* 面板顶部品牌渐变条 */
+/* 和离线收益弹窗共用一条品牌渐变顶边。 */
 .sheet::before {
-  content: '';
   position: absolute;
   z-index: 1;
   top: 0;
-  left: 0;
   right: 0;
+  left: 0;
   height: 4px;
+  content: '';
   background: linear-gradient(90deg, var(--pink), var(--gold), var(--blue));
+  pointer-events: none;
 }
 
 .head {
