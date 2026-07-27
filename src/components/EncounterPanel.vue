@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { Sparkles, X } from '@lucide/vue';
+import { ChevronLeft, ChevronRight, Sparkles, X } from '@lucide/vue';
 import { canAfford, type EncounterChoice, type ResourceBundle } from '@/core/encounters';
 import { abbr } from '@/core/format';
 import { requireEncounter } from '@/data/encounters';
@@ -13,9 +13,20 @@ const emit = defineEmits<{ close: [] }>();
 const stage = useStageStore();
 const player = usePlayerStore();
 const inventory = useInventoryStore();
-const feedback = ref('');
+type EncounterFeedback = { text: string; tone: 'success' | 'notice' };
 
-const entry = computed(() => stage.pendingEncounters[0] ?? null);
+const feedback = ref<EncounterFeedback | null>(null);
+const selectedUid = ref<string | null>(stage.pendingEncounters[0]?.uid ?? null);
+
+const entry = computed(() => {
+  if (!selectedUid.value) return null;
+  return stage.pendingEncounters.find((candidate) => candidate.uid === selectedUid.value) ?? null;
+});
+const activeIndex = computed(() =>
+  entry.value
+    ? stage.pendingEncounters.findIndex((candidate) => candidate.uid === entry.value?.uid)
+    : -1,
+);
 const encounter = computed(() => (entry.value ? requireEncounter(entry.value.encounterId) : null));
 const wallet = computed(() => ({
   gold: player.player?.gold ?? 0,
@@ -32,16 +43,38 @@ function resourceText(bundle: ResourceBundle | undefined, emptyLabel = '无需�
   return parts.length > 0 ? parts.join('、') : emptyLabel;
 }
 
+function selectRelative(offset: number): void {
+  const count = stage.pendingEncounters.length;
+  if (count < 2 || activeIndex.value < 0) return;
+  const nextIndex = (activeIndex.value + offset + count) % count;
+  selectedUid.value = stage.pendingEncounters[nextIndex]?.uid ?? null;
+  feedback.value = null;
+}
+
+function showNextPending(): void {
+  selectedUid.value = stage.pendingEncounters[0]?.uid ?? null;
+  feedback.value = null;
+}
+
 function choose(choice: EncounterChoice): void {
   if (!entry.value) return;
   const result = stage.resolveEncounter(entry.value.uid, choice.id);
   if (!result.ok) {
-    feedback.value =
-      result.reason === 'insufficient-resource' ? '材料还不够，可以稍后再来' : '这段奇遇已经结束了';
+    feedback.value = {
+      text:
+        result.reason === 'insufficient-resource'
+          ? '材料数量刚刚发生变化，可以稍后再试'
+          : '这段奇遇已经结束了',
+      tone: 'notice',
+    };
     return;
   }
   const reveal = resourceText(result.rewards, '');
-  feedback.value = reveal ? `${result.outcome} 获得：${reveal}` : result.outcome;
+  feedback.value = {
+    text: reveal ? `${result.outcome} 获得：${reveal}` : result.outcome,
+    tone: 'success',
+  };
+  selectedUid.value = null;
 }
 </script>
 
@@ -51,21 +84,46 @@ function choose(choice: EncounterChoice): void {
       <header class="head">
         <span class="sigil"><Sparkles :size="20" aria-hidden="true" /></span>
         <span>
-          <small>旅途奇遇 · 待处理 {{ stage.pendingEncounters.length }}/3</small>
+          <small>
+            旅途奇遇 ·
+            {{
+              encounter
+                ? `第 ${activeIndex + 1}/${stage.pendingEncounters.length} 件`
+                : `待处理 ${stage.pendingEncounters.length}/3`
+            }}
+          </small>
           <strong>{{ encounter?.title ?? '奇遇已处理' }}</strong>
         </span>
         <button class="close" aria-label="稍后处理" @click="emit('close')"><X :size="18" /></button>
       </header>
 
       <template v-if="encounter">
+        <nav
+          v-if="stage.pendingEncounters.length > 1"
+          class="encounter-nav"
+          aria-label="切换待处理奇遇"
+        >
+          <button type="button" aria-label="查看上一个奇遇" @click="selectRelative(-1)">
+            <ChevronLeft :size="16" aria-hidden="true" />
+            上一个
+          </button>
+          <span class="num">{{ activeIndex + 1 }} / {{ stage.pendingEncounters.length }}</span>
+          <button type="button" aria-label="查看下一个奇遇" @click="selectRelative(1)">
+            下一个
+            <ChevronRight :size="16" aria-hidden="true" />
+          </button>
+        </nav>
         <p class="story">{{ encounter.story }}</p>
-        <div v-if="feedback" class="feedback">{{ feedback }}</div>
+        <div v-if="feedback" class="feedback" :class="`tone-${feedback.tone}`" role="status">
+          {{ feedback.text }}
+        </div>
         <div class="choices">
           <button
             v-for="choice in encounter.choices"
             :key="choice.id"
             class="choice"
             :class="{ unavailable: !canAfford(choice.costs, wallet) }"
+            :disabled="!canAfford(choice.costs, wallet)"
             @click="choose(choice)"
           >
             <span class="choice-title">{{ choice.label }}</span>
@@ -79,8 +137,17 @@ function choose(choice: EncounterChoice): void {
       <template v-else>
         <div class="done">
           <Sparkles :size="30" aria-hidden="true" />
-          <p>{{ feedback || '旅途恢复了平静。' }}</p>
-          <button class="btn btn-pink" @click="emit('close')">返回挂机</button>
+          <p>{{ feedback?.text || '旅途恢复了平静。' }}</p>
+          <button
+            class="btn btn-pink"
+            @click="stage.pendingEncounters.length > 0 ? showNextPending() : emit('close')"
+          >
+            {{
+              stage.pendingEncounters.length > 0
+                ? `查看下一件奇遇（${stage.pendingEncounters.length}）`
+                : '返回挂机'
+            }}
+          </button>
         </div>
       </template>
     </section>
@@ -142,6 +209,33 @@ function choose(choice: EncounterChoice): void {
   background: var(--panel-2);
   border-radius: 50%;
 }
+.encounter-nav {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+.encounter-nav button {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--blue-deep);
+  background: rgb(255 255 255 / 82%);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+}
+.encounter-nav span {
+  min-width: 42px;
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--text-dim);
+  text-align: center;
+}
 .story {
   padding: 14px;
   margin-top: 12px;
@@ -156,9 +250,16 @@ function choose(choice: EncounterChoice): void {
   padding: 9px 11px;
   margin-top: 9px;
   font-size: 11px;
+  line-height: 1.55;
+  border-radius: var(--r-sm);
+}
+.feedback.tone-success {
   color: #2e8a68;
   background: #eafaf3;
-  border-radius: var(--r-sm);
+}
+.feedback.tone-notice {
+  color: #8a7330;
+  background: #fff6e0;
 }
 .choices {
   display: grid;
@@ -178,7 +279,7 @@ function choose(choice: EncounterChoice): void {
   border-radius: var(--r);
   box-shadow: var(--shadow-sm);
 }
-.choice:active {
+.choice:not(:disabled):active {
   transform: scale(0.99);
 }
 .choice-title {
@@ -198,7 +299,10 @@ function choose(choice: EncounterChoice): void {
   color: var(--warn);
 }
 .choice.unavailable {
+  color: var(--text-dim);
   background: #f7f8fa;
+  box-shadow: none;
+  opacity: 0.78;
 }
 .aside {
   margin-top: 10px;
