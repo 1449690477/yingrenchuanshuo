@@ -9,6 +9,15 @@ import {
   type CharacterAction,
   type EquippedRecord,
 } from '@/data/characterAppearance';
+import {
+  basicBattleAction,
+  latestSourceBeat,
+  monsterActionFor,
+  requireMonsterMotionTiming,
+  shouldPlayMonsterSpawn,
+  type MonsterAction,
+} from '@/data/battleMotions';
+import { requireMonsterVisual } from '@/data/monsterVisuals';
 import { battleRhythmSkills, type ActiveVisualSkill } from '@/data/skills';
 import CharacterAppearance from '@/components/CharacterAppearance.vue';
 import MonsterArtwork from '@/components/MonsterArtwork.vue';
@@ -36,6 +45,10 @@ const props = defineProps<{
 const basicEffectUrl = computed(
   () => `${import.meta.env.BASE_URL}${BASIC_ATTACK_EFFECTS[props.classId]}`,
 );
+const monsterMotionTiming = computed(() =>
+  requireMonsterMotionTiming(requireMonsterVisual(props.monster.id).motion),
+);
+const monsterImpactDelay = computed(() => monsterMotionTiming.value.impactMs);
 
 // ────────────────────────────────────────────────────────────
 // 持续战斗演出
@@ -64,15 +77,27 @@ interface LiveBeat {
 }
 
 const liveBeats = ref<LiveBeat[]>([]);
+const highestPlayerSourceSeq = ref(0);
+const monsterAttackSeq = ref<number | null>(null);
+const monsterHitSeq = ref<number | null>(null);
+const spawning = ref(false);
 const timers = new Map<number, number>();
 const queuedTimers = new Set<number>();
 let lastSeenSeq = 0;
+let monsterAttackTimer = 0;
+let monsterHitTimer = 0;
+let spawnTimer = 0;
 
 watch(
   () => props.beats,
   (beats) => {
     if (!beats || beats.length === 0) {
-      lastSeenSeq = 0;
+      if (!props.pulse && !spawning.value) lastSeenSeq = 0;
+      clearAllBeats();
+      return;
+    }
+    if (props.pulse || spawning.value) {
+      for (const beat of beats) lastSeenSeq = Math.max(lastSeenSeq, beat.seq);
       clearAllBeats();
       return;
     }
@@ -85,11 +110,27 @@ watch(
   { deep: false },
 );
 
+watch(
+  () => props.classId,
+  () => {
+    lastSeenSeq = 0;
+    clearAllBeats();
+  },
+);
+
 function addLiveBeat(beat: BattleBeat): void {
-  const beatSkill =
-    beat.kind === 'player-skill' ? requireRhythmSkill(beat.skillIndex) : null;
-  const offsets =
-    beatSkill && beatSkill.hitOffsetsMs.length > 0 ? beatSkill.hitOffsetsMs : ([0] as const);
+  const beatSkill = beat.kind === 'player-skill' ? requireRhythmSkill(beat.skillIndex) : null;
+  if (beat.kind === 'monster-attack') {
+    triggerMonsterAttack(beat.seq);
+  } else {
+    highestPlayerSourceSeq.value = Math.max(highestPlayerSourceSeq.value, beat.seq);
+  }
+  const offsets: readonly number[] =
+    beat.kind === 'monster-attack'
+      ? [monsterImpactDelay.value]
+      : beatSkill && beatSkill.hitOffsetsMs.length > 0
+        ? beatSkill.hitOffsetsMs
+        : [0];
   const damagePerHit = Math.max(1, Math.round(beat.damage / offsets.length));
 
   offsets.forEach((delayMs, hitIndex) => {
@@ -108,6 +149,7 @@ function addLiveBeat(beat: BattleBeat): void {
 }
 
 function appendLiveBeat(beat: BattleBeat, visualSeq: number, damage: number): void {
+  if (beat.kind !== 'monster-attack') triggerMonsterHit(visualSeq);
   liveBeats.value.push({
     seq: visualSeq,
     sourceSeq: beat.seq,
@@ -139,21 +181,48 @@ function clearBeatTimer(seq: number): void {
   }
 }
 
+function triggerMonsterAttack(seq: number): void {
+  monsterAttackSeq.value = seq;
+  clearTimeout(monsterAttackTimer);
+  monsterAttackTimer = window.setTimeout(() => {
+    if (monsterAttackSeq.value === seq) monsterAttackSeq.value = null;
+  }, monsterMotionTiming.value.attackMs);
+}
+
+function triggerMonsterHit(seq: number): void {
+  monsterHitSeq.value = seq;
+  clearTimeout(monsterHitTimer);
+  monsterHitTimer = window.setTimeout(() => {
+    if (monsterHitSeq.value === seq) monsterHitSeq.value = null;
+  }, monsterMotionTiming.value.hitMs);
+}
+
+function clearActionCues(): void {
+  clearTimeout(monsterAttackTimer);
+  clearTimeout(monsterHitTimer);
+  monsterAttackTimer = 0;
+  monsterHitTimer = 0;
+  highestPlayerSourceSeq.value = 0;
+  monsterAttackSeq.value = null;
+  monsterHitSeq.value = null;
+}
+
 function clearAllBeats(): void {
   for (const id of timers.values()) clearTimeout(id);
   for (const id of queuedTimers) clearTimeout(id);
   timers.clear();
   queuedTimers.clear();
   liveBeats.value = [];
+  clearActionCues();
 }
 
 /** 玩家出手的拍子（普攻或技能） */
 const playerBeats = computed(() => liveBeats.value.filter((b) => b.kind !== 'monster-attack'));
-/** 怪物出手的拍子 */
-const monsterBeats = computed(() => liveBeats.value.filter((b) => b.kind === 'monster-attack'));
 
 /** 最近一次玩家出手，决定角色摆什么动作 */
-const latestPlayerBeat = computed(() => playerBeats.value.at(-1) ?? null);
+const latestPlayerBeat = computed(() =>
+  latestSourceBeat(playerBeats.value, highestPlayerSourceSeq.value),
+);
 
 /**
  * 与 core/battleRhythm 使用完全相同的主动技能顺序。
@@ -174,9 +243,7 @@ function requireRhythmSkill(skillIndex: number | null): ActiveVisualSkill {
   }
   const skill = rhythmSkills.value[skillIndex];
   if (!skill) {
-    throw new Error(
-      `[战斗演出] 技能拍索引越界：${skillIndex}/${rhythmSkills.value.length}`,
-    );
+    throw new Error(`[战斗演出] 技能拍索引越界：${skillIndex}/${rhythmSkills.value.length}`);
   }
   return skill;
 }
@@ -196,9 +263,10 @@ const latestRhythmSkill = computed(() => {
  * 技能动作来自唯一的冷却拍子流；击杀脉冲只负责受击与掉落，不再另选技能。
  */
 const heroAction = computed<CharacterAction>(() => {
+  if (props.pulse || spawning.value) return 'idle';
   const beat = latestPlayerBeat.value;
   if (latestRhythmSkill.value) return latestRhythmSkill.value.characterAction;
-  if (beat || props.pulse) return 'attack';
+  if (beat) return basicBattleAction(props.classId, beat.sourceSeq);
   return 'idle';
 });
 
@@ -207,12 +275,33 @@ const heroAction = computed<CharacterAction>(() => {
  * 每次出手都换 key，让 CharacterAppearance 重新播放一次动作，
  * 否则连续攻击时立绘只会在第一次动一下。
  */
-const heroActorKey = computed(() => latestPlayerBeat.value?.sourceSeq ?? props.pulse?.id ?? 0);
+const heroActorKey = computed(() => latestPlayerBeat.value?.sourceSeq ?? 0);
 
-/** 怪物正在挨打 */
-const enemyHit = computed(() => !!props.pulse || playerBeats.value.length > 0);
+/**
+ * 怪物动作优先级：
+ * 击倒 > 怪物出手 > 玩家命中 > 待机。
+ * pulse 存活的 0.72 秒始终展示被击倒的旧目标，禁止“尸体继续反击”。
+ */
+const enemyAction = computed<MonsterAction>(() => {
+  return monsterActionFor({
+    defeated: props.pulse !== null,
+    attacking: monsterAttackSeq.value !== null,
+    hit: monsterHitSeq.value !== null,
+  });
+});
+const enemyActorKey = computed(() => {
+  if (props.pulse) return `${props.monster.id}:defeat:${props.pulse.id}`;
+  if (enemyAction.value === 'attack') {
+    return `${props.monster.id}:attack:${monsterAttackSeq.value!}`;
+  }
+  if (enemyAction.value === 'hit') {
+    return `${props.monster.id}:hit:${monsterHitSeq.value!}`;
+  }
+  return `${props.monster.id}:idle`;
+});
 /** 玩家正在挨打 */
-const heroHurt = computed(() => monsterBeats.value.length > 0);
+const heroHurt = computed(() => !props.pulse && !spawning.value && monsterAttackSeq.value !== null);
+const heroUnitKey = computed(() => (heroHurt.value ? `hurt:${monsterAttackSeq.value!}` : 'ready'));
 
 onUnmounted(() => {
   clearAllBeats();
@@ -228,9 +317,6 @@ const monsterHpPercent = computed(
  * 目标切换（新怪物上场）时播一次入场动画。
  * 与受击动画分开：受击作用在立绘上，入场作用在整个怪物单元上，互不冲突。
  */
-const spawning = ref(false);
-let spawnTimer = 0;
-
 function playSpawn(): void {
   spawning.value = true;
   clearTimeout(spawnTimer);
@@ -240,9 +326,19 @@ function playSpawn(): void {
 watch(
   [() => props.monster.id, () => props.pulse?.id ?? 0],
   ([monsterId, pulseId], [previousMonsterId, previousPulseId]) => {
-    const speciesChanged = monsterId !== previousMonsterId;
-    const defeatedMonsterLeft = previousPulseId > 0 && pulseId === 0;
-    if (speciesChanged || defeatedMonsterLeft) playSpawn();
+    if (pulseId > 0 && pulseId !== previousPulseId) {
+      clearAllBeats();
+      return;
+    }
+    if (
+      shouldPlayMonsterSpawn(
+        { monsterId, pulseId },
+        { monsterId: previousMonsterId, pulseId: previousPulseId },
+      )
+    ) {
+      clearAllBeats();
+      playSpawn();
+    }
   },
 );
 
@@ -256,11 +352,14 @@ onUnmounted(() => clearTimeout(spawnTimer));
       `target-${monster.type}`,
       {
         active,
-        casting: !!latestRhythmSkill,
+        casting: heroAction === 'cast',
         'player-low': playerHpPercent <= 25,
       },
     ]"
-    :style="{ '--impact-delay': latestRhythmSkill ? '300ms' : '110ms' }"
+    :style="{
+      '--impact-delay': latestRhythmSkill ? '300ms' : '110ms',
+      '--monster-impact-delay': `${monsterImpactDelay}ms`,
+    }"
     :aria-label="`${playerName}正在与${monster.name}战斗`"
   >
     <Transition name="bg-fade">
@@ -341,7 +440,7 @@ onUnmounted(() => clearTimeout(spawnTimer));
       </div>
     </div>
 
-    <div class="hero-unit" :class="{ hurt: heroHurt }">
+    <div :key="heroUnitKey" class="hero-unit" :class="{ hurt: heroHurt }">
       <span class="actor-shadow" aria-hidden="true" />
       <div class="hero-actor">
         <CharacterAppearance
@@ -366,10 +465,14 @@ onUnmounted(() => clearTimeout(spawnTimer));
       <MonsterArtwork :monster="support" />
     </div>
 
-    <div :key="monster.id" class="enemy-unit" :class="{ hit: enemyHit, spawn: spawning }">
+    <div
+      :key="`${monster.id}:${pulse?.id ?? 'active'}`"
+      class="enemy-unit"
+      :class="{ spawn: spawning }"
+    >
       <span class="actor-shadow" aria-hidden="true" />
       <div class="enemy-actor">
-        <MonsterArtwork :monster="monster" />
+        <MonsterArtwork :key="enemyActorKey" :monster="monster" :action="enemyAction" />
       </div>
       <span class="actor-name enemy-name">{{ monster.name }}</span>
     </div>
@@ -808,15 +911,6 @@ onUnmounted(() => clearTimeout(spawnTimer));
   inset: 0 0 6px;
   filter: drop-shadow(0 5px 4px rgb(27 31 44 / 30%));
   transform-origin: 50% 91%;
-}
-
-.active .enemy-actor {
-  animation: enemy-idle 2s ease-in-out infinite reverse;
-}
-
-.enemy-unit.hit .enemy-actor {
-  animation: enemy-hit 0.42s ease-out;
-  animation-delay: var(--impact-delay);
 }
 
 /* 新怪物从右侧轻轻弹入 */
@@ -1399,16 +1493,6 @@ onUnmounted(() => clearTimeout(spawnTimer));
   }
 }
 
-@keyframes enemy-idle {
-  0%,
-  100% {
-    transform: translateY(0) scale(1);
-  }
-  50% {
-    transform: translateY(-3px) scale(1.015);
-  }
-}
-
 @keyframes enemy-spawn {
   0% {
     opacity: 0;
@@ -1448,21 +1532,6 @@ onUnmounted(() => clearTimeout(spawnTimer));
   50% {
     filter: brightness(1.35) saturate(1.3);
     box-shadow: 0 0 8px rgb(255 107 122 / 85%);
-  }
-}
-
-@keyframes enemy-hit {
-  0%,
-  100% {
-    transform: translateX(0) scale(1);
-    filter: brightness(1);
-  }
-  28% {
-    transform: translateX(8px) scale(0.94);
-    filter: brightness(1.8) saturate(0.6);
-  }
-  55% {
-    transform: translateX(-3px) scale(1.02);
   }
 }
 
@@ -1935,6 +2004,7 @@ onUnmounted(() => clearTimeout(spawnTimer));
 /* 玩家受击时整个单元轻微后仰并泛红 */
 .hero-unit.hurt {
   animation: hero-hurt 0.32s ease-out;
+  animation-delay: var(--monster-impact-delay, 0ms);
 }
 
 @keyframes hero-hurt {

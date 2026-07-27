@@ -593,6 +593,36 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
   transform: rotate(-17deg);
 }
 
+.class-witch .weapon-trail {
+  left: 30%;
+  bottom: 43%;
+  width: 40%;
+  height: 25%;
+  background: radial-gradient(
+    circle,
+    rgb(139 205 255 / 62%),
+    rgb(206 156 255 / 34%) 44%,
+    transparent 72%
+  );
+  border: 1px solid rgb(218 191 255 / 62%);
+  border-radius: 50%;
+  transform: rotate(0);
+}
+
+.class-shaman .weapon-trail {
+  left: 17%;
+  bottom: 36%;
+  width: 64%;
+  height: 25%;
+  background:
+    radial-gradient(circle at 28% 58%, rgb(145 231 196 / 56%), transparent 36%),
+    radial-gradient(circle at 70% 38%, rgb(143 202 255 / 48%), transparent 42%);
+  border: 0;
+  border-bottom: 2px solid rgb(178 239 212 / 66%);
+  border-radius: 50%;
+  transform: rotate(-7deg);
+}
+
 .weapon-forge-gleam .weapon-trail,
 .weapon-forge-radiant .weapon-trail,
 .weapon-forge-starforged .weapon-trail,
@@ -660,10 +690,10 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
   animation: character-flurry 0.82s cubic-bezier(0.2, 0.78, 0.28, 1);
 }
 
-.action-flurry .weapon-trail,
-.action-dash .weapon-trail,
-.action-spin .weapon-trail,
-.action-counter .weapon-trail {
+.class-catkin.action-flurry .weapon-trail,
+.class-catkin.action-dash .weapon-trail,
+.class-catkin.action-spin .weapon-trail,
+.class-catkin.action-counter .weapon-trail {
   animation: catkin-claw-trail 0.78s ease-out;
 }
 
@@ -679,6 +709,98 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
   animation: character-victory 1.05s cubic-bezier(0.22, 0.72, 0.26, 1);
 }
 
+/* 四职业各自的挂机动作语言：纸娃娃层仍保持同步，不换回会丢装备的宣传立绘。 */
+.class-swordsman.action-idle .doll {
+  animation: swordsman-idle 2.2s ease-in-out infinite;
+}
+
+.class-swordsman.action-attack .doll {
+  animation: swordsman-cut 0.58s cubic-bezier(0.2, 0.76, 0.28, 1);
+}
+
+.class-swordsman.action-dash .doll {
+  animation: swordsman-lunge 0.68s cubic-bezier(0.18, 0.8, 0.24, 1);
+}
+
+.class-swordsman.action-spin .doll {
+  animation: swordsman-halfmoon 0.76s cubic-bezier(0.2, 0.72, 0.25, 1);
+}
+
+.class-swordsman.action-cast .doll {
+  animation: swordsman-flame-stance 0.82s ease-out;
+}
+
+.class-swordsman.action-dash .weapon-trail,
+.class-swordsman.action-spin .weapon-trail,
+.class-swordsman.action-flurry .weapon-trail {
+  animation: swordsman-blade-trail 0.7s ease-out;
+}
+
+.class-witch.action-idle .doll {
+  animation: witch-hover 2.75s ease-in-out infinite;
+}
+
+.class-witch.action-attack .doll {
+  animation: witch-bolt 0.62s ease-out;
+}
+
+.class-witch.action-cast .doll {
+  animation: witch-cast 0.86s cubic-bezier(0.22, 0.68, 0.24, 1);
+}
+
+.class-witch.action-spin .doll {
+  animation: witch-ring 0.82s ease-out;
+}
+
+.class-witch.action-attack .weapon-trail,
+.class-witch.action-cast .weapon-trail,
+.class-witch.action-spin .weapon-trail {
+  animation: witch-orbit-trail 0.82s ease-out;
+}
+
+.class-shaman.action-idle .doll {
+  animation: shaman-idle 2.9s ease-in-out infinite;
+}
+
+.class-shaman.action-attack .doll {
+  animation: shaman-staff-strike 0.66s cubic-bezier(0.22, 0.74, 0.3, 1);
+}
+
+.class-shaman.action-cast .doll {
+  animation: shaman-ritual 0.9s ease-out;
+}
+
+.class-shaman.action-spin .doll {
+  animation: shaman-spirit-sweep 0.82s cubic-bezier(0.2, 0.72, 0.28, 1);
+}
+
+.class-shaman.action-counter .doll {
+  animation: shaman-ward 0.82s ease-out;
+}
+
+.class-shaman.action-attack .weapon-trail,
+.class-shaman.action-cast .weapon-trail,
+.class-shaman.action-spin .weapon-trail,
+.class-shaman.action-counter .weapon-trail {
+  animation: shaman-spirit-trail 0.84s ease-out;
+}
+
+.class-catkin.action-dash .doll {
+  animation: catkin-pounce 0.64s cubic-bezier(0.16, 0.84, 0.22, 1);
+}
+
+.class-catkin.action-flurry .doll {
+  animation: catkin-flurry 0.76s steps(4, end);
+}
+
+.class-catkin.action-spin .doll {
+  animation: catkin-tail-spin 0.82s cubic-bezier(0.18, 0.74, 0.24, 1);
+}
+
+.class-catkin.action-cast .doll {
+  animation: catkin-furball-cast 0.84s ease-out;
+}
+
 .is-avatar .growth-aura,
 .is-avatar .growth-particles,
 .is-avatar .enhance-particles {
@@ -690,7 +812,7 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
   border-radius: 50%;
 }
 
-.is-avatar .doll {
+.character-appearance.is-avatar .doll {
   animation: none;
   transform: scale(3.7);
   transform-origin: 50% 14%;
@@ -748,6 +870,317 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
   }
   67% {
     transform: translate(3%, -0.8%) scale(1.018) rotate(-1.5deg);
+  }
+}
+
+@keyframes swordsman-idle {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-0.35deg) scale(1);
+  }
+  50% {
+    transform: translateY(-0.7%) rotate(0.35deg) scale(1.006, 0.998);
+  }
+}
+
+@keyframes swordsman-cut {
+  0%,
+  100% {
+    transform: translate(0) rotate(0) scale(1);
+  }
+  22% {
+    transform: translate(-5%, 1.5%) rotate(-3.2deg) scale(0.97, 1.015);
+  }
+  50% {
+    transform: translate(10%, -1.5%) rotate(4.8deg) scale(1.055, 0.98);
+  }
+  68% {
+    transform: translate(5%, -0.5%) rotate(-1.4deg) scale(1.018);
+  }
+}
+
+@keyframes swordsman-lunge {
+  0%,
+  100% {
+    transform: translate(0) rotate(0) scale(1);
+  }
+  20% {
+    transform: translate(-7%, 2.5%) rotate(-4deg) scale(0.95, 1.025);
+  }
+  47% {
+    transform: translate(17%, -1.5%) rotate(5.5deg) scale(1.07, 0.965);
+  }
+  68% {
+    transform: translate(8%, -0.5%) rotate(-1deg) scale(1.025);
+  }
+}
+
+@keyframes swordsman-halfmoon {
+  0%,
+  100% {
+    transform: translate(0) rotate(0) scale(1);
+  }
+  20% {
+    transform: translate(-4%, 1%) rotate(-7deg) scale(0.97);
+  }
+  47% {
+    transform: translate(8%, -3%) rotate(10deg) scale(1.07);
+  }
+  72% {
+    transform: translate(3%, -1%) rotate(-4deg) scale(1.02);
+  }
+}
+
+@keyframes swordsman-flame-stance {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+    filter: brightness(1);
+  }
+  38% {
+    transform: translateY(-2%) scale(1.035);
+    filter: brightness(1.16) saturate(1.1);
+  }
+  68% {
+    transform: translateY(-0.8%) scale(1.012);
+  }
+}
+
+@keyframes swordsman-blade-trail {
+  0%,
+  100% {
+    opacity: 0;
+    transform: translate(-14%, 8%) rotate(-42deg) scale(0.3);
+  }
+  34%,
+  60% {
+    opacity: 0.96;
+  }
+  78% {
+    opacity: 0;
+    transform: translate(22%, -7%) rotate(-10deg) scale(1.36);
+  }
+}
+
+@keyframes witch-hover {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-0.55deg) scale(1);
+  }
+  50% {
+    transform: translateY(-1.9%) rotate(0.7deg) scale(1.008);
+  }
+}
+
+@keyframes witch-bolt {
+  0%,
+  100% {
+    transform: translate(0) rotate(0) scale(1);
+  }
+  28% {
+    transform: translate(-2%, -1.5%) rotate(-1.8deg) scale(1.025);
+  }
+  54% {
+    transform: translate(5%, -2.5%) rotate(2.4deg) scale(1.045);
+    filter: brightness(1.12);
+  }
+}
+
+@keyframes witch-cast {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+    filter: brightness(1);
+  }
+  34% {
+    transform: translateY(-3.4%) scale(1.035);
+    filter: brightness(1.18) saturate(1.12);
+  }
+  65% {
+    transform: translateY(-1.7%) scale(1.018);
+  }
+}
+
+@keyframes witch-ring {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0) scale(1);
+  }
+  28% {
+    transform: translateY(-2%) rotate(-4deg) scale(0.98);
+  }
+  56% {
+    transform: translateY(-3.3%) rotate(6deg) scale(1.065);
+  }
+  74% {
+    transform: translateY(-1%) rotate(-2deg) scale(1.018);
+  }
+}
+
+@keyframes witch-orbit-trail {
+  0%,
+  100% {
+    opacity: 0;
+    transform: rotate(-30deg) scale(0.25);
+  }
+  34%,
+  66% {
+    opacity: 0.92;
+  }
+  80% {
+    opacity: 0;
+    transform: rotate(120deg) scale(1.38);
+  }
+}
+
+@keyframes shaman-idle {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-0.7deg) scale(1);
+  }
+  48% {
+    transform: translateY(-1.1%) rotate(0.9deg) scale(1.005);
+  }
+}
+
+@keyframes shaman-staff-strike {
+  0%,
+  100% {
+    transform: translate(0) rotate(0) scale(1);
+  }
+  24% {
+    transform: translate(-3%, 1%) rotate(-2.5deg) scale(0.98);
+  }
+  52% {
+    transform: translate(7%, -1%) rotate(3.5deg) scale(1.04);
+  }
+  70% {
+    transform: translate(2%, 0) rotate(-1deg) scale(1.01);
+  }
+}
+
+@keyframes shaman-ritual {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+    filter: brightness(1);
+  }
+  30% {
+    transform: translateY(-1.5%) scale(0.985, 1.025);
+  }
+  55% {
+    transform: translateY(-2.7%) scale(1.045);
+    filter: brightness(1.16) saturate(1.08);
+  }
+}
+
+@keyframes shaman-spirit-sweep {
+  0%,
+  100% {
+    transform: translate(0) rotate(0) scale(1);
+  }
+  24% {
+    transform: translate(-3%, 1%) rotate(-3deg) scale(0.98);
+  }
+  52% {
+    transform: translate(5%, -2%) rotate(5deg) scale(1.045);
+    filter: brightness(1.14) saturate(1.08);
+  }
+  72% {
+    transform: translate(1%, 0) rotate(-1.5deg) scale(1.012);
+  }
+}
+
+@keyframes shaman-ward {
+  0%,
+  100% {
+    transform: translate(0) scale(1);
+  }
+  30% {
+    transform: translate(-3%, -1%) scale(1.06, 0.98);
+    filter: brightness(1.12);
+  }
+  58% {
+    transform: translate(-1%, 0) scale(1.08, 0.965);
+  }
+}
+
+@keyframes shaman-spirit-trail {
+  0%,
+  100% {
+    opacity: 0;
+    transform: translateY(10%) rotate(-12deg) scale(0.35);
+  }
+  36%,
+  68% {
+    opacity: 0.9;
+  }
+  82% {
+    opacity: 0;
+    transform: translateY(-18%) rotate(8deg) scale(1.24);
+  }
+}
+
+@keyframes catkin-pounce {
+  0%,
+  100% {
+    transform: translate(0) rotate(0) scale(1);
+  }
+  18% {
+    transform: translate(-8%, 3%) rotate(-4deg) scale(0.94, 1.025);
+  }
+  46% {
+    transform: translate(17%, -5%) rotate(6deg) scale(1.08, 0.95);
+  }
+  68% {
+    transform: translate(7%, -2%) rotate(-2deg) scale(1.025);
+  }
+}
+
+@keyframes catkin-flurry {
+  0%,
+  100% {
+    transform: translate(0) rotate(0) scale(1);
+  }
+  24% {
+    transform: translate(7%, -2%) rotate(4deg) scale(1.035);
+  }
+  48% {
+    transform: translate(-4%, -1%) rotate(-4deg) scale(1.02);
+  }
+  72% {
+    transform: translate(9%, -3%) rotate(5deg) scale(1.05);
+  }
+}
+
+@keyframes catkin-tail-spin {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0) scale(1);
+  }
+  26% {
+    transform: translateY(-3%) rotate(-8deg) scale(0.96, 1.035);
+  }
+  52% {
+    transform: translateY(-4%) rotate(10deg) scale(1.07, 0.96);
+  }
+  74% {
+    transform: translateY(-1%) rotate(-4deg) scale(1.02);
+  }
+}
+
+@keyframes catkin-furball-cast {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+    filter: brightness(1);
+  }
+  34% {
+    transform: translateY(-4%) scale(1.045);
+    filter: brightness(1.16) saturate(1.12);
+  }
+  62% {
+    transform: translateY(-1.5%) scale(0.99, 1.025);
   }
 }
 
