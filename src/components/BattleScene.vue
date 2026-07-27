@@ -109,7 +109,7 @@ const basicEffectUrl = computed(
 
     <div class="hero-unit" :class="{ hit: monsterAttacking }">
       <span class="actor-shadow" aria-hidden="true" />
-      <div :key="`${pulse?.id ?? 0}-${incomingPulse?.id ?? 0}`" class="hero-actor">
+      <div class="hero-actor">
         <CharacterAppearance
           :class-id="classId"
           :level="level"
@@ -120,11 +120,7 @@ const basicEffectUrl = computed(
       </div>
     </div>
 
-    <div
-      :key="`${monster.id}-${pulse?.id ?? 0}-${incomingPulse?.id ?? 0}`"
-      class="enemy-unit"
-      :class="{ hit: casting, attacking: monsterAttacking }"
-    >
+    <div class="enemy-unit" :class="{ hit: casting, attacking: monsterAttacking }">
       <span class="actor-shadow" aria-hidden="true" />
       <div class="enemy-actor">
         <MonsterArtwork
