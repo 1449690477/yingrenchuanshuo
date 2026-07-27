@@ -352,6 +352,24 @@ export const AFFIX_POOL: AffixPoolEntry[] = [
   },
 ];
 
+/**
+ * 各部位的随机词条倾向。未列出的合法词条保持原始权重，仍然可以出现。
+ * 这里只表达内容偏好，抽取流程仍统一走 core/equipment.rollAffixes。
+ */
+export const SLOT_AFFIX_WEIGHT_MUL: Record<
+  EquipSlot,
+  Partial<Record<AffixKey, number>>
+> = {
+  weapon: { atk: 2 },
+  head: { acc: 1.8, critRate: 1.8 },
+  body: { def: 1.8, hp: 1.8 },
+  necklace: { atk: 1.6, critDmg: 1.8 },
+  bracelet: { atk: 1.6, acc: 1.8 },
+  ring: { critRate: 1.8, critDmg: 1.8 },
+  belt: { def: 1.8, hp: 1.8 },
+  shoes: { eva: 1.8, spd: 2 },
+};
+
 /** 词条中文名，UI 显示用 */
 export const AFFIX_LABELS: Record<AffixKey, string> = {
   atk: '攻击力',
@@ -447,14 +465,18 @@ export const ENHANCE_PER_LEVEL = 0.08;
 
 export const ENHANCE_MAX = 15;
 
-/** 掉落装备的基础胚子随机：最低不低于旧版，2% 概率出现奇迹胚子。 */
+/**
+ * 新掉落装备的隐藏基础浮动：多数用于筛选/分解，极少数高价值结果自动锁定。
+ * 档位只服务内部概率与保护规则，不形成玩家可见的第二套品质。
+ */
 export const EQUIPMENT_BASE_ROLL_TIERS = [
-  { id: 'steady', weight: 80, min: 1000, max: 1060 },
-  { id: 'refined', weight: 18, min: 1061, max: 1120 },
-  { id: 'miracle', weight: 2, min: 1121, max: 1200 },
+  { weight: 65, min: 800, max: 999, autoLock: false },
+  { weight: 33, min: 1000, max: 1119, autoLock: false },
+  { weight: 2, min: 1120, max: 1200, autoLock: true },
 ] as const;
-export const EQUIPMENT_BASE_ROLL_MIN = 1000;
+export const EQUIPMENT_BASE_ROLL_MIN = 800;
 export const EQUIPMENT_BASE_ROLL_MAX = 1200;
+export const EQUIPMENT_BASE_AUTO_LOCK_MIN = 1120;
 
 /** 强化首次成功时的单级增幅；稳定档也不低于旧版每级 8%。 */
 export const ENHANCE_GAIN_TIERS = [

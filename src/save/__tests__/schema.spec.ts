@@ -49,7 +49,7 @@ describe('save schema', () => {
     expect(looksLikeSave(invalidEnhance)).toBe(false);
   });
 
-  it('非法胚子、强化记录和幸运桶都会被拒绝', () => {
+  it('非法隐藏基础浮动、强化记录和幸运桶都会被拒绝', () => {
     const make = () => {
       const save = createSave('小樱', 'witch', 2, 1);
       save.bag.equipment.push({
@@ -66,7 +66,7 @@ describe('save schema', () => {
     };
 
     const badBase = make();
-    badBase.bag.equipment[0]!.baseRollPermille = 999;
+    badBase.bag.equipment[0]!.baseRollPermille = 799;
     expect(looksLikeSave(badBase)).toBe(false);
 
     const missingReachedGain = make();
@@ -84,6 +84,24 @@ describe('save schema', () => {
     const zeroLuckBucket = make();
     zeroLuckBucket.bag.equipment[0]!.enhanceLuck['2'] = 0;
     expect(looksLikeSave(zeroLuckBucket)).toBe(false);
+  });
+
+  it('现有 v5 强化装备无需额外迁移即可读取 80% 下限', () => {
+    const save = createSave('兼容测试', 'swordsman', 4, 1);
+    save.nextUid = 2;
+    save.bag.equipment.push({
+      uid: 'e1',
+      defId: 'eq_r1_weapon_common',
+      enhance: 1,
+      baseRollPermille: 800,
+      enhanceGainPermille: [80, ...Array<number>(ENHANCE_MAX - 1).fill(0)],
+      enhanceLuck: { '2': 10 },
+      affixes: [{ key: 'atk', value: 3 }],
+      locked: true,
+    });
+
+    expect(save.version).toBe(5);
+    expect(parseSave(save)).toEqual(save);
   });
 
   it('装备 UID 必须全局唯一，nextUid 必须大于已存在编号', () => {

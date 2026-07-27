@@ -2,12 +2,12 @@ import { describe, expect, it } from 'vitest';
 import type { EquipmentDef, EquipmentInstance } from '../types';
 import {
   baseEquipStats,
-  baseRollGrade,
   createFixedInstance,
   createInstance,
   enhanceGainGrade,
   enhanceMultiplier,
   forgeStageAt,
+  instanceStatBreakdown,
   instanceStats,
   itemBaseValue,
   rollBasePermille,
@@ -17,13 +17,17 @@ import {
 } from '../equipment';
 import { Rng } from '../rng';
 import {
+  AFFIX_POOL,
   ENHANCE_MAX,
   ENHANCE_PER_LEVEL,
   ENHANCE_TOTAL_GAIN_CAP_PERMILLE,
+  EQUIPMENT_BASE_AUTO_LOCK_MIN,
   EQUIPMENT_BASE_ROLL_MAX,
   EQUIPMENT_BASE_ROLL_MIN,
   QUALITY_AFFIX_COUNT,
   QUALITY_MUL,
+  SLOT_AFFIX_WEIGHT_MUL,
+  SLOT_ORDER,
 } from '@/data/constants';
 
 function def(overrides: Partial<EquipmentDef> = {}): EquipmentDef {
@@ -121,21 +125,75 @@ describe('强化与实例属性', () => {
     );
   });
 
-  it('强化等级、胚子和逐级记录非法时直接报错', () => {
+  it('强化等级、隐藏基础浮动和逐级记录非法时直接报错', () => {
     const empty = Array<number>(ENHANCE_MAX).fill(0);
     expect(() => enhanceMultiplier(-1, empty)).toThrow();
     expect(() => enhanceMultiplier(ENHANCE_MAX + 1, empty)).toThrow();
     expect(() => enhanceMultiplier(1, empty)).toThrow('第 1 格增幅不能为 0');
     expect(() => enhanceMultiplier(0, [0])).toThrow('固定为');
-    expect(() => instanceStats(def(), inst({ baseRollPermille: 999 }))).toThrow('胚子倍率');
+    expect(() => instanceStats(def(), inst({ baseRollPermille: 799 }))).toThrow('隐藏基础浮动');
   });
 
-  it('固定词条与随机词条都会叠加', () => {
-    const stats = instanceStats(
-      def({ fixedAffixes: [{ key: 'atk', value: 10 }] }),
+  it('基础、固定词条、随机词条按来源分区且总属性只相加一次', () => {
+    const definition = def({
+      slot: 'weapon',
+      fixedAffixes: [
+        { key: 'atk', value: 10 },
+        { key: 'critRate', value: 2 },
+      ],
+    });
+    const equipment = inst({
+      enhance: 1,
+      baseRollPermille: 1200,
+      enhanceGainPermille: [80, ...Array<number>(ENHANCE_MAX - 1).fill(0)],
+      affixes: [
+        { key: 'atk', value: 20 },
+        { key: 'critDmg', value: 3 },
+      ],
+    });
+    const breakdown = instanceStatBreakdown(definition, equipment);
+    const definedBase = baseEquipStats(definition);
+
+    expect(breakdown.base.atk).toBeCloseTo(definedBase.atk * 1.2 * 1.08, 8);
+    expect(breakdown.base.critRate).toBe(definedBase.critRate);
+    expect(breakdown.fixedAffixes.atk).toBe(10);
+    expect(breakdown.fixedAffixes.critRate).toBe(2);
+    expect(breakdown.randomAffixes.atk).toBe(20);
+    expect(breakdown.randomAffixes.critDmg).toBe(3);
+    expect(breakdown.total.atk).toBeCloseTo(breakdown.base.atk + 30, 8);
+    expect(instanceStats(definition, equipment)).toEqual(breakdown.total);
+  });
+
+  it('暴击、暴伤和攻速不受隐藏浮动或强化放大', () => {
+    const gains = [125, ...Array<number>(ENHANCE_MAX - 1).fill(0)];
+    for (const definition of [def({ slot: 'ring' }), def({ slot: 'shoes' })]) {
+      const standard = instanceStatBreakdown(definition, inst()).base;
+      const grown = instanceStatBreakdown(
+        definition,
+        inst({ enhance: 1, baseRollPermille: 1200, enhanceGainPermille: gains }),
+      ).base;
+      expect(grown.critRate).toBe(standard.critRate);
+      expect(grown.critDmg).toBe(standard.critDmg);
+      expect(grown.spd).toBe(standard.spd);
+    }
+  });
+
+  it('强化不会放大固定词条或随机词条', () => {
+    const definition = def({ fixedAffixes: [{ key: 'atk', value: 10 }] });
+    const plain = instanceStatBreakdown(
+      definition,
       inst({ affixes: [{ key: 'atk', value: 20 }] }),
     );
-    expect(stats.atk).toBeCloseTo(baseEquipStats(def()).atk + 30, 8);
+    const enhanced = instanceStatBreakdown(
+      definition,
+      inst({
+        enhance: 1,
+        enhanceGainPermille: [125, ...Array<number>(ENHANCE_MAX - 1).fill(0)],
+        affixes: [{ key: 'atk', value: 20 }],
+      }),
+    );
+    expect(enhanced.fixedAffixes).toEqual(plain.fixedAffixes);
+    expect(enhanced.randomAffixes).toEqual(plain.randomAffixes);
   });
 
   it('全身属性累加，缺失的配置定义必须暴露错误', () => {
@@ -175,8 +233,15 @@ describe('随机词条', () => {
     expect(make()).toEqual(make());
   });
 
-  it('掉落胚子始终位于 100%~120%，并能掷出精工与奇迹档', () => {
-    const rolls = Array.from({ length: 1000 }, (_, seed) => rollBasePermille(new Rng(seed + 1)));
+  it('隐藏基础浮动遵循 65/33/2 分布，范围为 80%~120%', () => {
+    const rolls = Array.from({ length: 10_000 }, (_, seed) =>
+      rollBasePermille(new Rng(seed + 1)),
+    );
+    const low = rolls.filter(({ permille }) => permille < 1000).length / rolls.length;
+    const competitive =
+      rolls.filter(({ permille }) => permille >= 1000 && permille < EQUIPMENT_BASE_AUTO_LOCK_MIN)
+        .length / rolls.length;
+    const protectedRate = rolls.filter(({ autoLock }) => autoLock).length / rolls.length;
 
     expect(
       rolls.every(
@@ -184,11 +249,17 @@ describe('随机词条', () => {
           permille >= EQUIPMENT_BASE_ROLL_MIN && permille <= EQUIPMENT_BASE_ROLL_MAX,
       ),
     ).toBe(true);
-    expect(rolls.some(({ grade }) => grade === 'refined')).toBe(true);
-    expect(rolls.some(({ grade }) => grade === 'miracle')).toBe(true);
-    expect(baseRollGrade(1000)).toBe('steady');
-    expect(baseRollGrade(1061)).toBe('refined');
-    expect(baseRollGrade(1200)).toBe('miracle');
+    expect(low).toBeGreaterThan(0.62);
+    expect(low).toBeLessThan(0.68);
+    expect(competitive).toBeGreaterThan(0.3);
+    expect(competitive).toBeLessThan(0.36);
+    expect(protectedRate).toBeGreaterThan(0.01);
+    expect(protectedRate).toBeLessThan(0.03);
+    expect(
+      rolls.every(({ permille, autoLock }) =>
+        autoLock ? permille >= EQUIPMENT_BASE_AUTO_LOCK_MIN : permille < EQUIPMENT_BASE_AUTO_LOCK_MIN,
+      ),
+    ).toBe(true);
   });
 
   it('强化增幅最低不低于旧版，低概率出现奇迹档', () => {
@@ -205,16 +276,18 @@ describe('随机词条', () => {
     expect(() => enhanceGainGrade(100)).toThrow('未配置');
   });
 
-  it('奇迹胚子会自动锁定，确定珍品则保持固定 100% 胚子', () => {
-    let miracleSeed = 0;
+  it('最高隐藏区间会自动锁定，确定精品则保持固定 100% 模板', () => {
+    let protectedSeed = 0;
     for (let seed = 1; seed < 10_000; seed++) {
-      if (rollBasePermille(new Rng(seed)).grade === 'miracle') {
-        miracleSeed = seed;
+      if (rollBasePermille(new Rng(seed)).autoLock) {
+        protectedSeed = seed;
         break;
       }
     }
-    expect(miracleSeed).toBeGreaterThan(0);
-    expect(createInstance(def(), new Rng(miracleSeed), 'miracle').locked).toBe(true);
+    expect(protectedSeed).toBeGreaterThan(0);
+    const protectedDrop = createInstance(def(), new Rng(protectedSeed), 'protected');
+    expect(protectedDrop.baseRollPermille).toBeGreaterThanOrEqual(EQUIPMENT_BASE_AUTO_LOCK_MIN);
+    expect(protectedDrop.locked).toBe(true);
 
     expect(createFixedInstance(def(), 'shop', true)).toMatchObject({
       baseRollPermille: 1000,
@@ -236,6 +309,35 @@ describe('随机词条', () => {
 
     expect(speedValues.length).toBeGreaterThan(0);
     expect(speedValues.every((value) => value >= 0.01 && value <= 0.05)).toBe(true);
+  });
+});
+
+describe('部位词条倾向', () => {
+  it('配置覆盖全部部位且倍率均为正数', () => {
+    expect(Object.keys(SLOT_AFFIX_WEIGHT_MUL).sort()).toEqual([...SLOT_ORDER].sort());
+    for (const weights of Object.values(SLOT_AFFIX_WEIGHT_MUL)) {
+      expect(Object.values(weights).every((weight) => Number.isFinite(weight) && weight! > 0)).toBe(
+        true,
+      );
+    }
+  });
+
+  it('武器攻击与鞋子闪避/攻速更常见，但其他合法词条仍会出现', () => {
+    const sample = (slot: EquipmentDef['slot']) => {
+      const keys = Array.from({ length: 6000 }, (_, seed) =>
+        rollAffixes(def({ slot, quality: 'fine' }), new Rng(seed + 1))[0]!.key,
+      );
+      return keys;
+    };
+    const weapon = sample('weapon');
+    const shoes = sample('shoes');
+
+    expect(weapon.filter((key) => key === 'atk').length / weapon.length).toBeGreaterThan(0.25);
+    expect(shoes.filter((key) => key === 'eva' || key === 'spd').length / shoes.length).toBeGreaterThan(
+      0.15,
+    );
+    expect(new Set(weapon)).toEqual(new Set(AFFIX_POOL.map((entry) => entry.key)));
+    expect(new Set(shoes)).toEqual(new Set(AFFIX_POOL.map((entry) => entry.key)));
   });
 });
 

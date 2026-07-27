@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { battleMonsterIdAt } from '@/core/battleVisual';
-import { createInstance } from '@/core/equipment';
+import { createFixedInstance, createInstance } from '@/core/equipment';
 import type { EquipmentInstance } from '@/core/types';
 import { Rng } from '@/core/rng';
 import { ENHANCE_MAX, ENHANCE_MATERIAL_IDS } from '@/data/constants';
@@ -260,6 +260,72 @@ describe('equipment decisions', () => {
     expect(game.equip(item.uid)).toBe(false);
     expect(game.equipBest()).toBe(0);
     expect(game.save?.equipped.weapon).toBeNull();
+    await game.persist();
+  });
+
+  it('同名装备按真实实例战力排序，一键穿戴选择更强 UID', async () => {
+    const game = useGameStore();
+    const save = createSave('实例比较测试', 'swordsman', 11, Date.now());
+    save.player.level = 20;
+    save.nextUid = 3;
+    const definition = requireEquipment('eq_r1_weapon_common');
+    const low = createFixedInstance(definition, 'e1', false);
+    const high = createFixedInstance(definition, 'e2', false);
+    low.baseRollPermille = 800;
+    high.baseRollPermille = 1200;
+    save.bag.equipment.push(low, high);
+    game.loadFrom(save);
+
+    expect(game.equipmentCandidateCp(high)).toBeGreaterThan(game.equipmentCandidateCp(low));
+    expect(game.equipmentContributionCp(high)).toBeGreaterThan(game.equipmentContributionCp(low));
+    expect(game.equipBest()).toBe(1);
+    expect(game.save?.equipped.weapon?.uid).toBe('e2');
+    expect(game.save?.bag.equipment.map((item) => item.uid)).toEqual(['e1']);
+    await game.persist();
+  });
+
+  it('同名装备的锁定、分解与穿戴始终只操作指定 UID', async () => {
+    const game = useGameStore();
+    const save = createSave('UID 操作测试', 'swordsman', 12, Date.now());
+    save.player.level = 20;
+    save.nextUid = 3;
+    const definition = requireEquipment('eq_r1_weapon_common');
+    const first = createFixedInstance(definition, 'e1', false);
+    const second = createFixedInstance(definition, 'e2', false);
+    save.bag.equipment.push(first, second);
+    game.loadFrom(save);
+
+    game.toggleLock('e2');
+    expect(game.save?.bag.equipment.find((item) => item.uid === 'e1')?.locked).toBe(false);
+    expect(game.save?.bag.equipment.find((item) => item.uid === 'e2')?.locked).toBe(true);
+    expect(game.decompose(['e1'])).toMatchObject({ count: 1 });
+    expect(game.save?.bag.equipment.map((item) => item.uid)).toEqual(['e2']);
+    expect(game.equip('e2')).toBe(true);
+    expect(game.save?.equipped.weapon?.uid).toBe('e2');
+    expect(game.save?.bag.equipment).toHaveLength(0);
+    await game.persist();
+  });
+
+  it('逐项换装差值使用角色最终属性而不是装备定义值', async () => {
+    const game = useGameStore();
+    const save = createSave('属性差值测试', 'swordsman', 13, Date.now());
+    save.player.level = 20;
+    save.nextUid = 3;
+    const definition = requireEquipment('eq_r1_weapon_common');
+    const worn = createFixedInstance(definition, 'e1', false);
+    const candidate = createFixedInstance(definition, 'e2', false);
+    worn.baseRollPermille = 800;
+    candidate.baseRollPermille = 1200;
+    candidate.affixes = [{ key: 'atk', value: 10 }];
+    save.equipped.weapon = worn;
+    save.bag.equipment.push(candidate);
+    game.loadFrom(save);
+
+    const delta = game.equipmentStatDelta(candidate);
+    expect(delta.atk).toBeGreaterThan(10);
+    expect(delta.def).toBe(0);
+    expect(delta.critRate).toBe(0);
+    expect(game.equipmentCpDelta(candidate)).toBeGreaterThan(0);
     await game.persist();
   });
 });

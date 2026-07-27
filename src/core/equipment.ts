@@ -21,16 +21,21 @@ import {
   QUALITY_AFFIX_COUNT,
   QUALITY_MUL,
   QUALITY_PCT_SCALE,
+  SLOT_AFFIX_WEIGHT_MUL,
   SLOT_PCT_WEIGHTS,
   SLOT_WEIGHTS,
 } from '@/data/constants';
 
-export type BaseRollGrade = (typeof EQUIPMENT_BASE_ROLL_TIERS)[number]['id'];
 export type EnhanceGainGrade = (typeof ENHANCE_GAIN_TIERS)[number]['id'];
 
 export interface PermilleRoll<TGrade extends string> {
   grade: TGrade;
   permille: number;
+}
+
+export interface BasePermilleRoll {
+  permille: number;
+  autoLock: boolean;
 }
 
 /** 装备基准值：随等级 L^1.35 与品质增长 */
@@ -79,34 +84,62 @@ export function enhanceMultiplier(
   return 1 + Math.min(totalGain, ENHANCE_TOTAL_GAIN_CAP_PERMILLE) / 1000;
 }
 
+/** 一件装备实例按来源拆分后的属性。 */
+export interface EquipmentStatBreakdown {
+  /** 已应用隐藏基础浮动与当前强化的基础属性。 */
+  base: Stats;
+  /** 装备定义提供、不可洗练的固定词条。 */
+  fixedAffixes: Stats;
+  /** 装备实例提供、未来可洗练的随机词条。 */
+  randomAffixes: Stats;
+  /** 三部分只相加一次后的最终属性。 */
+  total: Stats;
+}
+
+function affixStats(affixes: readonly Affix[]): Stats {
+  return affixes.reduce((stats, affix) => applyAffix(stats, affix), zeroStats());
+}
+
 /**
- * 一件装备实例提供的全部属性 = (基础属性 × 强化倍率) + 词条。
+ * 分拆一件装备的属性来源。
  *
- * 注意强化只放大基础属性，不放大词条 —— 否则「洗出极品词条再强化」
- * 会产生乘法叠加，让运气好的玩家和普通玩家差出几倍。
+ * 隐藏基础浮动与强化只作用于绝对基础属性；百分比基础属性、固定词条和
+ * 随机词条均不被放大。UI 与战斗共用这一个入口，避免重复计算。
  */
-export function instanceStats(def: EquipmentDef, inst: EquipmentInstance): Stats {
-  const base = baseEquipStats(def);
+export function instanceStatBreakdown(
+  def: EquipmentDef,
+  inst: EquipmentInstance,
+): EquipmentStatBreakdown {
+  const definedBase = baseEquipStats(def);
   assertBaseRoll(inst.baseRollPermille);
-  const mul =
-    (inst.baseRollPermille / 1000) * enhanceMultiplier(inst.enhance, inst.enhanceGainPermille);
+  const absoluteMultiplier =
+    (inst.baseRollPermille / 1000) *
+    enhanceMultiplier(inst.enhance, inst.enhanceGainPermille);
 
-  let out: Stats = {
-    atk: base.atk * mul,
-    def: base.def * mul,
-    hp: base.hp * mul,
-    acc: base.acc * mul,
-    eva: base.eva * mul,
-    // 百分比属性不受强化影响
-    critRate: base.critRate,
-    critDmg: base.critDmg,
-    spd: base.spd,
+  const base: Stats = {
+    atk: definedBase.atk * absoluteMultiplier,
+    def: definedBase.def * absoluteMultiplier,
+    hp: definedBase.hp * absoluteMultiplier,
+    acc: definedBase.acc * absoluteMultiplier,
+    eva: definedBase.eva * absoluteMultiplier,
+    critRate: definedBase.critRate,
+    critDmg: definedBase.critDmg,
+    spd: definedBase.spd,
   };
+  const fixedAffixes = affixStats(def.fixedAffixes ?? []);
+  const randomAffixes = affixStats(inst.affixes);
 
-  for (const a of [...(def.fixedAffixes ?? []), ...inst.affixes]) {
-    out = applyAffix(out, a);
-  }
-  return out;
+  return {
+    base,
+    fixedAffixes,
+    randomAffixes,
+    total: addStats(addStats(base, fixedAffixes), randomAffixes),
+  };
+}
+
+/** 一件装备实例提供的全部属性。 */
+export function instanceStats(def: EquipmentDef, inst: EquipmentInstance): Stats {
+  return instanceStatBreakdown(def, inst).total;
 }
 
 /** 把一条词条加到属性上。elemDmg / lifesteal 等非 Stats 字段暂不计入战力，M5 再处理。 */
@@ -144,12 +177,12 @@ export function totalEquipStats(
 
 // ─────────────────────── 随机词条生成 ───────────────────────
 
-/** 掷出一件掉落装备的基础胚子；最低为旧版 100%，不会出现负提升。 */
-export function rollBasePermille(rng: Rng): PermilleRoll<BaseRollGrade> {
+/** 掷出一件普通掉落装备的隐藏基础浮动与自动保护结果。 */
+export function rollBasePermille(rng: Rng): BasePermilleRoll {
   const tier = rng.weighted(EQUIPMENT_BASE_ROLL_TIERS, (entry) => entry.weight);
   return {
-    grade: tier.id,
     permille: rng.int(tier.min, tier.max),
+    autoLock: tier.autoLock,
   };
 }
 
@@ -160,15 +193,6 @@ export function rollEnhanceGainPermille(rng: Rng): PermilleRoll<EnhanceGainGrade
     grade: tier.id,
     permille: rng.int(tier.min, tier.max),
   };
-}
-
-export function baseRollGrade(permille: number): BaseRollGrade {
-  assertBaseRoll(permille);
-  const tier = EQUIPMENT_BASE_ROLL_TIERS.find(
-    (entry) => permille >= entry.min && permille <= entry.max,
-  );
-  if (!tier) throw new Error(`baseRollGrade: 未配置的胚子数值 ${permille}`);
-  return tier.id;
 }
 
 export function enhanceGainGrade(permille: number): EnhanceGainGrade {
@@ -202,7 +226,10 @@ export function rollAffixes(def: EquipmentDef, rng: Rng): Affix[] {
   const out: Affix[] = [];
 
   for (let i = 0; i < count && pool.length > 0; i++) {
-    const picked = rng.weighted(pool, (e) => e.weight);
+    const picked = rng.weighted(
+      pool,
+      (entry) => entry.weight * (SLOT_AFFIX_WEIGHT_MUL[def.slot][entry.key] ?? 1),
+    );
     pool.splice(pool.indexOf(picked), 1);
 
     const scale = picked.scalesWithLevel ? Math.pow(def.level, 1.3) : 1;
@@ -228,8 +255,8 @@ export function createInstance(def: EquipmentDef, rng: Rng, uid: string): Equipm
     enhanceGainPermille: Array<number>(ENHANCE_MAX).fill(0),
     enhanceLuck: {},
     affixes: rollAffixes(def, rng),
-    // 奇迹胚子自动锁定，避免一键分解白绿装时误删惊喜掉落。
-    locked: baseRoll.grade === 'miracle',
+    // 最高隐藏区间自动锁定，避免批量分解时误删极少数高价值掉落。
+    locked: baseRoll.autoLock,
   };
 }
 
@@ -258,7 +285,7 @@ function assertBaseRoll(permille: number): void {
     permille > EQUIPMENT_BASE_ROLL_MAX
   ) {
     throw new Error(
-      `装备胚子倍率必须是 ${EQUIPMENT_BASE_ROLL_MIN}~${EQUIPMENT_BASE_ROLL_MAX} 的整数，收到 ${permille}`,
+      `装备隐藏基础浮动必须是 ${EQUIPMENT_BASE_ROLL_MIN}~${EQUIPMENT_BASE_ROLL_MAX} 的整数，收到 ${permille}`,
     );
   }
 }

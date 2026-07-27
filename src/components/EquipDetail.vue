@@ -2,8 +2,6 @@
 import { computed } from 'vue';
 import { X } from '@lucide/vue';
 import { abbr, signed } from '@/core/format';
-import { zeroStats } from '@/core/formula';
-import { baseRollGrade, enhanceMultiplier, forgeStageAt, instanceStats } from '@/core/equipment';
 import type { EquipmentInstance, Stats } from '@/core/types';
 import { useInventoryStore } from '@/stores/inventory';
 import { usePlayerStore } from '@/stores/player';
@@ -18,34 +16,8 @@ const inventory = useInventoryStore();
 const player = usePlayerStore();
 const def = computed(() => requireEquipment(props.inst.defId));
 
-const stats = computed<Stats>(() =>
-  def.value ? instanceStats(def.value, props.inst) : zeroStats(),
-);
-
+const breakdown = computed(() => inventory.statBreakdown(props.inst));
 const cp = computed(() => inventory.contributionCp(props.inst));
-const baseGrade = computed(() => baseRollGrade(props.inst.baseRollPermille));
-const forgeStage = computed(() => forgeStageAt(props.inst.enhance));
-const enhanceBonus = computed(
-  () => (enhanceMultiplier(props.inst.enhance, props.inst.enhanceGainPermille) - 1) * 100,
-);
-const baseGradeLabel = computed(
-  () =>
-    ({
-      steady: '稳固胚',
-      refined: '精工胚',
-      miracle: '奇迹胚',
-    })[baseGrade.value],
-);
-const forgeStageLabel = computed(
-  () =>
-    ({
-      original: '原初',
-      gleam: '微光',
-      radiant: '辉光',
-      starforged: '星铸',
-      sakura: '樱华',
-    })[forgeStage.value],
-);
 const classMatched = computed(
   () => !def.value.classId || def.value.classId === player.player?.classId,
 );
@@ -65,17 +37,33 @@ const compare = computed(() => {
   };
 });
 
-/** 只显示非零的属性 */
-const shownStats = computed(() =>
-  (Object.keys(stats.value) as (keyof Stats)[])
-    .filter((k) => Math.abs(stats.value[k]) > 0.001 && !(k === 'spd' && stats.value[k] === 0))
-    .map((k) => ({ key: k, label: STAT_LABELS[k], value: stats.value[k] })),
+/** 基础区只展示隐藏浮动与强化后的基础属性，不重复包含词条。 */
+const shownBaseStats = computed(() =>
+  (Object.keys(breakdown.value.base) as (keyof Stats)[])
+    .filter((key) => Math.abs(breakdown.value.base[key]) > 0.001)
+    .map((key) => ({ key, label: STAT_LABELS[key], value: breakdown.value.base[key] })),
 );
+
+/** 换装比较使用角色最终属性，包含职业系数、暴击上限和其余七个槽位。 */
+const shownStatDeltas = computed(() => {
+  if (props.from !== 'bag') return [];
+  const delta = inventory.statDelta(props.inst);
+  return (Object.keys(delta) as (keyof Stats)[])
+    .filter((key) => Math.abs(delta[key]) > 0.001)
+    .map((key) => ({ key, label: STAT_LABELS[key], value: delta[key] }));
+});
 
 function fmtStat(key: keyof Stats, v: number): string {
   if (key === 'critRate' || key === 'critDmg') return `+${v.toFixed(1)}%`;
   if (key === 'spd') return `+${v.toFixed(2)}`;
   return `+${abbr(Math.round(v))}`;
+}
+
+function fmtDelta(key: keyof Stats, value: number): string {
+  const prefix = value > 0 ? '+' : '';
+  if (key === 'critRate' || key === 'critDmg') return `${prefix}${value.toFixed(1)}%`;
+  if (key === 'spd') return `${prefix}${value.toFixed(2)}`;
+  return signed(Math.round(value));
 }
 
 function fmtAffix(key: string, value: number): string {
@@ -130,39 +118,53 @@ function doDecompose() {
           <span class="num">{{ signed(compare.delta) }}</span>
         </div>
 
-        <section class="growth-rolls">
-          <span :class="`base-${baseGrade}`">
-            <small>随机胚子</small>
-            <b>{{ baseGradeLabel }} · +{{ ((inst.baseRollPermille - 1000) / 10).toFixed(1) }}%</b>
-          </span>
-          <span :class="`forge-${forgeStage}`">
-            <small>锻造阶段</small>
-            <b>{{ forgeStageLabel }} · 强化成长 +{{ enhanceBonus.toFixed(1) }}%</b>
-          </span>
-          <p>每级首次强化成功时固定成长；掉级后重新升回不会重掷，惊喜数值会永久保留。</p>
-        </section>
-
         <section class="group">
-          <div class="group-head">最终属性（已含胚子、强化与词条）</div>
-          <div v-for="s in shownStats" :key="s.key" class="stat">
-            <span>{{ s.label }}</span>
-            <span class="num">{{ fmtStat(s.key, s.value) }}</span>
+          <div class="group-head">
+            <span>基础属性</span>
+            <small>已包含当前强化</small>
           </div>
-        </section>
-
-        <section v-if="inst.affixes.length > 0" class="group">
-          <div class="group-head">随机词条</div>
-          <div v-for="(a, i) in inst.affixes" :key="i" class="stat affix">
-            <span>{{ AFFIX_LABELS[a.key] }}</span>
-            <span class="num">+{{ a.value }}</span>
+          <div v-for="stat in shownBaseStats" :key="stat.key" class="stat">
+            <span>{{ stat.label }}</span>
+            <span class="num">{{ fmtStat(stat.key, stat.value) }}</span>
           </div>
         </section>
 
         <section v-if="def.fixedAffixes?.length" class="group">
-          <div class="group-head">珍品固定词条</div>
-          <div v-for="(a, i) in def.fixedAffixes" :key="i" class="stat fixed-affix">
-            <span>{{ AFFIX_LABELS[a.key] }}</span>
-            <span class="num">{{ fmtAffix(a.key, a.value) }}</span>
+          <div class="group-head">
+            <span>固定词条</span>
+            <small>不会被强化或洗练改变</small>
+          </div>
+          <div v-for="(affix, index) in def.fixedAffixes" :key="index" class="stat fixed-affix">
+            <span>{{ AFFIX_LABELS[affix.key] }}</span>
+            <span class="num">{{ fmtAffix(affix.key, affix.value) }}</span>
+          </div>
+        </section>
+
+        <section v-if="inst.affixes.length > 0" class="group">
+          <div class="group-head">
+            <span>随机词条</span>
+            <small>未来洗练只改变这里</small>
+          </div>
+          <div v-for="(affix, index) in inst.affixes" :key="index" class="stat affix">
+            <span>{{ AFFIX_LABELS[affix.key] }}</span>
+            <span class="num">{{ fmtAffix(affix.key, affix.value) }}</span>
+          </div>
+        </section>
+
+        <section v-if="compare" class="group compare-group">
+          <div class="group-head">
+            <span>换装后的角色总属性变化</span>
+            <small>固定词条与随机词条已计入一次</small>
+          </div>
+          <div v-if="shownStatDeltas.length === 0" class="no-delta">角色总属性没有变化</div>
+          <div
+            v-for="stat in shownStatDeltas"
+            :key="stat.key"
+            class="stat stat-delta"
+            :class="stat.value > 0 ? 'up' : 'down'"
+          >
+            <span>{{ stat.label }}</span>
+            <span class="num">{{ fmtDelta(stat.key, stat.value) }}</span>
           </div>
         </section>
 
@@ -318,60 +320,6 @@ function doDecompose() {
   background: #ffeef0;
 }
 
-.growth-rolls {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
-}
-
-.growth-rolls > span {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 2px;
-  padding: 8px 9px;
-  color: #416c83;
-  background: #eef8fc;
-  border: 1px solid #c6e2ee;
-  border-radius: 9px;
-}
-
-.growth-rolls small {
-  font-size: 8px;
-  opacity: 0.75;
-}
-
-.growth-rolls b {
-  overflow: hidden;
-  font-size: 9px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.growth-rolls .base-refined,
-.growth-rolls .forge-radiant {
-  color: #6552a0;
-  background: #f4f0ff;
-  border-color: #d8caf4;
-}
-
-.growth-rolls .base-miracle,
-.growth-rolls .forge-starforged,
-.growth-rolls .forge-sakura {
-  color: #9b5c36;
-  background: linear-gradient(120deg, #fff8df, #fff0f6);
-  border-color: #f0d0a9;
-}
-
-.growth-rolls p {
-  grid-column: 1 / -1;
-  margin: 0;
-  padding: 0 2px;
-  color: var(--text-dim);
-  font-size: 8px;
-  line-height: 1.45;
-}
-
 .group {
   display: flex;
   flex-direction: column;
@@ -379,9 +327,20 @@ function doDecompose() {
 }
 
 .group-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 2px;
   font-size: 10px;
   color: var(--text-dim);
-  margin-bottom: 2px;
+}
+
+.group-head small {
+  min-width: 0;
+  font-size: 8px;
+  text-align: right;
+  color: var(--text-dim);
 }
 
 .stat {
@@ -401,6 +360,29 @@ function doDecompose() {
 .stat.fixed-affix {
   color: #9a5c20;
   background: linear-gradient(90deg, #fff8e5, #fff1f7);
+}
+
+.compare-group {
+  padding-top: 2px;
+}
+
+.stat-delta.up {
+  color: #2f8a5b;
+  background: #eafaf1;
+}
+
+.stat-delta.down {
+  color: #a33b43;
+  background: #ffeef0;
+}
+
+.no-delta {
+  padding: 8px 10px;
+  font-size: 11px;
+  text-align: center;
+  color: var(--text-dim);
+  background: var(--panel-2);
+  border-radius: 8px;
 }
 
 .unique-effect {
@@ -434,6 +416,10 @@ function doDecompose() {
   gap: 6px;
   padding: 12px 16px calc(12px + var(--sab));
   border-top: 1px solid var(--line);
+}
+
+.foot .btn {
+  min-height: 44px;
 }
 
 .f {

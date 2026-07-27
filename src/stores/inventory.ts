@@ -1,7 +1,8 @@
 /** 背包与装备领域 store。 */
 import { computed } from 'vue';
 import { defineStore } from 'pinia';
-import type { EquipSlot, EquipmentInstance } from '@/core/types';
+import type { EquipSlot, EquipmentInstance, Stats } from '@/core/types';
+import type { EquipmentStatBreakdown } from '@/core/equipment';
 import { useGameStore, type EnhanceEquipmentResult, type EnhanceQuote } from './game';
 
 export const useInventoryStore = defineStore('inventory', () => {
@@ -43,6 +44,14 @@ export const useInventoryStore = defineStore('inventory', () => {
     return game.equipmentContributionCp(inst);
   }
 
+  function statBreakdown(inst: EquipmentInstance): EquipmentStatBreakdown {
+    return game.equipmentStatBreakdown(inst);
+  }
+
+  function statDelta(inst: EquipmentInstance): Stats {
+    return game.equipmentStatDelta(inst);
+  }
+
   function quoteEnhance(uid: string, useProtection: boolean): EnhanceQuote {
     return game.quoteEnhance(uid, useProtection);
   }
@@ -63,6 +72,8 @@ export const useInventoryStore = defineStore('inventory', () => {
     candidateCp,
     cpDelta,
     contributionCp,
+    statBreakdown,
+    statDelta,
     quoteEnhance,
     enhance,
   };

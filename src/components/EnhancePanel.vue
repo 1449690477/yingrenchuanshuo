@@ -238,12 +238,12 @@ function attempt(forceDanger = false): void {
 
   const nextLevel = response.result.nextLevel;
   const gainCopy = response.gainRoll
-    ? `本级基础成长 +${(response.gainRoll.permille / 10).toFixed(1)}%（${
+    ? `本级实际成长 +${(response.gainRoll.permille / 10).toFixed(1)}%（${
         response.gainRoll.grade === 'miracle'
-          ? '奇迹'
+          ? '奇迹锻造'
           : response.gainRoll.grade === 'excellent'
-            ? '优秀'
-            : '稳定'
+            ? '精工锻造'
+            : '稳固锻造'
       }）`
     : '';
   const cpCopy = response.cpDelta === 0 ? '' : `，战力 ${signed(response.cpDelta)}`;
@@ -317,9 +317,7 @@ function attempt(forceDanger = false): void {
           {{ SLOT_LABELS[selected.slot] }} ·
           {{ selected.source === 'equipped' ? '已穿戴' : '背包中' }}
         </span>
-        <small>
-          胚子属性 +{{ ((selected.instance.baseRollPermille - 1000) / 10).toFixed(1) }}%
-        </small>
+
       </span>
       <span v-if="preview" class="level-route" :class="`stage-${preview.stage}`">
         <small>目标</small>
@@ -498,9 +496,7 @@ function attempt(forceDanger = false): void {
                 </strong>
                 <small>
                   {{ SLOT_LABELS[candidate.slot] }} ·
-                  {{ candidate.source === 'equipped' ? '已穿戴' : '背包中' }} · 胚子 +{{
-                    ((candidate.instance.baseRollPermille - 1000) / 10).toFixed(1)
-                  }}%
+                  {{ candidate.source === 'equipped' ? '已穿戴' : '背包中' }}
                 </small>
               </span>
               <i aria-hidden="true">{{ candidate.instance.uid === selectedUid ? '✓' : '›' }}</i>

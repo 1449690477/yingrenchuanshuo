@@ -44,8 +44,10 @@ import {
   createFixedInstance,
   createInstance,
   instanceStats,
+  instanceStatBreakdown,
   rollEnhanceGainPermille,
   totalEquipStats,
+  type EquipmentStatBreakdown,
   type PermilleRoll,
   type EnhanceGainGrade,
 } from '@/core/equipment';
@@ -517,9 +519,9 @@ export const useGameStore = defineStore('game', () => {
   /**
    * 装备自身战力，算不出来时返回 0。
    *
-   * ⚠ 必须容错。instanceStats 会校验「胚子倍率」等后加的字段，
+   * ⚠ 必须容错。instanceStats 会校验「隐藏基础浮动」等后加的字段，
    * 老存档里更早产出的装备没有这些字段，直接调用会抛
-   * 「装备胚子倍率必须是 1000~1200 的整数，收到 undefined」。
+   * 「装备隐藏基础浮动必须是 800~1200 的整数，收到 undefined」。
    * 一件坏数据就能让整个背包裁剪中断（异常被载入流程的 try/catch 吞掉），
    * 表现就是「自动分解完全不生效、背包继续涨到上万件」。
    *
@@ -832,12 +834,42 @@ export const useGameStore = defineStore('game', () => {
     return cpForEquipment(equipped);
   }
 
-  function cpForEquipment(equipped: (EquipmentInstance | null)[]): number {
-    if (!save.value) return 0;
+  function finalStatsForEquipment(equipped: (EquipmentInstance | null)[]): Stats {
+    if (!save.value) return zeroStats();
     const base = baseStatsFor(save.value.player.classId, save.value.player.level);
     const combined = addStats(base, totalEquipStats(equipped, getEquipment));
     combined.critRate = Math.min(CRIT_RATE_CAP, combined.critRate);
-    return combatPower(applyClassMods(save.value.player.classId, combined));
+    return applyClassMods(save.value.player.classId, combined);
+  }
+
+  function cpForEquipment(equipped: (EquipmentInstance | null)[]): number {
+    return combatPower(finalStatsForEquipment(equipped));
+  }
+
+  /** UI 使用的属性来源分解，战斗与详情共用 core 的唯一计算入口。 */
+  function equipmentStatBreakdown(inst: EquipmentInstance): EquipmentStatBreakdown {
+    return instanceStatBreakdown(requireEquipment(inst.defId), inst);
+  }
+
+  /** 背包装备替换当前同部位后，角色最终属性的逐项真实变化。 */
+  function equipmentStatDelta(inst: EquipmentInstance): Stats {
+    if (!save.value) return zeroStats();
+    const def = requireEquipment(inst.defId);
+    const equipped = SLOT_ORDER.map((slot) =>
+      slot === def.slot ? inst : save.value!.equipped[slot],
+    );
+    const candidate = finalStatsForEquipment(equipped);
+    const current = finalStats.value;
+    return {
+      atk: candidate.atk - current.atk,
+      def: candidate.def - current.def,
+      hp: candidate.hp - current.hp,
+      acc: candidate.acc - current.acc,
+      eva: candidate.eva - current.eva,
+      critRate: candidate.critRate - current.critRate,
+      critDmg: candidate.critDmg - current.critDmg,
+      spd: candidate.spd - current.spd,
+    };
   }
 
   /** 背包装备相对当前穿戴方案的精确战力变化。 */
@@ -1167,6 +1199,8 @@ export const useGameStore = defineStore('game', () => {
     equipmentCandidateCp,
     equipmentCpDelta,
     equipmentContributionCp,
+    equipmentStatBreakdown,
+    equipmentStatDelta,
     quoteEnhance,
     enhanceEquipment,
     dismissOffline,
