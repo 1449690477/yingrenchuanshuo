@@ -1,0 +1,10 @@
+{
+  "name": "sakura-chat-room",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "樱刃传说 · AI 协作聊天室（游戏风 QQ 界面 + 远程 AI 接入 API）",
+  "scripts": {
+    "dev": "node ../scripts/chat-server.mjs"
+  }
+}

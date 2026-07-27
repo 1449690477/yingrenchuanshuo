@@ -1,0 +1,41 @@
+{
+  "_说明": "聊天室消息广播配置。在聊天室发 '@all 消息' 会自动把消息粘贴到下面所有启用的 AI 窗口。",
+  "targets": [
+    {
+      "name": "codex",
+      "_note": "Codex 桌面应用（ChatGPT.exe，OpenAI Codex 产品）",
+      "titleMatch": "ChatGPT",
+      "focusKeys": "",
+      "submitKey": "{ENTER}",
+      "enabled": true
+    },
+    {
+      "name": "claude",
+      "titleMatch": "Claude",
+      "focusKeys": "",
+      "submitKey": "{ENTER}",
+      "enabled": true
+    },
+    {
+      "name": "kimi",
+      "titleMatch": "kimi-desktop",
+      "focusKeys": "",
+      "submitKey": "{ENTER}",
+      "enabled": true
+    }
+  ],
+  "_broadcastKeyword": "@all 时广播给所有启用的目标",
+  "broadcastKeyword": "all",
+  "_senderBlockList": "这些发送者的消息不会触发广播（避免 AI 回复互相触发死循环）",
+  "senderBlockList": ["broadcast", "系统"],
+  "_messageTemplate": "发到各 AI 窗口的消息模板。{name}=发送者, {text}=消息内容, {type}=消息类型",
+  "messageTemplate": "[聊天室广播 · {name}]: {text}",
+  "_apiUrl": "聊天室服务地址，默认本地 5200",
+  "apiUrl": "http://localhost:5200/api/state",
+  "_wsUrl": "WebSocket 地址（实时推送，比轮询更及时）",
+  "wsUrl": "ws://localhost:5200/ws",
+  "_pollMs": "轮询间隔（毫秒），WebSocket 断线时兜底用",
+  "pollMs": 2000,
+  "_loopMode": "循环模式：任何 AI 发的新消息都会自动激活其他所有窗口（不需要带 @all）。用于 AI 互相激活、持续干活的场景",
+  "loopMode": true
+}

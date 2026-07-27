@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>樱刃传说 · AI 协作聊天室</title>
+<style>
+  :root {
+    --sakura-50: #fff5f8; --sakura-100: #ffe4ee; --sakura-200: #ffc9dd;
+    --sakura-300: #ff9fc0; --sakura-400: #ff7aab; --sakura-500: #f2559a;
+    --ink: #4a2c3a; --ink-soft: #8a6475;
+    --green: #3fae7a; --orange: #ef9248; --gray: #9a8f96;
+    --red: #e75d7c; --purple: #9a6fd8; --yellow: #d9a820; --blue: #5a9ee8;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+    color: var(--ink); height: 100vh; overflow: hidden; display: flex; flex-direction: column;
+    background:
+      linear-gradient(160deg, rgba(255,213,230,.92), rgba(255,245,248,.96) 55%, rgba(255,228,238,.92)),
+      url('/assets/battlefields/chapter-1-1.webp') center/cover fixed;
+  }
+  #petals { position: fixed; inset: 0; pointer-events: none; z-index: 1; }
+
+  header {
+    position: relative; z-index: 2; display: flex; align-items: center; gap: 12px;
+    padding: 10px 18px; background: linear-gradient(90deg, rgba(255,255,255,.88), rgba(255,228,238,.82));
+    border-bottom: 2px solid var(--sakura-200); backdrop-filter: blur(6px);
+  }
+  header img.emblem { width: 40px; height: 40px; object-fit: contain; filter: drop-shadow(0 2px 4px rgba(242,85,154,.35)); }
+  header h1 { font-size: 19px; letter-spacing: 1px; }
+  header h1 small { font-size: 12px; color: var(--ink-soft); font-weight: 400; margin-left: 8px; }
+  #conn { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-soft); }
+  #conn .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--green); box-shadow: 0 0 6px var(--green); transition: background .3s; }
+  #conn.poll .dot { background: var(--yellow); box-shadow: 0 0 6px var(--yellow); }
+  #conn.off .dot { background: var(--red); box-shadow: 0 0 6px var(--red); }
+
+  main { position: relative; z-index: 2; flex: 1; display: flex; min-height: 0; }
+
+  /* ── 左：成员列表 ── */
+  aside.members {
+    width: 215px; padding: 12px 10px; overflow-y: auto;
+    background: rgba(255,255,255,.62); border-right: 1px solid var(--sakura-200); backdrop-filter: blur(4px);
+  }
+  aside h2 { font-size: 12px; color: var(--ink-soft); padding: 4px 8px 8px; letter-spacing: 2px; }
+  .member { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 12px; }
+  .member:hover { background: var(--sakura-100); }
+  .member img { width: 42px; height: 42px; border-radius: 50%; object-fit: cover; border: 2px solid var(--ring, var(--sakura-300)); background: #fff; }
+  .member .who { min-width: 0; }
+  .member .who b { font-size: 14px; display: block; }
+  .member .who span { font-size: 11px; color: var(--ink-soft); display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .member .who span.busy { color: var(--orange); }
+
+  /* ── 中：消息流 ── */
+  section.chat { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  #stream { flex: 1; overflow-y: auto; padding: 18px 22px 8px; }
+  .msg { display: flex; gap: 10px; margin-bottom: 16px; animation: pop .25s ease; }
+  @keyframes pop { from { opacity: 0; transform: translateY(8px); } }
+  .msg img.face { width: 46px; height: 46px; border-radius: 50%; object-fit: cover; flex-shrink: 0;
+    border: 2px solid var(--ring, var(--sakura-300)); background: #fff; box-shadow: 0 2px 6px rgba(242,85,154,.25); }
+  .msg .body { max-width: 72%; min-width: 0; }
+  .msg .meta { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; flex-wrap: wrap; }
+  .msg .meta b { font-size: 13px; }
+  .msg .meta time { font-size: 11px; color: var(--ink-soft); }
+  .chip { font-size: 10px; padding: 1px 8px; border-radius: 999px; color: #fff; letter-spacing: 1px; }
+  .chip.进度 { background: var(--green); } .chip.占用 { background: var(--orange); }
+  .chip.释放 { background: var(--gray); } .chip.求助 { background: var(--red); }
+  .chip.决策 { background: var(--purple); } .chip.预警 { background: var(--yellow); }
+  .chip.聊天 { background: var(--blue); }
+  .bubble {
+    background: rgba(255,255,255,.94); border: 1px solid var(--sakura-200); border-radius: 4px 16px 16px 16px;
+    padding: 10px 14px; font-size: 14px; line-height: 1.65; word-break: break-word;
+    box-shadow: 0 2px 8px rgba(242,85,154,.10);
+  }
+  .bubble code { background: var(--sakura-100); padding: 0 5px; border-radius: 4px; font-size: 12.5px; }
+
+  /* ── 底部输入 ── */
+  form.composer {
+    display: flex; gap: 8px; padding: 12px 18px; align-items: center;
+    background: rgba(255,255,255,.78); border-top: 1px solid var(--sakura-200); backdrop-filter: blur(4px);
+  }
+  .composer select, .composer input {
+    font: inherit; font-size: 13px; padding: 9px 12px; border-radius: 12px;
+    border: 1px solid var(--sakura-300); background: #fff; color: var(--ink); outline: none;
+  }
+  .composer input#text { flex: 1; }
+  .composer input:focus, .composer select:focus { border-color: var(--sakura-500); box-shadow: 0 0 0 3px var(--sakura-100); }
+  .composer button {
+    font: inherit; font-size: 14px; font-weight: 700; color: #fff; border: 0; cursor: pointer;
+    padding: 10px 22px; border-radius: 12px; background: linear-gradient(135deg, var(--sakura-400), var(--sakura-500));
+    box-shadow: 0 3px 10px rgba(242,85,154,.4); transition: transform .1s;
+  }
+  .composer button:hover { transform: translateY(-1px); }
+
+  /* ── 右：任务进度 ── */
+  aside.progress {
+    width: 280px; overflow-y: auto; padding: 12px;
+    background: rgba(255,255,255,.62); border-left: 1px solid var(--sakura-200); backdrop-filter: blur(4px);
+  }
+  .card { background: rgba(255,255,255,.92); border: 1px solid var(--sakura-200); border-radius: 14px; padding: 12px 14px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(242,85,154,.08); }
+  .card h3 { font-size: 13px; margin-bottom: 8px; letter-spacing: 1px; }
+  .card h3::before { content: '🌸 '; }
+  .claim-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .claim-row img { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; border: 2px solid var(--ring, var(--sakura-300)); background: #fff; }
+  .claim-row .nm { font-size: 13px; font-weight: 700; }
+  .tl { list-style: none; }
+  .tl li { position: relative; padding: 0 0 12px 18px; font-size: 12.5px; line-height: 1.5; border-left: 2px solid var(--sakura-200); margin-left: 5px; }
+  .tl li::before { content: ''; position: absolute; left: -6px; top: 4px; width: 10px; height: 10px; border-radius: 50%; background: var(--dot, var(--green)); border: 2px solid #fff; }
+  .tl li time { display: block; font-size: 10.5px; color: var(--ink-soft); }
+  .empty { font-size: 12px; color: var(--ink-soft); text-align: center; padding: 8px 0; }
+  footer.hint { font-size: 11px; color: var(--ink-soft); text-align: center; padding: 6px 0 2px; }
+  footer.hint code { background: var(--sakura-100); padding: 0 4px; border-radius: 4px; }
+
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-thumb { background: var(--sakura-300); border-radius: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+
+  @media (max-width: 980px) { aside.progress { display: none; } }
+  @media (max-width: 720px) { aside.members { display: none; } }
+</style>
+</head>
+<body>
+<canvas id="petals"></canvas>
+
+<header>
+  <img class="emblem" src="/assets/brand/sakura-blade-emblem.png" alt="" onerror="this.style.display='none'" />
+  <h1>樱刃传说 · AI 协作聊天室<small>数据源 docs/34-协作聊天室.md · 与 npm run chat 实时互通</small></h1>
+  <div id="conn"><span class="dot"></span><span id="connText">连接中…</span></div>
+</header>
+
+<main>
+  <aside class="members">
+    <h2>在线成员</h2>
+    <div id="memberList"><div class="empty">加载中…</div></div>
+  </aside>
+
+  <section class="chat">
+    <div id="stream"></div>
+    <form class="composer" id="composer">
+      <select id="type">
+        <option>聊天</option><option>进度</option><option>求助</option>
+        <option>决策</option><option>预警</option>
+      </select>
+      <input id="text" placeholder="老板也可以插一句……" autocomplete="off" maxlength="500" />
+      <button type="submit">发送</button>
+    </form>
+    <footer class="hint">远程 AI 接入：<code>GET /api/help</code> · <code>POST /api/say</code> · <code>POST /api/claim</code> · <code>POST /api/release</code> · <code>WS /ws</code></footer>
+  </section>
+
+  <aside class="progress">
+    <div class="card">
+      <h3>当前文件占用</h3>
+      <div id="claimBoard"><div class="empty">加载中…</div></div>
+    </div>
+    <div class="card">
+      <h3>任务进度时间线</h3>
+      <ul class="tl" id="timeline"></ul>
+    </div>
+  </aside>
+</main>
+
+<script>
+const AVATARS = {
+  'kimi':     '/assets/characters/catkin-sakura.png',
+  'codex':    '/assets/characters/swordsman-sakura.png',
+  'codex-a':  '/assets/characters/swordsman-sakura.png',
+  'codex-b':  '/assets/characters/witch-sakura.png',
+  'claude':   '/assets/characters/shaman-spirit.png',
+  '克劳德':   '/assets/characters/shaman-spirit.png',
+  '老板':     '/assets/brand/sakura-blade-emblem.png',
+};
+const RING = ['#f2559a', '#5a9ee8', '#9a6fd8', '#3fae7a', '#ef9248', '#d9a820', '#e75d7c'];
+const DOT  = { '进度': '#3fae7a', '决策': '#9a6fd8', '预警': '#d9a820', '求助': '#e75d7c' };
+
+const ringOf = (name) => RING[[...name].reduce((s, c) => s + c.charCodeAt(0), 0) % RING.length];
+const avatarOf = (name) => AVATARS[name.toLowerCase()] || AVATARS[name] || '/assets/brand/sakura-blade-emblem.png';
+const esc = (s) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const fmtText = (s) => esc(s).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/(src\/[\w./-]+|docs\/[\w./一-鿿-]+|scripts\/[\w./-]+|package\.json)/g, '<code>$1</code>');
+
+const stream = document.getElementById('stream');
+const memberList = document.getElementById('memberList');
+const claimBoard = document.getElementById('claimBoard');
+const timeline = document.getElementById('timeline');
+const conn = document.getElementById('conn');
+const connText = document.getElementById('connText');
+
+/* ── 防闪烁：增量渲染 ──────────────────────────────
+   消息流只 append 新消息，不全量重建；左右面板内容
+   没变就不碰 DOM。头像 img 不重载，自然不会闪。 */
+let renderedCount = 0;
+const panelCache = { members: '', claims: '', timeline: '' };
+
+const msgHtml = (m) => `
+  <div class="msg" style="--ring:${ringOf(m.name)}">
+    <img class="face" src="${avatarOf(m.name)}" alt="" onerror="this.src='/assets/brand/sakura-blade-emblem.png'" />
+    <div class="body">
+      <div class="meta"><b>${esc(m.name)}</b><span class="chip ${m.type}">${m.type}</span><time>${m.ts}</time></div>
+      <div class="bubble">${fmtText(m.text)}</div>
+    </div>
+  </div>`;
+
+function renderMessages(messages) {
+  const nearBottom = stream.scrollHeight - stream.scrollTop - stream.clientHeight < 120;
+  if (messages.length < renderedCount) {
+    // 历史被清理过：全量重建一次
+    stream.innerHTML = messages.map(msgHtml).join('');
+  } else if (messages.length > renderedCount) {
+    stream.insertAdjacentHTML('beforeend', messages.slice(renderedCount).map(msgHtml).join(''));
+  }
+  renderedCount = messages.length;
+  if (nearBottom) stream.scrollTop = stream.scrollHeight;
+}
+
+function renderPanels(state) {
+  const claimsByName = Object.fromEntries(state.claims.map((c) => [c.name, c.files]));
+
+  const names = [...new Set([...state.members.map((m) => m.name), ...state.claims.map((c) => c.name)])];
+  const membersHtml = names.length
+    ? names.map((n) => {
+        const files = claimsByName[n] || [];
+        const status = files.length ? `⚔ 占用 ${files.length} 个文件` : '☕ 空闲中';
+        return `<div class="member" style="--ring:${ringOf(n)}">
+          <img src="${avatarOf(n)}" alt="" onerror="this.src='/assets/brand/sakura-blade-emblem.png'" />
+          <div class="who"><b>${esc(n)}</b><span class="${files.length ? 'busy' : ''}">${status}</span></div>
+        </div>`;
+      }).join('')
+    : '<div class="empty">还没有成员发言</div>';
+  if (membersHtml !== panelCache.members) {
+    memberList.innerHTML = membersHtml;
+    panelCache.members = membersHtml;
+  }
+
+  const claimsHtml = state.claims.length
+    ? state.claims.map((c) => `
+      <div class="claim-row" style="--ring:${ringOf(c.name)}">
+        <img src="${avatarOf(c.name)}" alt="" onerror="this.src='/assets/brand/sakura-blade-emblem.png'" />
+        <div><div class="nm">${esc(c.name)}</div></div>
+      </div>
+      <ul style="margin:-6px 0 10px 40px;list-style:none;font-size:12px;color:var(--ink-soft)">
+        ${c.files.map((f) => `<li style="margin:2px 0">📄 ${esc(f)}</li>`).join('')}
+      </ul>`).join('')
+    : '<div class="empty">当前无人占用任何文件 🎉</div>';
+  if (claimsHtml !== panelCache.claims) {
+    claimBoard.innerHTML = claimsHtml;
+    panelCache.claims = claimsHtml;
+  }
+
+  const key = state.messages.filter((m) => ['进度', '决策', '预警', '求助'].includes(m.type)).slice(-12).reverse();
+  const tlHtml = key.length
+    ? key.map((m) => `<li style="--dot:${DOT[m.type] || '#3fae7a'}"><b>${esc(m.name)}</b> · ${m.type}<br/>${fmtText(m.text)}<time>${m.ts}</time></li>`).join('')
+    : '<li style="--dot:#9a8f96">暂无进度记录</li>';
+  if (tlHtml !== panelCache.timeline) {
+    timeline.innerHTML = tlHtml;
+    panelCache.timeline = tlHtml;
+  }
+}
+
+let renderQueued = false;
+function render(state) {
+  if (renderQueued) return;
+  renderQueued = true;
+  requestAnimationFrame(() => {
+    renderQueued = false;
+    renderPanels(state);
+    renderMessages(state.messages);
+    connText.textContent = `${connMode()} · ${state.now}`;
+  });
+}
+
+/* ── 连接：WebSocket 长连接 + 心跳，断线自动重连；
+      WS 不可用时回退 2 秒轮询 ────────────────────── */
+let ws = null;
+let wsAlive = false;
+let lastPacket = 0;
+let retryMs = 1000;
+let pollingTimer = null;
+let mode = 'off';
+const connMode = () => (mode === 'ws' ? '实时连接' : mode === 'poll' ? '轮询模式' : '重连中');
+
+function setMode(m) {
+  mode = m;
+  conn.className = m === 'ws' ? '' : m === 'poll' ? 'poll' : 'off';
+}
+
+function startPolling() {
+  if (pollingTimer) return;
+  pollingTimer = setInterval(async () => {
+    try {
+      const res = await fetch('/api/state');
+      const data = await res.json();
+      if (data.ok && !wsAlive) {
+        setMode('poll');
+        render(data);
+      }
+    } catch { if (!wsAlive) setMode('off'); }
+  }, 2000);
+}
+
+function connect() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  try { ws = new WebSocket(`${proto}://${location.host}/ws`); }
+  catch { startPolling(); return scheduleReconnect(); }
+
+  ws.onopen = () => {
+    wsAlive = true;
+    retryMs = 1000;
+    lastPacket = Date.now();
+    setMode('ws');
+    startPolling(); // 保底：WS 掉线时轮询接管渲染
+  };
+  ws.onmessage = (e) => {
+    lastPacket = Date.now();
+    let data;
+    try { data = JSON.parse(e.data); } catch { return; }
+    if (data.kind === 'ping') {
+      ws.send(JSON.stringify({ kind: 'pong' })); // 应用级心跳应答
+      return;
+    }
+    if (data.kind === 'state') {
+      wsAlive = true;
+      setMode('ws');
+      render(data);
+    }
+  };
+  ws.onclose = () => { wsAlive = false; setMode('off'); scheduleReconnect(); };
+  ws.onerror = () => { try { ws.close(); } catch {} };
+}
+
+function scheduleReconnect() {
+  setTimeout(connect, retryMs);
+  retryMs = Math.min(retryMs * 2, 10000);
+}
+
+// 心跳看门狗：70 秒没收到任何包就判定假死，主动重连
+setInterval(() => {
+  if (ws && wsAlive && Date.now() - lastPacket > 70000) {
+    wsAlive = false;
+    try { ws.close(); } catch {}
+  }
+}, 10000);
+
+connect();
+
+// 首次进页面先拉一次，不等 WS
+fetch('/api/state').then((r) => r.json()).then((d) => d.ok && render(d)).catch(() => {});
+
+document.getElementById('composer').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const input = document.getElementById('text');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  await fetch('/api/say', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: '老板', type: document.getElementById('type').value, text }),
+  });
+  stream.scrollTop = stream.scrollHeight;
+});
+
+// 樱花花瓣
+const cv = document.getElementById('petals');
+const ctx = cv.getContext('2d');
+let petals = [];
+function resize() { cv.width = innerWidth; cv.height = innerHeight; }
+addEventListener('resize', resize); resize();
+for (let i = 0; i < 26; i++) petals.push({ x: Math.random() * innerWidth, y: Math.random() * innerHeight, r: 4 + Math.random() * 6, s: .4 + Math.random() * .9, a: Math.random() * Math.PI * 2, va: .01 + Math.random() * .02 });
+(function loop() {
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  for (const p of petals) {
+    p.y += p.s; p.x += Math.sin(p.a) * .5; p.a += p.va;
+    if (p.y > cv.height + 10) { p.y = -10; p.x = Math.random() * cv.width; }
+    ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.a);
+    ctx.fillStyle = 'rgba(255,159,192,.55)';
+    ctx.beginPath(); ctx.ellipse(0, 0, p.r, p.r * .6, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
