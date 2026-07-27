@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { CLASS_IDS } from '@/core/types';
 import {
   basicBattleAction,
+  IMPACT_FEEDBACK,
+  impactTierFor,
+  requireImpactFeedback,
   CLASS_BATTLE_MOTIONS,
   latestSourceBeat,
   MONSTER_MOTION_TIMINGS,
@@ -106,5 +109,75 @@ describe('怪物动作模组', () => {
         { monsterId: 'old-species', pulseId: 0 },
       ),
     ).toBe(true);
+  });
+});
+
+describe('impactTierFor', () => {
+  it('玩家挨打永远是 light —— 挂机常态不能喧宾夺主', () => {
+    expect(impactTierFor({ kind: 'monster-attack', crit: false })).toBe('light');
+    // 即便怪物这一下被标成暴击，也不给玩家镜头反馈
+    expect(impactTierFor({ kind: 'monster-attack', crit: true })).toBe('light');
+  });
+
+  it('普攻按是否暴击分成 light / critical', () => {
+    expect(impactTierFor({ kind: 'player-attack', crit: false })).toBe('light');
+    expect(impactTierFor({ kind: 'player-attack', crit: true })).toBe('critical');
+  });
+
+  it('技能按是否暴击分成 heavy / ultimate', () => {
+    expect(impactTierFor({ kind: 'player-skill', crit: false })).toBe('heavy');
+    expect(impactTierFor({ kind: 'player-skill', crit: true })).toBe('ultimate');
+  });
+});
+
+describe('IMPACT_FEEDBACK', () => {
+  it('普攻绝不震镜头 —— 挂机十分钟会晕', () => {
+    expect(IMPACT_FEEDBACK.light.shakePx).toBe(0);
+    expect(IMPACT_FEEDBACK.light.hitstopMs).toBe(0);
+  });
+
+  it('强度逐档递增，越稀有的一击反馈越强', () => {
+    const tiers = ['light', 'heavy', 'critical', 'ultimate'] as const;
+    for (let i = 1; i < tiers.length; i++) {
+      const prev = IMPACT_FEEDBACK[tiers[i - 1]!];
+      const cur = IMPACT_FEEDBACK[tiers[i]!];
+      expect(cur.hitstopMs).toBeGreaterThanOrEqual(prev.hitstopMs);
+      expect(cur.shakePx).toBeGreaterThanOrEqual(prev.shakePx);
+      expect(cur.flashAlpha).toBeGreaterThanOrEqual(prev.flashAlpha);
+      expect(cur.damageScale).toBeGreaterThanOrEqual(prev.damageScale);
+    }
+  });
+
+  it('顿帧不能长到卡住挂机节奏', () => {
+    for (const tier of Object.values(IMPACT_FEEDBACK)) {
+      expect(tier.hitstopMs).toBeLessThanOrEqual(150);
+      expect(tier.flashAlpha).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('未登记的档位直接报错', () => {
+    expect(() => requireImpactFeedback('nope' as never)).toThrow(/打击反馈/);
+  });
+});
+
+describe('四职业受击性格', () => {
+  it('每个职业都有各自的受击风格，不共用同一套', () => {
+    const styles = CLASS_IDS.map((id) => CLASS_BATTLE_MOTIONS[id].reactStyle);
+    expect(new Set(styles).size).toBe(CLASS_IDS.length);
+  });
+
+  it('越脆的职业硬直越久：魔女 > 剑姬', () => {
+    expect(CLASS_BATTLE_MOTIONS.witch.reactMs).toBeGreaterThan(
+      CLASS_BATTLE_MOTIONS.swordsman.reactMs,
+    );
+  });
+
+  it('受击与胜利时长都在合理区间', () => {
+    for (const id of CLASS_IDS) {
+      const motion = CLASS_BATTLE_MOTIONS[id];
+      expect(motion.reactMs).toBeGreaterThanOrEqual(200);
+      expect(motion.reactMs).toBeLessThanOrEqual(500);
+      expect(motion.victoryMs).toBeGreaterThanOrEqual(1000);
+    }
   });
 });

@@ -801,6 +801,79 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
   animation: catkin-furball-cast 0.84s ease-out;
 }
 
+/* ─────────────────────────────────────────────
+   受击与胜利（②）
+   受击风格由 data/battleMotions 的 ReactStyle 定义：
+   剑姬 brace 扛得住 / 魔女 stagger 踉跄 / 灵巫 drift 飘开 / 喵喵 hop 后跳。
+
+   为什么值得给四个职业各写一套：挨打是挂机时出现频率最高的动作之一，
+   如果四个人被打的反应一模一样，前面所有职业差异化的努力都会被冲淡。
+   这是除立绘外最廉价、也最能被玩家感知到「职业不一样」的手段。
+   ───────────────────────────────────────────── */
+.class-swordsman.action-react .doll {
+  animation: swordsman-brace 0.26s cubic-bezier(0.3, 0.7, 0.4, 1);
+}
+
+.class-witch.action-react .doll {
+  animation: witch-stagger 0.38s cubic-bezier(0.26, 0.64, 0.36, 1);
+}
+
+.class-shaman.action-react .doll {
+  animation: shaman-drift 0.32s cubic-bezier(0.24, 0.7, 0.32, 1);
+}
+
+.class-catkin.action-react .doll {
+  animation: catkin-hop-back 0.3s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+.class-swordsman.action-victory .doll {
+  animation: swordsman-sheathe 1.4s cubic-bezier(0.22, 0.72, 0.26, 1);
+}
+
+.class-witch.action-victory .doll {
+  animation: witch-twirl 1.6s cubic-bezier(0.24, 0.7, 0.28, 1);
+}
+
+.class-shaman.action-victory .doll {
+  animation: shaman-bless 1.5s ease-in-out;
+}
+
+.class-catkin.action-victory .doll {
+  animation: catkin-groom 1.3s cubic-bezier(0.24, 0.74, 0.3, 1);
+}
+
+/* 魔女与灵巫此前缺的位移动作：法系不该只会站着挥手 */
+.class-witch.action-dash .doll {
+  animation: witch-blink 0.7s cubic-bezier(0.16, 0.86, 0.22, 1);
+}
+
+.class-witch.action-flurry .doll {
+  animation: witch-barrage 0.84s cubic-bezier(0.2, 0.78, 0.28, 1);
+}
+
+.class-witch.action-counter .doll {
+  animation: witch-barrier 0.9s cubic-bezier(0.2, 0.76, 0.24, 1);
+}
+
+.class-shaman.action-dash .doll {
+  animation: shaman-glide 0.72s cubic-bezier(0.18, 0.82, 0.26, 1);
+}
+
+.class-shaman.action-flurry .doll {
+  animation: shaman-spirit-volley 0.86s cubic-bezier(0.2, 0.78, 0.28, 1);
+}
+
+.class-witch.action-dash .weapon-trail,
+.class-witch.action-flurry .weapon-trail,
+.class-witch.action-counter .weapon-trail {
+  animation: witch-orbit-trail 0.78s ease-out;
+}
+
+.class-shaman.action-dash .weapon-trail,
+.class-shaman.action-flurry .weapon-trail {
+  animation: shaman-spirit-trail 0.8s ease-out;
+}
+
 .is-avatar .growth-aura,
 .is-avatar .growth-particles,
 .is-avatar .enhance-particles {
@@ -1404,6 +1477,229 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
   .weapon-trail,
   .boutique-effect img {
     animation: none !important;
+  }
+}
+
+/* ── 受击：四职业各自的挨打反应 ── */
+
+/* 剑姬：重心稳，只有肩膀吃力地沉一下，站位几乎不动 */
+@keyframes swordsman-brace {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+  35% {
+    transform: translate3d(-4px, 1px, 0) rotate(-2.5deg);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+}
+
+/* 魔女：布甲脆皮，被打得整个人往后踉跄，还带一点失衡的旋转 */
+@keyframes witch-stagger {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+  28% {
+    transform: translate3d(-11px, -3px, 0) rotate(-7deg);
+  }
+  62% {
+    transform: translate3d(-5px, 1px, 0) rotate(3deg);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+}
+
+/* 灵巫：顺着力道飘开，位移大但姿态始终不乱 —— 这是「卸力」不是「被打飞」 */
+@keyframes shaman-drift {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  40% {
+    transform: translate3d(-9px, -5px, 0);
+  }
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/* 喵喵：猫的本能，直接向后弹跳拉开距离，落地再收回 */
+@keyframes catkin-hop-back {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  30% {
+    transform: translate3d(-8px, -10px, 0) scale(0.97);
+  }
+  60% {
+    transform: translate3d(-4px, 0, 0) scale(1.02);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+/* ── 胜利：通关后的收势 ── */
+
+/* 剑姬：横扫收剑再归鞘 */
+@keyframes swordsman-sheathe {
+  0% {
+    transform: rotate(0deg) translate3d(0, 0, 0);
+  }
+  22% {
+    transform: rotate(-13deg) translate3d(5px, -3px, 0);
+  }
+  55% {
+    transform: rotate(6deg) translate3d(-2px, 0, 0);
+  }
+  100% {
+    transform: rotate(0deg) translate3d(0, 0, 0);
+  }
+}
+
+/* 魔女：轻盈转一圈再落回，裙摆是重点 */
+@keyframes witch-twirl {
+  0% {
+    transform: rotate(0deg) translateY(0) scale(1);
+  }
+  30% {
+    transform: rotate(-10deg) translateY(-12px) scale(1.03);
+  }
+  65% {
+    transform: rotate(9deg) translateY(-6px) scale(1.01);
+  }
+  100% {
+    transform: rotate(0deg) translateY(0) scale(1);
+  }
+}
+
+/* 灵巫：缓缓升起做一个祈福姿势，节奏最慢最稳 */
+@keyframes shaman-bless {
+  0% {
+    transform: translateY(0) scale(1);
+  }
+  45% {
+    transform: translateY(-13px) scale(1.04);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* 喵喵：打完了先舔一下爪子，尾巴甩两下 */
+@keyframes catkin-groom {
+  0% {
+    transform: rotate(0deg) translate3d(0, 0, 0);
+  }
+  25% {
+    transform: rotate(-7deg) translate3d(3px, -4px, 0);
+  }
+  50% {
+    transform: rotate(5deg) translate3d(-2px, -1px, 0);
+  }
+  75% {
+    transform: rotate(-3deg) translate3d(1px, -2px, 0);
+  }
+  100% {
+    transform: rotate(0deg) translate3d(0, 0, 0);
+  }
+}
+
+/* ── 魔女补齐的位移动作：法系不该只会站着挥手 ── */
+
+/* 闪现：淡出、位移、淡入，中间那帧几乎透明才有「瞬移」的读感 */
+@keyframes witch-blink {
+  0% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  28% {
+    opacity: 0.15;
+    transform: translate3d(-14px, -6px, 0) scale(0.92);
+  }
+  52% {
+    opacity: 0.2;
+    transform: translate3d(16px, -4px, 0) scale(0.94);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+/* 连射：小幅高频前后，每一下都是一发弹幕 */
+@keyframes witch-barrage {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  18% {
+    transform: translate3d(6px, -2px, 0);
+  }
+  36% {
+    transform: translate3d(2px, 1px, 0);
+  }
+  54% {
+    transform: translate3d(7px, -3px, 0);
+  }
+  72% {
+    transform: translate3d(3px, 0, 0);
+  }
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/* 结界：后撤半步同时张开屏障，缩放比位移更重要 */
+@keyframes witch-barrier {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  30% {
+    transform: translate3d(-7px, 0, 0) scale(1.06);
+  }
+  70% {
+    transform: translate3d(-3px, 0, 0) scale(1.03);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+/* ── 灵巫补齐的位移动作 ── */
+
+/* 滑行：贴地平移，几乎没有上下起伏 —— 和喵喵的跳形成对比 */
+@keyframes shaman-glide {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  40% {
+    transform: translate3d(13px, -2px, 0);
+  }
+  70% {
+    transform: translate3d(8px, 0, 0);
+  }
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/* 灵体连击：挥杖三下，幅度递减 */
+@keyframes shaman-spirit-volley {
+  0% {
+    transform: rotate(0deg) translate3d(0, 0, 0);
+  }
+  22% {
+    transform: rotate(-9deg) translate3d(6px, -3px, 0);
+  }
+  46% {
+    transform: rotate(4deg) translate3d(2px, 0, 0);
+  }
+  68% {
+    transform: rotate(-6deg) translate3d(5px, -2px, 0);
+  }
+  100% {
+    transform: rotate(0deg) translate3d(0, 0, 0);
   }
 }
 </style>

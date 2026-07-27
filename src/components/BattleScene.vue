@@ -11,10 +11,14 @@ import {
 } from '@/data/characterAppearance';
 import {
   basicBattleAction,
+  CLASS_BATTLE_MOTIONS,
+  impactTierFor,
   latestSourceBeat,
   monsterActionFor,
+  requireImpactFeedback,
   requireMonsterMotionTiming,
   shouldPlayMonsterSpawn,
+  type ImpactTier,
   type MonsterAction,
 } from '@/data/battleMotions';
 import { requireMonsterVisual } from '@/data/monsterVisuals';
@@ -74,6 +78,8 @@ interface LiveBeat {
   skillIndex: number | null;
   /** 飘字的横向偏移，避免多个数字完全重叠 */
   offset: number;
+  /** 打击强度档位，决定飘字字号与配色 */
+  tier: ImpactTier;
 }
 
 const liveBeats = ref<LiveBeat[]>([]);
@@ -87,6 +93,61 @@ let lastSeenSeq = 0;
 let monsterAttackTimer = 0;
 let monsterHitTimer = 0;
 let spawnTimer = 0;
+
+// ── 打击反馈（见 data/battleMotions 的 IMPACT_FEEDBACK）──
+//
+// 顿帧与震屏都只加 class、只写 CSS 变量，真正生效与否由 CSS 决定。
+// 这样 prefers-reduced-motion 在样式里一处关掉就全关，
+// 不需要在 JS 里再判一次，也不会出现「JS 以为在震、CSS 其实没震」的错位。
+/** 顿帧中：命中瞬间把双方动画冻住，这是「打到了」最主要的来源 */
+const hitstop = ref(false);
+/** 当前震屏档位；null 表示不震 */
+const shakeTier = ref<ImpactTier | null>(null);
+/** 每次震屏换一个 key，让同一档位的连续命中也能重新触发动画 */
+const shakeSeq = ref(0);
+let hitstopTimer = 0;
+let shakeTimer = 0;
+
+/**
+ * 角色受击姿势。
+ *
+ * 触发点选在「伤害真正落地」而不是「怪物开始出手」——
+ * 怪物的挥击动作有 500~780ms，玩家要是一开始就摆出挨打的姿势，
+ * 看起来像是被吓到而不是被打到。真正的命中时刻由 impactMs 对齐。
+ */
+const heroReacting = ref(false);
+const heroReactSeq = ref(0);
+let heroReactTimer = 0;
+
+function triggerHeroReact(): void {
+  heroReacting.value = true;
+  heroReactSeq.value++;
+  clearTimeout(heroReactTimer);
+  heroReactTimer = window.setTimeout(() => {
+    heroReacting.value = false;
+  }, CLASS_BATTLE_MOTIONS[props.classId].reactMs);
+}
+
+function triggerImpact(kind: BattleBeat['kind'], crit: boolean): void {
+  const feedback = requireImpactFeedback(impactTierFor({ kind, crit }));
+
+  if (feedback.hitstopMs > 0) {
+    hitstop.value = true;
+    clearTimeout(hitstopTimer);
+    hitstopTimer = window.setTimeout(() => {
+      hitstop.value = false;
+    }, feedback.hitstopMs);
+  }
+
+  if (feedback.shakePx > 0) {
+    shakeSeq.value++;
+    shakeTier.value = impactTierFor({ kind, crit });
+    clearTimeout(shakeTimer);
+    shakeTimer = window.setTimeout(() => {
+      shakeTier.value = null;
+    }, feedback.shakeMs);
+  }
+}
 
 watch(
   () => props.beats,
@@ -150,6 +211,9 @@ function addLiveBeat(beat: BattleBeat): void {
 
 function appendLiveBeat(beat: BattleBeat, visualSeq: number, damage: number): void {
   if (beat.kind !== 'monster-attack') triggerMonsterHit(visualSeq);
+  else triggerHeroReact();
+  // 这里是所有命中的唯一汇合点 —— 打击反馈挂在这，多段技能的每一段都能各自震一下
+  triggerImpact(beat.kind, beat.crit);
   liveBeats.value.push({
     seq: visualSeq,
     sourceSeq: beat.seq,
@@ -159,6 +223,7 @@ function appendLiveBeat(beat: BattleBeat, visualSeq: number, damage: number): vo
     skillIndex: beat.skillIndex,
     // 用序号做伪随机偏移，无需引入随机源，且同一拍每次渲染位置稳定
     offset: ((visualSeq * 37) % 46) - 23,
+    tier: impactTierFor({ kind: beat.kind, crit: beat.crit }),
   });
   if (liveBeats.value.length > MAX_LIVE_BEATS) {
     const dropped = liveBeats.value.shift();
@@ -263,9 +328,15 @@ const latestRhythmSkill = computed(() => {
  * 技能动作来自唯一的冷却拍子流；击杀脉冲只负责受击与掉落，不再另选技能。
  */
 const heroAction = computed<CharacterAction>(() => {
-  if (props.pulse || spawning.value) return 'idle';
+  if (spawning.value) return 'idle';
+  // 精英与 BOSS 被击倒才摆胜利姿势。小怪一秒能杀好几只，
+  // 每只都庆祝的话，1.3 秒的收势动作会把整场战斗淹没。
+  if (props.pulse) return props.monster.type === 'normal' ? 'idle' : 'victory';
   const beat = latestPlayerBeat.value;
+  // 技能永远不被打断 —— 玩家自己放的大招被怪物一下顶掉，手感最差。
+  // 普攻则让位给受击，这样「挨打」在画面上读得出来。
   if (latestRhythmSkill.value) return latestRhythmSkill.value.characterAction;
+  if (heroReacting.value) return 'react';
   if (beat) return basicBattleAction(props.classId, beat.sourceSeq);
   return 'idle';
 });
@@ -275,7 +346,12 @@ const heroAction = computed<CharacterAction>(() => {
  * 每次出手都换 key，让 CharacterAppearance 重新播放一次动作，
  * 否则连续攻击时立绘只会在第一次动一下。
  */
-const heroActorKey = computed(() => latestPlayerBeat.value?.sourceSeq ?? 0);
+const heroActorKey = computed(() => {
+  // 受击与胜利也要换 key，否则连续挨打时立绘只在第一次动一下
+  if (props.pulse && props.monster.type !== 'normal') return `win:${props.pulse.id}`;
+  if (heroReacting.value) return `react:${heroReactSeq.value}`;
+  return `beat:${latestPlayerBeat.value?.sourceSeq ?? 0}`;
+});
 
 /**
  * 怪物动作优先级：
@@ -342,7 +418,12 @@ watch(
   },
 );
 
-onUnmounted(() => clearTimeout(spawnTimer));
+onUnmounted(() => {
+  clearTimeout(spawnTimer);
+  clearTimeout(hitstopTimer);
+  clearTimeout(shakeTimer);
+  clearTimeout(heroReactTimer);
+});
 </script>
 
 <template>
@@ -350,15 +431,18 @@ onUnmounted(() => clearTimeout(spawnTimer));
     class="battle-scene"
     :class="[
       `target-${monster.type}`,
+      shakeTier ? `shake-${shakeTier}` : null,
       {
         active,
         casting: heroAction === 'cast',
         'player-low': playerHpPercent <= 25,
+        'is-hitstop': hitstop,
       },
     ]"
     :style="{
       '--impact-delay': latestRhythmSkill ? '300ms' : '110ms',
       '--monster-impact-delay': `${monsterImpactDelay}ms`,
+      '--shake-key': shakeSeq,
     }"
     :aria-label="`${playerName}正在与${monster.name}战斗`"
   >
@@ -488,7 +572,11 @@ onUnmounted(() => clearTimeout(spawnTimer));
         v-for="b in liveBeats"
         :key="b.seq"
         class="beat-damage num"
-        :class="[b.kind === 'monster-attack' ? 'to-hero' : 'to-enemy', { crit: b.crit }]"
+        :class="[
+          b.kind === 'monster-attack' ? 'to-hero' : 'to-enemy',
+          `tier-${b.tier}`,
+          { crit: b.crit },
+        ]"
         :style="{ '--beat-offset': b.offset + 'px' }"
       >
         <template v-if="b.kind === 'monster-attack'">-{{ abbr(b.damage) }}</template>
@@ -1870,6 +1958,127 @@ onUnmounted(() => clearTimeout(spawnTimer));
   text-shadow:
     0 1px 0 #fff,
     0 0 14px rgb(255 120 90 / 80%);
+}
+
+/* ─────────────────────────────────────────────
+   打击反馈（④）
+   强度分档见 data/battleMotions 的 IMPACT_FEEDBACK
+   ───────────────────────────────────────────── */
+
+/*
+ * 顿帧：命中瞬间把双方冻住几十毫秒。
+ *
+ * 这是「打到了」最主要的来源，比震屏和特效都重要 ——
+ * 短暂静止会让大脑把前后两帧读成一次真实碰撞。
+ * 只冻角色与怪物，不冻飘字和特效：数字必须继续往上飘，
+ * 否则看起来像是整个页面卡住了，而不是打击有分量。
+ */
+.battle-scene.is-hitstop .hero-unit,
+.battle-scene.is-hitstop .hero-unit *,
+.battle-scene.is-hitstop .enemy-unit,
+.battle-scene.is-hitstop .enemy-unit * {
+  animation-play-state: paused;
+}
+
+/*
+ * 震屏：只有技能和暴击才震，普攻永远不震。
+ * 挂机是长时间挂着看的，每次普攻都震十分钟就晕了。
+ *
+ * 震的是场景内容而不是 .battle-scene 自身 ——
+ * 根节点还挂着圆角和 overflow，抖动根节点会让边缘露出背景缝。
+ */
+.battle-scene.shake-heavy .scene-background,
+.battle-scene.shake-critical .scene-background,
+.battle-scene.shake-ultimate .scene-background,
+.battle-scene.shake-heavy .hero-unit,
+.battle-scene.shake-critical .hero-unit,
+.battle-scene.shake-ultimate .hero-unit,
+.battle-scene.shake-heavy .enemy-unit,
+.battle-scene.shake-critical .enemy-unit,
+.battle-scene.shake-ultimate .enemy-unit {
+  animation: impact-shake var(--shake-ms, 220ms) var(--ease-ios) both;
+}
+
+.battle-scene.shake-heavy {
+  --shake-px: 3px;
+  --shake-ms: 160ms;
+}
+
+.battle-scene.shake-critical {
+  --shake-px: 5px;
+  --shake-ms: 220ms;
+}
+
+.battle-scene.shake-ultimate {
+  --shake-px: 8px;
+  --shake-ms: 300ms;
+}
+
+/* 衰减式震动：第一下最重，之后迅速收敛。等幅抖动看起来像故障不像撞击。 */
+@keyframes impact-shake {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  15% {
+    transform: translate3d(calc(var(--shake-px, 4px) * -1), calc(var(--shake-px, 4px) * 0.5), 0);
+  }
+  32% {
+    transform: translate3d(calc(var(--shake-px, 4px) * 0.72), calc(var(--shake-px, 4px) * -0.4), 0);
+  }
+  52% {
+    transform: translate3d(calc(var(--shake-px, 4px) * -0.45), 0, 0);
+  }
+  74% {
+    transform: translate3d(calc(var(--shake-px, 4px) * 0.22), 0, 0);
+  }
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/*
+ * 伤害飘字分档。
+ * 光靠颜色区分不够 —— 挂机时玩家是扫视而不是盯着看，
+ * 字号差异才是一眼能读出「这下打得重」的信号。
+ */
+.beat-damage.tier-heavy {
+  font-size: 18px;
+  color: #ff8a3d;
+}
+
+.beat-damage.tier-critical {
+  font-size: 22px;
+}
+
+.beat-damage.tier-ultimate {
+  font-size: 27px;
+  color: #ff2d55;
+  text-shadow:
+    0 1px 0 #fff,
+    0 0 18px rgb(255 90 120 / 90%),
+    0 0 34px rgb(255 200 90 / 70%);
+}
+
+/*
+ * 打击反馈的无障碍兜底。
+ *
+ * 顿帧和震屏正是前庭敏感人群最难受的两类效果，必须彻底关掉，
+ * 而不是「减弱」。字号分档保留 —— 那是静态信息不是动效，
+ * 关掉反而让这些玩家失去了判断打击轻重的唯一线索。
+ */
+@media (prefers-reduced-motion: reduce) {
+  .battle-scene.is-hitstop .hero-unit,
+  .battle-scene.is-hitstop .hero-unit *,
+  .battle-scene.is-hitstop .enemy-unit,
+  .battle-scene.is-hitstop .enemy-unit * {
+    animation-play-state: running;
+  }
+
+  .battle-scene[class*='shake-'] .scene-background,
+  .battle-scene[class*='shake-'] .hero-unit,
+  .battle-scene[class*='shake-'] .enemy-unit {
+    animation: none;
+  }
 }
 
 /* 挨打：数字出现在左侧角色身上 */
