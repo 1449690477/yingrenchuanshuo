@@ -1,16 +1,22 @@
 import { describe, it, expect } from 'vitest';
-import { isOverCapacity, trimBag, type TrimContext } from '../bag';
+import { isOverCapacity, planBulkDecompose, trimBag, type TrimContext } from '../bag';
 import type { EquipmentInstance, EquipSlot, Quality } from '../types';
 
 /** 造一件测试装备。value 直接当战力用，方便断言。 */
 function mk(
   uid: string,
-  opts: { slot?: EquipSlot; quality?: Quality; value?: number; locked?: boolean } = {},
+  opts: {
+    slot?: EquipSlot;
+    quality?: Quality;
+    value?: number;
+    locked?: boolean;
+    enhance?: number;
+  } = {},
 ): EquipmentInstance & { _v: number; _slot: EquipSlot; _q: Quality } {
   return {
     uid,
     defId: 'def_' + uid,
-    enhance: 0,
+    enhance: opts.enhance ?? 0,
     affixes: [],
     locked: opts.locked ?? false,
     _v: opts.value ?? 1,
@@ -109,9 +115,7 @@ describe('trimBag', () => {
   });
 
   it('大批量裁剪结果精确到容量', () => {
-    const list = Array.from({ length: 5000 }, (_, i) =>
-      mk('e' + i, { value: i, slot: 'weapon' }),
-    );
+    const list = Array.from({ length: 5000 }, (_, i) => mk('e' + i, { value: i, slot: 'weapon' }));
     const r = trimBag(list, 300, ctx);
     expect(r.kept).toHaveLength(300);
     expect(r.removed).toHaveLength(4700);
@@ -152,5 +156,62 @@ describe('isOverCapacity', () => {
   it('等于容量不算超出', () => {
     expect(isOverCapacity(300, 300)).toBe(false);
     expect(isOverCapacity(301, 300)).toBe(true);
+  });
+});
+
+describe('planBulkDecompose', () => {
+  it('只选择玩家明确勾选的品质，并支持蓝色及以上全部品质', () => {
+    const qualities: Quality[] = [
+      'common',
+      'fine',
+      'rare',
+      'epic',
+      'legendary',
+      'mythic',
+      'divine',
+    ];
+    const list = qualities.map((quality) => mk(quality, { quality }));
+
+    const blueAndAbove = planBulkDecompose(list, qualities.slice(2), false, ctx.qualityOf);
+
+    expect(blueAndAbove.targets.map((item) => item.uid)).toEqual(qualities.slice(2));
+  });
+
+  it('锁定装备永不进入分解计划', () => {
+    const list = [
+      mk('normal', { quality: 'rare' }),
+      mk('locked', { quality: 'rare', locked: true }),
+    ];
+
+    const plan = planBulkDecompose(list, ['rare'], true, ctx.qualityOf);
+
+    expect(plan.targets.map((item) => item.uid)).toEqual(['normal']);
+    expect(plan.protectedLocked).toBe(1);
+  });
+
+  it('默认保护强化装备，只有明确许可后才纳入', () => {
+    const list = [
+      mk('plain', { quality: 'rare' }),
+      mk('enhanced', { quality: 'rare', enhance: 7 }),
+    ];
+
+    const protectedPlan = planBulkDecompose(list, ['rare'], false, ctx.qualityOf);
+    const allowedPlan = planBulkDecompose(list, ['rare'], true, ctx.qualityOf);
+
+    expect(protectedPlan.targets.map((item) => item.uid)).toEqual(['plain']);
+    expect(protectedPlan.protectedEnhanced).toBe(1);
+    expect(allowedPlan.targets.map((item) => item.uid)).toEqual(['plain', 'enhanced']);
+  });
+
+  it('品质定义缺失时跳过，并且不修改传入数组', () => {
+    const list = [mk('known', { quality: 'rare' }), mk('unknown', { quality: 'rare' })];
+    const before = [...list];
+
+    const plan = planBulkDecompose(list, ['rare'], false, (item) =>
+      item.uid === 'unknown' ? undefined : ctx.qualityOf(item),
+    );
+
+    expect(plan.targets.map((item) => item.uid)).toEqual(['known']);
+    expect(list).toEqual(before);
   });
 });

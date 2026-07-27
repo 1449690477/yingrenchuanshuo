@@ -27,11 +27,7 @@ import type { EquipmentInstance, EquipSlot, Quality } from './types';
  *
  * 史诗（紫）及以上永不自动分解 —— 那是玩家真正在追的东西。
  */
-const AUTO_DECOMPOSE_QUALITIES: ReadonlySet<Quality> = new Set<Quality>([
-  'common',
-  'fine',
-  'rare',
-]);
+const AUTO_DECOMPOSE_QUALITIES: ReadonlySet<Quality> = new Set<Quality>(['common', 'fine', 'rare']);
 
 export interface TrimContext {
   /** 装备的战力评分，越高越值钱 */
@@ -47,6 +43,51 @@ export interface TrimResult {
   kept: EquipmentInstance[];
   /** 被自动分解掉的装备 */
   removed: EquipmentInstance[];
+}
+
+export interface BulkDecomposePlan {
+  /** 本次确认后会被分解的装备快照 */
+  targets: EquipmentInstance[];
+  /** 因锁定而受到硬保护的数量 */
+  protectedLocked: number;
+  /** 因已强化且未开启许可而受到保护的数量 */
+  protectedEnhanced: number;
+}
+
+/**
+ * 按玩家明确选择的品质生成批量分解计划。
+ *
+ * 这里只负责筛选，不读取 UI，也不修改背包。调用方应在玩家确认时把 targets
+ * 的 uid 做成快照再交给 store，避免确认过程中刚掉落的装备被意外一起分解。
+ */
+export function planBulkDecompose(
+  equipment: readonly EquipmentInstance[],
+  selectedQualities: readonly Quality[],
+  includeEnhanced: boolean,
+  qualityOf: (inst: EquipmentInstance) => Quality | undefined,
+): BulkDecomposePlan {
+  const selected = new Set(selectedQualities);
+  const targets: EquipmentInstance[] = [];
+  let protectedLocked = 0;
+  let protectedEnhanced = 0;
+
+  for (const inst of equipment) {
+    const quality = qualityOf(inst);
+    if (!quality || !selected.has(quality)) continue;
+
+    // 锁定是不可绕过的硬保护，优先级高于所有其他条件。
+    if (inst.locked) {
+      protectedLocked++;
+      continue;
+    }
+    if (inst.enhance > 0 && !includeEnhanced) {
+      protectedEnhanced++;
+      continue;
+    }
+    targets.push(inst);
+  }
+
+  return { targets, protectedLocked, protectedEnhanced };
 }
 
 /**

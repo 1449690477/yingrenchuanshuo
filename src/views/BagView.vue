@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { computed, onUnmounted, ref } from 'vue';
-import { Backpack, PackageOpen } from '@lucide/vue';
+import { computed, nextTick, onUnmounted, ref, watch } from 'vue';
+import { Backpack, Coins, PackageOpen, ShieldCheck, X } from '@lucide/vue';
+import { planBulkDecompose } from '@/core/bag';
+import { decomposeGold } from '@/core/economy';
 import { abbr } from '@/core/format';
-import type { EquipmentInstance } from '@/core/types';
+import type { EquipmentInstance, Quality } from '@/core/types';
 import { useInventoryStore } from '@/stores/inventory';
 import { requireEquipment } from '@/data/equipment';
 import { requireItem } from '@/data/items';
@@ -17,6 +19,35 @@ const tab = ref<'equip' | 'item'>('equip');
 const detail = ref<EquipmentInstance | null>(null);
 const toast = ref('');
 const salvageBurst = ref(false);
+const decomposeOpen = ref(false);
+const decomposeSnapshot = ref<EquipmentInstance[]>([]);
+const selectedQualities = ref<Quality[]>(['common', 'fine']);
+const includeEnhanced = ref(false);
+const highRiskConfirmed = ref(false);
+const decomposeSheet = ref<HTMLElement | null>(null);
+const decomposeCloseButton = ref<HTMLButtonElement | null>(null);
+let decomposeReturnFocus: HTMLElement | null = null;
+
+const QUALITY_OPTIONS: readonly {
+  quality: Quality;
+  colorLabel: string;
+  hint: string;
+}[] = [
+  { quality: 'common', colorLabel: '白', hint: '普通' },
+  { quality: 'fine', colorLabel: '绿', hint: '精良' },
+  { quality: 'rare', colorLabel: '蓝', hint: '稀有' },
+  { quality: 'epic', colorLabel: '紫', hint: '史诗' },
+  { quality: 'legendary', colorLabel: '橙', hint: '传说' },
+  { quality: 'mythic', colorLabel: '红', hint: '神话' },
+  { quality: 'divine', colorLabel: '金', hint: '圣器' },
+];
+
+const HIGH_RISK_QUALITIES: ReadonlySet<Quality> = new Set([
+  'epic',
+  'legendary',
+  'mythic',
+  'divine',
+]);
 
 /**
  * 一次渲染的最大条数。
@@ -62,23 +93,115 @@ const bagItems = computed(() => {
     .sort((a, b) => b.def.sellPrice - a.def.sellPrice);
 });
 
+const snapshotQualityCounts = computed<Record<Quality, number>>(() => {
+  const counts: Record<Quality, number> = {
+    common: 0,
+    fine: 0,
+    rare: 0,
+    epic: 0,
+    legendary: 0,
+    mythic: 0,
+    divine: 0,
+  };
+  for (const inst of decomposeSnapshot.value) {
+    counts[requireEquipment(inst.defId).quality]++;
+  }
+  return counts;
+});
+
+const decomposePlan = computed(() =>
+  planBulkDecompose(
+    decomposeSnapshot.value,
+    selectedQualities.value,
+    includeEnhanced.value,
+    (inst) => requireEquipment(inst.defId).quality,
+  ),
+);
+
+const decomposeGoldPreview = computed(() =>
+  decomposePlan.value.targets.reduce(
+    (gold, inst) => gold + decomposeGold(requireEquipment(inst.defId), inst),
+    0,
+  ),
+);
+
+const hasHighRiskSelection = computed(() =>
+  selectedQualities.value.some((quality) => HIGH_RISK_QUALITIES.has(quality)),
+);
+
+const canConfirmDecompose = computed(
+  () =>
+    decomposePlan.value.targets.length > 0 &&
+    (!hasHighRiskSelection.value || highRiskConfirmed.value),
+);
+
 function scoreOf(inst: EquipmentInstance): number {
   return inventory.contributionCp(inst);
 }
 
-/** 一键分解：白绿装且未锁定的 */
-function decomposeJunk() {
-  const targets = bagEquips.value
-    .filter((r) => (r.def.quality === 'common' || r.def.quality === 'fine') && !r.inst.locked)
-    .map((r) => r.inst.uid);
+function openDecompose(event: MouseEvent): void {
+  decomposeReturnFocus = event.currentTarget as HTMLElement;
+  // 打开时固定一份快照；之后新掉落的装备不会悄悄混进本次确认。
+  decomposeSnapshot.value = [...(inventory.bag?.equipment ?? [])];
+  includeEnhanced.value = false;
+  highRiskConfirmed.value = false;
+  decomposeOpen.value = true;
+}
 
-  if (targets.length === 0) {
-    show('没有可分解的白/绿装备');
+function closeDecompose(): void {
+  decomposeOpen.value = false;
+}
+
+function toggleDecomposeQuality(quality: Quality): void {
+  highRiskConfirmed.value = false;
+  selectedQualities.value = selectedQualities.value.includes(quality)
+    ? selectedQualities.value.filter((entry) => entry !== quality)
+    : [...selectedQualities.value, quality];
+}
+
+function confirmDecompose(): void {
+  if (!canConfirmDecompose.value) return;
+
+  const targetUids = decomposePlan.value.targets.map((inst) => inst.uid);
+  const result = inventory.decompose(targetUids);
+  closeDecompose();
+  if (result.count === 0) {
+    show('这些装备已不在背包中');
     return;
   }
-  const r = inventory.decompose(targets);
+
   playSalvageBurst();
-  show(`分解 ${r.count} 件，获得 ${abbr(r.gold)} 金币`);
+  show(`分解 ${result.count} 件，获得 ${abbr(result.gold)} 金币`);
+}
+
+function onDecomposeKeydown(event: KeyboardEvent): void {
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    closeDecompose();
+    return;
+  }
+  if (event.key !== 'Tab' || !decomposeSheet.value) return;
+
+  const focusable = [
+    ...decomposeSheet.value.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ),
+  ].filter((element) => !element.hasAttribute('hidden'));
+  const first = focusable[0];
+  const last = focusable.at(-1);
+  if (!first || !last) {
+    event.preventDefault();
+    return;
+  }
+
+  const active = document.activeElement;
+  if (event.shiftKey && (active === first || !decomposeSheet.value.contains(active))) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && active === last) {
+    event.preventDefault();
+    first.focus();
+  }
 }
 
 function equipBest() {
@@ -105,6 +228,17 @@ function playSalvageBurst() {
   });
 }
 
+watch(decomposeOpen, async (open, wasOpen) => {
+  if (open) {
+    await nextTick();
+    decomposeCloseButton.value?.focus();
+  } else if (wasOpen) {
+    await nextTick();
+    decomposeReturnFocus?.focus();
+    decomposeReturnFocus = null;
+  }
+});
+
 onUnmounted(() => {
   clearTimeout(toastTimer);
   clearTimeout(effectTimer);
@@ -127,7 +261,7 @@ onUnmounted(() => {
 
     <div v-if="tab === 'equip'" class="actions">
       <button class="btn btn-pink sm" @click="equipBest">一键穿戴最优</button>
-      <button class="btn btn-plain sm" @click="decomposeJunk">分解白绿</button>
+      <button class="btn btn-plain sm" @click="openDecompose">批量分解</button>
     </div>
 
     <div class="list scroll-y" :class="{ 'equip-list': tab === 'equip' }">
@@ -166,7 +300,7 @@ onUnmounted(() => {
           只显示战力最高的 {{ RENDER_LIMIT }} 件，还有
           <b class="num">{{ abbr(hiddenEquipCount) }}</b> 件未显示。
           <br />
-          背包太满会拖慢游戏，建议点上面的「分解白绿」清理一下。
+          背包太满会拖慢游戏，建议点上面的「批量分解」按品质清理。
         </p>
       </template>
 
@@ -210,6 +344,122 @@ onUnmounted(() => {
     <Transition name="modal-pop">
       <EquipDetail v-if="detail" :inst="detail" from="bag" @close="detail = null" />
     </Transition>
+
+    <Teleport to="body">
+      <Transition name="modal-pop">
+        <div v-if="decomposeOpen" class="overlay decompose-overlay" @click.self="closeDecompose">
+          <section
+            ref="decomposeSheet"
+            class="decompose-sheet"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="decompose-title"
+            aria-describedby="decompose-note"
+            @keydown="onDecomposeKeydown"
+          >
+            <header class="decompose-head">
+              <SystemArtwork kind="salvage" class="decompose-art" />
+              <span>
+                <small>星屑回收工坊</small>
+                <h2 id="decompose-title">批量分解装备</h2>
+              </span>
+              <button
+                ref="decomposeCloseButton"
+                class="decompose-close"
+                aria-label="关闭批量分解"
+                @click="closeDecompose"
+              >
+                <X :size="18" aria-hidden="true" />
+              </button>
+            </header>
+
+            <p id="decompose-note" class="decompose-note">
+              选择本次要分解的品质。蓝色及以上已开放，但不会默认选中。
+            </p>
+
+            <div class="quality-picker" aria-label="选择分解品质">
+              <button
+                v-for="option in QUALITY_OPTIONS"
+                :key="option.quality"
+                type="button"
+                class="quality-choice"
+                :class="[
+                  `quality-${option.quality}`,
+                  { selected: selectedQualities.includes(option.quality) },
+                ]"
+                :aria-pressed="selectedQualities.includes(option.quality)"
+                @click="toggleDecomposeQuality(option.quality)"
+              >
+                <i class="quality-dot" aria-hidden="true" />
+                <span>
+                  <strong>{{ option.colorLabel }}装</strong>
+                  <small>{{ option.hint }}</small>
+                </span>
+                <em class="num">{{ snapshotQualityCounts[option.quality] }}</em>
+              </button>
+            </div>
+
+            <label class="protection-toggle">
+              <input
+                v-model="includeEnhanced"
+                type="checkbox"
+                @change="highRiskConfirmed = false"
+              />
+              <span>
+                <strong>包含已强化装备</strong>
+                <small>默认保护所有 +1 及以上装备</small>
+              </span>
+            </label>
+
+            <div class="protection-copy">
+              <ShieldCheck :size="17" aria-hidden="true" />
+              <span>
+                锁定装备始终保护
+                <small>
+                  本次跳过 {{ decomposePlan.protectedLocked }} 件锁定装备、{{
+                    decomposePlan.protectedEnhanced
+                  }}
+                  件强化装备
+                </small>
+              </span>
+            </div>
+
+            <label v-if="hasHighRiskSelection" class="risk-confirm">
+              <input v-model="highRiskConfirmed" type="checkbox" />
+              <span>
+                <strong>我确认分解选中的紫 / 橙 / 红 / 金装备</strong>
+                <small>高品质装备很难获得，请先锁定想保留的装备。</small>
+              </span>
+            </label>
+
+            <footer class="decompose-preview">
+              <span>
+                <small>预计回收</small>
+                <strong class="num">{{ decomposePlan.targets.length }} 件</strong>
+              </span>
+              <span class="gold-preview">
+                <small>预计获得</small>
+                <strong class="num"><Coins :size="14" />{{ abbr(decomposeGoldPreview) }}</strong>
+              </span>
+              <button
+                type="button"
+                class="confirm-decompose"
+                :disabled="!canConfirmDecompose"
+                @click="confirmDecompose"
+              >
+                {{
+                  decomposePlan.targets.length === 0
+                    ? '暂无可分解装备'
+                    : hasHighRiskSelection && !highRiskConfirmed
+                      ? '请先确认高品质风险'
+                      : `确认分解 ${decomposePlan.targets.length} 件`
+                }}
+              </button>
+            </footer>
+          </section>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
@@ -509,6 +759,297 @@ onUnmounted(() => {
   transform: translate(-50%, -54%) scale(0.92);
 }
 
+.decompose-overlay {
+  position: fixed;
+  z-index: 140;
+  align-items: end;
+  padding: 14px;
+  background: rgb(45 52 68 / 52%);
+  backdrop-filter: blur(6px);
+}
+
+.decompose-sheet {
+  width: min(100%, 390px);
+  max-height: calc(100dvh - 28px);
+  overflow-y: auto;
+  padding: 14px;
+  color: var(--text);
+  background:
+    radial-gradient(circle at 12% 0%, rgb(255 210 231 / 38%), transparent 34%),
+    linear-gradient(180deg, #fffdfd 0%, #fff7fb 100%);
+  border: 1px solid rgb(255 255 255 / 88%);
+  border-radius: 24px 24px 18px 18px;
+  box-shadow: 0 24px 70px rgb(36 43 60 / 32%);
+}
+
+.decompose-head {
+  display: grid;
+  grid-template-columns: 50px 1fr 34px;
+  align-items: center;
+  gap: 9px;
+}
+
+.decompose-art {
+  width: 50px;
+  height: 50px;
+  filter: drop-shadow(0 6px 10px rgb(100 146 179 / 20%));
+}
+
+.decompose-head span {
+  min-width: 0;
+}
+
+.decompose-head small {
+  display: block;
+  margin-bottom: 1px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--pink-deep);
+}
+
+.decompose-head h2 {
+  margin: 0;
+  font-size: 17px;
+  color: var(--text);
+}
+
+.decompose-close {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  color: var(--text-mid);
+  background: rgb(255 255 255 / 78%);
+  border: 1px solid var(--line);
+  border-radius: 50%;
+}
+
+.decompose-note {
+  margin: 8px 1px 10px;
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--text-dim);
+}
+
+.quality-picker {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.quality-choice {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 10px 1fr auto;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 9px;
+  text-align: left;
+  color: var(--text-mid);
+  background: rgb(255 255 255 / 72%);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  transition:
+    transform var(--t-fast) var(--ease-spring),
+    border-color var(--t-mid) ease,
+    box-shadow var(--t-mid) ease;
+}
+
+.quality-choice:active {
+  transform: scale(0.96);
+}
+
+.quality-choice.selected {
+  color: var(--text);
+  border-color: var(--quality-color);
+  box-shadow:
+    inset 0 0 0 1px var(--quality-color),
+    0 5px 14px color-mix(in srgb, var(--quality-color) 17%, transparent);
+}
+
+.quality-choice > span {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.quality-choice strong {
+  font-size: 11px;
+}
+
+.quality-choice small {
+  font-size: 8px;
+  color: var(--text-dim);
+}
+
+.quality-choice em {
+  min-width: 24px;
+  padding: 2px 5px;
+  font-size: 9px;
+  font-style: normal;
+  text-align: center;
+  color: var(--text-dim);
+  background: rgb(242 241 247 / 88%);
+  border-radius: 999px;
+}
+
+.quality-dot {
+  width: 9px;
+  height: 9px;
+  background: var(--quality-color);
+  border: 1px solid rgb(255 255 255 / 88%);
+  border-radius: 50%;
+  box-shadow: 0 0 8px var(--quality-color);
+}
+
+.quality-common {
+  --quality-color: var(--q-common);
+}
+
+.quality-fine {
+  --quality-color: var(--q-fine);
+}
+
+.quality-rare {
+  --quality-color: var(--q-rare);
+}
+
+.quality-epic {
+  --quality-color: var(--q-epic);
+}
+
+.quality-legendary {
+  --quality-color: var(--q-legendary);
+}
+
+.quality-mythic {
+  --quality-color: var(--q-mythic);
+}
+
+.quality-divine {
+  --quality-color: var(--q-divine);
+}
+
+.protection-toggle,
+.risk-confirm {
+  margin-top: 9px;
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 9px 10px;
+  font-size: 11px;
+  color: var(--text);
+  background: rgb(255 255 255 / 68%);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.protection-toggle input,
+.risk-confirm input {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  margin: 1px 0 0;
+  accent-color: var(--pink-deep);
+}
+
+.protection-toggle span,
+.risk-confirm span {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.protection-toggle small,
+.risk-confirm small,
+.protection-copy small {
+  font-size: 9px;
+  line-height: 1.4;
+  color: var(--text-dim);
+}
+
+.protection-copy {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 7px;
+  padding: 7px 9px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--blue-deep);
+  background: rgb(231 248 253 / 72%);
+  border-radius: 10px;
+}
+
+.protection-copy > span {
+  display: flex;
+  flex-direction: column;
+}
+
+.risk-confirm {
+  color: #8d3f59;
+  background: rgb(255 237 243 / 84%);
+  border-color: rgb(239 144 177 / 42%);
+}
+
+.decompose-preview {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.decompose-preview > span {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 7px 9px;
+  background: rgb(255 255 255 / 72%);
+  border-radius: 10px;
+}
+
+.decompose-preview small {
+  font-size: 8px;
+  color: var(--text-dim);
+}
+
+.decompose-preview strong {
+  font-size: 12px;
+}
+
+.gold-preview {
+  align-items: flex-end;
+}
+
+.gold-preview strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #b87c15;
+}
+
+.confirm-decompose {
+  grid-column: 1 / -1;
+  min-height: 40px;
+  padding: 9px 12px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #fff;
+  background: linear-gradient(135deg, var(--blue-deep), var(--pink-deep));
+  border: 0;
+  border-radius: 13px;
+  box-shadow: 0 8px 18px rgb(223 105 155 / 22%);
+}
+
+.confirm-decompose:disabled {
+  color: var(--text-dim);
+  background: #eceaf0;
+  box-shadow: none;
+}
+
 @keyframes salvage-in {
   from {
     opacity: 0;
@@ -527,6 +1068,10 @@ onUnmounted(() => {
 
   .empty-icon {
     animation: none;
+  }
+
+  .quality-choice {
+    transition: none;
   }
 }
 </style>
