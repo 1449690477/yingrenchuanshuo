@@ -20,6 +20,8 @@ const props = defineProps<{
   vitals: BattleVitals;
   statusText: string;
   progressText: string;
+  /** 当前关卡波次进度（0-1）；通关后不传。 */
+  waveRatio?: number;
   pulse: { id: number; targetId: string; damage: number; kills: number } | null;
   skill: VisualSkill | null;
   effectUrl: string | null;
@@ -71,7 +73,15 @@ onUnmounted(() => clearTimeout(spawnTimer));
     :style="{ '--impact-delay': skill ? '300ms' : '110ms' }"
     :aria-label="`${playerName}正在与${monster.name}战斗`"
   >
-    <img class="scene-background" :src="backgroundUrl" alt="" aria-hidden="true" />
+    <Transition name="bg-fade">
+      <img
+        :key="backgroundUrl"
+        class="scene-background"
+        :src="backgroundUrl"
+        alt=""
+        aria-hidden="true"
+      />
+    </Transition>
     <span class="scene-haze" aria-hidden="true" />
     <span class="scene-glow" aria-hidden="true" />
 
@@ -83,6 +93,9 @@ onUnmounted(() => clearTimeout(spawnTimer));
       <span class="status-dot" />
       <span>{{ statusText }}</span>
       <strong class="num">{{ progressText }}</strong>
+      <span v-if="waveRatio !== undefined" class="wave-track" aria-hidden="true">
+        <i :style="{ transform: `scaleX(${Math.min(1, Math.max(0, waveRatio))})` }" />
+      </span>
     </div>
 
     <div class="enemy-hud">
@@ -320,6 +333,37 @@ onUnmounted(() => clearTimeout(spawnTimer));
   padding-left: 11px;
   font-size: 9px;
   color: #fff5c7;
+}
+
+.wave-track {
+  grid-column: 1 / -1;
+  display: block;
+  height: 3px;
+  margin-top: 2px;
+  overflow: hidden;
+  background: rgb(255 255 255 / 24%);
+  border-radius: 999px;
+}
+
+.wave-track i {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, #ffc2d9, #ffe596, #9fd8f7);
+  border-radius: inherit;
+  box-shadow: 0 0 5px rgb(255 194 217 / 70%);
+  transform-origin: left center;
+  transition: transform 0.45s var(--ease-soft);
+}
+
+.bg-fade-enter-from,
+.bg-fade-leave-to {
+  opacity: 0;
+}
+
+.bg-fade-enter-active,
+.bg-fade-leave-active {
+  transition: opacity 0.5s var(--ease-soft);
 }
 
 .status-dot {
@@ -1429,6 +1473,12 @@ onUnmounted(() => clearTimeout(spawnTimer));
   .loot-burst,
   .loot-burst i {
     animation: none !important;
+  }
+
+  .wave-track i,
+  .bg-fade-enter-active,
+  .bg-fade-leave-active {
+    transition: none !important;
   }
 
   .spell-fx,

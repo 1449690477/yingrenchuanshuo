@@ -164,6 +164,7 @@ const cpWarn = computed(() => {
         :progress-text="
           stage.cleared ? `${stage.kps.toFixed(2)} 只/秒` : `${stage.kills}/${stage.killTarget}`
         "
+        :wave-ratio="stage.cleared ? undefined : stage.kills / stage.killTarget"
         :pulse="stage.battlePulse"
         :skill="activeVisualSkill"
         :effect-url="activeEffectUrl"
@@ -374,10 +375,24 @@ const cpWarn = computed(() => {
   margin-top: 10px;
   padding: 6px;
   font-size: 10px;
+  font-weight: 700;
   text-align: center;
   color: var(--success);
-  background: #eafaf1;
+  background: linear-gradient(90deg, #eafaf1, #f2fcf5, #eafaf1);
+  border: 1px solid #c2ecd3;
   border-radius: var(--r-sm);
+  animation: cleared-pop 0.5s var(--ease-out-back) both;
+}
+
+@keyframes cleared-pop {
+  0% {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.94);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .loot {
@@ -561,6 +576,7 @@ const cpWarn = computed(() => {
     animation: none;
   }
 
+  .cleared,
   .loot-row {
     animation: none;
   }

@@ -22,11 +22,14 @@ const activeFilter = ref<FilterId>('all');
 const selectedId = ref<string | null>(null);
 const toast = ref('');
 const purchaseBurst = ref(0);
+const goldBump = ref(false);
 const backButton = ref<HTMLButtonElement | null>(null);
 const detailSheet = ref<HTMLElement | null>(null);
 const detailCloseButton = ref<HTMLButtonElement | null>(null);
 let detailReturnFocus: HTMLElement | null = null;
 let toastTimer = 0;
+let bumpTimer = 0;
+let bumpFrame = 0;
 const shopSceneUrl = `${import.meta.env.BASE_URL}assets/shops/sakura-boutique.webp`;
 
 const filters: readonly { id: FilterId; label: string }[] = [
@@ -171,6 +174,21 @@ watch(selectedId, async (offerId, previousOfferId) => {
   }
 });
 
+watch(
+  () => shop.gold,
+  (now, before) => {
+    if (now <= before) return;
+    goldBump.value = false;
+    clearTimeout(bumpTimer);
+    cancelAnimationFrame(bumpFrame);
+    bumpFrame = requestAnimationFrame(() => {
+      bumpFrame = 0;
+      goldBump.value = true;
+      bumpTimer = window.setTimeout(() => (goldBump.value = false), 420);
+    });
+  },
+);
+
 onMounted(() => {
   window.addEventListener('keydown', onShopKeydown);
   backButton.value?.focus();
@@ -178,6 +196,8 @@ onMounted(() => {
 
 onUnmounted(() => {
   clearTimeout(toastTimer);
+  clearTimeout(bumpTimer);
+  cancelAnimationFrame(bumpFrame);
   window.removeEventListener('keydown', onShopKeydown);
 });
 </script>
@@ -192,12 +212,17 @@ onUnmounted(() => {
         <strong>樱花珍品店</strong>
         <small>装备靠打 · 金币保底收藏</small>
       </span>
-      <span class="gold-pill"><Coins :size="14" />{{ abbr(shop.gold) }}</span>
+      <span class="gold-pill" :class="{ bump: goldBump }">
+        <Coins :size="14" />{{ abbr(shop.gold) }}
+      </span>
     </header>
 
     <section class="shop-scene">
       <img :src="shopSceneUrl" alt="樱花珍品店内景，左右是华丽装备货架，中央展示洛丽塔裙装" />
       <span class="scene-shade" />
+      <i class="scene-petal p1" aria-hidden="true" />
+      <i class="scene-petal p2" aria-hidden="true" />
+      <i class="scene-petal p3" aria-hidden="true" />
       <span class="shopkeeper-copy">
         <small>店主 · 樱桃</small>
         <strong>欢迎试穿，喜欢再带走～</strong>
@@ -219,10 +244,11 @@ onUnmounted(() => {
 
     <section class="shelf scroll-y">
       <button
-        v-for="entry in visibleOffers"
+        v-for="(entry, i) in visibleOffers"
         :key="entry.offer.id"
         class="offer-card"
         :class="[qualityClass(entry.def.quality), { sold: !entry.assessment.ok }]"
+        :style="{ '--row-delay': `${Math.min(i, 11) * 30}ms` }"
         @click="openDetail(entry.offer.id, $event)"
       >
         <span class="offer-spark" aria-hidden="true">✦</span>
@@ -377,6 +403,22 @@ onUnmounted(() => {
   border-radius: 999px;
 }
 
+.gold-pill.bump {
+  animation: pill-bump 0.4s var(--ease-out-back);
+}
+
+@keyframes pill-bump {
+  0% {
+    transform: scale(1);
+  }
+  45% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
 .shop-scene {
   position: relative;
   flex: 0 0 150px;
@@ -398,6 +440,52 @@ onUnmounted(() => {
 
 .scene-shade {
   background: linear-gradient(90deg, rgb(48 38 57 / 64%), transparent 72%);
+}
+
+.scene-petal {
+  position: absolute;
+  z-index: 1;
+  top: -12px;
+  width: 7px;
+  height: 9px;
+  opacity: 0;
+  background: linear-gradient(160deg, #ffd9e8, #ffabc9);
+  border-radius: 78% 22% 68% 32%;
+  pointer-events: none;
+  animation: scene-petal-fall 8s linear infinite;
+}
+
+.scene-petal.p1 {
+  left: 46%;
+  --petal-scale: 1;
+  animation-delay: -1.8s;
+}
+
+.scene-petal.p2 {
+  left: 68%;
+  --petal-scale: 0.8;
+  animation-delay: -5.1s;
+}
+
+.scene-petal.p3 {
+  left: 88%;
+  --petal-scale: 0.64;
+  animation-delay: -7s;
+}
+
+@keyframes scene-petal-fall {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) rotate(0) scale(var(--petal-scale));
+  }
+  16%,
+  80% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(30px, 168px, 0) rotate(320deg) scale(var(--petal-scale));
+  }
 }
 
 .shopkeeper-copy {
@@ -471,7 +559,43 @@ onUnmounted(() => {
   background: rgb(255 255 255 / 91%);
   border: 1px solid var(--line);
   border-radius: 14px;
+  overflow: hidden;
   box-shadow: 0 5px 13px rgb(70 71 102 / 9%);
+  animation: row-in var(--t-slow) var(--ease-soft) both;
+  animation-delay: var(--row-delay, 0ms);
+  transition:
+    transform var(--t-fast) var(--ease-spring),
+    box-shadow var(--t-mid) var(--ease-soft);
+}
+
+.offer-card:active {
+  transform: scale(0.96);
+}
+
+.offer-card::before {
+  position: absolute;
+  top: 0;
+  right: 10px;
+  left: 10px;
+  height: 3px;
+  content: '';
+  background: var(--q-common);
+  border-radius: 0 0 3px 3px;
+  opacity: 0.55;
+}
+
+.offer-card.quality-epic::before {
+  background: var(--q-epic);
+}
+
+.offer-card.quality-legendary::before {
+  background: var(--q-legendary);
+  opacity: 0.8;
+}
+
+.offer-card.quality-mythic::before {
+  background: linear-gradient(90deg, var(--q-mythic), var(--q-legendary));
+  opacity: 0.9;
 }
 
 .offer-card :deep(.equipment-icon) {
@@ -504,6 +628,19 @@ onUnmounted(() => {
   right: 8px;
   font-size: 10px;
   color: #f1bb55;
+  animation: spark-twinkle 2.8s ease-in-out infinite;
+}
+
+@keyframes spark-twinkle {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(0.86) rotate(0);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.18) rotate(18deg);
+  }
 }
 
 .offer-copy {
@@ -573,6 +710,18 @@ onUnmounted(() => {
   background: #fff;
   border-radius: 22px 22px 0 0;
   box-shadow: 0 -12px 32px rgb(28 28 46 / 24%);
+}
+
+.detail-sheet::before {
+  position: absolute;
+  z-index: 5;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 4px;
+  content: '';
+  background: linear-gradient(90deg, var(--pink), var(--gold), var(--blue));
+  pointer-events: none;
 }
 
 .close {
@@ -717,18 +866,51 @@ onUnmounted(() => {
 }
 
 .buy-button {
+  position: relative;
   min-height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 5px;
   padding: 0 12px;
+  overflow: hidden;
   font-size: 10px;
   font-weight: 800;
   color: #fff;
   background: linear-gradient(135deg, #f179a7, #8b80d7);
   border-radius: 14px;
   box-shadow: 0 6px 14px rgb(140 83 139 / 23%);
+  transition:
+    transform var(--t-fast) var(--ease-spring),
+    filter var(--t-mid) var(--ease-soft);
+}
+
+.buy-button:active:not(:disabled) {
+  filter: brightness(1.06);
+  transform: scale(0.96);
+}
+
+.buy-button:not(:disabled)::after {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 38%;
+  content: '';
+  background: linear-gradient(100deg, transparent, rgb(255 255 255 / 30%), transparent);
+  pointer-events: none;
+  animation: buy-shine 4.8s var(--ease-soft) infinite;
+}
+
+@keyframes buy-shine {
+  0%,
+  58% {
+    transform: translate3d(-130%, 0, 0) skewX(-18deg);
+  }
+  82%,
+  100% {
+    transform: translate3d(410%, 0, 0) skewX(-18deg);
+  }
 }
 
 .buy-button:disabled {
@@ -777,6 +959,16 @@ onUnmounted(() => {
 @media (prefers-reduced-motion: reduce) {
   .detail-sheet,
   .shop-toast {
+    transition: none !important;
+  }
+
+  .offer-card,
+  .offer-spark,
+  .scene-petal,
+  .buy-button,
+  .buy-button::after,
+  .gold-pill.bump {
+    animation: none !important;
     transition: none !important;
   }
 }
