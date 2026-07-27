@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { ChevronLeft, ChevronRight, Sparkles, X } from '@lucide/vue';
 import { canAfford, type EncounterChoice, type ResourceBundle } from '@/core/encounters';
 import { abbr } from '@/core/format';
 import { requireEncounter } from '@/data/encounters';
+import { REGIONS } from '@/data/regions';
 import { requireItem } from '@/data/items';
 import { useInventoryStore } from '@/stores/inventory';
 import { usePlayerStore } from '@/stores/player';
@@ -17,6 +18,54 @@ type EncounterFeedback = { text: string; tone: 'success' | 'notice' };
 
 const feedback = ref<EncounterFeedback | null>(null);
 const selectedUid = ref<string | null>(stage.pendingEncounters[0]?.uid ?? null);
+
+/**
+ * 对话推进游标。
+ *
+ * 奇遇要像「一小段剧情」而不是一个提示框：先逐句把话说完，
+ * 读到最后一句才展示选项。玩家点任意处推进，也可以直接跳过。
+ */
+const lineIndex = ref(0);
+
+const dialogue = computed(() => encounter.value?.dialogue ?? []);
+const hasDialogue = computed(() => dialogue.value.length > 0);
+/** 已经念到第几句（含当前句） */
+const visibleLines = computed(() => dialogue.value.slice(0, lineIndex.value + 1));
+const dialogueDone = computed(
+  () => !hasDialogue.value || lineIndex.value >= dialogue.value.length - 1,
+);
+
+function advanceDialogue(): void {
+  if (dialogueDone.value) return;
+  lineIndex.value = Math.min(lineIndex.value + 1, dialogue.value.length - 1);
+}
+
+function skipDialogue(): void {
+  lineIndex.value = Math.max(0, dialogue.value.length - 1);
+}
+
+/** 换奇遇时对话要从头开始 */
+watch(selectedUid, () => {
+  lineIndex.value = 0;
+});
+
+/** 场景背景：奇遇自带优先，否则退回该区域的地图美术 */
+const sceneUrl = computed(() => {
+  const asset = encounter.value?.sceneAsset ?? regionOfEncounter.value?.mapAsset;
+  return asset ? `${import.meta.env.BASE_URL}${asset}` : null;
+});
+
+const regionOfEncounter = computed(() => {
+  const regionId = entry.value?.regionId;
+  return regionId ? REGIONS.find((r) => r.id === regionId) ?? null : null;
+});
+
+/** 立绘：还没出图时用 glyph 渲染风格化占位，看起来是刻意设计而非坏图 */
+const portraitUrl = computed(() =>
+  encounter.value?.portraitAsset
+    ? `${import.meta.env.BASE_URL}${encounter.value.portraitAsset}`
+    : null,
+);
 
 const entry = computed(() => {
   if (!selectedUid.value) return null;
@@ -75,6 +124,7 @@ function choose(choice: EncounterChoice): void {
     tone: 'success',
   };
   selectedUid.value = null;
+  lineIndex.value = 0;
 }
 </script>
 
@@ -113,11 +163,47 @@ function choose(choice: EncounterChoice): void {
             <ChevronRight :size="16" aria-hidden="true" />
           </button>
         </nav>
-        <p class="story">{{ encounter.story }}</p>
+        <!-- 场景舞台：背景 + 立绘 + 名牌 -->
+        <div class="stage-view" :class="{ tappable: !dialogueDone }" @click="advanceDialogue">
+          <img v-if="sceneUrl" class="scene-art" :src="sceneUrl" alt="" aria-hidden="true" />
+          <span class="scene-veil" aria-hidden="true" />
+
+          <div class="portrait" :class="{ 'is-art': !!portraitUrl }">
+            <img v-if="portraitUrl" :src="portraitUrl" :alt="encounter.speaker ?? '奇遇角色'" />
+            <span v-else class="portrait-glyph" aria-hidden="true">{{ encounter.glyph ?? '✦' }}</span>
+          </div>
+
+          <button
+            v-if="!dialogueDone"
+            type="button"
+            class="skip"
+            @click.stop="skipDialogue"
+          >
+            跳过
+          </button>
+        </div>
+
+        <!-- 对话区 -->
+        <div v-if="hasDialogue" class="dialogue" @click="advanceDialogue">
+          <TransitionGroup name="line" tag="div" class="line-list">
+            <p
+              v-for="(line, i) in visibleLines"
+              :key="i"
+              class="line"
+              :class="{ narration: !line.speaker, latest: i === visibleLines.length - 1 }"
+            >
+              <span v-if="line.speaker" class="speaker">{{ line.speaker }}</span>
+              <span class="line-text">{{ line.text }}</span>
+            </p>
+          </TransitionGroup>
+          <span v-if="!dialogueDone" class="tap-hint">轻触继续 ▾</span>
+        </div>
+
+        <p v-else class="story">{{ encounter.story }}</p>
         <div v-if="feedback" class="feedback" :class="`tone-${feedback.tone}`" role="status">
           {{ feedback.text }}
         </div>
-        <div class="choices">
+        <div v-if="dialogueDone" class="choices">
           <button
             v-for="choice in encounter.choices"
             :key="choice.id"
@@ -328,4 +414,184 @@ function choose(choice: EncounterChoice): void {
   width: 100%;
   min-height: 44px;
 }
+/* ─────────────────────────────────────────
+   奇遇演出：场景舞台 + 立绘 + 逐句对话
+   ───────────────────────────────────────── */
+
+.stage-view {
+  position: relative;
+  height: 148px;
+  margin: 0 14px 10px;
+  border-radius: var(--r);
+  overflow: hidden;
+  background: linear-gradient(150deg, var(--blue-soft), var(--pink-soft));
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 60%);
+}
+
+.stage-view.tappable {
+  cursor: pointer;
+}
+
+.scene-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 42%;
+}
+
+.scene-veil {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgb(255 255 255 / 10%) 0%,
+    rgb(255 255 255 / 5%) 45%,
+    rgb(255 255 255 / 72%) 100%
+  );
+}
+
+/* 立绘 / 占位头像 */
+.portrait {
+  position: absolute;
+  right: 16px;
+  bottom: 0;
+  width: 96px;
+  height: 128px;
+  display: grid;
+  place-items: center;
+}
+
+.portrait.is-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: bottom center;
+  filter: drop-shadow(0 4px 10px rgb(90 110 140 / 35%));
+}
+
+/* 还没出立绘时的风格化占位：一枚发光的圆牌 */
+.portrait-glyph {
+  width: 74px;
+  height: 74px;
+  display: grid;
+  place-items: center;
+  font-size: 34px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff, var(--pink-soft) 65%, var(--blue-soft));
+  box-shadow:
+    0 0 0 3px rgb(255 255 255 / 85%),
+    0 6px 18px rgb(120 140 175 / 35%);
+  animation: portrait-float 3.4s ease-in-out infinite;
+}
+
+@keyframes portrait-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+.skip {
+  position: absolute;
+  right: 10px;
+  top: 8px;
+  padding: 3px 10px;
+  font-size: 10px;
+  color: var(--text-mid);
+  background: rgb(255 255 255 / 82%);
+  border-radius: 999px;
+  backdrop-filter: blur(2px);
+}
+
+/* 对话区 */
+.dialogue {
+  position: relative;
+  margin: 0 14px 12px;
+  padding: 12px 14px 20px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  cursor: pointer;
+  min-height: 92px;
+}
+
+.line-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.line {
+  font-size: 13px;
+  line-height: 1.75;
+  color: var(--text);
+}
+
+.line.narration {
+  font-size: 12px;
+  color: var(--text-mid);
+  font-style: italic;
+  text-align: center;
+}
+
+.line:not(.latest) {
+  opacity: 0.5;
+}
+
+.speaker {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 1px 9px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, #ffb0d0, var(--pink-deep));
+  border-radius: 999px;
+  vertical-align: 2px;
+}
+
+.tap-hint {
+  position: absolute;
+  right: 12px;
+  bottom: 6px;
+  font-size: 10px;
+  color: var(--text-dim);
+  animation: tap-blink 1.4s ease-in-out infinite;
+}
+
+@keyframes tap-blink {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.line-enter-from {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.line-enter-active {
+  transition: all 0.24s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .portrait-glyph,
+  .tap-hint {
+    animation: none;
+  }
+
+  .line-enter-active {
+    transition-duration: 0.01ms;
+  }
+}
+
 </style>

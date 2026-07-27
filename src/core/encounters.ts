@@ -23,12 +23,42 @@ export interface EncounterChoice {
   costs?: ResourceBundle;
   rewardPool?: EncounterRewardVariant[];
 }
+/**
+ * 奇遇中的一句对话。
+ *
+ * speaker 为空表示旁白（居中、斜体），否则是角色说的话（带名牌）。
+ */
+export interface EncounterLine {
+  speaker?: string;
+  text: string;
+}
+
 export interface EncounterDefinition {
   id: string;
   regionIds: string[];
   title: string;
   story: string;
   choices: [EncounterChoice, EncounterChoice];
+
+  // ── 演出相关（全部可选，缺失时 UI 会优雅降级）──
+
+  /** 对话对象的名字，显示在名牌上 */
+  speaker?: string;
+  /**
+   * 立绘资源路径。
+   * 还没出图时留空，UI 会用 glyph 渲染一个风格化的占位头像，
+   * 看起来是刻意设计而不是坏掉的图。
+   */
+  portraitAsset?: string;
+  /** 占位头像里的字形（emoji 或单字），portraitAsset 缺失时使用 */
+  glyph?: string;
+  /** 场景背景图；缺省时用该区域的地图美术 */
+  sceneAsset?: string;
+  /**
+   * 逐句对话。为空时 UI 退化为直接展示 story 一段话。
+   * 玩家点击推进，读完才出选项 —— 这样奇遇才像「一段小剧情」而不是一个弹窗。
+   */
+  dialogue?: EncounterLine[];
 }
 export interface PendingEncounter {
   uid: string;

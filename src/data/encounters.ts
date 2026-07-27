@@ -9,6 +9,13 @@ const DEFINITIONS: EncounterDefinition[] = [
     regionIds: ['r1'],
     title: '花径上的见习刀匠',
     story: '一位见习刀匠蹲在路旁，正为缺少柔韧的包刀材料发愁。',
+    speaker: '见习刀匠·茜',
+    glyph: '🔨',
+    dialogue: [
+      { text: '花径的拐角传来叮叮当当的声音。' },
+      { speaker: '见习刀匠·茜', text: '啊、有人来了！那个……你身上有柔软一点的材料吗？' },
+      { speaker: '见习刀匠·茜', text: '我想给新刀做个包柄，可师父说我挑的料子太硬了……' },
+    ],
     choices: [
       {
         id: 'trade',
@@ -34,6 +41,13 @@ const DEFINITIONS: EncounterDefinition[] = [
     regionIds: ['r1'],
     title: '会自己响的木铃',
     story: '林间传来清脆铃声，一只小木灵想收回散落的木铃。',
+    speaker: '木铃',
+    glyph: '🔔',
+    dialogue: [
+      { text: '林间小径的树枝上，挂着一只没有风也在响的木铃。' },
+      { speaker: '木铃', text: '叮铃——叮铃——' },
+      { text: '铃声听起来……像是在叫你过去。' },
+    ],
     choices: [
       {
         id: 'return',
@@ -59,6 +73,12 @@ const DEFINITIONS: EncounterDefinition[] = [
     regionIds: ['r1'],
     title: '微微发亮的裂隙',
     story: '落樱结界裂开了一道细缝，温暖的光正一点点漏出来。',
+    speaker: '结界裂隙',
+    glyph: '✨',
+    dialogue: [
+      { text: '落樱结界的边缘裂开一道细缝，缝里透出温吞吞的光。' },
+      { text: '把手伸进去似乎能摸到什么，但也可能只是错觉。' },
+    ],
     choices: [
       {
         id: 'mend',
@@ -84,6 +104,13 @@ const DEFINITIONS: EncounterDefinition[] = [
     regionIds: ['r2'],
     title: '睡过站的草原信使',
     story: '信使抱着包裹睡在草垛旁，醒来后发现捆包材料全散了。',
+    speaker: '草原信使·穗',
+    glyph: '💤',
+    dialogue: [
+      { text: '草垛上趴着一个背着信袋的少女，睡得正香。' },
+      { speaker: '草原信使·穗', text: '呼……嗯……再、再五分钟……' },
+      { text: '她的信袋上写着「加急」，落款日期是三天前。' },
+    ],
     choices: [
       {
         id: 'bundle',
@@ -109,6 +136,13 @@ const DEFINITIONS: EncounterDefinition[] = [
     regionIds: ['r2'],
     title: '蜂娘的下午茶',
     story: '巡逻的蜂娘想泡一壶甜茶，却怎么也找不到合适的杯垫。',
+    speaker: '蜜蜂娘·芃',
+    glyph: '🍯',
+    dialogue: [
+      { text: '蜂巢外摆着一张小桌子，桌上是刚倒好的两杯蜜茶。' },
+      { speaker: '蜜蜂娘·芃', text: '欸？你不是来抢蜜的吧？' },
+      { speaker: '蜜蜂娘·芃', text: '……算了，反正我也一个人喝不完。坐嘛坐嘛。' },
+    ],
     choices: [
       {
         id: 'tea',
@@ -134,6 +168,13 @@ const DEFINITIONS: EncounterDefinition[] = [
     regionIds: ['r2'],
     title: '草原祭坛的回声',
     story: '古老祭坛发出轻柔回声，似乎在等待一块失落的结晶。',
+    speaker: '祭坛回声',
+    glyph: '🌀',
+    dialogue: [
+      { text: '草原祭坛的石缝间回荡着某种低语，听不清词句。' },
+      { speaker: '祭坛回声', text: '……交换……等价的……' },
+      { text: '回声停下了，像是在等你的答复。' },
+    ],
     choices: [
       {
         id: 'answer',
