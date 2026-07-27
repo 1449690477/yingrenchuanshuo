@@ -13,6 +13,7 @@ import { computed, ref } from 'vue';
 import type { EquipSlot, EquipmentInstance, IdleYield, LootResult, Stats } from '@/core/types';
 import { Rng } from '@/core/rng';
 import { addStats, combatPower, zeroStats } from '@/core/formula';
+import { estimateIncomingDps } from '@/core/combat';
 import {
   applyClassMods,
   averageSkillMultiplier,
@@ -67,6 +68,13 @@ export interface BattlePulse {
   killCursor: number;
 }
 
+export interface IncomingBattlePulse {
+  id: number;
+  /** 怪物单次攻击的平均伤害。 */
+  damage: number;
+  hits: number;
+}
+
 const AUTO_SAVE_INTERVAL_MS = 3_000;
 const LOOT_LOG_MAX = 40;
 
@@ -97,12 +105,18 @@ export const useGameStore = defineStore('game', () => {
   /** 当前一只怪的击杀进度，0=满血，1=即将击杀。 */
   const battleProgress = ref(0);
   const battlePulse = ref<BattlePulse | null>(null);
+  /** 仅用于当前可见战斗的玩家生命，不写入存档、不影响挂机收益。 */
+  const playerBattleHp = ref(0);
+  const incomingBattlePulse = ref<IncomingBattlePulse | null>(null);
 
   let rng = new Rng(1);
   let lootLogSeq = 0;
   let battlePulseSeq = 0;
   let battleKillCursor = 0;
   let attackVisualCarrySec = 0;
+  let incomingPulseSeq = 0;
+  let monsterAttackVisualCarrySec = 0;
+  let monsterAttackStartsReady = true;
   /** 挂机零头秒数。不足一只怪的时间攒在这里，见 core/idle.accumulateIdle */
   let idleCarrySec = 0;
   let lastTickAt = 0;
@@ -200,6 +214,7 @@ export const useGameStore = defineStore('game', () => {
         save.value = data;
         rng = new Rng(data.rngState);
         settleOfflineNow();
+        playerBattleHp.value = finalStats.value.hp;
       }
     } catch (error) {
       loadError.value = error instanceof Error ? error.message : '未知存档读取错误';
@@ -216,9 +231,13 @@ export const useGameStore = defineStore('game', () => {
     lootLog.value = [];
     idleCarrySec = 0;
     attackVisualCarrySec = 0;
+    monsterAttackVisualCarrySec = 0;
+    monsterAttackStartsReady = true;
     battleKillCursor = 0;
     battleProgress.value = 0;
     battlePulse.value = null;
+    incomingBattlePulse.value = null;
+    playerBattleHp.value = finalStats.value.hp;
     await persist();
   }
 
@@ -229,9 +248,13 @@ export const useGameStore = defineStore('game', () => {
     offlineResult.value = null;
     idleCarrySec = 0;
     attackVisualCarrySec = 0;
+    monsterAttackVisualCarrySec = 0;
+    monsterAttackStartsReady = true;
     battleKillCursor = 0;
     battleProgress.value = 0;
     battlePulse.value = null;
+    incomingBattlePulse.value = null;
+    playerBattleHp.value = 0;
   }
 
   function settleOfflineNow(): void {
@@ -329,15 +352,52 @@ export const useGameStore = defineStore('game', () => {
         };
       }
       if (y.kills > 0) {
+        // 当前仍是“一只怪一场”的可见战斗；死亡规则确定前，每次击杀后重开满血演出。
+        playerBattleHp.value = ctx.player.stats.hp;
+        monsterAttackVisualCarrySec = 0;
+        monsterAttackStartsReady = true;
         applyYield(y, true);
         save.value.stats.totalKills += y.kills;
         applyStageKills(y.kills, true);
+      } else {
+        playerBattleHp.value = Math.min(
+          ctx.player.stats.hp,
+          Math.max(1, playerBattleHp.value || ctx.player.stats.hp),
+        );
+        const incomingStep = advanceAttackPulse(
+          dt,
+          monsterAttackVisualCarrySec,
+          ctx.monster.stats.spd,
+        );
+        monsterAttackVisualCarrySec = incomingStep.carrySec;
+        const incomingHits = incomingStep.hits + (monsterAttackStartsReady ? 1 : 0);
+        monsterAttackStartsReady = false;
+        if (incomingHits > 0) {
+          const damagePerHit = Math.max(
+            1,
+            Math.round(estimateIncomingDps(ctx.player, ctx.monster) / ctx.monster.stats.spd),
+          );
+          incomingBattlePulse.value = {
+            id: ++incomingPulseSeq,
+            damage: damagePerHit,
+            hits: incomingHits,
+          };
+          // 临时边界：只演示怪物反击，最低停在 1；最终死亡行为由后续策略接管。
+          playerBattleHp.value = Math.max(
+            1,
+            playerBattleHp.value - damagePerHit * incomingHits,
+          );
+        }
       }
     } else {
       // 战力不足时不能把等待时间攒着，切回低级图后一次性领取。
       idleCarrySec = 0;
       attackVisualCarrySec = 0;
+      monsterAttackVisualCarrySec = 0;
+      monsterAttackStartsReady = true;
       battleProgress.value = 0;
+      playerBattleHp.value = finalStats.value.hp;
+      incomingBattlePulse.value = null;
     }
     save.value.stats.totalPlaySec += dt;
     save.value.lastActiveAt = Date.now();
@@ -459,9 +519,13 @@ export const useGameStore = defineStore('game', () => {
     save.value.progress.currentStageId = stageId;
     idleCarrySec = 0;
     attackVisualCarrySec = 0;
+    monsterAttackVisualCarrySec = 0;
+    monsterAttackStartsReady = true;
     battleKillCursor = 0;
     battleProgress.value = 0;
     battlePulse.value = null;
+    incomingBattlePulse.value = null;
+    playerBattleHp.value = finalStats.value.hp;
     void persist();
     return true;
   }
@@ -656,9 +720,13 @@ export const useGameStore = defineStore('game', () => {
     lootLog.value = [];
     idleCarrySec = 0;
     attackVisualCarrySec = 0;
+    monsterAttackVisualCarrySec = 0;
+    monsterAttackStartsReady = true;
     battleKillCursor = 0;
     battleProgress.value = 0;
     battlePulse.value = null;
+    incomingBattlePulse.value = null;
+    playerBattleHp.value = finalStats.value.hp;
     settleOfflineNow();
     void persist();
   }
@@ -679,6 +747,8 @@ export const useGameStore = defineStore('game', () => {
     loadError,
     battleProgress,
     battlePulse,
+    playerBattleHp,
+    incomingBattlePulse,
     // 派生
     player,
     finalStats,

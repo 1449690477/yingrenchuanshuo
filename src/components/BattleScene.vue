@@ -9,7 +9,6 @@ defineProps<{
   classId: ClassId;
   playerName: string;
   monster: MonsterDef;
-  supportMonsters: MonsterDef[];
   backgroundUrl: string;
   active: boolean;
   casting: boolean;
@@ -17,12 +16,20 @@ defineProps<{
   currentHp: number;
   maxHp: number;
   attack: number;
+  playerHpPercent: number;
+  playerCurrentHp: number;
+  playerMaxHp: number;
+  monsterAttacking: boolean;
   statusText: string;
   progressText: string;
   pulse: { id: number; damage: number; hits: number; kills: number } | null;
+  incomingPulse: { id: number; damage: number; hits: number } | null;
+  skillStates: { skill: VisualSkill; remaining: number }[];
   skill: VisualSkill | null;
   effectUrl: string | null;
 }>();
+
+const assetUrl = (path: string) => `${import.meta.env.BASE_URL}${path}`;
 </script>
 
 <template>
@@ -40,7 +47,6 @@ defineProps<{
     </div>
 
     <div class="battle-status">
-      <span class="status-dot" />
       <span>{{ statusText }}</span>
       <strong class="num">{{ progressText }}</strong>
     </div>
@@ -67,42 +73,84 @@ defineProps<{
       </div>
     </div>
 
-    <div class="hero-unit">
-      <span class="actor-shadow" aria-hidden="true" />
-      <div :key="pulse?.id ?? 0" class="hero-actor">
-        <ClassArtwork :class-id="classId" variant="battle" :action="casting ? 'attack' : 'idle'" />
-      </div>
-      <span class="actor-name hero-name">
+    <div class="player-hud">
+      <div class="player-line">
         <strong>{{ playerName }}</strong>
-        <small class="num">攻击 {{ abbr(attack) }}</small>
-      </span>
+        <span class="num">攻击 {{ abbr(attack) }}</span>
+      </div>
+      <div
+        class="hpbar player-hpbar"
+        role="meter"
+        aria-label="角色生命"
+        aria-valuemin="0"
+        :aria-valuemax="playerMaxHp"
+        :aria-valuenow="playerCurrentHp"
+      >
+        <span class="hpbar-fill" :style="{ width: `${playerHpPercent}%` }" />
+        <span class="hp-shine" />
+        <strong class="hp-value num">
+          HP {{ abbr(playerCurrentHp) }} / {{ abbr(playerMaxHp) }}
+        </strong>
+      </div>
+    </div>
+
+    <div class="hero-unit" :class="{ hit: monsterAttacking }">
+      <span class="actor-shadow" aria-hidden="true" />
+      <div :key="`${pulse?.id ?? 0}-${incomingPulse?.id ?? 0}`" class="hero-actor">
+        <ClassArtwork
+          :class-id="classId"
+          variant="battle"
+          :action="monsterAttacking ? 'hit' : casting ? 'attack' : 'idle'"
+        />
+      </div>
     </div>
 
     <div
-      v-for="(support, index) in supportMonsters.slice(0, 2)"
-      :key="support.id"
-      class="support-unit"
-      :class="`support-${index + 1}`"
-      aria-hidden="true"
+      :key="`${monster.id}-${pulse?.id ?? 0}-${incomingPulse?.id ?? 0}`"
+      class="enemy-unit"
+      :class="{ hit: casting, attacking: monsterAttacking }"
     >
-      <span class="actor-shadow" />
-      <MonsterArtwork :monster="support" />
-    </div>
-
-    <div :key="`${monster.id}-${pulse?.id ?? 0}`" class="enemy-unit" :class="{ hit: casting }">
       <span class="actor-shadow" aria-hidden="true" />
       <div class="enemy-actor">
-        <MonsterArtwork :monster="monster" :action="casting ? 'hit' : 'idle'" />
+        <MonsterArtwork
+          :monster="monster"
+          :action="monsterAttacking ? 'attack' : casting ? 'hit' : 'idle'"
+        />
       </div>
-      <span class="actor-name enemy-name">{{ monster.name }}</span>
     </div>
 
     <Transition name="damage">
-      <span v-if="pulse" :key="pulse.id" class="damage num">
+      <span v-if="pulse && casting" :key="pulse.id" class="damage num">
         -{{ abbr(pulse.damage) }}
         <small v-if="pulse.hits > 1">×{{ pulse.hits }}</small>
       </span>
     </Transition>
+
+    <Transition name="damage">
+      <span
+        v-if="incomingPulse && monsterAttacking"
+        :key="incomingPulse.id"
+        class="damage incoming num"
+      >
+        -{{ abbr(incomingPulse.damage) }}
+        <small v-if="incomingPulse.hits > 1">×{{ incomingPulse.hits }}</small>
+      </span>
+    </Transition>
+
+    <div v-if="skillStates.length > 0" class="skill-dock" aria-label="技能冷却">
+      <span
+        v-for="state in skillStates"
+        :key="state.skill.id"
+        class="battle-skill"
+        :class="{ cooling: state.remaining > 0 }"
+        :title="`${state.skill.name} · 冷却 ${state.skill.cooldown} 秒`"
+      >
+        <img :src="assetUrl(state.skill.icon)" alt="" draggable="false" />
+        <strong v-if="state.remaining > 0" class="skill-cd num">
+          {{ Math.min(state.skill.cooldown, Math.ceil(state.remaining)) }}
+        </strong>
+      </span>
+    </div>
 
     <div
       v-if="skill && effectUrl && pulse"
@@ -178,23 +226,68 @@ defineProps<{
 
 .battle-status,
 .enemy-hud,
-.actor-name {
+.player-hud {
   text-shadow: 0 1px 3px rgb(24 31 44 / 82%);
   backdrop-filter: blur(4px);
+}
+
+.player-hud {
+  position: absolute;
+  z-index: 12;
+  top: 9px;
+  left: 9px;
+  width: 31%;
+  padding: 5px 7px 6px;
+  background: rgb(30 40 58 / 64%);
+  border: 1px solid rgb(255 255 255 / 30%);
+  border-radius: 9px;
+  box-shadow: 0 3px 8px rgb(25 33 47 / 15%);
+}
+
+.player-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  margin-bottom: 3px;
+  font-size: 10px;
+}
+
+.player-line strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-line .num {
+  flex-shrink: 0;
+  color: rgb(255 255 255 / 82%);
+}
+
+.player-hpbar {
+  height: 15px;
+}
+
+.player-hpbar .hpbar-fill {
+  background: linear-gradient(90deg, #5fc5d9, #8ce5b6);
 }
 
 .battle-status {
   position: absolute;
   z-index: 12;
   top: 9px;
-  left: 9px;
-  display: grid;
-  grid-template-columns: auto auto;
+  left: 50%;
+  width: 24%;
+  box-sizing: border-box;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 2px 5px;
-  max-width: 42%;
-  padding: 4px 8px;
-  font-size: 10px;
+  justify-content: center;
+  gap: 2px;
+  padding: 4px 5px;
+  font-size: 9px;
   line-height: 1.1;
   background: rgb(28 42 61 / 58%);
   border: 1px solid rgb(255 255 255 / 28%);
@@ -203,24 +296,10 @@ defineProps<{
 }
 
 .battle-status strong {
-  grid-column: 1 / -1;
-  padding-left: 11px;
-  font-size: 9px;
+  padding-left: 0;
+  font-size: 8px;
+  text-align: center;
   color: #fff5c7;
-}
-
-.status-dot {
-  width: 6px;
-  height: 6px;
-  background: #7cf2bc;
-  border: 1px solid rgb(255 255 255 / 72%);
-  border-radius: 50%;
-  box-shadow: 0 0 7px #62eaaa;
-}
-
-.battle-scene:not(.active) .status-dot {
-  background: #d8dbe1;
-  box-shadow: none;
 }
 
 .enemy-hud {
@@ -228,7 +307,7 @@ defineProps<{
   z-index: 12;
   top: 9px;
   right: 9px;
-  width: min(49%, 172px);
+  width: 35%;
   padding: 5px 7px 6px;
   background: rgb(30 40 58 / 64%);
   border: 1px solid rgb(255 255 255 / 30%);
@@ -319,8 +398,7 @@ defineProps<{
 }
 
 .hero-unit,
-.enemy-unit,
-.support-unit {
+.enemy-unit {
   position: absolute;
 }
 
@@ -393,78 +471,18 @@ defineProps<{
   animation: enemy-hit 0.42s ease-out;
 }
 
+.hero-unit.hit .hero-actor {
+  animation: hero-hit 0.42s ease-out;
+}
+
+.enemy-unit.attacking .enemy-actor {
+  animation: enemy-attack 0.52s ease-out;
+}
+
 .hero-actor :deep(.class-art),
-.enemy-actor :deep(.monster-art),
-.support-unit :deep(.monster-art) {
+.enemy-actor :deep(.monster-art) {
   width: 100%;
   height: 100%;
-}
-
-.support-unit {
-  z-index: 3;
-  width: 19%;
-  height: 29%;
-  opacity: 0.68;
-  filter: saturate(0.86);
-}
-
-.support-unit .actor-shadow {
-  height: 8px;
-}
-
-.support-unit :deep(.monster-art) {
-  position: absolute;
-  inset: 0 0 4px;
-  filter: drop-shadow(0 3px 3px rgb(27 31 44 / 24%));
-}
-
-.support-1 {
-  right: 26%;
-  bottom: 28%;
-  animation: support-bob 2.5s ease-in-out infinite;
-}
-
-.support-2 {
-  right: 43%;
-  bottom: 35%;
-  width: 16%;
-  height: 24%;
-  opacity: 0.52;
-  animation: support-bob 2.8s 0.35s ease-in-out infinite;
-}
-
-.actor-name {
-  position: absolute;
-  bottom: -3px;
-  max-width: 104px;
-  overflow: hidden;
-  padding: 2px 7px;
-  font-size: 9px;
-  font-weight: 800;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  background: rgb(32 46 62 / 56%);
-  border: 1px solid rgb(255 255 255 / 28%);
-  border-radius: 999px;
-}
-
-.actor-name strong,
-.actor-name small {
-  display: block;
-}
-
-.actor-name small {
-  margin-top: 1px;
-  font-size: 8px;
-  color: #fff2b8;
-}
-
-.hero-name {
-  left: 8px;
-}
-
-.enemy-name {
-  right: 8px;
 }
 
 .damage {
@@ -483,6 +501,59 @@ defineProps<{
 
 .damage small {
   font-size: 11px;
+}
+
+.damage.incoming {
+  top: 39%;
+  right: auto;
+  left: 22%;
+  color: #ffd1df;
+  text-shadow:
+    0 2px 0 #9f3f58,
+    0 0 8px rgb(255 105 137 / 72%);
+}
+
+.skill-dock {
+  position: absolute;
+  z-index: 13;
+  left: 42%;
+  bottom: 5px;
+  display: flex;
+  gap: 4px;
+}
+
+.battle-skill {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  overflow: hidden;
+  background: rgb(255 255 255 / 88%);
+  border: 1px solid rgb(255 255 255 / 82%);
+  border-radius: 9px;
+  box-shadow: 0 2px 7px rgb(28 34 50 / 28%);
+}
+
+.battle-skill img {
+  width: 116%;
+  height: 116%;
+  object-fit: contain;
+}
+
+.battle-skill.cooling img {
+  filter: grayscale(0.65) brightness(0.55);
+}
+
+.skill-cd {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  color: #fff;
+  text-shadow: 0 1px 3px #182130;
+  background: rgb(22 30 43 / 30%);
 }
 
 .damage-enter-from {
@@ -790,13 +861,31 @@ defineProps<{
   }
 }
 
-@keyframes support-bob {
+@keyframes hero-hit {
   0%,
   100% {
-    transform: translateY(0);
+    transform: translateX(0) scale(1);
+    filter: brightness(1);
   }
-  50% {
-    transform: translateY(-3px);
+  30% {
+    transform: translateX(-7px) scale(0.95);
+    filter: brightness(1.65) saturate(0.7);
+  }
+  58% {
+    transform: translateX(3px) scale(1.01);
+  }
+}
+
+@keyframes enemy-attack {
+  0%,
+  100% {
+    transform: translateX(0) scale(1);
+  }
+  36% {
+    transform: translateX(-10px) scale(1.04);
+  }
+  62% {
+    transform: translateX(-6px) scale(1.02);
   }
 }
 
@@ -980,7 +1069,6 @@ defineProps<{
 @media (prefers-reduced-motion: reduce) {
   .hero-actor,
   .enemy-actor,
-  .support-unit,
   .ambient-particles i {
     animation: none !important;
   }

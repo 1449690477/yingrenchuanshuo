@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onUnmounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { abbr } from '@/core/format';
 import { battleMonsterIdAt } from '@/core/battleVisual';
 import { makeMonster } from '@/core/progression';
@@ -19,19 +19,19 @@ const player = usePlayerStore();
 const stage = useStageStore();
 const showStages = ref(false);
 const casting = ref(false);
+const monsterCasting = ref(false);
 let castTimer = 0;
+let monsterCastTimer = 0;
+let cooldownRaf = 0;
+const COOLDOWN_CLOCK_STEP_SECONDS = 0.1;
+const cooldownClock = ref(0);
+const skillReadyAt = ref<Record<string, number>>({});
+const activeSkillCast = ref<{ pulseId: number; skill: VisualSkill } | null>(null);
 
 const region = computed(() => requireRegionOfChapter(stage.current.chapterId));
 const chapter = computed(() => requireChapter(stage.current.chapterId));
 const chapterMapUrl = computed(() => `${import.meta.env.BASE_URL}${chapter.value.mapAsset}`);
 const battleMapUrl = computed(() => `${import.meta.env.BASE_URL}${chapter.value.battleAsset}`);
-
-/** 本关怪物图鉴，用于挑选当前目标之外的纵深陪衬。 */
-const monsters = computed(() => {
-  const ids = new Set<string>();
-  for (const w of stage.current.waves) for (const m of w.monsters) ids.add(m.id);
-  return [...ids].map((id) => requireMonster(id));
-});
 
 /**
  * 视觉目标严格跟随波次顺序：推关阶段用累计击杀数，已通关挂机则用击杀脉冲循环。
@@ -43,27 +43,36 @@ const visualMonsterCursor = computed(() =>
 const target = computed(() =>
   requireMonster(battleMonsterIdAt(stage.current, visualMonsterCursor.value)),
 );
-const supportMonsters = computed(() =>
-  monsters.value.filter((monster) => monster.id !== target.value.id).slice(0, 2),
-);
 const hpPercent = computed(() => Math.max(1, (1 - stage.battleProgress) * 100));
 const targetMaxHp = computed(() => makeMonster(target.value).stats.hp);
 const targetCurrentHp = computed(() =>
   Math.max(1, Math.ceil((targetMaxHp.value * hpPercent.value) / 100)),
 );
+const playerMaxHp = computed(() => Math.max(1, player.finalStats.hp));
+const playerCurrentHp = computed(() =>
+  Math.min(playerMaxHp.value, Math.max(1, stage.playerBattleHp || playerMaxHp.value)),
+);
+const playerHpPercent = computed(() => (playerCurrentHp.value / playerMaxHp.value) * 100);
 
 /**
- * M3 技能自动释放尚未接入前，视觉演出跟随按真实攻速生成的攻击脉冲。
- * 技能按玩家等级解锁，绝不提前展示未学会的技能；伤害仍由 M2 平均技能倍率结算。
+ * M3 技能伤害与状态效果尚未接入，当前只按配置的优先级和冷却调度视觉演出。
+ * 技能按玩家等级解锁，绝不提前展示未学会的技能；收益仍由 M2 平均技能倍率结算。
  */
-const activeVisualSkill = computed<VisualSkill | null>(() => {
+const unlockedSkills = computed<readonly VisualSkill[]>(() => {
   const p = player.player;
-  const pulse = stage.battlePulse;
-  if (!p || !pulse) return null;
-  const skills = unlockedVisualSkills(p.classId, p.level);
-  if (skills.length === 0) return null;
-  return skills[Math.floor((pulse.id - 1) / 3) % skills.length]!;
+  return p ? unlockedVisualSkills(p.classId, p.level) : [];
 });
+const activeVisualSkill = computed<VisualSkill | null>(() => {
+  const cast = activeSkillCast.value;
+  if (!cast || cast.pulseId !== stage.battlePulse?.id) return null;
+  return cast.skill;
+});
+const skillStates = computed(() =>
+  unlockedSkills.value.map((skill) => ({
+    skill,
+    remaining: Math.max(0, (skillReadyAt.value[skill.id] ?? 0) - cooldownClock.value),
+  })),
+);
 
 const activeEffectUrl = computed(() =>
   activeVisualSkill.value
@@ -78,10 +87,40 @@ watch(
     casting.value = true;
     clearTimeout(castTimer);
     castTimer = window.setTimeout(() => (casting.value = false), 720);
+
+    const now = performance.now() / 1000;
+    const ready = [...unlockedSkills.value]
+      .filter((skill) => (skillReadyAt.value[skill.id] ?? 0) <= now)
+      .sort((a, b) => b.priority - a.priority)[0];
+    activeSkillCast.value = ready ? { pulseId, skill: ready } : null;
+    if (ready) skillReadyAt.value[ready.id] = now + ready.cooldown;
   },
 );
 
-onUnmounted(() => clearTimeout(castTimer));
+watch(
+  () => stage.incomingBattlePulse?.id,
+  (pulseId) => {
+    if (!pulseId) return;
+    monsterCasting.value = true;
+    clearTimeout(monsterCastTimer);
+    monsterCastTimer = window.setTimeout(() => (monsterCasting.value = false), 520);
+  },
+);
+
+onMounted(() => {
+  const updateCooldownClock = () => {
+    const now = performance.now() / 1000;
+    if (now - cooldownClock.value >= COOLDOWN_CLOCK_STEP_SECONDS) cooldownClock.value = now;
+    cooldownRaf = requestAnimationFrame(updateCooldownClock);
+  };
+  updateCooldownClock();
+});
+
+onUnmounted(() => {
+  clearTimeout(castTimer);
+  clearTimeout(monsterCastTimer);
+  cancelAnimationFrame(cooldownRaf);
+});
 
 /** 战力提示。宁可提示得保守，也不要让玩家白挂。 */
 const cpWarn = computed(() => {
@@ -120,7 +159,6 @@ const cpWarn = computed(() => {
         :class-id="player.player.classId"
         :player-name="player.player.name"
         :monster="target"
-        :support-monsters="supportMonsters"
         :background-url="battleMapUrl"
         :active="stage.canIdle"
         :casting="casting"
@@ -128,7 +166,13 @@ const cpWarn = computed(() => {
         :current-hp="targetCurrentHp"
         :max-hp="targetMaxHp"
         :attack="player.finalStats.atk"
-        :status-text="stage.canIdle ? '自动战斗中' : '战斗已暂停'"
+        :player-hp-percent="playerHpPercent"
+        :player-current-hp="playerCurrentHp"
+        :player-max-hp="playerMaxHp"
+        :monster-attacking="monsterCasting"
+        :incoming-pulse="stage.incomingBattlePulse"
+        :skill-states="skillStates"
+        :status-text="stage.canIdle ? '自动' : '暂停'"
         :progress-text="
           stage.cleared ? `${stage.kps.toFixed(2)} 只/秒` : `${stage.kills}/${stage.killTarget}`
         "

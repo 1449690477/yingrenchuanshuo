@@ -16,6 +16,8 @@ export const useStageStore = defineStore('stage', () => {
   const lootLog = computed(() => game.lootLog);
   const battleProgress = computed(() => game.battleProgress);
   const battlePulse = computed(() => game.battlePulse);
+  const playerBattleHp = computed(() => game.playerBattleHp);
+  const incomingBattlePulse = computed(() => game.incomingBattlePulse);
   const offlineResult = computed(() => game.offlineResult);
 
   return {
@@ -29,6 +31,8 @@ export const useStageStore = defineStore('stage', () => {
     lootLog,
     battleProgress,
     battlePulse,
+    playerBattleHp,
+    incomingBattlePulse,
     offlineResult,
     select: game.selectStage,
     advance: game.advanceStage,
