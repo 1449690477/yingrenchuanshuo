@@ -14,6 +14,7 @@ import { ALL_CHAPTERS, regionOfChapter, type ChapterSpec } from './regions';
 import { equipIdsOf } from './equipment';
 import { lootTableIdFor } from './monsters';
 import { boutiqueBossDropIds } from './shop';
+import { requireEnhanceProgression } from './enhanceProgression';
 
 /** 各怪物类型能掉的装备品质及权重 */
 /**
@@ -45,6 +46,8 @@ function buildTable(spec: ChapterSpec, type: MonsterType): LootTable {
   const region = regionOfChapter(spec.id);
   const id = lootTableIdFor(spec.id, type);
   const entries: LootTable['entries'] = [];
+  const enhanceLoot = requireEnhanceProgression(spec.id).loot[type];
+  const guaranteed: LootTable['entries'] = enhanceLoot.guaranteed.map((drop) => ({ ...drop }));
 
   // ── 材料 ──
   for (const matId of spec.materials) {
@@ -56,39 +59,8 @@ function buildTable(spec: ChapterSpec, type: MonsterType): LootTable {
     });
   }
 
-  // 强化石全程通用，保证玩家永远有东西可强化
-  entries.push({
-    itemId: 'stone_enhance',
-    weight: MATERIAL_WEIGHT[type] * 0.8,
-    minCount: 1,
-    maxCount: type === 'boss' ? 8 : type === 'elite' ? 4 : 2,
-  });
-
-  // +10 以上材料必须有真实可重复来源，不能让强化台在 +9 后变成死功能。
-  if (type === 'elite' && spec.levelFrom >= 7) {
-    entries.push({
-      itemId: 'ore_black',
-      weight: 8,
-      minCount: 1,
-      maxCount: 2,
-    });
-  }
-  if (type === 'boss' && spec.boss) {
-    entries.push(
-      {
-        itemId: 'lucky_nine',
-        weight: 6,
-        minCount: 1,
-        maxCount: 1,
-      },
-      {
-        itemId: 'charm_protect',
-        weight: 2,
-        minCount: 1,
-        maxCount: 1,
-      },
-    );
-  }
+  // 强化材料按章节成长配置注入，避免关卡等级、成本与产出各写一套规则。
+  entries.push(...enhanceLoot.entries.map((drop) => ({ ...drop })));
 
   // ── 装备 ──
   if (region) {
@@ -118,15 +90,6 @@ function buildTable(spec: ChapterSpec, type: MonsterType): LootTable {
         maxCount: 1,
       });
     }
-  }
-
-  // ── BOSS 额外：洗练石 ──
-  const guaranteed: LootTable['entries'] = [];
-  if (type === 'boss' && spec.boss) {
-    guaranteed.push(
-      { itemId: 'stone_reforge', weight: 0, minCount: 1, maxCount: 3 },
-      { itemId: 'ore_black', weight: 0, minCount: 3, maxCount: 6 },
-    );
   }
 
   return { id, rolls: ROLLS[type], entries, ...(guaranteed.length > 0 ? { guaranteed } : {}) };

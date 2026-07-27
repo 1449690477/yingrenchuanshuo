@@ -66,6 +66,29 @@ describe('game store persistence', () => {
     expect(game.save?.encounters.pending.length).toBeGreaterThan(0);
     await game.persist();
   });
+
+  it('离线结算按真实波次触发精英玄铁掉落，并在欢迎回来弹窗中展示', async () => {
+    const game = useGameStore();
+    const eliteStageId = 'stage_2-4_3';
+    const save = createSave('精英玄铁测试', 'swordsman', 13, Date.now() - 120_000);
+    save.player.level = 120;
+    save.progress.currentStageId = eliteStageId;
+    const weapon = createInstance(requireEquipment('eq_r1_weapon_common'), new Rng(14), 'elite-e1');
+    weapon.affixes = [{ key: 'atk', value: 1_000_000 }];
+    save.equipped.weapon = weapon;
+    save.nextUid = 2;
+
+    game.loadFrom(save);
+
+    const oreInBag = game.save?.bag.items[ENHANCE_MATERIAL_IDS.ore] ?? 0;
+    const oreInOfflineModal =
+      game.offlineResult?.yield.loot.find(
+        (drop) => drop.itemId === ENHANCE_MATERIAL_IDS.ore,
+      )?.count ?? 0;
+    expect(oreInBag).toBeGreaterThan(0);
+    expect(oreInOfflineModal).toBe(oreInBag);
+    await game.persist();
+  });
 });
 
 describe('encounter transaction', () => {
@@ -332,6 +355,117 @@ function seedForRoll(predicate: (roll: number) => boolean): number {
 }
 
 describe('enhancement transaction', () => {
+  it('一键单件会连续强化到目标，并把钱包、装备和 RNG 一次提交', async () => {
+    const instance = enhancedInstance(0);
+    const save = forgeSave(instance, 90);
+    save.bag.equipment = [];
+    save.equipped.weapon = instance;
+    const beforeGold = save.player.gold;
+    const beforeStone = save.bag.items[ENHANCE_MATERIAL_IDS.stone]!;
+    const game = useGameStore();
+    game.loadFrom(save);
+
+    const result = game.autoEnhanceEquipment(instance.uid, 5);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.stopReason).toBe('target-reached');
+    expect(result.attempts).toHaveLength(5);
+    expect(result.instances[0]?.enhance).toBe(5);
+    expect(game.save?.equipped.weapon?.enhance).toBe(5);
+    expect(game.save?.player.gold).toBe(
+      beforeGold - result.attempts.reduce((sum, attempt) => sum + attempt.cost.gold, 0),
+    );
+    expect(game.save?.bag.items[ENHANCE_MATERIAL_IDS.stone]).toBe(
+      beforeStone - result.attempts.reduce((sum, attempt) => sum + attempt.cost.stone, 0),
+    );
+    expect(result.cpDelta).toBeGreaterThan(0);
+    await game.persist();
+  });
+
+  it('一键全身按固定槽位逐轮均衡强化，不让第一件先吃光材料', async () => {
+    const weapon = enhancedInstance(0, { uid: 'weapon' });
+    const head = enhancedInstance(0, { uid: 'head', defId: 'eq_r1_head_common' });
+    const save = forgeSave(weapon, 92);
+    save.bag.equipment = [];
+    save.equipped.weapon = weapon;
+    save.equipped.head = head;
+    const game = useGameStore();
+    game.loadFrom(save);
+
+    const result = game.autoEnhanceAllEquipped(5);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.stopReason).toBe('target-reached');
+    expect(result.attempts.map((attempt) => attempt.uid)).toEqual([
+      'weapon',
+      'head',
+      'weapon',
+      'head',
+      'weapon',
+      'head',
+      'weapon',
+      'head',
+      'weapon',
+      'head',
+    ]);
+    expect(game.save?.equipped.weapon?.enhance).toBe(5);
+    expect(game.save?.equipped.head?.enhance).toBe(5);
+    expect(result.cpDelta).toBeGreaterThan(0);
+    await game.persist();
+  });
+
+  it('一键强化资源不足时不推进 RNG，也不触碰任何存档字段', async () => {
+    const instance = enhancedInstance(12);
+    const save = forgeSave(instance, 93);
+    save.bag.equipment = [];
+    save.equipped.weapon = instance;
+    delete save.bag.items[ENHANCE_MATERIAL_IDS.protection];
+    const game = useGameStore();
+    game.loadFrom(save);
+    const before = JSON.parse(JSON.stringify(game.save));
+
+    const result = game.autoEnhanceEquipment(instance.uid, 13);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.stopReason).toBe('blocked');
+    expect(result.attempts).toHaveLength(0);
+    expect(result.blocked[0]?.reason).toBe('insufficient-protection');
+    expect(game.save).toEqual(before);
+    await game.persist();
+  });
+
+  it('没有穿戴装备时，一键全身会明确拒绝且不改存档', async () => {
+    const game = useGameStore();
+    const save = createSave('空装备强化测试', 'witch', 94, Date.now());
+    game.loadFrom(save);
+    const before = JSON.parse(JSON.stringify(game.save));
+
+    expect(game.autoEnhanceAllEquipped()).toEqual({ ok: false, reason: 'no-equipped' });
+    expect(game.save).toEqual(before);
+    await game.persist();
+  });
+
+  it('非法一键目标会在进入纯逻辑前拒绝，不改装备或 RNG', async () => {
+    const instance = enhancedInstance(0);
+    const game = useGameStore();
+    game.loadFrom(forgeSave(instance, 95));
+    const before = JSON.parse(JSON.stringify(game.save));
+
+    expect(game.autoEnhanceEquipment(instance.uid, 0)).toEqual({
+      ok: false,
+      reason: 'invalid-target',
+    });
+    expect(game.autoEnhanceAllEquipped(ENHANCE_MAX + 1)).toEqual({
+      ok: false,
+      reason: 'invalid-target',
+    });
+    expect(game.save).toEqual(before);
+    await game.persist();
+  });
+
   it('满幸运成功只推进一格主 RNG，并固定首次成功的随机增幅', async () => {
     const seed = 91;
     const instance = enhancedInstance(5, { enhanceLuck: { '6': 100 } });

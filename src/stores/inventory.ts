@@ -2,7 +2,12 @@
 import { computed } from 'vue';
 import { defineStore } from 'pinia';
 import type { EquipSlot, EquipmentInstance } from '@/core/types';
-import { useGameStore, type EnhanceEquipmentResult, type EnhanceQuote } from './game';
+import {
+  useGameStore,
+  type EnhanceBatchActionResult,
+  type EnhanceEquipmentResult,
+  type EnhanceQuote,
+} from './game';
 
 export const useInventoryStore = defineStore('inventory', () => {
   const game = useGameStore();
@@ -51,6 +56,14 @@ export const useInventoryStore = defineStore('inventory', () => {
     return game.enhanceEquipment(uid, useProtection);
   }
 
+  function autoEnhance(uid: string, targetLevel?: number): EnhanceBatchActionResult {
+    return game.autoEnhanceEquipment(uid, targetLevel);
+  }
+
+  function autoEnhanceAll(targetLevel?: number): EnhanceBatchActionResult {
+    return game.autoEnhanceAllEquipped(targetLevel);
+  }
+
   return {
     bag,
     equipped,
@@ -65,5 +78,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     contributionCp,
     quoteEnhance,
     enhance,
+    autoEnhance,
+    autoEnhanceAll,
   };
 });

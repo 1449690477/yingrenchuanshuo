@@ -2,6 +2,7 @@ import { existsSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
+import { countStageMonsterKills } from '../../core/stageLoot';
 import { CLASS_VISUALS } from '../classVisuals';
 import {
   BASIC_ATTACK_EFFECTS,
@@ -25,7 +26,12 @@ import { FIRST_STAGE_ID, ORDERED_STAGE_IDS, STAGES } from '../stages';
 import { SYSTEM_VISUALS } from '../systemVisuals';
 import { BOUTIQUE_THEME_LIST } from '../boutique';
 import { SHOP_OFFERS } from '../shop';
-import { QUALITY_AFFIX_COUNT } from '../constants';
+import { ENHANCE_MATERIAL_IDS, QUALITY_AFFIX_COUNT } from '../constants';
+import {
+  ENHANCE_PROGRESSION,
+  ENHANCE_PROGRESSION_MATERIAL_IDS,
+  requireEnhanceProgression,
+} from '../enhanceProgression';
 
 describe('区域 1–2 内容完整性', () => {
   it('已登记的职业立绘文件都真实存在', () => {
@@ -260,14 +266,125 @@ describe('区域 1–2 内容完整性', () => {
     }
   });
 
-  it('高阶强化材料同时具备首通赠予和真实可重复掉落来源', () => {
-    const highTierMaterials = ['ore_black', 'lucky_nine', 'charm_protect'];
-    const bossTableIds = new Set(
-      Object.values(MONSTERS)
-        .filter((monster) => monster.type === 'boss')
-        .map((monster) => monster.lootTableId),
+  it('强化成长配置完整覆盖十章，推荐目标与首通强化石逐章递进', () => {
+    expect(Object.keys(ENHANCE_PROGRESSION).sort()).toEqual(
+      ALL_CHAPTERS.map((chapter) => chapter.id).sort(),
     );
 
+    let previousAll = -1;
+    let previousMain = -1;
+    for (const chapter of ALL_CHAPTERS) {
+      const progression = requireEnhanceProgression(chapter.id);
+      expect(progression.chapterId).toBe(chapter.id);
+      expect(progression.recommendedAllEnhance).toBeGreaterThanOrEqual(previousAll);
+      expect(progression.recommendedMainEnhance).toBeGreaterThanOrEqual(previousMain);
+      expect(progression.recommendedMainEnhance).toBeGreaterThanOrEqual(
+        progression.recommendedAllEnhance,
+      );
+      expect(progression.recommendedMainEnhance).toBeLessThanOrEqual(15);
+
+      const stones = progression.firstClear.stoneByStage;
+      expect(stones).toHaveLength(6);
+      stones.forEach((count, index) => {
+        expect(count, `${chapter.id} 第 ${index + 1} 关首通强化石`).toBeGreaterThan(0);
+        if (index > 0) {
+          expect(count, `${chapter.id} 首通强化石阶梯`).toBeGreaterThanOrEqual(stones[index - 1]!);
+        }
+      });
+
+      const normalStone = progression.loot.normal.entries.find(
+        (entry) => entry.itemId === ENHANCE_MATERIAL_IDS.stone,
+      );
+      expect(normalStone, `${chapter.id} 普通怪缺少强化石来源`).toBeDefined();
+
+      previousAll = progression.recommendedAllEnhance;
+      previousMain = progression.recommendedMainEnhance;
+    }
+  });
+
+  it('强化材料配置只使用合法物品，概率项与必掉项边界明确', () => {
+    const allowedIds = new Set<string>([...ENHANCE_PROGRESSION_MATERIAL_IDS, 'stone_reforge']);
+    const highTierIds = new Set<string>([
+      ENHANCE_MATERIAL_IDS.ore,
+      ENHANCE_MATERIAL_IDS.lucky,
+      ENHANCE_MATERIAL_IDS.protection,
+    ]);
+
+    for (const progression of Object.values(ENHANCE_PROGRESSION)) {
+      for (const [type, source] of Object.entries(progression.loot)) {
+        for (const entry of source.entries) {
+          expect(allowedIds.has(entry.itemId), `${progression.chapterId}/${type}`).toBe(true);
+          expect(entry.weight).toBeGreaterThan(0);
+          if (type === 'normal') {
+            // 离线 normal 基础表走 expectedLoot，不推进 pity；在这里配保底会制造假承诺。
+            expect(
+              entry.pityCount,
+              `${progression.chapterId}/normal/${entry.itemId} 的离线保底不会推进`,
+            ).toBeUndefined();
+            expect(
+              highTierIds.has(entry.itemId),
+              `${progression.chapterId}/normal/${entry.itemId} 应放入真实掷骰的特殊表`,
+            ).toBe(false);
+          } else if (highTierIds.has(entry.itemId)) {
+            expect(
+              entry.pityCount,
+              `${progression.chapterId}/${type}/${entry.itemId} 缺保底`,
+            ).toBeTypeOf('number');
+            expect(entry.pityCount).toBeGreaterThan(0);
+          }
+        }
+        for (const entry of source.guaranteed) {
+          expect(allowedIds.has(entry.itemId), `${progression.chapterId}/${type}`).toBe(true);
+          expect(entry.weight).toBe(0);
+          expect(entry.pityCount).toBeUndefined();
+        }
+      }
+
+      for (const reward of progression.firstClear.finalBonus) {
+        expect(allowedIds.has(reward.itemId), `${progression.chapterId} 最终关首通`).toBe(true);
+        expect(reward.count).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it('两区首个 BOSS 的高阶强化材料首通数量达到承诺', () => {
+    const rewardCount = (stageId: string, itemId: string) =>
+      STAGES[stageId]!.firstClearRewards.find((reward) => reward.itemId === itemId)?.count ?? 0;
+
+    expect(rewardCount('stage_1-5_6', ENHANCE_MATERIAL_IDS.ore)).toBeGreaterThanOrEqual(10);
+    expect(rewardCount('stage_1-5_6', ENHANCE_MATERIAL_IDS.lucky)).toBeGreaterThanOrEqual(1);
+    expect(rewardCount('stage_1-5_6', ENHANCE_MATERIAL_IDS.protection)).toBeGreaterThanOrEqual(1);
+
+    expect(rewardCount('stage_2-5_6', ENHANCE_MATERIAL_IDS.ore)).toBeGreaterThanOrEqual(30);
+    expect(rewardCount('stage_2-5_6', ENHANCE_MATERIAL_IDS.lucky)).toBeGreaterThanOrEqual(2);
+    expect(rewardCount('stage_2-5_6', ENHANCE_MATERIAL_IDS.protection)).toBeGreaterThanOrEqual(2);
+  });
+
+  it('精英与 BOSS 特殊掉落表都能由真实关卡循环触达', () => {
+    const reachableTableIds = new Set<string>();
+    const reachableMonsterIds = new Set<string>();
+
+    for (const stage of Object.values(STAGES)) {
+      const cycleKills = stage.waves.reduce(
+        (sum, wave) => sum + wave.monsters.reduce((waveSum, monster) => waveSum + monster.count, 0),
+        0,
+      );
+      const distribution = countStageMonsterKills(stage, 0, cycleKills);
+      for (const monsterId of Object.keys(distribution.counts)) {
+        reachableMonsterIds.add(monsterId);
+        reachableTableIds.add(MONSTERS[monsterId]!.lootTableId);
+      }
+    }
+
+    for (const monster of Object.values(MONSTERS)) {
+      expect(reachableMonsterIds.has(monster.id), `${monster.id} 未进入任何关卡循环`).toBe(true);
+    }
+
+    const highTierMaterials = [
+      ENHANCE_MATERIAL_IDS.ore,
+      ENHANCE_MATERIAL_IDS.lucky,
+      ENHANCE_MATERIAL_IDS.protection,
+    ];
     for (const itemId of highTierMaterials) {
       expect(
         Object.values(STAGES).some((stage) =>
@@ -275,16 +392,14 @@ describe('区域 1–2 内容完整性', () => {
         ),
         `${itemId} 缺少首通来源`,
       ).toBe(true);
-      expect(
-        [...bossTableIds].some((tableId) => {
-          const table = LOOT_TABLES[tableId]!;
-          return [...table.entries, ...(table.guaranteed ?? [])].some(
-            (entry) => entry.itemId === itemId,
-          );
-        }),
-        `${itemId} 缺少可重复 BOSS 来源`,
-      ).toBe(true);
-      expect(existsSync(resolve('public', ITEMS[itemId]!.icon)), `${itemId} 图标`).toBe(true);
+
+      const repeatableTables = Object.values(LOOT_TABLES).filter((table) =>
+        [...table.entries, ...(table.guaranteed ?? [])].some((entry) => entry.itemId === itemId),
+      );
+      expect(repeatableTables.length, `${itemId} 缺少可重复来源`).toBeGreaterThan(0);
+      for (const table of repeatableTables) {
+        expect(reachableTableIds.has(table.id), `${table.id} 配置存在但关卡不可达`).toBe(true);
+      }
     }
   });
 
@@ -470,6 +585,39 @@ describe('区域 1–2 内容完整性', () => {
     for (const [id, item] of Object.entries(ITEMS)) {
       expect(item.icon).toBe(`assets/items/${id}.png`);
       expect(existsSync(resolve('public', item.icon)), `${id} → ${item.icon}`).toBe(true);
+    }
+  });
+
+  it('四种强化材料图标均为 256 RGBA 且四角透明', async () => {
+    for (const itemId of ENHANCE_PROGRESSION_MATERIAL_IDS) {
+      const item = ITEMS[itemId]!;
+      const assetPath = resolve('public', item.icon);
+      const metadata = await sharp(assetPath).metadata();
+      expect(
+        {
+          format: metadata.format,
+          width: metadata.width,
+          height: metadata.height,
+          channels: metadata.channels,
+          hasAlpha: metadata.hasAlpha,
+        },
+        itemId,
+      ).toEqual({
+        format: 'png',
+        width: 256,
+        height: 256,
+        channels: 4,
+        hasAlpha: true,
+      });
+
+      const { data, info } = await sharp(assetPath).raw().toBuffer({ resolveWithObject: true });
+      const cornerAlpha = [
+        data[3],
+        data[(info.width - 1) * info.channels + 3],
+        data[(info.height - 1) * info.width * info.channels + 3],
+        data[(info.height * info.width - 1) * info.channels + 3],
+      ];
+      expect(cornerAlpha, `${itemId} 四角透明`).toEqual([0, 0, 0, 0]);
     }
   });
 

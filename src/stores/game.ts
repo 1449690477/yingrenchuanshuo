@@ -30,6 +30,14 @@ import {
   type EnhanceRule,
 } from '@/core/enhance';
 import {
+  enhanceBatch,
+  enhanceGainSalt,
+  type EnhanceBatchAttemptEvent,
+  type EnhanceBatchBlockedEvent,
+  type EnhanceBatchStopReason,
+  type EnhanceBatchStrategy,
+} from '@/core/enhanceBatch';
+import {
   applyClassMods,
   averageSkillMultiplier,
   baseStatsFor,
@@ -59,6 +67,7 @@ import {
 import { rollLoot } from '@/core/loot';
 import { assessShopOffer, type ShopBlockReason } from '@/core/shop';
 import { advanceStageKillProgress } from '@/core/stageProgress';
+import { countStageMonsterKills, mergeLootResults } from '@/core/stageLoot';
 import { advanceBattleVisualCursor, battleMonsterIdAt } from '@/core/battleVisual';
 import { accumulateIdle, killsPerSecond, recoverStamina, settleOffline } from '@/core/idle';
 import { trimBag } from '@/core/bag';
@@ -146,6 +155,20 @@ export type EnhanceEquipmentResult =
       gainRoll: PermilleRoll<EnhanceGainGrade> | null;
       cpDelta: number;
     };
+
+export type EnhanceBatchActionResult =
+  | { ok: false; reason: 'not-found' | 'no-equipped' | 'invalid-target' }
+  | {
+      ok: true;
+      strategy: EnhanceBatchStrategy;
+      targetLevel: number;
+      attempts: EnhanceBatchAttemptEvent[];
+      blocked: EnhanceBatchBlockedEvent[];
+      stopReason: EnhanceBatchStopReason;
+      instances: EquipmentInstance[];
+      cpDelta: number;
+    };
+
 export type EncounterResolveResult =
   | { ok: true; outcome: string; rewards: ResourceBundle }
   | { ok: false; reason: 'not-found' | 'insufficient-resource' };
@@ -155,12 +178,16 @@ const LOOT_LOG_MAX = 40;
 const BATTLE_PULSE_SECONDS = 0.72;
 /** 高速挂机只采样部分击杀演出，给下一只怪留出可见的掉血阶段。 */
 const BATTLE_PULSE_COOLDOWN_SECONDS = 0.9;
-/** 强化属性子随机流的模块盐；不会额外推进主 RNG。 */
-const ENHANCE_GAIN_DERIVE_SALT = 0x73616b75;
 
 type OwnedEquipmentLocation =
   | { kind: 'bag'; index: number; instance: EquipmentInstance }
   | { kind: 'equipped'; slot: EquipSlot; instance: EquipmentInstance };
+
+interface StageKillSettlement {
+  firstClearedStageId: string | null;
+  /** 精英/BOSS 专属表与首通奖励；用于离线弹窗完整展示。 */
+  bonusLoot: LootResult[];
+}
 
 export const useGameStore = defineStore('game', () => {
   // ─────────── 状态 ───────────
@@ -355,10 +382,21 @@ export const useGameStore = defineStore('game', () => {
       const r = settleOffline(ctx, save.value.lastActiveAt, now);
       advanceEncounters(r.seconds);
       if (r.yield.kills > 0) {
+        const lootCursor =
+          currentCleared.value && !currentStage.value.bossId
+            ? battleVisualCursor.value
+            : currentStageKills.value;
         applyYield(r.yield);
         save.value.stats.totalKills += r.yield.kills;
-        firstClearedStageId = applyStageKills(r.yield.kills, false);
-        offlineResult.value = r;
+        const stageSettlement = applyStageKills(r.yield.kills, lootCursor, false);
+        firstClearedStageId = stageSettlement.firstClearedStageId;
+        offlineResult.value = {
+          ...r,
+          yield: {
+            ...r.yield,
+            loot: mergeLootResults(r.yield.loot, stageSettlement.bonusLoot),
+          },
+        };
       }
     }
     save.value.lastActiveAt = now;
@@ -469,7 +507,7 @@ export const useGameStore = defineStore('game', () => {
         }
         applyYield(y, true);
         save.value.stats.totalKills += y.kills;
-        firstClearedStageId = applyStageKills(y.kills, true);
+        firstClearedStageId = applyStageKills(y.kills, visualCursor, true).firstClearedStageId;
         battleVisualCursor.value = visualAdvance.nextCursor;
       }
     } else {
@@ -627,15 +665,16 @@ export const useGameStore = defineStore('game', () => {
   /**
    * 推进首通或已通关 BOSS 循环。
    *
-   * 普通击杀始终使用关卡的 normal 掉落表；只有完整跑完含 BOSS 的波次，
-   * 才单独掷一次 BOSS 表，避免最终关卡的每只小怪都冒充 BOSS。
+   * 每次击杀先由挂机逻辑结算本章 normal 基础表；这里再按真实波次游标，
+   * 只为精英和 BOSS 追加各自专属表，避免“配置了精英掉落但永远不执行”。
    *
    * 返回刚首通的关卡 ID，由调用方在旧关全部结算完成后统一切关。
    * 这里不能直接 selectStage，否则在线 tick 后续的旧关演出状态会污染新关。
    */
-  function applyStageKills(kills: number, log: boolean): string | null {
-    if (!save.value) return null;
+  function applyStageKills(kills: number, startCursor: number, log: boolean): StageKillSettlement {
+    if (!save.value) return { firstClearedStageId: null, bonusLoot: [] };
     const stage = currentStage.value;
+    const distribution = countStageMonsterKills(stage, startCursor, kills);
     const need = stage.waves.reduce(
       (sum, w) => sum + w.monsters.reduce((n, m) => n + m.count, 0),
       0,
@@ -649,24 +688,44 @@ export const useGameStore = defineStore('game', () => {
       !!stage.bossId,
     );
     save.value.progress.stageKills[stage.id] = result.progress;
+    const bonusLoot: LootResult[] = [];
+    const grantBonus = (drop: LootResult) => {
+      addLoot(drop, log);
+      bonusLoot.push({ ...drop });
+    };
 
     if (result.clearedNow) {
       save.value.progress.clearedStageIds.push(stage.id);
-      for (const reward of stage.firstClearRewards) addLoot(reward, log);
+      for (const reward of stage.firstClearRewards) grantBonus(reward);
     }
 
-    if (stage.bossId && result.bossKills > 0) {
+    const actualBossKills = stage.bossId ? (distribution.counts[stage.bossId] ?? 0) : 0;
+    if (actualBossKills !== result.bossKills) {
+      throw new Error(
+        `[关卡掉落错误] ${stage.id} 的 BOSS 击杀与进度不一致：${actualBossKills}/${result.bossKills}`,
+      );
+    }
+    if (stage.bossId && actualBossKills > 0) {
       save.value.stats.bossKills[stage.bossId] =
-        (save.value.stats.bossKills[stage.bossId] ?? 0) + result.bossKills;
-      const bossTable = requireLootTable(requireMonster(stage.bossId).lootTableId);
-      for (let i = 0; i < result.bossKills; i++) {
-        for (const drop of rollLoot(bossTable, rng, save.value.progress.pity)) {
-          addLoot(drop, log);
+        (save.value.stats.bossKills[stage.bossId] ?? 0) + actualBossKills;
+    }
+
+    for (const [monsterId, count] of Object.entries(distribution.counts)) {
+      const monster = requireMonster(monsterId);
+      if (monster.type === 'normal') continue;
+      const specialTable = requireLootTable(monster.lootTableId);
+      for (let index = 0; index < count; index++) {
+        for (const drop of rollLoot(specialTable, rng, save.value.progress.pity)) {
+          grantBonus(drop);
         }
       }
     }
 
-    return result.clearedNow ? stage.id : null;
+    enforceBagCapacity();
+    return {
+      firstClearedStageId: result.clearedNow ? stage.id : null,
+      bonusLoot: mergeLootResults(bonusLoot),
+    };
   }
 
   // ─────────── 关卡 ───────────
@@ -1000,6 +1059,124 @@ export const useGameStore = defineStore('game', () => {
   }
 
   /**
+   * 一键强化单件装备。
+   *
+   * 批量计划先在纯逻辑层使用克隆资产完整算完；只有发生过至少一次尝试时，
+   * 才把装备、钱包和 RNG 一次性写回并持久化。冲击 +13～15 时会自动使用
+   * 保护符，缺少保护符就停下，绝不会由“一键”操作碎掉装备。
+   */
+  function autoEnhanceEquipment(
+    uid: string,
+    targetLevel = ENHANCE_MAX,
+    maxAttempts?: number,
+  ): EnhanceBatchActionResult {
+    if (!save.value) return { ok: false, reason: 'not-found' };
+    if (!Number.isInteger(targetLevel) || targetLevel < 1 || targetLevel > ENHANCE_MAX) {
+      return { ok: false, reason: 'invalid-target' };
+    }
+    const located = findOwnedEquipment(uid);
+    if (!located) return { ok: false, reason: 'not-found' };
+
+    const definition = requireEquipment(located.instance.defId);
+    const batch = enhanceBatch({
+      rngState: rng.getState(),
+      wallet: {
+        gold: save.value.player.gold,
+        items: save.value.bag.items,
+      },
+      candidates: [{ instance: located.instance, equipmentLevel: definition.level, order: 0 }],
+      targetLevel,
+      strategy: 'single',
+      ...(maxAttempts === undefined ? {} : { maxAttempts }),
+    });
+
+    const beforeCp = cp.value;
+    if (batch.attempts.length > 0) {
+      const nextInstance = batch.instances[0]!;
+      rng.setState(batch.nextRngState);
+      save.value.player.gold = batch.wallet.gold;
+      save.value.bag.items = batch.wallet.items;
+      if (located.kind === 'bag') save.value.bag.equipment[located.index] = nextInstance;
+      else save.value.equipped[located.slot] = nextInstance;
+      noteCpDelta(beforeCp);
+      void persist();
+    }
+
+    return {
+      ok: true,
+      strategy: 'single',
+      targetLevel,
+      attempts: batch.attempts,
+      blocked: batch.blocked,
+      stopReason: batch.stopReason,
+      instances: batch.instances,
+      cpDelta: cp.value - beforeCp,
+    };
+  }
+
+  /**
+   * 一键均衡强化当前穿戴的全部装备。
+   *
+   * 顺序固定为 SLOT_ORDER，并按 +5 → +9 → +12 → +15 里程碑轮转；
+   * 因此不会让第一件装备先吃光所有材料。
+   */
+  function autoEnhanceAllEquipped(
+    targetLevel = ENHANCE_MAX,
+    maxAttempts?: number,
+  ): EnhanceBatchActionResult {
+    if (!save.value) return { ok: false, reason: 'not-found' };
+    if (!Number.isInteger(targetLevel) || targetLevel < 1 || targetLevel > ENHANCE_MAX) {
+      return { ok: false, reason: 'invalid-target' };
+    }
+
+    const slots = SLOT_ORDER.filter((slot) => save.value!.equipped[slot] !== null);
+    if (slots.length === 0) return { ok: false, reason: 'no-equipped' };
+    const candidates = slots.map((slot, order) => {
+      const instance = save.value!.equipped[slot]!;
+      return {
+        instance,
+        equipmentLevel: requireEquipment(instance.defId).level,
+        order,
+      };
+    });
+
+    const batch = enhanceBatch({
+      rngState: rng.getState(),
+      wallet: {
+        gold: save.value.player.gold,
+        items: save.value.bag.items,
+      },
+      candidates,
+      targetLevel,
+      strategy: 'balanced',
+      ...(maxAttempts === undefined ? {} : { maxAttempts }),
+    });
+
+    const beforeCp = cp.value;
+    if (batch.attempts.length > 0) {
+      rng.setState(batch.nextRngState);
+      save.value.player.gold = batch.wallet.gold;
+      save.value.bag.items = batch.wallet.items;
+      slots.forEach((slot, index) => {
+        save.value!.equipped[slot] = batch.instances[index]!;
+      });
+      noteCpDelta(beforeCp);
+      void persist();
+    }
+
+    return {
+      ok: true,
+      strategy: 'balanced',
+      targetLevel,
+      attempts: batch.attempts,
+      blocked: batch.blocked,
+      stopReason: batch.stopReason,
+      instances: batch.instances,
+      cpDelta: cp.value - beforeCp,
+    };
+  }
+
+  /**
    * 分解装备换金币。locked 的跳过。
    *
    * ⚠ 必须是 O(n)。早先的实现是「对每个 uid 做 findIndex + splice」，
@@ -1169,6 +1346,8 @@ export const useGameStore = defineStore('game', () => {
     equipmentContributionCp,
     quoteEnhance,
     enhanceEquipment,
+    autoEnhanceEquipment,
+    autoEnhanceAllEquipped,
     dismissOffline,
   };
 });
@@ -1187,14 +1366,6 @@ function debitMaterial(items: Record<string, number>, itemId: string, count: num
   const next = items[itemId]! - count;
   if (next === 0) delete items[itemId];
   else items[itemId] = next;
-}
-
-function enhanceGainSalt(uid: string, targetLevel: number): number {
-  let hash = ENHANCE_GAIN_DERIVE_SALT;
-  for (let index = 0; index < uid.length; index++) {
-    hash = Math.imul(hash ^ uid.charCodeAt(index), 0x01000193);
-  }
-  return (hash ^ targetLevel) >>> 0;
 }
 
 /** 新角色主种子来自系统加密随机源；之后所有游戏随机都由 seeded RNG 派生。 */

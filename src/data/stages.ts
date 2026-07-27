@@ -15,6 +15,7 @@ import { baseStatsFor, monsterHp } from '@/core/progression';
 import { ALL_CHAPTERS, STAGES_PER_CHAPTER, type ChapterSpec } from './regions';
 import { bossOfChapter, eliteOfChapter, lootTableIdFor, normalsOfChapter } from './monsters';
 import { DEFAULT_MAX_KILLS_PER_SEC } from './constants';
+import { enhanceFirstClearRewards } from './enhanceProgression';
 
 /** 关卡等级：在章节区间内按关卡序号递增 */
 function stageLevel(spec: ChapterSpec, idx: number): number {
@@ -82,20 +83,6 @@ function buildStages(): Record<string, Stage> {
       const level = stageLevel(spec, idx);
       const { waves, bossId } = buildWaves(spec, idx);
       const id = `stage_${spec.id}_${idx + 1}`;
-      const isFinal = idx === STAGES_PER_CHAPTER - 1;
-      const firstClearRewards: Stage['firstClearRewards'] = [
-        {
-          itemId: isFinal ? 'stone_reforge' : 'stone_enhance',
-          count: isFinal ? 2 : idx + 1,
-        },
-      ];
-      if (isFinal && bossId) {
-        firstClearRewards.push(
-          { itemId: 'ore_black', count: 10 },
-          { itemId: 'lucky_nine', count: 1 },
-          { itemId: 'charm_protect', count: 1 },
-        );
-      }
 
       out[id] = {
         id,
@@ -105,8 +92,8 @@ function buildStages(): Record<string, Stage> {
         waves,
         ...(bossId ? { bossId } : {}),
         recommendCP: estimateRecommendCP(level),
-        firstClearRewards,
-        // 持续挂机的每次普通击杀只掷普通表；BOSS 表由完整波次结束时单独结算。
+        firstClearRewards: enhanceFirstClearRewards(spec.id, idx),
+        // 挂机基础收益统一掷普通表；store 再按真实波次为精英/BOSS 追加专属表。
         lootTableId: lootTableIdFor(spec.id, 'normal'),
         maxKillsPerSec: DEFAULT_MAX_KILLS_PER_SEC,
         element: spec.element,

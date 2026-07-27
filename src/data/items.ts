@@ -53,9 +53,15 @@ export const ITEMS: Record<string, ItemDef> = {
   ...Object.fromEntries(
     [
       mat('stone_enhance', '强化石', 'common', 12, '强化装备的基础材料，到处都掉。'),
-      mat('ore_black', '玄铁矿', 'rare', 180, '+10 以上强化必需。硬得能崩牙。'),
-      mat('lucky_nine', '幸运九', 'epic', 1200, '+13 以上强化必需。据说带着它会走运。'),
-      mat('charm_protect', '保护符', 'epic', 900, '强化失败时防止装备碎裂。日常活动产出。'),
+      mat('ore_black', '玄铁矿', 'rare', 180, '+10 以上强化必需，由中后期精英与 BOSS 产出。'),
+      mat('lucky_nine', '幸运九', 'epic', 1200, '+13 以上强化必需，由最终关 BOSS 产出。'),
+      mat(
+        'charm_protect',
+        '保护符',
+        'epic',
+        900,
+        '冲击 +13 以上时防止装备碎裂，由最终关 BOSS 与首通奖励产出。',
+      ),
       mat('stone_reforge', '洗练石', 'fine', 60, '重掷装备的随机词条。'),
     ].map((i) => [i.id, i]),
   ),
