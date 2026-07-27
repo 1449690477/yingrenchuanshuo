@@ -1,12 +1,14 @@
 import 'fake-indexeddb/auto';
 import { createPinia, setActivePinia } from 'pinia';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { battleMonsterIdAt } from '@/core/battleVisual';
 import { createInstance } from '@/core/equipment';
 import type { EquipmentInstance } from '@/core/types';
 import { Rng } from '@/core/rng';
 import { ENHANCE_MAX, ENHANCE_MATERIAL_IDS } from '@/data/constants';
 import { requireEquipment } from '@/data/equipment';
 import { SHOP_OFFERS } from '@/data/shop';
+import { ORDERED_STAGE_IDS, STAGES, nextStageId, totalMonsterCount } from '@/data/stages';
 import { createSave } from '@/save/schema';
 import { clearSave, loadSave } from '@/save/storage';
 import { useGameStore } from '../game';
@@ -20,6 +22,8 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
   await clearSave();
 });
 
@@ -46,12 +50,119 @@ describe('game store persistence', () => {
   it('离线击杀会推进通关、累计统计并发放首通奖励', async () => {
     const game = useGameStore();
     const save = createSave('离线测试', 'swordsman', 11, Date.now() - 120_000);
+    const clearedStageId = save.progress.currentStageId;
+    const expectedNextStageId = nextStageId(clearedStageId);
     game.loadFrom(save);
 
     expect(game.save?.stats.totalKills).toBeGreaterThan(0);
-    expect(game.save?.progress.clearedStageIds).toContain(game.currentStage.id);
-    expect(game.save?.progress.stageKills[game.currentStage.id]).toBeGreaterThan(0);
+    expect(game.save?.progress.clearedStageIds).toContain(clearedStageId);
+    expect(game.save?.progress.stageKills[clearedStageId]).toBe(
+      totalMonsterCount(STAGES[clearedStageId]!),
+    );
+    expect(game.currentStage.id).toBe(expectedNextStageId);
+    expect(game.save?.progress.stageKills[game.currentStage.id]).toBeUndefined();
     expect(game.save?.bag.items.stone_enhance).toBeGreaterThan(0);
+    await game.persist();
+  });
+
+  it('在线首通会在旧关结算结束后进入下一关，并保留新关的初始演出状态', async () => {
+    const game = useGameStore();
+    const createdAt = Date.now() + 60_000;
+    const save = createSave('在线切关测试', 'swordsman', 17, createdAt);
+    const clearedStageId = save.progress.currentStageId;
+    const clearedStage = STAGES[clearedStageId]!;
+    const expectedNextStageId = nextStageId(clearedStageId)!;
+    const target = totalMonsterCount(clearedStage);
+    save.progress.stageKills[clearedStageId] = target - 1;
+    game.loadFrom(save);
+    expect(game.canIdle).toBe(true);
+
+    const frames: FrameRequestCallback[] = [];
+    let rafSequence = 0;
+    vi.stubGlobal(
+      'requestAnimationFrame',
+      vi.fn((callback: FrameRequestCallback) => {
+        frames.push(callback);
+        return ++rafSequence;
+      }),
+    );
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+    let clock = 1_000;
+    vi.spyOn(performance, 'now').mockImplementation(() => clock);
+
+    const settledKills = 3;
+    const dt = (settledKills + 0.25) / game.kps;
+    game.startLoop();
+    const firstFrame = frames[0];
+    expect(firstFrame).toBeDefined();
+    if (!firstFrame) throw new Error('实时挂机循环没有登记首帧回调');
+    clock += dt * 1_000;
+    firstFrame(clock);
+    game.stopLoop();
+
+    expect(game.save?.progress.stageKills[clearedStageId]).toBe(target);
+    expect(game.save?.progress.clearedStageIds).toContain(clearedStageId);
+    expect(game.currentStage.id).toBe(expectedNextStageId);
+    expect(game.currentStageKills).toBe(0);
+    expect(game.battleProgress).toBe(0);
+    expect(game.battlePulse).toBeNull();
+    expect(game.battleTargetId).toBe(battleMonsterIdAt(STAGES[expectedNextStageId]!, 0));
+    expect(game.save?.bag.items.stone_enhance).toBeGreaterThan(0);
+    await game.persist();
+  });
+
+  it('手动回刷已通关旧关时，离线结算后仍停留在该关', async () => {
+    const game = useGameStore();
+    const stageId = ORDERED_STAGE_IDS[0]!;
+    const save = createSave('旧关回刷测试', 'swordsman', 19, Date.now() - 120_000);
+    save.progress.currentStageId = stageId;
+    save.progress.clearedStageIds.push(stageId);
+    save.progress.stageKills[stageId] = totalMonsterCount(STAGES[stageId]!);
+    game.loadFrom(save);
+
+    expect(game.save?.stats.totalKills).toBeGreaterThan(0);
+    expect(game.currentStage.id).toBe(stageId);
+    expect(game.save?.progress.stageKills[stageId]).toBe(totalMonsterCount(STAGES[stageId]!));
+    await game.persist();
+  });
+
+  it('含 BOSS 关首通会先完整发放首通与 BOSS 掉落，再自动进入下一关', async () => {
+    const game = useGameStore();
+    const bossStageId = ORDERED_STAGE_IDS.find(
+      (stageId) => STAGES[stageId]?.bossId && nextStageId(stageId),
+    )!;
+    const bossStage = STAGES[bossStageId]!;
+    const save = createSave('BOSS 切关测试', 'swordsman', 23, Date.now() - 120_000);
+    save.player.level = 120;
+    save.progress.currentStageId = bossStageId;
+    game.loadFrom(save);
+
+    expect(game.save?.progress.clearedStageIds).toContain(bossStageId);
+    expect(game.currentStage.id).toBe(nextStageId(bossStageId));
+    expect(game.save?.stats.bossKills[bossStage.bossId!]).toBeGreaterThan(0);
+    expect(game.save?.bag.items.stone_reforge).toBeGreaterThan(2);
+    expect(game.save?.bag.items.ore_black).toBeGreaterThan(10);
+    await game.persist();
+  });
+
+  it('最后一关首次通关会保留奖励与 BOSS 掉落，并停留在最后一关', async () => {
+    const game = useGameStore();
+    const lastStageId = ORDERED_STAGE_IDS.at(-1)!;
+    const lastStage = STAGES[lastStageId]!;
+    const save = createSave('末关测试', 'swordsman', 29, Date.now() - 120_000);
+    save.player.level = 120;
+    const weapon = createInstance(requireEquipment('eq_r1_weapon_common'), new Rng(31), 'e-final');
+    weapon.affixes = [{ key: 'atk', value: 1_000_000 }];
+    save.equipped.weapon = weapon;
+    save.nextUid = 2;
+    save.progress.currentStageId = lastStageId;
+    game.loadFrom(save);
+
+    expect(game.save?.progress.clearedStageIds).toContain(lastStageId);
+    expect(game.currentStage.id).toBe(lastStageId);
+    expect(game.save?.stats.bossKills[lastStage.bossId!]).toBeGreaterThan(0);
+    expect(game.save?.bag.items.stone_reforge).toBeGreaterThan(2);
+    expect(game.save?.bag.items.ore_black).toBeGreaterThan(10);
     await game.persist();
   });
 });

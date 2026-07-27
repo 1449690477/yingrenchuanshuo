@@ -330,6 +330,7 @@ export const useGameStore = defineStore('game', () => {
     if (!save.value) return;
 
     const now = Date.now();
+    let firstClearedStageId: string | null = null;
     if (canIdle.value) {
       const ctx = buildIdleContext();
       if (!ctx) return;
@@ -337,7 +338,7 @@ export const useGameStore = defineStore('game', () => {
       if (r.yield.kills > 0) {
         applyYield(r.yield);
         save.value.stats.totalKills += r.yield.kills;
-        applyStageKills(r.yield.kills, false);
+        firstClearedStageId = applyStageKills(r.yield.kills, false);
         offlineResult.value = r;
       }
     }
@@ -352,6 +353,8 @@ export const useGameStore = defineStore('game', () => {
     );
     save.value.player.stamina = st.stamina;
     save.value.player.staminaRecoverAt = st.nextRecoverAt;
+
+    advanceAfterFirstClear(firstClearedStageId);
   }
 
   function startLoop(): void {
@@ -393,6 +396,7 @@ export const useGameStore = defineStore('game', () => {
   function tick(dt: number): void {
     if (!save.value) return;
 
+    let firstClearedStageId: string | null = null;
     battlePulseCooldownSec = Math.max(0, battlePulseCooldownSec - dt);
     if (battlePulse.value) {
       battlePulseRemainingSec -= dt;
@@ -432,7 +436,7 @@ export const useGameStore = defineStore('game', () => {
         }
         applyYield(y, true);
         save.value.stats.totalKills += y.kills;
-        applyStageKills(y.kills, true);
+        firstClearedStageId = applyStageKills(y.kills, true);
         battleVisualCursor.value = visualAdvance.nextCursor;
       }
     } else {
@@ -451,6 +455,10 @@ export const useGameStore = defineStore('game', () => {
     );
     save.value.player.stamina = st.stamina;
     save.value.player.staminaRecoverAt = st.nextRecoverAt;
+
+    // 必须放在旧关收益、BOSS 掉落和演出游标全部写完之后。
+    // selectStage 会重置新关演出状态，不能再让本帧的旧关游标覆盖它。
+    advanceAfterFirstClear(firstClearedStageId);
 
     if (Date.now() - lastSaveAt > AUTO_SAVE_INTERVAL_MS) void persist();
   }
@@ -527,9 +535,12 @@ export const useGameStore = defineStore('game', () => {
    *
    * 普通击杀始终使用关卡的 normal 掉落表；只有完整跑完含 BOSS 的波次，
    * 才单独掷一次 BOSS 表，避免最终关卡的每只小怪都冒充 BOSS。
+   *
+   * 返回刚首通的关卡 ID，由调用方在旧关全部结算完成后统一切关。
+   * 这里不能直接 selectStage，否则在线 tick 后续的旧关演出状态会污染新关。
    */
-  function applyStageKills(kills: number, log: boolean): void {
-    if (!save.value) return;
+  function applyStageKills(kills: number, log: boolean): string | null {
+    if (!save.value) return null;
     const stage = currentStage.value;
     const need = stage.waves.reduce(
       (sum, w) => sum + w.monsters.reduce((n, m) => n + m.count, 0),
@@ -560,6 +571,8 @@ export const useGameStore = defineStore('game', () => {
         }
       }
     }
+
+    return result.clearedNow ? stage.id : null;
   }
 
   // ─────────── 关卡 ───────────
@@ -582,6 +595,13 @@ export const useGameStore = defineStore('game', () => {
     resetBattleVisualState();
     void persist();
     return true;
+  }
+
+  /** 首通结算完整落袋后自动进入下一关；最后一关没有后继，保持原地。 */
+  function advanceAfterFirstClear(clearedStageId: string | null): boolean {
+    if (!clearedStageId) return false;
+    const next = nextStageId(clearedStageId);
+    return next ? selectStage(next) : false;
   }
 
   /** 推进到下一关（若已解锁） */
