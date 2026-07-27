@@ -20,6 +20,7 @@ function def(overrides: Partial<EquipmentDef> = {}): EquipmentDef {
     quality: 'rare',
     level: 20,
     icon: '',
+    appearanceId: 'test-ring',
     ...overrides,
   };
 }

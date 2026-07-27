@@ -28,7 +28,7 @@ export const SWORDSMAN_VISUAL_SKILLS: readonly VisualSkill[] = [
     cooldown: 4,
     targets: 1,
     priority: 10,
-    icon: 'assets/effects/swordsman-attack.png',
+    icon: 'assets/icons/skills/swordsman-attack.png',
     effectAsset: 'assets/effects/swordsman-attack.png',
     visualKind: 'slash',
     desc: '冰蓝与樱粉剑光交错，利落斩向单个敌人。',
@@ -45,7 +45,7 @@ export const SWORDSMAN_VISUAL_SKILLS: readonly VisualSkill[] = [
     cooldown: 7,
     targets: 0,
     priority: 20,
-    icon: 'assets/effects/swordsman-halfmoon.png',
+    icon: 'assets/icons/skills/swordsman-halfmoon.png',
     effectAsset: 'assets/effects/swordsman-halfmoon.png',
     visualKind: 'arc',
     desc: '月牙剑气横扫敌群，身后留下一串樱花光屑。',
@@ -62,7 +62,7 @@ export const SWORDSMAN_VISUAL_SKILLS: readonly VisualSkill[] = [
     cooldown: 8,
     targets: 1,
     priority: 30,
-    icon: 'assets/effects/swordsman-flame.png',
+    icon: 'assets/icons/skills/swordsman-flame.png',
     effectAsset: 'assets/effects/swordsman-flame.png',
     visualKind: 'flame',
     desc: '樱焰缠上剑锋，斩落时迸开灼热花火。',
@@ -82,7 +82,7 @@ export const WITCH_VISUAL_SKILLS: readonly VisualSkill[] = [
     cooldown: 3,
     targets: 1,
     priority: 10,
-    icon: 'assets/effects/witch-fireball.png',
+    icon: 'assets/icons/skills/witch-fireball.png',
     effectAsset: 'assets/effects/witch-fireball.png',
     visualKind: 'projectile',
     desc: '樱焰凝成花心火球，命中时迸开星屑。',
@@ -99,7 +99,7 @@ export const WITCH_VISUAL_SKILLS: readonly VisualSkill[] = [
     cooldown: 8,
     targets: 0,
     priority: 20,
-    icon: 'assets/effects/witch-fire-ring.png',
+    icon: 'assets/icons/skills/witch-fire-ring.png',
     effectAsset: 'assets/effects/witch-fire-ring.png',
     visualKind: 'ring',
     desc: '六瓣樱焰旋成火环，弹开身边的敌人。',
@@ -116,7 +116,7 @@ export const WITCH_VISUAL_SKILLS: readonly VisualSkill[] = [
     cooldown: 9,
     targets: 0,
     priority: 30,
-    icon: 'assets/effects/witch-lightning.png',
+    icon: 'assets/icons/skills/witch-lightning.png',
     effectAsset: 'assets/effects/witch-lightning.png',
     visualKind: 'lightning',
     desc: '星月雷光在敌群中央绽开，造成范围伤害。',
@@ -136,7 +136,7 @@ export const SHAMAN_VISUAL_SKILLS: readonly VisualSkill[] = [
     cooldown: 10,
     targets: 1,
     priority: 10,
-    icon: 'assets/effects/shaman-heal.png',
+    icon: 'assets/icons/skills/shaman-heal.png',
     effectAsset: 'assets/effects/shaman-heal.png',
     visualKind: 'heal',
     desc: '水晶莲心绽开柔光，为少女回复元气。',
@@ -153,7 +153,7 @@ export const SHAMAN_VISUAL_SKILLS: readonly VisualSkill[] = [
     cooldown: 6,
     targets: 1,
     priority: 20,
-    icon: 'assets/effects/shaman-poison.png',
+    icon: 'assets/icons/skills/shaman-poison.png',
     effectAsset: 'assets/effects/shaman-poison.png',
     visualKind: 'poison',
     desc: '紫雾与荆棘缠住目标，持续侵蚀敌人的生命。',
@@ -170,7 +170,7 @@ export const SHAMAN_VISUAL_SKILLS: readonly VisualSkill[] = [
     cooldown: 30,
     targets: 1,
     priority: 30,
-    icon: 'assets/effects/shaman-skeleton.png',
+    icon: 'assets/icons/skills/shaman-skeleton.png',
     effectAsset: 'assets/effects/shaman-skeleton.png',
     visualKind: 'summon',
     desc: '灵铃唤醒圆眼骷髅，替主人守在战场前方。',
@@ -189,4 +189,21 @@ export function visualSkillsFor(classId: ClassId): readonly VisualSkill[] {
 
 export function unlockedVisualSkills(classId: ClassId, level: number): readonly VisualSkill[] {
   return visualSkillsFor(classId).filter((skill) => skill.unlockLevel <= level);
+}
+
+/** M3 真实技能事件接入前的演出节奏：三次普攻后插入一次已解锁伤害技能。 */
+export const VISUAL_SKILL_PULSE_INTERVAL = 4;
+
+export function battleVisualSkillFor(
+  classId: ClassId,
+  level: number,
+  pulseId: number,
+): VisualSkill | null {
+  if (pulseId <= 0 || pulseId % VISUAL_SKILL_PULSE_INTERVAL !== 0) return null;
+  const damageSkills = unlockedVisualSkills(classId, level).filter(
+    (skill) => skill.baseMultiplier > 0,
+  );
+  if (damageSkills.length === 0) return null;
+  const index = Math.floor(pulseId / VISUAL_SKILL_PULSE_INTERVAL) - 1;
+  return damageSkills[index % damageSkills.length]!;
 }

@@ -2,11 +2,13 @@
 import { computed, onUnmounted, ref, watch } from 'vue';
 import { Coins, Swords, Zap } from '@lucide/vue';
 import { abbr, signed } from '@/core/format';
+import { useInventoryStore } from '@/stores/inventory';
 import { usePlayerStore } from '@/stores/player';
 import { CLASS_INFO } from '@/data/constants';
-import ClassArtwork from '@/components/ClassArtwork.vue';
+import CharacterAppearance from '@/components/CharacterAppearance.vue';
 
 const playerStore = usePlayerStore();
+const inventoryStore = useInventoryStore();
 
 /** 战力变化飘字。任何操作导致战力变化都要让玩家看见。 */
 const floatCp = ref<{ value: number; key: number } | null>(null);
@@ -31,7 +33,12 @@ const cls = computed(() => (playerStore.player ? CLASS_INFO[playerStore.player.c
 <template>
   <header v-if="playerStore.player" class="topbar">
     <div class="avatar">
-      <ClassArtwork :class-id="playerStore.player.classId" variant="avatar" />
+      <CharacterAppearance
+        :class-id="playerStore.player.classId"
+        :level="playerStore.player.level"
+        :equipped="inventoryStore.equipped"
+        variant="avatar"
+      />
     </div>
 
     <div class="info">
@@ -94,6 +101,7 @@ const cls = computed(() => (playerStore.player ? CLASS_INFO[playerStore.player.c
   border-radius: 50%;
   background: linear-gradient(135deg, var(--pink-soft), var(--blue-soft));
   border: 1.5px solid var(--pink);
+  overflow: hidden;
 }
 
 .info {

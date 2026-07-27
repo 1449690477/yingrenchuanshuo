@@ -1,12 +1,19 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import type { ClassId, MonsterDef } from '@/core/types';
 import { abbr } from '@/core/format';
+import {
+  BASIC_ATTACK_EFFECTS,
+  type EquippedRecord,
+} from '@/data/characterAppearance';
 import type { VisualSkill } from '@/data/skills';
-import ClassArtwork from '@/components/ClassArtwork.vue';
+import CharacterAppearance from '@/components/CharacterAppearance.vue';
 import MonsterArtwork from '@/components/MonsterArtwork.vue';
 
-defineProps<{
+const props = defineProps<{
   classId: ClassId;
+  level: number;
+  equipped: EquippedRecord | null;
   playerName: string;
   monster: MonsterDef;
   backgroundUrl: string;
@@ -27,15 +34,20 @@ defineProps<{
   skillStates: { skill: VisualSkill; remaining: number }[];
   skill: VisualSkill | null;
   effectUrl: string | null;
+  drop: { id: number; name: string; quality: string; assetUrl: string } | null;
 }>();
 
 const assetUrl = (path: string) => `${import.meta.env.BASE_URL}${path}`;
+const basicEffectUrl = computed(
+  () => `${import.meta.env.BASE_URL}${BASIC_ATTACK_EFFECTS[props.classId]}`,
+);
 </script>
 
 <template>
   <div
     class="battle-scene"
     :class="[`target-${monster.type}`, { active, casting }]"
+    :style="{ '--impact-delay': skill ? '300ms' : '110ms' }"
     :aria-label="`${playerName}正在与${monster.name}战斗`"
   >
     <img class="scene-background" :src="backgroundUrl" alt="" aria-hidden="true" />
@@ -97,10 +109,12 @@ const assetUrl = (path: string) => `${import.meta.env.BASE_URL}${path}`;
     <div class="hero-unit" :class="{ hit: monsterAttacking }">
       <span class="actor-shadow" aria-hidden="true" />
       <div :key="`${pulse?.id ?? 0}-${incomingPulse?.id ?? 0}`" class="hero-actor">
-        <ClassArtwork
+        <CharacterAppearance
           :class-id="classId"
+          :level="level"
+          :equipped="equipped"
           variant="battle"
-          :action="monsterAttacking ? 'hit' : casting ? 'attack' : 'idle'"
+          :action="monsterAttacking ? 'react' : casting ? (skill ? 'cast' : 'attack') : 'idle'"
         />
       </div>
     </div>
@@ -125,6 +139,17 @@ const assetUrl = (path: string) => `${import.meta.env.BASE_URL}${path}`;
         <small v-if="pulse.hits > 1">×{{ pulse.hits }}</small>
       </span>
     </Transition>
+
+    <div
+      v-if="pulse && !skill"
+      :key="`basic-${pulse.id}`"
+      class="basic-attack-fx"
+      :class="`basic-${classId}`"
+      aria-hidden="true"
+    >
+      <img :src="basicEffectUrl" alt="" draggable="false" />
+      <i v-for="n in 5" :key="n" />
+    </div>
 
     <Transition name="damage">
       <span
@@ -162,6 +187,20 @@ const assetUrl = (path: string) => `${import.meta.env.BASE_URL}${path}`;
       <img :src="effectUrl" alt="" draggable="false" />
       <i v-for="n in 8" :key="n" class="fx-particle" />
       <span class="spell-name">{{ skill.name }}</span>
+    </div>
+
+    <div
+      v-if="drop"
+      :key="`drop-${drop.id}`"
+      class="loot-burst"
+      :class="`drop-${drop.quality}`"
+      aria-hidden="true"
+    >
+      <span class="loot-orb">
+        <img :src="drop.assetUrl" alt="" draggable="false" />
+      </span>
+      <strong>{{ drop.name }}</strong>
+      <i v-for="n in 6" :key="n" />
     </div>
 
     <span class="foreground-vignette" aria-hidden="true" />
@@ -469,6 +508,7 @@ const assetUrl = (path: string) => `${import.meta.env.BASE_URL}${path}`;
 
 .enemy-unit.hit .enemy-actor {
   animation: enemy-hit 0.42s ease-out;
+  animation-delay: var(--impact-delay);
 }
 
 .hero-unit.hit .hero-actor {
@@ -497,6 +537,8 @@ const assetUrl = (path: string) => `${import.meta.env.BASE_URL}${path}`;
     0 2px 0 #bd4d59,
     0 0 8px rgb(255 105 137 / 75%);
   pointer-events: none;
+  animation: damage-pop 0.78s ease-out both;
+  animation-delay: var(--impact-delay);
 }
 
 .damage small {
@@ -556,22 +598,81 @@ const assetUrl = (path: string) => `${import.meta.env.BASE_URL}${path}`;
   background: rgb(22 30 43 / 30%);
 }
 
-.damage-enter-from {
+.basic-attack-fx {
+  position: absolute;
+  z-index: 9;
+  right: 17%;
+  bottom: 24%;
+  width: 35%;
+  aspect-ratio: 1;
+  pointer-events: none;
+}
+
+.basic-attack-fx > img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 7px rgb(91 92 148 / 35%));
+  animation: basic-impact 0.58s ease-out both;
+  animation-delay: 70ms;
+}
+
+.basic-swordsman {
+  right: 18%;
+  bottom: 19%;
+  width: 43%;
+  transform: rotate(-8deg);
+}
+
+.basic-witch {
+  right: 18%;
+  bottom: 28%;
+  width: 32%;
+}
+
+.basic-shaman {
+  right: 20%;
+  bottom: 25%;
+  width: 31%;
+}
+
+.basic-attack-fx i {
+  --dx: 29px;
+  --dy: -22px;
+  position: absolute;
+  left: 54%;
+  top: 52%;
+  width: 5px;
+  height: 5px;
   opacity: 0;
-  transform: translateY(12px) scale(0.7);
+  background: #ff9fc4;
+  border: 1px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 5px rgb(255 255 255 / 70%);
+  animation: basic-particle 0.55s 110ms ease-out both;
 }
 
-.damage-enter-active {
-  transition: all 0.16s ease-out;
+.basic-attack-fx i:nth-of-type(2) {
+  --dx: -27px;
+  --dy: -18px;
+  background: #9ddcff;
 }
 
-.damage-leave-to {
-  opacity: 0;
-  transform: translateY(-24px) scale(1.08);
+.basic-attack-fx i:nth-of-type(3) {
+  --dx: 35px;
+  --dy: 12px;
+  background: #ffe296;
 }
 
-.damage-leave-active {
-  transition: all 0.62s ease-in;
+.basic-attack-fx i:nth-of-type(4) {
+  --dx: -23px;
+  --dy: 25px;
+}
+
+.basic-attack-fx i:nth-of-type(5) {
+  --dx: 4px;
+  --dy: -35px;
+  background: #c4b4ff;
 }
 
 .spell-fx {
@@ -737,6 +838,123 @@ const assetUrl = (path: string) => `${import.meta.env.BASE_URL}${path}`;
   background: #ffe49b;
 }
 
+.loot-burst {
+  --loot-color: #9bc6ad;
+  position: absolute;
+  z-index: 15;
+  left: 46%;
+  bottom: 5%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  color: #fff;
+  pointer-events: none;
+  animation: loot-rise 1.15s ease-out both;
+}
+
+.drop-fine {
+  --loot-color: var(--q-fine);
+}
+
+.drop-rare {
+  --loot-color: var(--q-rare);
+}
+
+.drop-epic {
+  --loot-color: var(--q-epic);
+}
+
+.drop-legendary {
+  --loot-color: var(--q-legendary);
+}
+
+.drop-mythic {
+  --loot-color: var(--q-mythic);
+}
+
+.drop-divine {
+  --loot-color: var(--q-divine);
+}
+
+.loot-orb {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 35% 28%, #fff, transparent 34%),
+    color-mix(in srgb, var(--loot-color) 23%, rgb(255 255 255 / 88%));
+  border: 1.5px solid color-mix(in srgb, var(--loot-color) 78%, white);
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--loot-color) 17%, transparent),
+    0 0 12px color-mix(in srgb, var(--loot-color) 68%, transparent);
+}
+
+.loot-orb img {
+  width: 88%;
+  height: 88%;
+  object-fit: contain;
+  filter: drop-shadow(0 1px 2px rgb(50 58 75 / 18%));
+}
+
+.loot-burst strong {
+  max-width: 94px;
+  overflow: hidden;
+  padding: 2px 6px;
+  font-size: 7px;
+  color: color-mix(in srgb, var(--loot-color) 70%, #39465b);
+  text-overflow: ellipsis;
+  text-shadow: none;
+  white-space: nowrap;
+  background: rgb(255 255 255 / 86%);
+  border: 1px solid rgb(255 255 255 / 72%);
+  border-radius: 999px;
+  box-shadow: 0 2px 5px rgb(35 43 58 / 14%);
+}
+
+.loot-burst i {
+  --spark-x: 25px;
+  --spark-y: -19px;
+  position: absolute;
+  left: 50%;
+  top: 17px;
+  width: 4px;
+  height: 4px;
+  background: var(--loot-color);
+  border: 1px solid #fff;
+  transform: rotate(45deg);
+  animation: loot-spark 0.74s ease-out both;
+}
+
+.loot-burst i:nth-of-type(2) {
+  --spark-x: -26px;
+  --spark-y: -14px;
+}
+
+.loot-burst i:nth-of-type(3) {
+  --spark-x: 31px;
+  --spark-y: 9px;
+}
+
+.loot-burst i:nth-of-type(4) {
+  --spark-x: -28px;
+  --spark-y: 13px;
+}
+
+.loot-burst i:nth-of-type(5) {
+  --spark-x: 5px;
+  --spark-y: -30px;
+}
+
+.loot-burst i:nth-of-type(6) {
+  --spark-x: -5px;
+  --spark-y: 28px;
+}
+
 .ambient-particles {
   position: absolute;
   z-index: 2;
@@ -858,6 +1076,81 @@ const assetUrl = (path: string) => `${import.meta.env.BASE_URL}${path}`;
   }
   55% {
     transform: translateX(-3px) scale(1.02);
+  }
+}
+
+@keyframes basic-impact {
+  0% {
+    opacity: 0;
+    transform: translate(-18px, 10px) scale(0.28) rotate(-14deg);
+  }
+  34%,
+  58% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(7px, -3px) scale(1.05) rotate(4deg);
+  }
+}
+
+@keyframes damage-pop {
+  0% {
+    opacity: 0;
+    transform: translateY(12px) scale(0.7);
+  }
+  22%,
+  50% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-24px) scale(1.08);
+  }
+}
+
+@keyframes basic-particle {
+  0% {
+    opacity: 0;
+    transform: translate(0) scale(0.2);
+  }
+  36% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--dx), var(--dy)) scale(1);
+  }
+}
+
+@keyframes loot-rise {
+  0% {
+    opacity: 0;
+    transform: translateY(16px) scale(0.45);
+  }
+  28%,
+  62% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-28px) scale(0.92);
+  }
+}
+
+@keyframes loot-spark {
+  0% {
+    opacity: 0;
+    transform: translate(0) rotate(45deg) scale(0.2);
+  }
+  38% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--spark-x), var(--spark-y)) rotate(135deg) scale(1);
   }
 }
 
@@ -1069,11 +1362,17 @@ const assetUrl = (path: string) => `${import.meta.env.BASE_URL}${path}`;
 @media (prefers-reduced-motion: reduce) {
   .hero-actor,
   .enemy-actor,
-  .ambient-particles i {
+  .ambient-particles i,
+  .basic-attack-fx,
+  .basic-attack-fx i,
+  .loot-burst,
+  .loot-burst i {
     animation: none !important;
   }
 
   .spell-fx,
+  .basic-attack-fx,
+  .loot-burst,
   .damage {
     display: none;
   }

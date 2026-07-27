@@ -1,21 +1,21 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onUnmounted, ref } from 'vue';
 import { abbr } from '@/core/format';
 import type { EquipmentInstance, EquipSlot, Stats } from '@/core/types';
 import { useInventoryStore } from '@/stores/inventory';
 import { usePlayerStore } from '@/stores/player';
-import { requireEquipment } from '@/data/equipment';
-import { CLASS_INFO, SLOT_LABELS, SLOT_ORDER, STAT_LABELS } from '@/data/constants';
+import { CLASS_INFO, SLOT_LABELS, STAT_LABELS } from '@/data/constants';
 import { visualSkillsFor } from '@/data/skills';
 import EquipDetail from '@/components/EquipDetail.vue';
-import ClassArtwork from '@/components/ClassArtwork.vue';
+import CharacterShowcase from '@/components/CharacterShowcase.vue';
 import SkillIcon from '@/components/SkillIcon.vue';
-import EquipmentIcon from '@/components/EquipmentIcon.vue';
 import SystemArtwork from '@/components/SystemArtwork.vue';
 
 const inventory = useInventoryStore();
 const player = usePlayerStore();
 const detail = ref<EquipmentInstance | null>(null);
+const feedback = ref('');
+let feedbackTimer = 0;
 
 const equipped = computed(() => inventory.equipped);
 const visualSkills = computed(() => (player.player ? visualSkillsFor(player.player.classId) : []));
@@ -35,46 +35,46 @@ function fmt(key: keyof Stats, v: number): string {
   return abbr(Math.round(v));
 }
 
-function slotOf(slot: EquipSlot) {
-  return equipped.value?.[slot] ?? null;
+function announce(message: string): void {
+  feedback.value = message;
+  clearTimeout(feedbackTimer);
+  feedbackTimer = window.setTimeout(() => (feedback.value = ''), 2_200);
 }
 
-function nameOf(slot: EquipSlot): string {
-  const inst = slotOf(slot);
-  if (!inst) return SLOT_LABELS[slot];
-  return requireEquipment(inst.defId).name;
+function open(slot: EquipSlot): void {
+  const instance = equipped.value?.[slot] ?? null;
+  if (instance) {
+    detail.value = instance;
+    return;
+  }
+  announce(`${SLOT_LABELS[slot]}槽还是空的，可在背包中选择该部位装备。`);
 }
 
-function qualityOf(slot: EquipSlot): string {
-  const inst = slotOf(slot);
-  if (!inst) return 'empty';
-  return requireEquipment(inst.defId).quality;
+function equipBest(): void {
+  const count = inventory.equipBest();
+  announce(count > 0 ? `已替换 ${count} 件更强装备，角色外观同步更新。` : '当前已是最优装备。');
 }
 
-function open(slot: EquipSlot) {
-  const inst = slotOf(slot);
-  if (inst) detail.value = inst;
-}
+onUnmounted(() => clearTimeout(feedbackTimer));
 </script>
 
 <template>
-  <div v-if="player.player" class="growth scroll-y">
-    <!-- 角色卡 -->
-    <section class="hero card">
-      <div class="hero-face">
-        <ClassArtwork :class-id="player.player.classId" variant="avatar" />
+  <div v-if="player.player" class="growth">
+    <CharacterShowcase
+      :name="player.player.name"
+      :class-id="player.player.classId"
+      :level="player.player.level"
+      :cp="player.cp"
+      :equipped="equipped"
+      @select-slot="open"
+      @equip-best="equipBest"
+    />
+
+    <Transition name="feedback">
+      <div v-if="feedback" class="growth-feedback" role="status" aria-live="polite">
+        {{ feedback }}
       </div>
-      <div class="hero-info">
-        <div class="hero-name">
-          {{ player.player.name }}
-          <span class="hero-cls">{{ CLASS_INFO[player.player.classId].name }}</span>
-        </div>
-        <div class="hero-role">{{ CLASS_INFO[player.player.classId].role }}</div>
-        <div class="hero-cp">
-          战力 <span class="num">{{ abbr(player.cp) }}</span>
-        </div>
-      </div>
-    </section>
+    </Transition>
 
     <section v-if="visualSkills.length > 0" class="card skills-card">
       <div class="card-head">
@@ -97,39 +97,6 @@ function open(slot: EquipSlot) {
             {{ player.player.level >= skill.unlockLevel ? '已解锁' : `Lv${skill.unlockLevel}` }}
           </span>
         </div>
-      </div>
-    </section>
-
-    <!-- 装备槽 -->
-    <section class="card slots-card">
-      <div class="card-head">
-        <span>装备</span>
-        <button class="mini" @click="inventory.equipBest()">一键最优</button>
-      </div>
-      <div class="slots">
-        <button
-          v-for="slot in SLOT_ORDER"
-          :key="slot"
-          class="slot"
-          :class="['sq-' + qualityOf(slot), { filled: !!slotOf(slot) }]"
-          @click="open(slot)"
-        >
-          <EquipmentIcon
-            v-if="slotOf(slot)"
-            :def="requireEquipment(slotOf(slot)!.defId)"
-            size="sm"
-          />
-          <span v-else class="empty-slot" aria-hidden="true">{{
-            SLOT_LABELS[slot].slice(0, 1)
-          }}</span>
-          <span class="slot-copy">
-            <span class="slot-label">{{ SLOT_LABELS[slot] }}</span>
-            <span class="slot-name" :class="slotOf(slot) ? 'q-' + qualityOf(slot) : 'dim'">
-              {{ slotOf(slot) ? nameOf(slot) : '尚未装备' }}
-            </span>
-          </span>
-          <span v-if="slotOf(slot)?.enhance" class="slot-enh">+{{ slotOf(slot)!.enhance }}</span>
-        </button>
       </div>
     </section>
 
@@ -179,31 +146,38 @@ function open(slot: EquipSlot) {
 
 <style scoped>
 .growth {
-  height: 100%;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  padding-bottom: 4px;
 }
 
-/* ── 角色卡 ── */
-.hero {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px;
-  background: linear-gradient(100deg, var(--pink-soft), var(--blue-soft));
+.growth-feedback {
+  position: sticky;
+  z-index: 20;
+  top: 6px;
+  align-self: center;
+  max-width: calc(100% - 22px);
+  margin: -4px 0 -2px;
+  padding: 7px 12px;
+  font-size: 10px;
+  color: #fff;
+  text-align: center;
+  background: rgb(51 68 91 / 92%);
+  border: 1px solid rgb(255 255 255 / 34%);
+  border-radius: 999px;
+  box-shadow: 0 5px 12px rgb(46 52 70 / 20%);
 }
 
-.hero-face {
-  width: 54px;
-  height: 54px;
-  flex-shrink: 0;
-  display: grid;
-  place-items: center;
-  overflow: hidden;
-  background: #fff;
-  border: 2px solid var(--pink);
-  border-radius: 50%;
+.feedback-enter-from,
+.feedback-leave-to {
+  opacity: 0;
+  transform: translateY(-5px);
+}
+
+.feedback-enter-active,
+.feedback-leave-active {
+  transition: all 0.2s ease;
 }
 
 .skill-hint {
@@ -269,43 +243,6 @@ function open(slot: EquipSlot) {
   background: var(--panel-3);
 }
 
-.hero-info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.hero-name {
-  font-size: 16px;
-  font-weight: 700;
-}
-
-.hero-cls {
-  margin-left: 6px;
-  padding: 1px 7px;
-  font-size: 10px;
-  color: var(--pink-deep);
-  background: #fff;
-  border-radius: 999px;
-}
-
-.hero-role {
-  font-size: 10px;
-  color: var(--text-mid);
-}
-
-.hero-cp {
-  margin-top: 2px;
-  font-size: 12px;
-  color: var(--text-mid);
-}
-
-.hero-cp .num {
-  font-size: 16px;
-  font-weight: 800;
-  color: var(--blue-deep);
-}
-
 /* ── 卡片通用 ── */
 .card-head {
   display: flex;
@@ -315,106 +252,6 @@ function open(slot: EquipSlot) {
   font-size: 11px;
   color: var(--text-dim);
   border-bottom: 1px solid var(--line);
-}
-
-.mini {
-  padding: 3px 10px;
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--pink-deep);
-  background: var(--pink-soft);
-  border-radius: 999px;
-}
-
-/* ── 装备槽 ── */
-.slots {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
-  padding: 10px;
-}
-
-.slot {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  min-height: 54px;
-  padding: 7px;
-  background: var(--panel-2);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  text-align: left;
-}
-
-.empty-slot {
-  width: 34px;
-  height: 34px;
-  flex-shrink: 0;
-  display: grid;
-  place-items: center;
-  font-size: 13px;
-  color: var(--text-dim);
-  background: var(--panel-3);
-  border: 1px dashed var(--line-strong);
-  border-radius: 11px;
-}
-
-.slot-copy {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.slot.filled {
-  background: #fff;
-}
-
-.sq-fine {
-  border-color: #cdebd8;
-}
-.sq-rare {
-  border-color: #cbe4f8;
-}
-.sq-epic {
-  border-color: #e2cef7;
-}
-.sq-legendary {
-  border-color: #ffdcae;
-}
-.sq-mythic {
-  border-color: #ffcdd2;
-}
-.sq-divine {
-  border-color: #f3e0a0;
-}
-
-.slot-label {
-  font-size: 9px;
-  color: var(--text-dim);
-}
-
-.slot-name {
-  font-size: 12px;
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.slot-name.dim {
-  color: var(--text-dim);
-  font-weight: 400;
-}
-
-.slot-enh {
-  position: absolute;
-  top: 6px;
-  right: 8px;
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--q-legendary);
 }
 
 /* ── 属性 ── */

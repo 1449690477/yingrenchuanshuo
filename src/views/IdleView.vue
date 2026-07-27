@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { abbr } from '@/core/format';
 import { battleMonsterIdAt } from '@/core/battleVisual';
 import { makeMonster } from '@/core/progression';
+import { useInventoryStore } from '@/stores/inventory';
 import { usePlayerStore } from '@/stores/player';
 import { useStageStore } from '@/stores/stage';
 import { requireChapter, requireRegionOfChapter } from '@/data/regions';
@@ -16,6 +17,7 @@ import EquipmentIcon from '@/components/EquipmentIcon.vue';
 import ItemIcon from '@/components/ItemIcon.vue';
 
 const player = usePlayerStore();
+const inventory = useInventoryStore();
 const stage = useStageStore();
 const showStages = ref(false);
 const casting = ref(false);
@@ -122,6 +124,20 @@ onUnmounted(() => {
   cancelAnimationFrame(cooldownRaf);
 });
 
+const recentDrop = computed(() => {
+  const entry = stage.lootLog[0];
+  if (!entry) return null;
+  const asset = entry.isEquipment
+    ? requireEquipment(entry.itemId).icon
+    : requireItem(entry.itemId).icon;
+  return {
+    id: entry.id,
+    name: entry.name,
+    quality: entry.quality,
+    assetUrl: `${import.meta.env.BASE_URL}${asset}`,
+  };
+});
+
 /** 战力提示。宁可提示得保守，也不要让玩家白挂。 */
 const cpWarn = computed(() => {
   if (stage.cpRatio >= 1) return null;
@@ -157,6 +173,8 @@ const cpWarn = computed(() => {
       <BattleScene
         v-if="player.player"
         :class-id="player.player.classId"
+        :level="player.player.level"
+        :equipped="inventory.equipped"
         :player-name="player.player.name"
         :monster="target"
         :background-url="battleMapUrl"
@@ -179,6 +197,7 @@ const cpWarn = computed(() => {
         :pulse="stage.battlePulse"
         :skill="activeVisualSkill"
         :effect-url="activeEffectUrl"
+        :drop="recentDrop"
       />
       <div v-if="stage.cleared" class="cleared">✓ 本关已通关，可继续挂机刷材料</div>
     </section>
