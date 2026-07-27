@@ -2,23 +2,20 @@ import { statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
-import type { ForgeStage } from '@/core/types';
 import { FORGE_STAGE_THRESHOLDS } from '@/data/constants';
-import { FORGE_STAGE_VISUALS } from '@/data/forgeVisuals';
-
-const STAGES: readonly ForgeStage[] = ['original', 'gleam', 'radiant', 'starforged', 'sakura'];
+import { FORGE_STAGE_ORDER, FORGE_STAGE_VISUALS } from '@/data/forgeVisuals';
 
 describe('锻造阶段视觉素材', () => {
   it('与核心阶段阈值一一对应', () => {
-    expect(Object.keys(FORGE_STAGE_VISUALS)).toEqual(STAGES);
-    expect(STAGES.map((stage) => FORGE_STAGE_VISUALS[stage].minLevel)).toEqual(
+    expect(Object.keys(FORGE_STAGE_VISUALS)).toEqual(FORGE_STAGE_ORDER);
+    expect(FORGE_STAGE_ORDER.map((stage) => FORGE_STAGE_VISUALS[stage].minLevel)).toEqual(
       [...FORGE_STAGE_THRESHOLDS]
         .sort((left, right) => left.minLevel - right.minLevel)
         .map(({ minLevel }) => minLevel),
     );
   });
 
-  it.each(STAGES.slice(1))('%s 光环满足运行时素材硬指标', async (stage) => {
+  it.each(FORGE_STAGE_ORDER.slice(1))('%s 光环满足运行时素材硬指标', async (stage) => {
     const asset = FORGE_STAGE_VISUALS[stage].overlayAsset;
     expect(asset).not.toBeNull();
 

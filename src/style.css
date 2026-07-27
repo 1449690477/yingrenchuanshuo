@@ -65,6 +65,19 @@
   --ease-spring: cubic-bezier(0.34, 1.4, 0.44, 1);
   --ease-soft: cubic-bezier(0.25, 0.9, 0.35, 1);
   --ease-out-back: cubic-bezier(0.2, 1.25, 0.4, 1);
+
+  /* ── 高级质感令牌（磨砂 / 分层投影 / 发丝线）── */
+  --glass-bg: rgb(255 255 255 / 72%);
+  --glass-bg-strong: rgb(255 255 255 / 86%);
+  --glass-brd: rgb(255 255 255 / 65%);
+  --hairline: rgb(70 89 107 / 9%);
+  --shadow-ambient: 0 1px 2px rgb(70 89 107 / 5%);
+  --shadow-key: 0 10px 26px rgb(96 118 150 / 13%);
+  --shadow-float:
+    0 1px 2px rgb(70 89 107 / 5%), 0 12px 30px rgb(96 118 150 / 14%),
+    0 2px 8px rgb(122 165 200 / 8%);
+  --blur-glass: blur(14px) saturate(1.5);
+  --ease-ios: cubic-bezier(0.28, 0.11, 0.32, 1);
   --t-fast: 0.14s;
   --t-mid: 0.22s;
   --t-slow: 0.34s;

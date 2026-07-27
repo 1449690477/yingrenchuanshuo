@@ -360,8 +360,10 @@ onUnmounted(() => {
   align-items: center;
   gap: 7px;
   padding: 5px 9px;
-  background: rgb(255 255 255 / 92%);
-  border-bottom: 1px solid var(--line);
+  background: var(--glass-bg-strong);
+  border-bottom: 1px solid var(--hairline);
+  backdrop-filter: var(--blur-glass);
+  -webkit-backdrop-filter: var(--blur-glass);
 }
 
 .back {
@@ -394,13 +396,17 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 0 9px;
+  padding: 0 10px;
   font-size: 11px;
   font-weight: 800;
+  letter-spacing: 0.01em;
   color: #8d651c;
-  background: #fff5ce;
-  border: 1px solid #f1d68e;
+  background: linear-gradient(180deg, #fffaf0, #fff3c8);
+  border: 1px solid rgb(214 173 78 / 38%);
   border-radius: 999px;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 90%),
+    0 3px 8px rgb(196 152 60 / 16%);
 }
 
 .gold-pill.bump {
@@ -513,27 +519,64 @@ onUnmounted(() => {
 .shop-filters {
   flex: 0 0 auto;
   display: flex;
-  gap: 5px;
-  padding: 7px 8px;
-  background: rgb(255 255 255 / 86%);
-  border-bottom: 1px solid var(--line);
+  gap: 3px;
+  overflow-x: auto;
+  margin: 8px 9px 0;
+  padding: 3px;
+  background: rgb(233 240 248 / 72%);
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  box-shadow: inset 0 1px 3px rgb(70 89 107 / 7%);
+  scrollbar-width: none;
+  scroll-padding-inline: 3px;
+  scroll-snap-type: x proximity;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.shop-filters::-webkit-scrollbar {
+  display: none;
 }
 
 .shop-filters button {
   flex: 0 0 auto;
   min-height: 44px;
-  padding: 0 12px;
+  padding: 0 13px;
   font-size: 9px;
+  font-weight: 600;
   color: var(--text-mid);
-  background: var(--panel-2);
-  border: 1px solid var(--line);
+  background: transparent;
+  border: none;
   border-radius: 999px;
+  scroll-snap-align: center;
+  transition:
+    color var(--t-fast) var(--ease-soft),
+    background var(--t-fast) var(--ease-soft),
+    box-shadow var(--t-fast) var(--ease-soft),
+    transform var(--t-fast) var(--ease-spring);
+}
+
+.shop-filters button:active {
+  transform: scale(0.94);
 }
 
 .shop-filters button.active {
-  color: #fff;
-  background: linear-gradient(135deg, #f47ca9, #8c83db);
-  border-color: transparent;
+  font-weight: 800;
+  color: var(--pink-deep);
+  background: #fff;
+  box-shadow:
+    0 1px 2px rgb(70 89 107 / 8%),
+    0 4px 10px rgb(150 110 140 / 14%);
+  animation: seg-pop 0.34s var(--ease-out-back);
+}
+
+@keyframes seg-pop {
+  0% {
+    transform: scale(0.88);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 
 .shelf {
@@ -542,11 +585,12 @@ onUnmounted(() => {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   align-content: start;
-  gap: 7px;
-  padding: 8px 8px calc(12px + var(--sab));
+  gap: 9px;
+  padding: 10px 9px calc(12px + var(--sab));
 }
 
 .offer-card {
+  --tile-glow: rgb(154 168 181 / 16%);
   position: relative;
   min-width: 0;
   min-height: 116px;
@@ -556,20 +600,56 @@ onUnmounted(() => {
   gap: 8px;
   padding: 8px;
   text-align: left;
-  background: rgb(255 255 255 / 91%);
-  border: 1px solid var(--line);
-  border-radius: 14px;
+  background: rgb(255 255 255 / 94%);
+  border: 1px solid var(--hairline);
+  border-radius: 18px;
   overflow: hidden;
-  box-shadow: 0 5px 13px rgb(70 71 102 / 9%);
-  animation: row-in var(--t-slow) var(--ease-soft) both;
+  box-shadow: var(--shadow-float);
+  animation: tile-in 0.5s var(--ease-ios) both;
   animation-delay: var(--row-delay, 0ms);
   transition:
     transform var(--t-fast) var(--ease-spring),
     box-shadow var(--t-mid) var(--ease-soft);
 }
 
+@keyframes tile-in {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* 品质色台座柔光：商品像摆在 Apple 产品页的彩色展台上。 */
+.offer-card::after {
+  position: absolute;
+  top: 50%;
+  left: 8px;
+  z-index: 0;
+  width: 58px;
+  height: 58px;
+  content: '';
+  background: radial-gradient(circle, var(--tile-glow), transparent 68%);
+  border-radius: 50%;
+  transform: translateY(-50%) scale(1.45);
+  pointer-events: none;
+}
+
+@media (hover: hover) {
+  .offer-card:hover {
+    box-shadow:
+      0 1px 2px rgb(70 89 107 / 6%),
+      0 16px 36px rgb(96 118 150 / 18%),
+      0 4px 10px rgb(122 165 200 / 10%);
+    transform: translateY(-2px);
+  }
+}
+
 .offer-card:active {
-  transform: scale(0.96);
+  transform: scale(0.965);
 }
 
 .offer-card::before {
@@ -598,7 +678,32 @@ onUnmounted(() => {
   opacity: 0.9;
 }
 
+.offer-card.quality-fine {
+  --tile-glow: rgb(79 190 120 / 22%);
+}
+
+.offer-card.quality-rare {
+  --tile-glow: rgb(63 163 232 / 24%);
+}
+
+.offer-card.quality-epic {
+  --tile-glow: rgb(171 111 224 / 26%);
+}
+
+.offer-card.quality-legendary {
+  --tile-glow: rgb(255 154 60 / 28%);
+}
+
+.offer-card.quality-mythic {
+  --tile-glow: rgb(255 107 122 / 26%);
+}
+
+.offer-card.quality-divine {
+  --tile-glow: rgb(232 172 31 / 28%);
+}
+
 .offer-card :deep(.equipment-icon) {
+  z-index: 1;
   width: 58px;
   height: 58px;
   border-radius: 16px;
@@ -644,6 +749,8 @@ onUnmounted(() => {
 }
 
 .offer-copy {
+  position: relative;
+  z-index: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -663,6 +770,8 @@ onUnmounted(() => {
   display: -webkit-box;
   overflow: hidden;
   font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
   line-height: 1.5;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -765,12 +874,18 @@ onUnmounted(() => {
   z-index: 4;
   left: 50%;
   bottom: 8px;
-  padding: 4px 9px;
+  padding: 5px 10px;
   font-size: 7px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
   color: var(--text-mid);
   white-space: nowrap;
-  background: rgb(255 255 255 / 83%);
+  background: var(--glass-bg-strong);
+  border: 1px solid var(--glass-brd);
   border-radius: 999px;
+  box-shadow: 0 3px 8px rgb(70 89 107 / 10%);
+  backdrop-filter: blur(8px) saturate(1.3);
+  -webkit-backdrop-filter: blur(8px) saturate(1.3);
   transform: translateX(-50%);
 }
 
@@ -783,16 +898,22 @@ onUnmounted(() => {
 
 .series {
   align-self: flex-start;
-  padding: 3px 8px;
+  padding: 4px 9px;
   font-size: 8px;
-  color: #89557b;
-  background: #fff0f7;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #b0567e;
+  background: linear-gradient(120deg, #fff0f7, #ffe8f2);
+  border: 1px solid rgb(240 158 192 / 30%);
   border-radius: 999px;
 }
 
 .detail-copy h2 {
   margin: 0;
-  font-size: 17px;
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
 }
 
 .meta,
@@ -805,12 +926,20 @@ onUnmounted(() => {
 
 .power-delta {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  padding: 8px 10px;
+  padding: 9px 11px;
   font-size: 9px;
   color: #26764b;
-  background: #ebfaf2;
-  border-radius: 10px;
+  background: linear-gradient(120deg, #f0fbf5, #e6f8ef);
+  border: 1px solid rgb(95 207 149 / 24%);
+  border-radius: 12px;
+  box-shadow: var(--shadow-ambient);
+}
+
+.power-delta .num {
+  font-size: 13px;
+  letter-spacing: -0.01em;
 }
 
 .power-delta.down {
@@ -843,8 +972,10 @@ onUnmounted(() => {
   align-items: center;
   gap: 9px;
   padding: 10px 14px calc(10px + var(--sab));
-  background: #fff;
-  border-top: 1px solid var(--line);
+  background: var(--glass-bg-strong);
+  border-top: 1px solid var(--hairline);
+  backdrop-filter: var(--blur-glass);
+  -webkit-backdrop-filter: var(--blur-glass);
 }
 
 .buy-bar > span {
@@ -867,7 +998,7 @@ onUnmounted(() => {
 
 .buy-button {
   position: relative;
-  min-height: 48px;
+  min-height: 50px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -876,13 +1007,19 @@ onUnmounted(() => {
   overflow: hidden;
   font-size: 10px;
   font-weight: 800;
+  letter-spacing: 0.02em;
   color: #fff;
-  background: linear-gradient(135deg, #f179a7, #8b80d7);
-  border-radius: 14px;
-  box-shadow: 0 6px 14px rgb(140 83 139 / 23%);
+  text-shadow: 0 1px 2px rgb(122 52 96 / 30%);
+  background: linear-gradient(135deg, #f77fab 8%, #b07fd8 58%, #8b80d7);
+  border-radius: 16px;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 32%),
+    0 8px 20px rgb(188 106 168 / 34%),
+    0 2px 6px rgb(140 83 139 / 20%);
   transition:
     transform var(--t-fast) var(--ease-spring),
-    filter var(--t-mid) var(--ease-soft);
+    filter var(--t-mid) var(--ease-soft),
+    box-shadow var(--t-mid) var(--ease-soft);
 }
 
 .buy-button:active:not(:disabled) {
@@ -967,7 +1104,9 @@ onUnmounted(() => {
   .scene-petal,
   .buy-button,
   .buy-button::after,
-  .gold-pill.bump {
+  .gold-pill.bump,
+  .shop-filters button,
+  .shop-filters button.active {
     animation: none !important;
     transition: none !important;
   }

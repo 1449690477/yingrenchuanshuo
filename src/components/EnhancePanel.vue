@@ -1,12 +1,15 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, onUnmounted, ref, watch } from 'vue';
+import { Anvil, Hammer, Sparkles } from '@lucide/vue';
 import { abbr, signed } from '@/core/format';
 import { enhanceCost, enhanceRule, luckGainForRate, type EnhanceOutcome } from '@/core/enhance';
+import { ENHANCE_BATCH_MILESTONES } from '@/core/enhanceBatch';
 import { forgeStageAt } from '@/core/equipment';
 import type { EquipmentDef, EquipmentInstance, EquipSlot, ForgeStage } from '@/core/types';
 import { useInventoryStore } from '@/stores/inventory';
 import { usePlayerStore } from '@/stores/player';
 import {
+  ENHANCE_BREAK_FROM,
   ENHANCE_MATERIAL_IDS,
   ENHANCE_MAX,
   LUCK_FULL,
@@ -14,6 +17,12 @@ import {
   SLOT_ORDER,
 } from '@/data/constants';
 import { requireEquipment } from '@/data/equipment';
+import {
+  FORGE_STAGE_ORDER,
+  FORGE_STAGE_VISUALS,
+  requireForgeStageVisual,
+  type ForgeStageVisual,
+} from '@/data/forgeVisuals';
 import { requireItem } from '@/data/items';
 import EquipmentIcon from '@/components/EquipmentIcon.vue';
 import ItemIcon from '@/components/ItemIcon.vue';
@@ -49,6 +58,8 @@ interface ResultFeedback {
   tone: 'success' | 'failure' | 'danger';
 }
 
+const STAGE_NODES = FORGE_STAGE_ORDER.map((stage) => FORGE_STAGE_VISUALS[stage]);
+
 const inventory = useInventoryStore();
 const player = usePlayerStore();
 
@@ -58,7 +69,15 @@ const useProtection = ref(false);
 const dangerConfirm = ref(false);
 const feedback = ref<ResultFeedback | null>(null);
 const resultSequence = ref(0);
+const batchTarget = ref<number>(9);
+const batchMode = ref<'single' | 'balanced' | null>(null);
+const ritual = ref(false);
+const awakening = ref<ForgeStageVisual | null>(null);
 let initializedSelection = false;
+let awakenTimer = 0;
+let ritualTimer = 0;
+let finishRitual: (() => void) | null = null;
+let disposed = false;
 
 const candidates = computed<EnhanceCandidate[]>(() => {
   const result: EnhanceCandidate[] = [];
@@ -153,6 +172,48 @@ const quote = computed(() => {
 
 const protectionCount = computed(() => inventory.bag?.items[ENHANCE_MATERIAL_IDS.protection] ?? 0);
 
+const currentNodeIndex = computed(() => {
+  const enhance = selected.value?.instance.enhance ?? 0;
+  return STAGE_NODES.reduce(
+    (current, node, index) => (enhance >= node.minLevel ? index : current),
+    0,
+  );
+});
+
+const nextNode = computed(() => {
+  const enhance = selected.value?.instance.enhance ?? 0;
+  return STAGE_NODES.find((node) => node.minLevel > enhance) ?? null;
+});
+
+const levelsToNextNode = computed(() => {
+  if (!selected.value || !nextNode.value) return null;
+  return nextNode.value.minLevel - selected.value.instance.enhance;
+});
+
+const equippedCandidates = computed(() =>
+  candidates.value.filter((candidate) => candidate.source === 'equipped'),
+);
+
+const singleBatchDisabled = computed(
+  () =>
+    !selected.value ||
+    selected.value.instance.enhance >= batchTarget.value ||
+    batchMode.value !== null ||
+    ritual.value,
+);
+
+const allBatchDisabled = computed(
+  () =>
+    equippedCandidates.value.length === 0 ||
+    equippedCandidates.value.every(
+      (candidate) => candidate.instance.enhance >= batchTarget.value,
+    ) ||
+    batchMode.value !== null ||
+    ritual.value,
+);
+
+const ritualCopy = computed(() => (batchMode.value === 'balanced' ? '全身共鸣锻造中…' : '锻造中…'));
+
 const materialRows = computed(() => {
   if (!preview.value) return [];
   return [
@@ -194,7 +255,11 @@ const actionLabel = computed(() => {
 
 const blockedCopy = computed(() => {
   if (!quote.value || quote.value.ok) return '';
-  const labels = {
+  return enhanceBlockLabel(quote.value.reason);
+});
+
+function enhanceBlockLabel(reason: string): string {
+  const labels: Record<string, string> = {
     'not-found': '这件装备已不在背包或穿戴栏',
     'max-level': `装备已经强化至 +${ENHANCE_MAX}`,
     'protection-not-allowed': '当前阶段不能使用保护符',
@@ -203,12 +268,18 @@ const blockedCopy = computed(() => {
     'insufficient-ore': '玄铁矿不足',
     'insufficient-lucky': '幸运九不足',
     'insufficient-protection': '保护符不足，请关闭保护后再决定',
-  } as const;
-  return labels[quote.value.reason];
-});
+    'no-equipped': '当前没有已穿戴装备',
+    'invalid-target': '目标强化等级不合法',
+  };
+  return labels[reason] ?? '强化条件发生变化，请重新确认';
+}
 
 function materialCount(itemId: string): number {
   return inventory.bag?.items[itemId] ?? 0;
+}
+
+function assetUrl(asset: string): string {
+  return `${import.meta.env.BASE_URL}${asset}`;
 }
 
 function pick(candidate: EnhanceCandidate): void {
@@ -216,27 +287,79 @@ function pick(candidate: EnhanceCandidate): void {
   pickerOpen.value = false;
 }
 
-function attempt(forceDanger = false): void {
-  if (!selectedUid.value || !preview.value) return;
+function revealAwakening(stage: ForgeStage): void {
+  if (stage === 'original') return;
+  awakening.value = requireForgeStageVisual(stage);
+  clearTimeout(awakenTimer);
+  awakenTimer = window.setTimeout(() => {
+    awakening.value = null;
+  }, 2_600);
+}
 
-  if (preview.value.failure === 'break' && !useProtection.value && !forceDanger) {
+function highestForgeStage(levels: readonly number[]): ForgeStage {
+  return levels.reduce<ForgeStage>((highest, level) => {
+    const stage = forgeStageAt(level);
+    return FORGE_STAGE_ORDER.indexOf(stage) > FORGE_STAGE_ORDER.indexOf(highest) ? stage : highest;
+  }, 'original');
+}
+
+function revealCrossedStage(beforeLevels: readonly number[], afterLevels: readonly number[]): void {
+  const before = highestForgeStage(beforeLevels);
+  const after = highestForgeStage(afterLevels);
+  if (FORGE_STAGE_ORDER.indexOf(after) > FORGE_STAGE_ORDER.indexOf(before)) {
+    revealAwakening(after);
+  }
+}
+
+async function playForgeRitual(): Promise<void> {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  ritual.value = true;
+  await new Promise<void>((resolve) => {
+    let finished = false;
+    const finish = (): void => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(ritualTimer);
+      ritualTimer = 0;
+      finishRitual = null;
+      resolve();
+    };
+    finishRitual = finish;
+    ritualTimer = window.setTimeout(finish, 780);
+  });
+  ritual.value = false;
+}
+
+async function attempt(forceDanger = false): Promise<void> {
+  if (!selectedUid.value || !selected.value || !preview.value || batchMode.value || ritual.value) {
+    return;
+  }
+
+  const uid = selectedUid.value;
+  const protection = useProtection.value;
+  const stageBefore = forgeStageAt(selected.value.instance.enhance);
+
+  if (preview.value.failure === 'break' && !protection && !forceDanger) {
     dangerConfirm.value = true;
     return;
   }
 
   dangerConfirm.value = false;
-  const response = inventory.enhance(selectedUid.value, useProtection.value);
-  resultSequence.value += 1;
-
+  const response = inventory.enhance(uid, protection);
   if (!response.ok) {
+    resultSequence.value += 1;
     feedback.value = {
       outcome: 'blocked',
       title: '本次没有消耗任何资源',
-      detail: blockedCopy.value || '强化条件发生变化，请重新确认。',
+      detail: enhanceBlockLabel(response.reason),
       tone: 'failure',
     };
     return;
   }
+
+  await playForgeRitual();
+  if (disposed) return;
+  resultSequence.value += 1;
 
   const nextLevel = response.result.nextLevel;
   const gainCopy = response.gainRoll
@@ -283,7 +406,96 @@ function attempt(forceDanger = false): void {
     },
   };
   feedback.value = messages[response.result.outcome];
+
+  if (response.result.outcome === 'success' && response.result.nextLevel !== null) {
+    const stageAfter = forgeStageAt(response.result.nextLevel);
+    if (stageAfter !== stageBefore) revealAwakening(stageAfter);
+  }
 }
+
+async function runBatch(mode: 'single' | 'balanced'): Promise<void> {
+  if (batchMode.value || ritual.value) return;
+  if (mode === 'single' && !selected.value) return;
+
+  const target = batchTarget.value;
+  const beforeLevels =
+    mode === 'single'
+      ? [selected.value!.instance.enhance]
+      : equippedCandidates.value.map((candidate) => candidate.instance.enhance);
+
+  batchMode.value = mode;
+  try {
+    const response =
+      mode === 'single'
+        ? inventory.autoEnhance(selected.value!.instance.uid, target)
+        : inventory.autoEnhanceAll(target);
+
+    if (!response.ok) {
+      resultSequence.value += 1;
+      feedback.value = {
+        outcome: 'blocked',
+        title: '本次没有消耗任何资源',
+        detail: enhanceBlockLabel(response.reason),
+        tone: 'failure',
+      };
+      return;
+    }
+
+    if (response.attempts.length > 0) await playForgeRitual();
+    if (disposed) return;
+    resultSequence.value += 1;
+
+    const successes = response.attempts.filter(
+      (event) => event.result.outcome === 'success',
+    ).length;
+    const held = response.attempts.length - successes;
+    const afterLevels = response.instances.map((instance) => instance.enhance);
+    const firstBlocked = response.blocked[0];
+    const stopCopy = firstBlocked
+      ? `因${enhanceBlockLabel(firstBlocked.reason)}停止`
+      : response.stopReason === 'attempt-limit'
+        ? '已到单次操作上限'
+        : '已到所选目标';
+    const cpCopy = response.cpDelta === 0 ? '' : ` · 战力 ${signed(response.cpDelta)}`;
+
+    if (response.attempts.length === 0) {
+      feedback.value = {
+        outcome: 'blocked',
+        title: firstBlocked ? '资源不足，未进行强化' : '装备已经达到所选目标',
+        detail: stopCopy,
+        tone: 'failure',
+      };
+      return;
+    }
+
+    const levelCopy =
+      mode === 'single'
+        ? `当前 +${afterLevels[0] ?? beforeLevels[0]}`
+        : `全身 +${Math.min(...afterLevels)}～+${Math.max(...afterLevels)}`;
+    const completed = response.stopReason === 'target-reached';
+    feedback.value = {
+      outcome: 'success',
+      title:
+        mode === 'single'
+          ? `一键强化${completed ? '完成' : '部分完成'}，${levelCopy}`
+          : `全身均衡强化${completed ? '完成' : '部分完成'}`,
+      detail: `${response.attempts.length} 次尝试 · 成功 ${successes} 次${
+        held > 0 ? ` · 其余 ${held} 次保级或回落` : ''
+      } · ${stopCopy}${cpCopy}`,
+      tone: successes > 0 ? 'success' : 'failure',
+    };
+    revealCrossedStage(beforeLevels, afterLevels);
+  } finally {
+    if (!disposed) batchMode.value = null;
+  }
+}
+
+onUnmounted(() => {
+  disposed = true;
+  clearTimeout(awakenTimer);
+  clearTimeout(ritualTimer);
+  finishRitual?.();
+});
 </script>
 
 <template>
@@ -297,7 +509,12 @@ function attempt(forceDanger = false): void {
         <small>装备成长</small>
         <strong id="enhance-title">樱光强化台</strong>
       </span>
-      <button class="change-button" type="button" @click="pickerOpen = true">
+      <button
+        class="change-button"
+        type="button"
+        :disabled="batchMode !== null || ritual"
+        @click="pickerOpen = true"
+      >
         {{ selected ? '更换装备' : '选择装备' }}
       </button>
     </header>
@@ -343,6 +560,82 @@ function attempt(forceDanger = false): void {
         重新选择
       </button>
     </div>
+
+    <div v-if="selected" class="stage-block">
+      <div
+        class="stage-track"
+        role="img"
+        :aria-label="`锻造外观进度 +${selected.instance.enhance} / ${ENHANCE_MAX}`"
+      >
+        <span class="track-rail" />
+        <span
+          class="track-fill"
+          :style="{ width: `${(selected.instance.enhance / ENHANCE_MAX) * 100}%` }"
+        />
+        <span
+          v-for="(node, index) in STAGE_NODES"
+          :key="node.stage"
+          class="stage-node"
+          :class="{
+            reached: selected.instance.enhance >= node.minLevel,
+            current: currentNodeIndex === index,
+          }"
+          :style="{ left: `${(node.minLevel / ENHANCE_MAX) * 100}%` }"
+        >
+          <i class="node-dot" :class="`dot-${node.stage}`" />
+          <small>{{ node.name }}</small>
+          <em class="num">+{{ node.minLevel }}</em>
+        </span>
+      </div>
+      <p v-if="nextNode && levelsToNextNode !== null" class="stage-hint">
+        再强化 <b class="num">{{ levelsToNextNode }}</b> 级，外观觉醒为「{{ nextNode.name }}」
+      </p>
+      <p v-else class="stage-hint maxed">外观已觉醒至最高阶「樱华」✦</p>
+    </div>
+
+    <section v-if="selected" class="batch-tools" aria-labelledby="batch-title">
+      <header>
+        <span>
+          <strong id="batch-title">一键强化</strong>
+          <small>选择目标档，资源不足会安全停止</small>
+        </span>
+        <span class="safe-badge">+{{ ENHANCE_BREAK_FROM }} 起自动保护</span>
+      </header>
+      <div class="batch-targets" role="group" aria-label="一键强化目标等级">
+        <button
+          v-for="target in ENHANCE_BATCH_MILESTONES"
+          :key="target"
+          type="button"
+          :class="{ active: batchTarget === target }"
+          :aria-pressed="batchTarget === target"
+          :disabled="batchMode !== null || ritual"
+          @click="batchTarget = target"
+        >
+          +{{ target }}
+        </button>
+      </div>
+      <div class="batch-actions">
+        <button
+          type="button"
+          class="batch-single"
+          :disabled="singleBatchDisabled"
+          @click="runBatch('single')"
+        >
+          当前装备一键强化
+        </button>
+        <button
+          type="button"
+          class="batch-all"
+          :disabled="allBatchDisabled"
+          @click="runBatch('balanced')"
+        >
+          全身均衡强化
+        </button>
+      </div>
+      <small class="batch-safe-copy">
+        一键操作绝不会碎装；保护符不足时停在安全等级，已完成的强化会保留。
+      </small>
+    </section>
 
     <template v-if="selected && preview">
       <div class="chance-row">
@@ -427,11 +720,11 @@ function attempt(forceDanger = false): void {
         v-else
         class="enhance-button"
         type="button"
-        :disabled="!quote?.ok"
+        :disabled="!quote?.ok || ritual || batchMode !== null"
         @click="attempt(false)"
       >
-        <span aria-hidden="true">✦</span>
-        {{ actionLabel }}
+        <Sparkles :size="16" aria-hidden="true" />
+        {{ ritual && batchMode === null ? '锻造中…' : actionLabel }}
       </button>
 
       <p v-if="blockedCopy" class="blocked-copy" role="status">{{ blockedCopy }}</p>
@@ -451,11 +744,53 @@ function attempt(forceDanger = false): void {
         role="status"
         aria-live="polite"
       >
+        <span v-if="feedback.tone === 'success'" class="burst" aria-hidden="true">
+          <b class="burst-ring" />
+          <i class="b1" /><i class="b2" /><i class="b3" /><i class="b4" /><i class="b5" /><i
+            class="b6"
+          />
+        </span>
+        <span
+          v-else
+          class="burst ash"
+          :class="{ danger: feedback.tone === 'danger' }"
+          aria-hidden="true"
+        >
+          <i class="b1" /><i class="b2" /><i class="b3" />
+        </span>
         <span class="result-spark" aria-hidden="true">✦</span>
         <span>
           <strong>{{ feedback.title }}</strong>
           <small>{{ feedback.detail }}</small>
         </span>
+      </div>
+    </Transition>
+
+    <Transition name="ritual-fade">
+      <div v-if="ritual" class="forge-ritual" aria-hidden="true">
+        <span class="ritual-backdrop" />
+        <Hammer class="ritual-hammer" :size="42" :stroke-width="1.8" />
+        <Anvil class="ritual-anvil" :size="38" :stroke-width="1.8" />
+        <span class="ritual-flash" />
+        <i class="ritual-spark s1" /><i class="ritual-spark s2" /><i class="ritual-spark s3" /><i
+          class="ritual-spark s4"
+        />
+        <span class="ritual-copy">{{ ritualCopy }}</span>
+      </div>
+    </Transition>
+
+    <Transition name="awaken-pop">
+      <div v-if="awakening" class="stage-awakening" :class="`awaken-${awakening.stage}`">
+        <span class="awaken-rays" />
+        <img
+          v-if="awakening.overlayAsset"
+          class="awaken-overlay"
+          :src="assetUrl(awakening.overlayAsset)"
+          alt=""
+          aria-hidden="true"
+        />
+        <strong>外观觉醒 · {{ awakening.name }}</strong>
+        <small>装备外观焕然一新</small>
       </div>
     </Transition>
   </section>
@@ -581,7 +916,7 @@ function attempt(forceDanger = false): void {
 }
 
 .change-button {
-  min-height: 36px;
+  min-height: 44px;
   padding: 0 11px;
   color: var(--blue-deep);
   font-size: 11px;
@@ -941,7 +1276,7 @@ function attempt(forceDanger = false): void {
   animation: forge-shine 4.2s var(--ease-soft) infinite;
 }
 
-.enhance-button span {
+.enhance-button > svg {
   margin-right: 5px;
   color: #fff4b1;
   animation: forge-spark 2.2s ease-in-out infinite;
@@ -1348,6 +1683,630 @@ function attempt(forceDanger = false): void {
   transform: translateY(18px);
 }
 
+/* 锻造外观里程碑 */
+.stage-block {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 9px 4px 1px;
+}
+
+.stage-track {
+  position: relative;
+  height: 42px;
+  margin-inline: 22px;
+}
+
+.track-rail,
+.track-fill {
+  position: absolute;
+  top: 8px;
+  left: 0;
+  height: 4px;
+  border-radius: 999px;
+}
+
+.track-rail {
+  right: 0;
+  background: rgb(190 205 220 / 45%);
+}
+
+.track-fill {
+  max-width: 100%;
+  background: linear-gradient(90deg, #9bcff3, #f69fc3, #ffe596);
+  box-shadow: 0 0 7px rgb(246 159 195 / 55%);
+  transition: width 0.5s var(--ease-soft);
+}
+
+.stage-node {
+  position: absolute;
+  top: 0;
+  display: flex;
+  width: 44px;
+  margin-left: -22px;
+  flex-direction: column;
+  align-items: center;
+  color: var(--text-dim);
+  text-align: center;
+  opacity: 0.55;
+  transform: scale(0.92);
+  transition:
+    opacity var(--t-mid) var(--ease-soft),
+    transform var(--t-mid) var(--ease-spring);
+}
+
+.stage-node.reached {
+  color: var(--text);
+  opacity: 1;
+}
+
+.stage-node.current {
+  transform: scale(1.06);
+}
+
+.node-dot {
+  width: 16px;
+  height: 16px;
+  background: #fff;
+  border: 2.5px solid #c6d3de;
+  border-radius: 50%;
+  box-shadow: 0 1px 4px rgb(90 110 130 / 20%);
+}
+
+.stage-node.reached .dot-original {
+  border-color: #b9c8d4;
+}
+
+.stage-node.reached .dot-gleam {
+  border-color: #7dddf0;
+  box-shadow: 0 0 7px rgb(105 210 238 / 55%);
+}
+
+.stage-node.reached .dot-radiant {
+  border-color: #8fb8ff;
+  box-shadow: 0 0 7px rgb(102 157 244 / 60%);
+}
+
+.stage-node.reached .dot-starforged {
+  border-color: #e6a8ff;
+  box-shadow: 0 0 8px rgb(202 126 243 / 65%);
+}
+
+.stage-node.reached .dot-sakura {
+  border-color: #ffd98b;
+  box-shadow: 0 0 10px rgb(255 179 210 / 75%);
+}
+
+.stage-node.current .node-dot {
+  animation: node-pulse 1.8s ease-in-out infinite;
+}
+
+.stage-node small {
+  margin-top: 3px;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.stage-node em {
+  font-size: 8px;
+  font-style: normal;
+  line-height: 1.2;
+}
+
+.stage-hint {
+  margin: 0;
+  font-size: 9.5px;
+  color: var(--text-dim);
+}
+
+.stage-hint b {
+  color: var(--pink-deep);
+}
+
+.stage-hint.maxed {
+  color: #a8790f;
+}
+
+@keyframes node-pulse {
+  50% {
+    transform: scale(1.22);
+  }
+}
+
+/* 安全的一键强化入口 */
+.batch-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  background: linear-gradient(145deg, rgb(247 251 255 / 94%), rgb(255 246 251 / 94%));
+  border: 1px solid rgb(185 210 233 / 64%);
+  border-radius: 15px;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 70%);
+}
+
+.batch-tools header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.batch-tools header > span:first-child {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.batch-tools header strong {
+  font-size: 11px;
+}
+
+.batch-tools header small,
+.batch-safe-copy {
+  color: var(--text-dim);
+  font-size: 8px;
+}
+
+.safe-badge {
+  flex-shrink: 0;
+  padding: 3px 7px;
+  color: #6575a5;
+  font-size: 8px;
+  font-weight: 800;
+  background: linear-gradient(120deg, #eef8ff, #f4edff);
+  border: 1px solid #cfdaef;
+  border-radius: 999px;
+}
+
+.batch-targets,
+.batch-actions {
+  display: grid;
+  gap: 6px;
+}
+
+.batch-targets {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.batch-targets button {
+  min-height: 40px;
+  color: var(--text-mid);
+  font-size: 11px;
+  font-weight: 800;
+  background: rgb(255 255 255 / 82%);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+}
+
+.batch-targets button.active {
+  color: var(--pink-deep);
+  background: #fff0f6;
+  border-color: #f0a9c8;
+  box-shadow: 0 0 0 2px rgb(240 169 200 / 14%);
+}
+
+.batch-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.batch-actions button {
+  min-height: 44px;
+  padding: 6px 8px;
+  font-size: 9.5px;
+  font-weight: 800;
+  border-radius: 12px;
+}
+
+.batch-single {
+  color: #437ca4;
+  background: #edf8ff;
+  border: 1px solid #a9d5ee;
+}
+
+.batch-all {
+  color: #fff;
+  background: linear-gradient(135deg, #819fdf, #e880ad);
+  border: 1px solid rgb(255 255 255 / 65%);
+  box-shadow: 0 4px 10px rgb(106 120 178 / 20%);
+}
+
+.batch-targets button:disabled,
+.batch-actions button:disabled,
+.change-button:disabled {
+  cursor: default;
+  opacity: 0.48;
+}
+
+.batch-safe-copy {
+  line-height: 1.45;
+}
+
+/* 成功花瓣、失败灰烬与碎裂红屑 */
+.burst {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.burst i {
+  position: absolute;
+  top: 50%;
+  left: 24px;
+  width: 7px;
+  height: 9px;
+  margin-top: -5px;
+  background: linear-gradient(160deg, #ffd9e8, #ff9fc4);
+  border-radius: 78% 22% 68% 32%;
+  opacity: 0;
+  animation: burst-fly 0.95s var(--ease-soft) both;
+}
+
+.burst .b1 {
+  --bx: 66px;
+  --by: -34px;
+}
+
+.burst .b2 {
+  --bx: -52px;
+  --by: -30px;
+  animation-delay: 0.07s;
+}
+
+.burst .b3 {
+  --bx: 40px;
+  --by: 30px;
+  background: linear-gradient(160deg, #ffe9d0, #ffcf8a);
+  animation-delay: 0.11s;
+}
+
+.burst .b4 {
+  --bx: -34px;
+  --by: 28px;
+  background: linear-gradient(160deg, #ffe9d0, #ffcf8a);
+  animation-delay: 0.15s;
+}
+
+.burst .b5 {
+  --bx: 12px;
+  --by: -42px;
+  animation-delay: 0.19s;
+}
+
+.burst .b6 {
+  --bx: 84px;
+  --by: 4px;
+  background: linear-gradient(160deg, #d6ecff, #9fd0f5);
+  animation-delay: 0.23s;
+}
+
+.burst-ring {
+  position: absolute;
+  top: 50%;
+  left: 24px;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border: 2px solid rgb(255 190 120 / 90%);
+  border-radius: 50%;
+  animation: burst-ring 0.7s ease-out both;
+}
+
+.burst.ash i {
+  width: 6px;
+  height: 6px;
+  background: linear-gradient(160deg, #cdd6dd, #a8b4bd);
+  border-radius: 45%;
+  animation: ash-fall 1.1s ease-in both;
+}
+
+.burst.ash .b1 {
+  --bx: 30px;
+  --by: 26px;
+}
+
+.burst.ash .b2 {
+  --bx: -20px;
+  --by: 22px;
+  animation-delay: 0.14s;
+}
+
+.burst.ash .b3 {
+  --bx: 56px;
+  --by: 18px;
+  animation-delay: 0.22s;
+}
+
+.burst.ash.danger i {
+  background: linear-gradient(160deg, #ffb3b8, #e4566c);
+}
+
+@keyframes burst-fly {
+  from {
+    opacity: 1;
+    transform: translate(0) rotate(0) scale(0.6);
+  }
+  to {
+    opacity: 0;
+    transform: translate(var(--bx), var(--by)) rotate(300deg) scale(1.15);
+  }
+}
+
+@keyframes burst-ring {
+  from {
+    opacity: 0.95;
+    transform: scale(0.4);
+  }
+  to {
+    opacity: 0;
+    transform: scale(5.2);
+  }
+}
+
+@keyframes ash-fall {
+  from {
+    opacity: 0.9;
+    transform: translateY(-6px) rotate(0);
+  }
+  to {
+    opacity: 0;
+    transform: translate(var(--bx), var(--by)) rotate(160deg);
+  }
+}
+
+/* 锻造仪式遮罩 */
+.forge-ritual {
+  position: absolute;
+  z-index: 30;
+  inset: 0;
+  display: grid;
+  overflow: hidden;
+  place-items: center;
+  border-radius: inherit;
+}
+
+.ritual-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgb(58 46 68 / 46%);
+  backdrop-filter: blur(2px);
+}
+
+.ritual-hammer,
+.ritual-anvil {
+  position: absolute;
+  color: #fff2c4;
+  filter: drop-shadow(0 4px 6px rgb(0 0 0 / 30%));
+}
+
+.ritual-hammer {
+  z-index: 2;
+  transform-origin: 70% 80%;
+  animation: hammer-strike 0.78s ease-in both;
+}
+
+.ritual-anvil {
+  z-index: 1;
+  margin-top: 48px;
+  color: #d9e8f4;
+  animation: anvil-bounce 0.78s ease-in both;
+}
+
+.ritual-flash {
+  position: absolute;
+  z-index: 3;
+  width: 18px;
+  height: 18px;
+  margin-top: 40px;
+  background: radial-gradient(circle, #fff 0%, #ffe596 45%, transparent 72%);
+  border-radius: 50%;
+  animation: ritual-flash 0.78s ease-out both;
+}
+
+.ritual-spark {
+  position: absolute;
+  z-index: 3;
+  width: 5px;
+  height: 5px;
+  margin-top: 40px;
+  background: #ffe596;
+  border-radius: 50%;
+  box-shadow: 0 0 6px #ffcf6a;
+  opacity: 0;
+  animation: ritual-spark 0.78s ease-out both;
+}
+
+.ritual-spark.s1 {
+  --sx: -46px;
+  --sy: -34px;
+}
+
+.ritual-spark.s2 {
+  --sx: 44px;
+  --sy: -30px;
+  animation-delay: 0.02s;
+}
+
+.ritual-spark.s3 {
+  --sx: -30px;
+  --sy: 26px;
+  animation-delay: 0.04s;
+}
+
+.ritual-spark.s4 {
+  --sx: 34px;
+  --sy: 30px;
+  animation-delay: 0.06s;
+}
+
+.ritual-copy {
+  position: absolute;
+  z-index: 4;
+  bottom: 27%;
+  color: #ffe9f3;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  text-shadow: 0 1px 6px rgb(0 0 0 / 45%);
+}
+
+.ritual-fade-enter-active,
+.ritual-fade-leave-active {
+  transition: opacity 0.16s ease;
+}
+
+.ritual-fade-enter-from,
+.ritual-fade-leave-to {
+  opacity: 0;
+}
+
+@keyframes hammer-strike {
+  0% {
+    transform: translate(26px, -46px) rotate(38deg);
+  }
+  42%,
+  54% {
+    transform: translate(0, 6px) rotate(-14deg);
+  }
+  100% {
+    opacity: 0.9;
+    transform: translate(8px, -30px) rotate(20deg);
+  }
+}
+
+@keyframes anvil-bounce {
+  42% {
+    transform: translateY(3px) scaleY(0.94);
+  }
+  60% {
+    transform: translateY(-2px);
+  }
+}
+
+@keyframes ritual-flash {
+  0%,
+  34% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  44% {
+    opacity: 1;
+    transform: scale(2.6);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(4.4);
+  }
+}
+
+@keyframes ritual-spark {
+  0%,
+  30% {
+    opacity: 0;
+    transform: translate(0) scale(0.5);
+  }
+  42% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--sx), var(--sy));
+  }
+}
+
+/* 跨阶段外观觉醒横幅 */
+.stage-awakening {
+  position: absolute;
+  z-index: 32;
+  top: 34%;
+  left: 50%;
+  display: flex;
+  min-width: 230px;
+  padding: 12px 24px 12px 68px;
+  overflow: hidden;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  background: linear-gradient(135deg, rgb(255 251 235 / 98%), rgb(255 240 250 / 98%));
+  border: 1px solid rgb(240 200 110 / 80%);
+  border-radius: 999px;
+  box-shadow:
+    0 8px 30px rgb(240 180 60 / 40%),
+    inset 0 0 18px rgb(255 235 170 / 60%);
+  transform: translateX(-50%);
+}
+
+.awaken-overlay {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: 8px;
+  width: 54px;
+  height: 54px;
+  object-fit: contain;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.stage-awakening strong,
+.stage-awakening small {
+  position: relative;
+  z-index: 2;
+}
+
+.stage-awakening strong {
+  font-size: 14px;
+  letter-spacing: 1px;
+  background: linear-gradient(90deg, #c98f10, #e06ba4);
+  background-clip: text;
+  color: transparent;
+}
+
+.stage-awakening small {
+  color: #a08a50;
+  font-size: 9px;
+}
+
+.awaken-rays {
+  position: absolute;
+  inset: -80%;
+  background: repeating-conic-gradient(
+    from 0deg,
+    transparent 0deg 24deg,
+    rgb(255 203 139 / 32%) 24deg 36deg
+  );
+  animation: rays-spin 3.2s linear infinite;
+}
+
+.awaken-pop-enter-active {
+  animation: awaken-in 0.5s var(--ease-out-back) both;
+}
+
+.awaken-pop-leave-active {
+  transition:
+    opacity 0.24s ease-in,
+    transform 0.24s ease-in;
+}
+
+.awaken-pop-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(-10px) scale(0.92);
+}
+
+@keyframes awaken-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(14px) scale(0.7);
+  }
+}
+
+@keyframes rays-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .luck-track i,
   .luck-track i::after,
@@ -1356,11 +2315,21 @@ function attempt(forceDanger = false): void {
   .result-feedback::after,
   .result-spark::before,
   .result-spark::after,
+  .burst i,
+  .burst-ring,
+  .stage-node.current .node-dot,
+  .track-fill,
+  .forge-ritual,
+  .forge-ritual svg,
+  .forge-ritual span,
+  .forge-ritual i,
+  .stage-awakening,
+  .awaken-rays,
   .selected-equipment,
   .level-route,
   .enhance-button,
   .enhance-button::after,
-  .enhance-button span,
+  .enhance-button > svg,
   .danger-confirm,
   .picker-row,
   .result-pop-enter-active,

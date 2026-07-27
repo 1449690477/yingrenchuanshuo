@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { LockKeyhole } from '@lucide/vue';
 import type { EquipmentDef } from '@/core/types';
 import { forgeStageAt } from '@/core/equipment';
+import { requireForgeStageVisual } from '@/data/forgeVisuals';
 
 const props = withDefaults(
   defineProps<{
@@ -24,6 +25,10 @@ const props = withDefaults(
 
 const iconUrl = computed(() => `${import.meta.env.BASE_URL}${props.def.icon}`);
 const forgeStage = computed(() => forgeStageAt(props.enhance));
+const forgeOverlayUrl = computed(() => {
+  const asset = requireForgeStageVisual(forgeStage.value).overlayAsset;
+  return asset ? `${import.meta.env.BASE_URL}${asset}` : null;
+});
 const iconLabel = computed(() =>
   props.enhance > 0
     ? `${props.def.name}装备图标，强化 +${props.enhance}`
@@ -42,6 +47,15 @@ const iconLabel = computed(() =>
   >
     <span class="shine" aria-hidden="true"></span>
     <img :src="iconUrl" alt="" draggable="false" decoding="async" />
+    <img
+      v-if="forgeOverlayUrl"
+      class="forge-overlay"
+      :src="forgeOverlayUrl"
+      alt=""
+      draggable="false"
+      decoding="async"
+      aria-hidden="true"
+    />
     <span class="forge-frame" aria-hidden="true"></span>
     <span v-if="forgeStage !== 'original'" class="forge-mark" aria-hidden="true">✦</span>
     <span v-if="locked" class="lock" aria-hidden="true">
@@ -126,6 +140,34 @@ img {
   filter: drop-shadow(0 2px 2px rgb(39 50 69 / 16%));
 }
 
+.forge-overlay {
+  position: absolute;
+  z-index: 2;
+  inset: -7%;
+  width: 114%;
+  height: 114%;
+  object-fit: contain;
+  opacity: 0;
+  filter: drop-shadow(0 0 5px var(--forge-glow));
+  transform: scale(0.92);
+  transition:
+    opacity var(--t-mid) var(--ease-soft),
+    transform var(--t-mid) var(--ease-spring);
+  pointer-events: none;
+}
+
+.forge-gleam .forge-overlay,
+.forge-radiant .forge-overlay,
+.forge-starforged .forge-overlay,
+.forge-sakura .forge-overlay {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.forge-sakura .forge-overlay {
+  animation: forge-overlay-breath 3.2s ease-in-out infinite;
+}
+
 .shine {
   position: absolute;
   z-index: 0;
@@ -139,7 +181,7 @@ img {
 
 .forge-frame {
   position: absolute;
-  z-index: 2;
+  z-index: 3;
   inset: 2px;
   pointer-events: none;
   opacity: 0;
@@ -150,7 +192,7 @@ img {
 
 .forge-mark {
   position: absolute;
-  z-index: 3;
+  z-index: 4;
   top: 2px;
   right: 3px;
   color: var(--forge-color);
@@ -271,11 +313,28 @@ img {
   }
 }
 
+@keyframes forge-overlay-breath {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 4px rgb(255 179 210 / 52%));
+    transform: scale(1);
+  }
+  50% {
+    filter: drop-shadow(0 0 9px rgb(255 179 210 / 88%));
+    transform: scale(1.03);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .shine,
   .forge-frame,
-  .forge-mark {
+  .forge-mark,
+  .forge-overlay {
     animation: none !important;
+  }
+
+  .forge-overlay {
+    transition: none !important;
   }
 }
 </style>

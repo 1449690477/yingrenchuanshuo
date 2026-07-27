@@ -479,7 +479,8 @@ onUnmounted(() => clearTimeout(previewTimer));
   position: relative;
   min-width: 0;
   min-height: 304px;
-  overflow: hidden;
+  /* 弧形只属于背景层；这里若裁剪，会把右上角的互动对话一起削掉。 */
+  overflow: visible;
   padding: 0;
   border-radius: 49% 49% 20px 20px;
 }

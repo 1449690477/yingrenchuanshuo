@@ -8,6 +8,14 @@ export interface ForgeStageVisual {
   readonly overlayAsset: string | null;
 }
 
+export const FORGE_STAGE_ORDER = [
+  'original',
+  'gleam',
+  'radiant',
+  'starforged',
+  'sakura',
+] as const satisfies readonly ForgeStage[];
+
 export const FORGE_STAGE_VISUALS: Record<ForgeStage, ForgeStageVisual> = {
   original: {
     stage: 'original',
