@@ -8,8 +8,9 @@
  * 这里只负责：名字、等级、品质、槽位、图标。
  */
 
-import type { EquipmentDef, EquipSlot, Quality } from '@/core/types';
-import { SLOT_ORDER } from './constants';
+import type { Affix, AffixKey, EquipmentDef, EquipSlot, Quality } from '@/core/types';
+import { QUALITY_AFFIX_COUNT, SLOT_ORDER } from './constants';
+import { BOUTIQUE_THEME_LIST, boutiqueAppearanceId, boutiqueEquipmentId } from './boutique';
 
 /** 每个区域一套命名主题：8 个槽位各一个词根 */
 interface NamingTheme {
@@ -119,7 +120,80 @@ function buildEquipment(): Record<string, EquipmentDef> {
     }
   }
 
+  for (const theme of BOUTIQUE_THEME_LIST) {
+    const percentile = theme.quality === 'epic' ? 0.6 : theme.quality === 'legendary' ? 0.75 : 0.9;
+    for (const item of theme.items) {
+      const id = boutiqueEquipmentId(theme.id, item.slot, item.classId);
+      const iconName = item.slot === 'weapon' ? `weapon-${item.classId}.png` : `${item.slot}.png`;
+      out[id] = {
+        id,
+        name: item.name,
+        slot: item.slot,
+        quality: theme.quality,
+        level: theme.level,
+        icon: `assets/equipment/shop/${theme.id}/${iconName}`,
+        appearanceId: boutiqueAppearanceId(theme.id, item.slot, item.classId),
+        fixedAffixes: boutiqueAffixes(
+          item.slot,
+          theme.level,
+          QUALITY_AFFIX_COUNT[theme.quality],
+          percentile,
+        ),
+        uniqueEffect: item.uniqueEffect,
+        boutiqueTheme: theme.id,
+        ...(item.classId ? { classId: item.classId } : {}),
+      };
+    }
+  }
+
   return out;
+}
+
+const BOUTIQUE_AFFIX_KEYS: Readonly<Record<EquipSlot, readonly AffixKey[]>> = {
+  weapon: ['atk', 'critRate', 'critDmg', 'acc', 'spd'],
+  head: ['def', 'hp', 'acc', 'critRate', 'eva'],
+  body: ['def', 'hp', 'eva', 'acc', 'critRate'],
+  necklace: ['atk', 'critDmg', 'hp', 'critRate', 'acc'],
+  bracelet: ['atk', 'acc', 'def', 'critRate', 'hp'],
+  ring: ['atk', 'critRate', 'critDmg', 'acc', 'eva'],
+  belt: ['def', 'hp', 'eva', 'acc', 'critRate'],
+  shoes: ['eva', 'spd', 'def', 'hp', 'acc'],
+};
+
+/** 商店珍品用固定高档词条，掉落与购买获得的同款战力完全一致。 */
+function boutiqueAffixes(
+  slot: EquipSlot,
+  level: number,
+  count: number,
+  percentile: number,
+): Affix[] {
+  return BOUTIQUE_AFFIX_KEYS[slot]
+    .slice(0, count)
+    .map((key) => ({ key, value: boutiqueAffixValue(key, level, percentile) }));
+}
+
+function boutiqueAffixValue(key: AffixKey, level: number, percentile: number): number {
+  const levelScale = Math.pow(level, 1.3);
+  switch (key) {
+    case 'atk':
+      return Math.round((0.4 + 0.4 * percentile) * levelScale);
+    case 'def':
+      return Math.round((0.3 + 0.3 * percentile) * levelScale);
+    case 'hp':
+      return Math.round((4 + 4 * percentile) * levelScale);
+    case 'acc':
+      return Math.round((0.5 + 0.7 * percentile) * levelScale);
+    case 'eva':
+      return Math.round((0.4 + 0.6 * percentile) * levelScale);
+    case 'critRate':
+      return Math.round((0.5 + 2.5 * percentile) * 10) / 10;
+    case 'critDmg':
+      return Math.round((2 + 10 * percentile) * 10) / 10;
+    case 'spd':
+      return Math.round((0.01 + 0.04 * percentile) * 100) / 100;
+    default:
+      throw new Error(`[配置错误] 精品商店不支持固定词条：${key}`);
+  }
 }
 
 export const EQUIPMENT: Record<string, EquipmentDef> = buildEquipment();

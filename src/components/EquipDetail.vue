@@ -23,7 +23,12 @@ const stats = computed<Stats>(() =>
 );
 
 const cp = computed(() => inventory.contributionCp(props.inst));
-const canEquip = computed(() => (player.player?.level ?? 0) >= def.value.level);
+const classMatched = computed(
+  () => !def.value.classId || def.value.classId === player.player?.classId,
+);
+const canEquip = computed(
+  () => (player.player?.level ?? 0) >= def.value.level && classMatched.value,
+);
 
 /** 与当前已穿戴的同部位装备对比 */
 const compare = computed(() => {
@@ -48,6 +53,12 @@ function fmtStat(key: keyof Stats, v: number): string {
   if (key === 'critRate' || key === 'critDmg') return `+${v.toFixed(1)}%`;
   if (key === 'spd') return `+${v.toFixed(2)}`;
   return `+${abbr(Math.round(v))}`;
+}
+
+function fmtAffix(key: string, value: number): string {
+  if (key === 'critRate' || key === 'critDmg') return `+${value.toFixed(1)}%`;
+  if (key === 'spd') return `+${value.toFixed(2)}`;
+  return `+${abbr(Math.round(value))}`;
 }
 
 function doEquip() {
@@ -111,6 +122,20 @@ function doDecompose() {
             <span class="num">+{{ a.value }}</span>
           </div>
         </section>
+
+        <section v-if="def.fixedAffixes?.length" class="group">
+          <div class="group-head">珍品固定词条</div>
+          <div v-for="(a, i) in def.fixedAffixes" :key="i" class="stat fixed-affix">
+            <span>{{ AFFIX_LABELS[a.key] }}</span>
+            <span class="num">{{ fmtAffix(a.key, a.value) }}</span>
+          </div>
+        </section>
+
+        <section v-if="def.uniqueEffect" class="unique-effect">
+          <strong>专属视觉</strong>
+          <span>{{ def.uniqueEffect }}</span>
+          <small>当前为真实外观与演出换肤；战斗机制效果将在技能系统接通后单独标明。</small>
+        </section>
       </div>
 
       <footer class="foot">
@@ -120,7 +145,7 @@ function doDecompose() {
           </button>
           <button class="btn btn-plain f" :disabled="inst.locked" @click="doDecompose">分解</button>
           <button class="btn btn-pink f2" :disabled="!canEquip" @click="doEquip">
-            {{ canEquip ? '穿戴' : `Lv${def.level} 可穿戴` }}
+            {{ canEquip ? '穿戴' : classMatched ? `Lv${def.level} 可穿戴` : '职业不适用' }}
           </button>
         </template>
         <template v-else>
@@ -269,6 +294,37 @@ function doDecompose() {
 .stat.affix {
   color: var(--q-epic);
   background: #f8f2fe;
+}
+
+.stat.fixed-affix {
+  color: #9a5c20;
+  background: linear-gradient(90deg, #fff8e5, #fff1f7);
+}
+
+.unique-effect {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px 12px;
+  color: #7f3659;
+  background: linear-gradient(135deg, #fff0f6, #fff8df);
+  border: 1px solid #f5d5bb;
+  border-radius: 10px;
+}
+
+.unique-effect strong {
+  font-size: 11px;
+}
+
+.unique-effect span {
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.unique-effect small {
+  font-size: 8px;
+  line-height: 1.45;
+  color: var(--text-dim);
 }
 
 .foot {

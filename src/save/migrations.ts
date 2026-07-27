@@ -44,6 +44,13 @@ export const migrations: Record<number, Migration> = {
       },
     };
   },
+  2: (save) => ({
+    ...save,
+    version: 3,
+    shop: {
+      purchasedOfferIds: [],
+    },
+  }),
 };
 
 export class SaveTooNewError extends Error {

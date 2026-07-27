@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, nextTick, ref } from 'vue';
+import { Coins, ShoppingBag, Sparkles } from '@lucide/vue';
 import { abbr, duration } from '@/core/format';
 import { usePlayerStore } from '@/stores/player';
 import { useSettingsStore } from '@/stores/settings';
 import type { SaveData } from '@/save/schema';
 import { downloadSave, importFromJson } from '@/save/storage';
+import ShopView from '@/views/ShopView.vue';
 
 const player = usePlayerStore();
 const settings = useSettingsStore();
@@ -12,6 +14,9 @@ const fileInput = ref<HTMLInputElement | null>(null);
 const msg = ref<{ text: string; ok: boolean } | null>(null);
 const confirmReset = ref(false);
 const pendingImport = ref<SaveData | null>(null);
+const showShop = ref(false);
+const shopEntryButton = ref<HTMLButtonElement | null>(null);
+const shopSceneUrl = `${import.meta.env.BASE_URL}assets/shops/sakura-boutique.webp`;
 
 const stats = computed(() => settings.saveData?.stats ?? null);
 
@@ -23,6 +28,16 @@ function doExport() {
 
 function pickFile() {
   fileInput.value?.click();
+}
+
+function openShop() {
+  showShop.value = true;
+}
+
+async function closeShop() {
+  showShop.value = false;
+  await nextTick();
+  shopEntryButton.value?.focus();
 }
 
 async function onFile(e: Event) {
@@ -64,81 +79,107 @@ function say(text: string, ok: boolean) {
 
 <template>
   <div class="more scroll-y">
-    <section class="card">
-      <div class="head">游戏数据</div>
-      <div v-if="stats" class="rows">
-        <div class="r">
-          <span>累计击杀</span><span class="num">{{ abbr(stats.totalKills) }}</span>
-        </div>
-        <div class="r">
-          <span>累计游戏时长</span><span class="num">{{ duration(stats.totalPlaySec) }}</span>
-        </div>
-        <div class="r">
-          <span>已通关关卡</span>
-          <span class="num">{{ settings.saveData?.progress.clearedStageIds.length ?? 0 }}</span>
-        </div>
-        <div class="r">
-          <span>金币</span><span class="num">{{ abbr(player.player?.gold ?? 0) }}</span>
-        </div>
-      </div>
-    </section>
-
-    <section class="card">
-      <div class="head">存档管理</div>
-      <p v-if="settings.saveError" class="save-error">自动存档失败：{{ settings.saveError }}</p>
-      <p class="warn-note">
-        存档只保存在这台设备的浏览器里。<strong>清理浏览器数据会导致存档丢失</strong>，
-        建议定期导出备份。
-      </p>
-      <div class="btns">
-        <button class="btn btn-blue f" @click="doExport">导出备份</button>
-        <button class="btn btn-plain f" @click="pickFile">导入存档</button>
-      </div>
-      <div v-if="pendingImport" class="import-confirm">
-        <p>
-          将覆盖当前角色，导入「{{ pendingImport.player.name }}」Lv.{{ pendingImport.player.level }}
-          的进度。
-        </p>
-        <div class="btns compact">
-          <button class="btn btn-plain f" @click="pendingImport = null">取消</button>
-          <button class="btn btn-pink f" @click="confirmImport">确认覆盖</button>
-        </div>
-      </div>
-      <input ref="fileInput" type="file" accept="application/json,.json" hidden @change="onFile" />
-    </section>
-
-    <section class="card">
-      <div class="head">危险操作</div>
-      <div class="btns">
-        <button v-if="!confirmReset" class="btn btn-plain f danger" @click="confirmReset = true">
-          删除存档，重新开始
+    <div class="more-content" :inert="showShop" :aria-hidden="showShop ? 'true' : undefined">
+      <section class="boutique-entry" :style="{ backgroundImage: `url(${shopSceneUrl})` }">
+        <span class="boutique-shade" />
+        <span class="boutique-copy">
+          <small><Sparkles :size="11" />首批 30 件珍品试水</small>
+          <strong>樱花珍品店</strong>
+          <span>紫 · 金 · 红洛丽塔系列，支持试穿、专属互动与攻击换肤。</span>
+          <em><Coins :size="11" />只收分解与挂机获得的金币</em>
+        </span>
+        <button ref="shopEntryButton" @click="openShop">
+          <ShoppingBag :size="15" />
+          进入小店
         </button>
-        <template v-else>
-          <button class="btn btn-plain f" @click="confirmReset = false">取消</button>
-          <button class="btn f danger-solid" @click="doReset">确认删除</button>
-        </template>
-      </div>
-      <p v-if="confirmReset" class="warn-note danger-text">
-        这会永久删除当前角色的全部进度，无法撤销。建议先导出备份。
-      </p>
-    </section>
+      </section>
 
-    <section class="card">
-      <div class="head">即将开放</div>
-      <div class="chips">
-        <span class="chip">邮件 · M4-5</span>
-        <span class="chip">成就 · M4-7</span>
-        <span class="chip">图鉴 · M4-8</span>
-        <span class="chip">排行榜 · M7-4</span>
-        <span class="chip">公会 · M8-3</span>
-      </div>
-    </section>
+      <section class="card">
+        <div class="head">游戏数据</div>
+        <div v-if="stats" class="rows">
+          <div class="r">
+            <span>累计击杀</span><span class="num">{{ abbr(stats.totalKills) }}</span>
+          </div>
+          <div class="r">
+            <span>累计游戏时长</span><span class="num">{{ duration(stats.totalPlaySec) }}</span>
+          </div>
+          <div class="r">
+            <span>已通关关卡</span>
+            <span class="num">{{ settings.saveData?.progress.clearedStageIds.length ?? 0 }}</span>
+          </div>
+          <div class="r">
+            <span>金币</span><span class="num">{{ abbr(player.player?.gold ?? 0) }}</span>
+          </div>
+        </div>
+      </section>
 
-    <p class="ver">樱刃传说 · 开发版 M2</p>
+      <section class="card">
+        <div class="head">存档管理</div>
+        <p v-if="settings.saveError" class="save-error">自动存档失败：{{ settings.saveError }}</p>
+        <p class="warn-note">
+          存档只保存在这台设备的浏览器里。<strong>清理浏览器数据会导致存档丢失</strong>，
+          建议定期导出备份。
+        </p>
+        <div class="btns">
+          <button class="btn btn-blue f" @click="doExport">导出备份</button>
+          <button class="btn btn-plain f" @click="pickFile">导入存档</button>
+        </div>
+        <div v-if="pendingImport" class="import-confirm">
+          <p>
+            将覆盖当前角色，导入「{{ pendingImport.player.name }}」Lv.{{
+              pendingImport.player.level
+            }}
+            的进度。
+          </p>
+          <div class="btns compact">
+            <button class="btn btn-plain f" @click="pendingImport = null">取消</button>
+            <button class="btn btn-pink f" @click="confirmImport">确认覆盖</button>
+          </div>
+        </div>
+        <input
+          ref="fileInput"
+          type="file"
+          accept="application/json,.json"
+          hidden
+          @change="onFile"
+        />
+      </section>
 
-    <Transition name="fade">
-      <div v-if="msg" class="toast" :class="{ bad: !msg.ok }">{{ msg.text }}</div>
-    </Transition>
+      <section class="card">
+        <div class="head">危险操作</div>
+        <div class="btns">
+          <button v-if="!confirmReset" class="btn btn-plain f danger" @click="confirmReset = true">
+            删除存档，重新开始
+          </button>
+          <template v-else>
+            <button class="btn btn-plain f" @click="confirmReset = false">取消</button>
+            <button class="btn f danger-solid" @click="doReset">确认删除</button>
+          </template>
+        </div>
+        <p v-if="confirmReset" class="warn-note danger-text">
+          这会永久删除当前角色的全部进度，无法撤销。建议先导出备份。
+        </p>
+      </section>
+
+      <section class="card">
+        <div class="head">即将开放</div>
+        <div class="chips">
+          <span class="chip">邮件 · M4-5</span>
+          <span class="chip">成就 · M4-7</span>
+          <span class="chip">图鉴 · M4-8</span>
+          <span class="chip">排行榜 · M7-4</span>
+          <span class="chip">公会 · M8-3</span>
+        </div>
+      </section>
+
+      <p class="ver">樱刃传说 · 开发版 M2</p>
+
+      <Transition name="fade">
+        <div v-if="msg" class="toast" :class="{ bad: !msg.ok }">{{ msg.text }}</div>
+      </Transition>
+    </div>
+
+    <ShopView v-if="showShop" @close="closeShop" />
   </div>
 </template>
 
@@ -149,6 +190,82 @@ function say(text: string, ok: boolean) {
   flex-direction: column;
   gap: 10px;
   position: relative;
+}
+
+.more-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.boutique-entry {
+  position: relative;
+  min-height: 150px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 9px;
+  overflow: hidden;
+  padding: 12px;
+  color: #fff;
+  background-position: center 56%;
+  background-size: cover;
+  border: 1px solid rgb(255 255 255 / 75%);
+  border-radius: var(--r);
+  box-shadow: 0 8px 18px rgb(67 50 76 / 16%);
+}
+
+.boutique-shade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgb(42 32 50 / 72%), rgb(42 32 50 / 18%));
+}
+
+.boutique-copy {
+  position: relative;
+  z-index: 1;
+  max-width: 238px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  text-shadow: 0 1px 5px rgb(33 24 40 / 70%);
+}
+
+.boutique-copy small,
+.boutique-copy em {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 8px;
+  font-style: normal;
+}
+
+.boutique-copy strong {
+  font-size: 17px;
+}
+
+.boutique-copy > span {
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.boutique-entry > button {
+  position: relative;
+  z-index: 1;
+  min-width: 94px;
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 10px;
+  font-size: 10px;
+  font-weight: 800;
+  color: #78405f;
+  background: rgb(255 247 250 / 94%);
+  border: 1px solid rgb(255 255 255 / 92%);
+  border-radius: 14px;
+  box-shadow: 0 5px 12px rgb(49 37 57 / 20%);
 }
 
 .head {

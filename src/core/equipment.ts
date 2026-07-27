@@ -124,10 +124,11 @@ export function totalEquipStats(
  * 数值范围随装备等级缩放，见 docs/12 词条池。
  */
 export function rollAffixes(def: EquipmentDef, rng: Rng): Affix[] {
-  const count = QUALITY_AFFIX_COUNT[def.quality];
+  const fixedKeys = new Set((def.fixedAffixes ?? []).map((affix) => affix.key));
+  const count = Math.max(0, QUALITY_AFFIX_COUNT[def.quality] - fixedKeys.size);
   if (count <= 0) return [];
 
-  const pool = [...AFFIX_POOL];
+  const pool = AFFIX_POOL.filter((entry) => !fixedKeys.has(entry.key));
   const out: Affix[] = [];
 
   for (let i = 0; i < count && pool.length > 0; i++) {

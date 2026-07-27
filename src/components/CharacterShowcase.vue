@@ -5,6 +5,7 @@ import { abbr } from '@/core/format';
 import type { ClassId, EquipmentInstance, EquipSlot } from '@/core/types';
 import { CLASS_INFO, SLOT_LABELS } from '@/data/constants';
 import { requireEquipment } from '@/data/equipment';
+import { BOUTIQUE_THEMES } from '@/data/boutique';
 import {
   BASIC_ATTACK_EFFECTS,
   resolveCharacterAppearance,
@@ -36,6 +37,8 @@ const actionSequence = ref(0);
 const activeSkill = ref<VisualSkill | null>(null);
 const showBasicEffect = ref(false);
 const reactionText = ref('');
+const interactionCount = ref(0);
+const lastInteraction = ref<'greet' | 'pose' | 'celebrate'>('greet');
 let previewTimer = 0;
 
 const seedByClass: Record<ClassId, number> = {
@@ -48,7 +51,12 @@ const interactionRng = new Rng(seedByClass[props.classId]);
 const reactions: Record<ClassId, readonly string[]> = {
   swordsman: ['要一起练剑吗？', '花瓣落在肩上啦。', '装备很合身！', '今天也会保护你。'],
   witch: ['魔力正在发芽～', '要摸摸这颗星星吗？', '火花不会烫手的。', '新衣服有加魔力哦！'],
-  shaman: ['小灵火在向你问好。', '听，铃铛响了一下。', '今天的气息很温柔。', '守护灵也喜欢这套衣服。'],
+  shaman: [
+    '小灵火在向你问好。',
+    '听，铃铛响了一下。',
+    '今天的气息很温柔。',
+    '守护灵也喜欢这套衣服。',
+  ],
 };
 
 const skills = computed(() => visualSkillsFor(props.classId));
@@ -58,6 +66,12 @@ const appearance = computed(() =>
 const characterKey = computed(
   () => `${appearance.value.signature}:${appearance.value.growthTier.id}:${actionSequence.value}`,
 );
+const boutiqueTheme = computed(() =>
+  appearance.value.activeBoutiqueTheme
+    ? BOUTIQUE_THEMES[appearance.value.activeBoutiqueTheme]
+    : null,
+);
+const interactionBond = computed(() => Math.min(100, interactionCount.value * 20));
 const effectUrl = computed(() => {
   if (activeSkill.value) return `${import.meta.env.BASE_URL}${activeSkill.value.effectAsset}`;
   if (showBasicEffect.value) {
@@ -83,12 +97,15 @@ function play(nextAction: CharacterAction, skill: VisualSkill | null = null): vo
   actionSequence.value += 1;
   reactionText.value = '';
   if (nextAction === 'idle') return;
-  previewTimer = window.setTimeout(() => {
-    action.value = 'idle';
-    activeSkill.value = null;
-    showBasicEffect.value = false;
-    actionSequence.value += 1;
-  }, skill ? 980 : 760);
+  previewTimer = window.setTimeout(
+    () => {
+      action.value = 'idle';
+      activeSkill.value = null;
+      showBasicEffect.value = false;
+      actionSequence.value += 1;
+    },
+    skill ? 980 : 760,
+  );
 }
 
 function previewSkill(skill: VisualSkill): void {
@@ -96,9 +113,15 @@ function previewSkill(skill: VisualSkill): void {
   play('cast', skill);
 }
 
-function interact(): void {
+function interact(kind: 'greet' | 'pose' | 'celebrate' = 'greet'): void {
   clearTimeout(previewTimer);
-  reactionText.value = interactionRng.pick(reactions[props.classId]);
+  lastInteraction.value = kind;
+  interactionCount.value += 1;
+  const themeLines = boutiqueTheme.value?.interactionLines ?? [];
+  const themed = themeLines.length > 0 && (kind !== 'greet' || interactionCount.value % 2 === 0);
+  reactionText.value = themed
+    ? themeLines[kind === 'greet' ? 0 : kind === 'pose' ? 1 : 2]!
+    : interactionRng.pick(reactions[props.classId]);
   action.value = 'react';
   activeSkill.value = null;
   showBasicEffect.value = false;
@@ -130,7 +153,8 @@ onUnmounted(() => clearTimeout(previewTimer));
     <div class="growth-status">
       <span class="tier-badge">{{ appearance.growthTier.label }}</span>
       <span>{{ appearance.equippedCount }}/8 已装备</span>
-      <span>{{ appearance.visibleEquippedCount }}/3 外观部位已变化</span>
+      <span>{{ appearance.visibleEquippedCount }}/4 外观部位已变化</span>
+      <span v-if="boutiqueTheme" class="boutique-badge">{{ boutiqueTheme.shortName }}特效</span>
     </div>
 
     <div class="paper-doll-layout">
@@ -160,7 +184,7 @@ onUnmounted(() => clearTimeout(previewTimer));
       <button
         class="character-stage"
         :aria-label="`触摸${name}互动；${appearance.ariaLabel}`"
-        @click="interact"
+        @click="interact('greet')"
       >
         <span class="stage-backdrop" aria-hidden="true" />
         <CharacterAppearance
@@ -215,6 +239,22 @@ onUnmounted(() => clearTimeout(previewTimer));
       </div>
     </div>
 
+    <div class="interaction-panel">
+      <span class="bond-copy">
+        <small>本次互动默契</small>
+        <span class="bond-track"><i :style="{ width: `${interactionBond}%` }" /></span>
+      </span>
+      <button :class="{ active: lastInteraction === 'greet' }" @click="interact('greet')">
+        问候
+      </button>
+      <button :class="{ active: lastInteraction === 'pose' }" @click="interact('pose')">
+        {{ boutiqueTheme ? boutiqueTheme.interactionName : '展示' }}
+      </button>
+      <button :class="{ active: lastInteraction === 'celebrate' }" @click="interact('celebrate')">
+        庆祝
+      </button>
+    </div>
+
     <div class="action-strip" aria-label="角色动作与技能预览">
       <button :class="{ active: action === 'idle' }" @click="play('idle')">
         <span aria-hidden="true">♡</span>
@@ -231,7 +271,9 @@ onUnmounted(() => clearTimeout(previewTimer));
         :class="{ active: activeSkill?.id === skill.id }"
         :disabled="level < skill.unlockLevel"
         :aria-label="
-          level < skill.unlockLevel ? `${skill.name}，等级 ${skill.unlockLevel} 解锁` : `预览${skill.name}`
+          level < skill.unlockLevel
+            ? `${skill.name}，等级 ${skill.unlockLevel} 解锁`
+            : `预览${skill.name}`
         "
         @click="previewSkill(skill)"
       >
@@ -325,6 +367,14 @@ onUnmounted(() => clearTimeout(previewTimer));
   font-weight: 800;
   color: var(--pink-deep);
   background: var(--pink-soft);
+  border-radius: 999px;
+}
+
+.boutique-badge {
+  padding: 2px 6px;
+  font-weight: 800;
+  color: #8d496f;
+  background: linear-gradient(120deg, #ffe8f2, #fff2c9);
   border-radius: 999px;
 }
 
@@ -531,6 +581,61 @@ onUnmounted(() => clearTimeout(previewTimer));
   --dx: 20px;
   --dy: 39px;
   background: #96d4ff;
+}
+
+.interaction-panel {
+  display: grid;
+  grid-template-columns: minmax(72px, 1fr) repeat(3, minmax(58px, auto));
+  align-items: center;
+  gap: 4px;
+  padding: 6px 7px;
+  background: rgb(255 255 255 / 52%);
+  border-top: 1px solid rgb(222 229 239 / 72%);
+}
+
+.interaction-panel button {
+  min-height: 44px;
+  padding: 4px 7px;
+  font-size: 8px;
+  font-weight: 800;
+  color: var(--text-mid);
+  background: rgb(255 255 255 / 76%);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+}
+
+.interaction-panel button.active {
+  color: var(--pink-deep);
+  background: #fff0f6;
+  border-color: #ffc5da;
+}
+
+.bond-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-right: 3px;
+}
+
+.bond-copy small {
+  font-size: 7px;
+  color: var(--text-dim);
+}
+
+.bond-track {
+  height: 5px;
+  overflow: hidden;
+  background: #e8edf4;
+  border-radius: 999px;
+}
+
+.bond-track i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #ff8cb6, #f7c86d);
+  border-radius: inherit;
+  transition: width 0.24s ease;
 }
 
 .action-strip {

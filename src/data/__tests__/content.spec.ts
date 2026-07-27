@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
@@ -23,6 +23,9 @@ import { MONSTER_VISUALS } from '../monsterVisuals';
 import { ALL_CHAPTERS, REGIONS } from '../regions';
 import { FIRST_STAGE_ID, ORDERED_STAGE_IDS, STAGES } from '../stages';
 import { SYSTEM_VISUALS } from '../systemVisuals';
+import { BOUTIQUE_THEME_LIST } from '../boutique';
+import { SHOP_OFFERS } from '../shop';
+import { QUALITY_AFFIX_COUNT } from '../constants';
 
 describe('区域 1–2 内容完整性', () => {
   it('已登记的职业立绘文件都真实存在', () => {
@@ -89,7 +92,7 @@ describe('区域 1–2 内容完整性', () => {
     expect(ALL_CHAPTERS).toHaveLength(10);
     expect(Object.keys(STAGES)).toHaveLength(60);
     expect(Object.keys(MONSTERS)).toHaveLength(49);
-    expect(Object.keys(EQUIPMENT)).toHaveLength(48);
+    expect(Object.keys(EQUIPMENT)).toHaveLength(78);
     expect(Object.keys(LOOT_TABLES)).toHaveLength(30);
   });
 
@@ -125,6 +128,14 @@ describe('区域 1–2 内容完整性', () => {
         expect(MONSTERS[stage.bossId]?.type, stage.id).toBe('boss');
         expect(waveMonsterIds, stage.id).toContain(stage.bossId);
       }
+    }
+  });
+
+  it('最终关普通击杀使用 normal 表，BOSS 表只由完整波次结算', () => {
+    for (const stage of Object.values(STAGES)) {
+      expect(stage.lootTableId.endsWith('_normal'), stage.id).toBe(true);
+      if (!stage.bossId) continue;
+      expect(MONSTERS[stage.bossId]!.lootTableId.endsWith('_boss'), stage.bossId).toBe(true);
     }
   });
 
@@ -265,7 +276,7 @@ describe('区域 1–2 内容完整性', () => {
       .filter((appearance) => appearance.renderMode === 'layer')
       .flatMap((appearance) => Object.values(appearance.assets));
     const assets = [...new Set([...Object.values(CHARACTER_BASE_ASSETS), ...layerAssets])];
-    expect(assets).toHaveLength(21);
+    expect(assets).toHaveLength(57);
 
     for (const asset of assets) {
       const assetPath = resolve('public', asset);
@@ -287,6 +298,93 @@ describe('区域 1–2 内容完整性', () => {
         ],
         `${asset} 四角透明`,
       ).toEqual([0, 0, 0, 0]);
+    }
+  });
+
+  it('珍品商店首发 30 件定义，每个职业可见 24 件且价格与词条合法', () => {
+    expect(BOUTIQUE_THEME_LIST).toHaveLength(3);
+    expect(SHOP_OFFERS).toHaveLength(30);
+    expect(new Set(SHOP_OFFERS.map((offer) => offer.id)).size).toBe(30);
+
+    for (const classId of ['swordsman', 'witch', 'shaman'] as const) {
+      const visible = SHOP_OFFERS.filter((offer) => {
+        const equipment = EQUIPMENT[offer.defId]!;
+        return !equipment.classId || equipment.classId === classId;
+      });
+      expect(visible, classId).toHaveLength(24);
+    }
+
+    for (const offer of SHOP_OFFERS) {
+      const equipment = EQUIPMENT[offer.defId];
+      expect(equipment, offer.id).toBeDefined();
+      expect(Number.isInteger(offer.price), offer.id).toBe(true);
+      expect(offer.price, offer.id).toBeGreaterThan(0);
+      expect(equipment!.fixedAffixes, equipment!.id).toHaveLength(
+        QUALITY_AFFIX_COUNT[equipment!.quality],
+      );
+      expect(new Set(equipment!.fixedAffixes!.map((affix) => affix.key)).size).toBe(
+        equipment!.fixedAffixes!.length,
+      );
+      expect(equipment!.uniqueEffect?.length, equipment!.id).toBeGreaterThan(8);
+    }
+  });
+
+  it('全部金色与红色商店同款都有 BOSS 掉落路径', () => {
+    const bossEntryIds = new Set(
+      Object.values(LOOT_TABLES)
+        .filter((table) => table.id.endsWith('_boss'))
+        .flatMap((table) => table.entries.map((entry) => entry.itemId)),
+    );
+    for (const offer of SHOP_OFFERS) {
+      const equipment = EQUIPMENT[offer.defId]!;
+      if (equipment.quality !== 'legendary' && equipment.quality !== 'mythic') continue;
+      expect(bossEntryIds.has(equipment.id), equipment.id).toBe(true);
+    }
+  });
+
+  it('珍品商品图标、三职业换装层与九套攻击特效符合移动端规格', async () => {
+    const iconAssets = [...new Set(SHOP_OFFERS.map((offer) => EQUIPMENT[offer.defId]!.icon))];
+    expect(iconAssets).toHaveLength(30);
+    for (const asset of iconAssets) {
+      const path = resolve('public', asset);
+      expect(existsSync(path), asset).toBe(true);
+      const metadata = await sharp(path).metadata();
+      expect(
+        { width: metadata.width, height: metadata.height, channels: metadata.channels },
+        asset,
+      ).toEqual({ width: 256, height: 256, channels: 4 });
+      expect(statSync(path).size, `${asset} 文件大小`).toBeLessThan(82_000);
+    }
+
+    const boutiqueLayers = Object.entries(EQUIPMENT_APPEARANCES)
+      .filter(([id, appearance]) => id.startsWith('boutique-') && appearance.renderMode === 'layer')
+      .flatMap(([, appearance]) =>
+        appearance.renderMode === 'layer' ? Object.values(appearance.assets) : [],
+      );
+    expect(new Set(boutiqueLayers).size).toBe(36);
+    for (const asset of boutiqueLayers) {
+      expect(asset).toBeDefined();
+      const path = resolve('public', asset!);
+      expect(existsSync(path), asset).toBe(true);
+      const metadata = await sharp(path).metadata();
+      expect(
+        { width: metadata.width, height: metadata.height, channels: metadata.channels },
+        asset,
+      ).toEqual({ width: 640, height: 960, channels: 4 });
+      expect(statSync(path).size, `${asset} 文件大小`).toBeLessThan(305_000);
+    }
+
+    const effects = BOUTIQUE_THEME_LIST.flatMap((theme) => Object.values(theme.attackEffects));
+    expect(new Set(effects).size).toBe(9);
+    for (const asset of effects) {
+      const path = resolve('public', asset);
+      expect(existsSync(path), asset).toBe(true);
+      const metadata = await sharp(path).metadata();
+      expect(
+        { width: metadata.width, height: metadata.height, channels: metadata.channels },
+        asset,
+      ).toEqual({ width: 512, height: 512, channels: 4 });
+      expect(statSync(path).size, `${asset} 文件大小`).toBeLessThan(185_000);
     }
   });
 
@@ -314,11 +412,7 @@ describe('区域 1–2 内容完整性', () => {
   });
 
   it('技能图标与大特效使用各自清晰度规格', async () => {
-    const skills = [
-      ...SWORDSMAN_VISUAL_SKILLS,
-      ...WITCH_VISUAL_SKILLS,
-      ...SHAMAN_VISUAL_SKILLS,
-    ];
+    const skills = [...SWORDSMAN_VISUAL_SKILLS, ...WITCH_VISUAL_SKILLS, ...SHAMAN_VISUAL_SKILLS];
     expect(skills).toHaveLength(9);
     for (const skill of skills) {
       const icon = await sharp(resolve('public', skill.icon)).metadata();

@@ -46,9 +46,11 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
     :class="[
       `is-${variant}`,
       `action-${action}`,
+      `class-${classId}`,
       `tier-${appearance.growthTier.id}`,
       `quality-${appearance.highestVisibleQuality}`,
       `enhance-${appearance.enhanceStage}`,
+      appearance.activeBoutiqueTheme ? `theme-${appearance.activeBoutiqueTheme}` : '',
     ]"
     role="img"
     :aria-label="appearance.ariaLabel"
@@ -60,26 +62,44 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
       <i class="aura-emblem">✦</i>
     </span>
 
-    <span class="doll" aria-hidden="true">
-      <img
-        class="base-layer"
-        :src="assetUrl(appearance.baseAsset)"
-        alt=""
-        draggable="false"
-        decoding="async"
-      />
-      <img
-        v-for="layer in appearance.layers"
-        :key="`${layer.slot}:${layer.id}`"
-        class="equip-layer"
-        :class="[`slot-${layer.slot}`, `q-${layer.quality}`, `plus-${layer.enhance}`]"
-        :style="layerStyle(layer)"
-        :src="assetUrl(layer.asset)"
-        alt=""
-        draggable="false"
-        decoding="async"
-      />
-      <span class="weapon-trail" />
+    <span class="doll-frame" aria-hidden="true">
+      <span class="doll">
+        <img
+          class="base-layer"
+          :src="assetUrl(appearance.baseAsset)"
+          alt=""
+          draggable="false"
+          decoding="async"
+        />
+        <img
+          v-for="layer in appearance.layers"
+          :key="`${layer.slot}:${layer.id}`"
+          class="equip-layer"
+          :class="[`slot-${layer.slot}`, `q-${layer.quality}`, `plus-${layer.enhance}`]"
+          :style="layerStyle(layer)"
+          :src="assetUrl(layer.asset)"
+          alt=""
+          draggable="false"
+          decoding="async"
+        />
+        <img
+          class="face-layer"
+          :src="assetUrl(appearance.baseAsset)"
+          alt=""
+          draggable="false"
+          decoding="async"
+        />
+        <span class="weapon-trail" />
+      </span>
+    </span>
+
+    <span
+      v-if="appearance.boutiqueEffectAsset"
+      class="boutique-effect"
+      :class="`boutique-${action}`"
+      aria-hidden="true"
+    >
+      <img :src="assetUrl(appearance.boutiqueEffectAsset)" alt="" draggable="false" />
     </span>
 
     <span class="growth-particles" aria-hidden="true">
@@ -99,20 +119,33 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
   transform: translateZ(0);
 }
 
-.doll,
+.doll-frame,
 .growth-aura,
-.growth-particles {
+.growth-particles,
+.boutique-effect {
   position: absolute;
   inset: 0;
 }
 
-.doll {
+.doll-frame {
   z-index: 2;
+  top: 50%;
+  left: 50%;
+  width: auto;
+  height: 100%;
+  aspect-ratio: 2 / 3;
+  transform: translate(-50%, -50%);
+}
+
+.doll {
+  position: absolute;
+  inset: 0;
   transform-origin: 50% 91%;
 }
 
 .base-layer,
-.equip-layer {
+.equip-layer,
+.face-layer {
   position: absolute;
   inset: 0;
   display: block;
@@ -121,6 +154,34 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
   object-fit: contain;
   pointer-events: none;
   user-select: none;
+}
+
+.face-layer {
+  z-index: 4;
+  clip-path: ellipse(
+    var(--face-rx, 18%) var(--face-ry, 8.8%) at var(--face-x, 50%) var(--face-y, 10%)
+  );
+}
+
+.class-swordsman {
+  --face-x: 52%;
+  --face-y: 10%;
+  --face-rx: 19%;
+  --face-ry: 9%;
+}
+
+.class-witch {
+  --face-x: 50%;
+  --face-y: 10%;
+  --face-rx: 18%;
+  --face-ry: 8.8%;
+}
+
+.class-shaman {
+  --face-x: 50%;
+  --face-y: 10%;
+  --face-rx: 17%;
+  --face-ry: 8.8%;
 }
 
 .base-layer {
@@ -145,11 +206,15 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
 }
 
 .slot-head {
-  z-index: 4;
+  z-index: 5;
 }
 
 .slot-weapon {
-  z-index: 5;
+  z-index: 6;
+}
+
+.slot-shoes {
+  z-index: 4;
 }
 
 .q-fine {
@@ -165,11 +230,51 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
 }
 
 .q-legendary,
-.q-mythic,
 .q-divine {
-  filter:
-    drop-shadow(0 2px 6px rgb(255 181 91 / 44%))
-    drop-shadow(0 0 4px rgb(255 236 178 / 55%));
+  filter: drop-shadow(0 2px 6px rgb(255 181 91 / 44%)) drop-shadow(0 0 4px rgb(255 236 178 / 55%));
+}
+
+.q-mythic {
+  filter: drop-shadow(0 2px 7px rgb(202 57 93 / 52%)) drop-shadow(0 0 5px rgb(255 213 127 / 62%));
+}
+
+.boutique-effect {
+  z-index: 7;
+  display: grid;
+  place-items: center;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.boutique-effect img {
+  width: 78%;
+  height: 78%;
+  object-fit: contain;
+  opacity: 0.22;
+  filter: saturate(1.08);
+}
+
+.boutique-attack img,
+.boutique-cast img {
+  opacity: 0;
+  animation: boutique-burst 0.78s ease-out;
+}
+
+.boutique-react img {
+  opacity: 0;
+  animation: boutique-reaction 0.92s ease-out;
+}
+
+.theme-berry-cream .growth-aura {
+  background: radial-gradient(circle at 50% 52%, rgb(255 158 195 / 18%), transparent 42%);
+}
+
+.theme-moon-sugar .growth-aura {
+  background: radial-gradient(circle at 50% 49%, rgb(246 221 143 / 21%), transparent 43%);
+}
+
+.theme-rose-night .growth-aura {
+  background: radial-gradient(circle at 50% 51%, rgb(167 47 85 / 22%), transparent 45%);
 }
 
 .growth-aura {
@@ -486,11 +591,42 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
   }
 }
 
+@keyframes boutique-burst {
+  0% {
+    opacity: 0;
+    transform: scale(0.35) rotate(-15deg);
+  }
+  35%,
+  62% {
+    opacity: 0.92;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.18) rotate(7deg);
+  }
+}
+
+@keyframes boutique-reaction {
+  0% {
+    opacity: 0;
+    transform: translateY(9%) scale(0.55);
+  }
+  35%,
+  70% {
+    opacity: 0.84;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-4%) scale(1.08);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .doll,
   .growth-aura,
   .growth-particles i,
-  .weapon-trail {
+  .weapon-trail,
+  .boutique-effect img {
     animation: none !important;
   }
 }

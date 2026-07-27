@@ -1,10 +1,6 @@
-import type {
-  ClassId,
-  EquipmentInstance,
-  EquipSlot,
-  Quality,
-} from '@/core/types';
+import type { BoutiqueThemeId, ClassId, EquipmentInstance, EquipSlot, Quality } from '@/core/types';
 import { requireEquipment } from './equipment';
+import { BOUTIQUE_THEME_LIST, BOUTIQUE_THEMES, boutiqueAppearanceId } from './boutique';
 
 export type CharacterAction = 'idle' | 'attack' | 'cast' | 'react';
 export type CharacterVariant = 'showcase' | 'battle' | 'avatar';
@@ -38,7 +34,7 @@ interface LayerAppearance {
   id: string;
   slot: EquipSlot;
   renderMode: 'layer';
-  assets: Record<ClassId, string>;
+  assets: Partial<Record<ClassId, string>>;
   transforms: Record<ClassId, LayerTransform>;
 }
 
@@ -67,6 +63,47 @@ const sameTransform = (transform: LayerTransform): Record<ClassId, LayerTransfor
  * 运行时只做恒等叠加，避免手机浏览器重复缩放透明大图产生模糊边缘。
  */
 const alignedTransforms = sameTransform({ scale: 1, x: 0, y: 0 });
+
+function boutiqueClassAssets(themeId: BoutiqueThemeId, slot: 'body' | 'head' | 'shoes') {
+  return {
+    swordsman: `assets/characters/modular/shop/${themeId}/swordsman-${slot}.png`,
+    witch: `assets/characters/modular/shop/${themeId}/witch-${slot}.png`,
+    shaman: `assets/characters/modular/shop/${themeId}/shaman-${slot}.png`,
+  } satisfies Record<ClassId, string>;
+}
+
+function buildBoutiqueAppearances(): Record<string, EquipmentAppearance> {
+  const out: Record<string, EquipmentAppearance> = {};
+  for (const theme of BOUTIQUE_THEME_LIST) {
+    for (const slot of ['body', 'head', 'shoes'] as const) {
+      const id = boutiqueAppearanceId(theme.id, slot);
+      out[id] = {
+        id,
+        slot,
+        renderMode: 'layer',
+        assets: boutiqueClassAssets(theme.id, slot),
+        transforms: alignedTransforms,
+      };
+    }
+    for (const classId of ['swordsman', 'witch', 'shaman'] as const) {
+      const id = boutiqueAppearanceId(theme.id, 'weapon', classId);
+      out[id] = {
+        id,
+        slot: 'weapon',
+        renderMode: 'layer',
+        assets: {
+          [classId]: `assets/characters/modular/shop/${theme.id}/${classId}-weapon.png`,
+        },
+        transforms: alignedTransforms,
+      };
+    }
+    for (const slot of ['necklace', 'bracelet', 'ring', 'belt'] as const) {
+      const id = boutiqueAppearanceId(theme.id, slot);
+      out[id] = { id, slot, renderMode: 'slot-only' };
+    }
+  }
+  return out;
+}
 
 /**
  * 装备定义到运行时外观的显式注册表。
@@ -128,6 +165,7 @@ export const EQUIPMENT_APPEARANCES: Readonly<Record<string, EquipmentAppearance>
   'r2-ring': { id: 'r2-ring', slot: 'ring', renderMode: 'slot-only' },
   'r2-belt': { id: 'r2-belt', slot: 'belt', renderMode: 'slot-only' },
   'r2-shoes': { id: 'r2-shoes', slot: 'shoes', renderMode: 'slot-only' },
+  ...buildBoutiqueAppearances(),
 };
 
 export const CHARACTER_BASE_ASSETS: Readonly<Record<ClassId, string>> = {
@@ -170,6 +208,8 @@ export interface ResolvedCharacterAppearance {
   equippedCount: number;
   visibleEquippedCount: number;
   highestVisibleQuality: Quality;
+  activeBoutiqueTheme: BoutiqueThemeId | null;
+  boutiqueEffectAsset: string | null;
   enhanceStage: 0 | 1 | 2 | 3 | 4;
   signature: string;
   ariaLabel: string;
@@ -208,6 +248,7 @@ export function resolveCharacterAppearance(
   let equippedCount = 0;
   let highestVisibleQuality: Quality = 'common';
   let highestEnhance = 0;
+  let activeBoutiqueTheme: BoutiqueThemeId | null = null;
 
   if (equipped) {
     for (const [slot, instance] of Object.entries(equipped) as [
@@ -223,6 +264,17 @@ export function resolveCharacterAppearance(
           `[配置错误] ${equipment.id} 的外观槽位 ${appearance.slot} 与装备槽位 ${slot} 不一致`,
         );
       }
+      if (QUALITY_RANK[equipment.quality] > QUALITY_RANK[highestVisibleQuality]) {
+        highestVisibleQuality = equipment.quality;
+      }
+      if (
+        equipment.boutiqueTheme &&
+        (!activeBoutiqueTheme ||
+          BOUTIQUE_THEMES[equipment.boutiqueTheme].rank > BOUTIQUE_THEMES[activeBoutiqueTheme].rank)
+      ) {
+        activeBoutiqueTheme = equipment.boutiqueTheme;
+      }
+      highestEnhance = Math.max(highestEnhance, instance.enhance);
       if (appearance.renderMode === 'slot-only') continue;
 
       const asset = appearance.assets[classId];
@@ -239,22 +291,18 @@ export function resolveCharacterAppearance(
         enhance: instance.enhance,
         transform,
       });
-      if (QUALITY_RANK[equipment.quality] > QUALITY_RANK[highestVisibleQuality]) {
-        highestVisibleQuality = equipment.quality;
-      }
-      highestEnhance = Math.max(highestEnhance, instance.enhance);
     }
   }
 
   const slotOrder: Readonly<Record<EquipSlot, number>> = {
     body: 0,
-    head: 1,
-    weapon: 2,
-    necklace: 3,
-    bracelet: 4,
-    ring: 5,
-    belt: 6,
-    shoes: 7,
+    shoes: 1,
+    head: 2,
+    weapon: 3,
+    necklace: 4,
+    bracelet: 5,
+    ring: 6,
+    belt: 7,
   };
   layers.sort((a, b) => slotOrder[a.slot] - slotOrder[b.slot]);
 
@@ -268,10 +316,21 @@ export function resolveCharacterAppearance(
     equippedCount,
     visibleEquippedCount: layers.length,
     highestVisibleQuality,
+    activeBoutiqueTheme,
+    boutiqueEffectAsset: activeBoutiqueTheme
+      ? BOUTIQUE_THEMES[activeBoutiqueTheme].attackEffects[classId]
+      : null,
     enhanceStage: enhanceStageFor(highestEnhance),
-    signature: layers.map((layer) => `${layer.slot}:${layer.id}`).join('|') || 'base',
+    signature: [
+      layers.map((layer) => `${layer.slot}:${layer.id}`).join('|') || 'base',
+      activeBoutiqueTheme ? `theme:${activeBoutiqueTheme}` : '',
+    ]
+      .filter(Boolean)
+      .join('|'),
     ariaLabel: visibleNames.length
-      ? `${growthTier.label}角色，当前可见外观：${visibleNames.join('、')}`
+      ? `${growthTier.label}角色，当前可见外观：${visibleNames.join('、')}${
+          activeBoutiqueTheme ? `，激活${BOUTIQUE_THEMES[activeBoutiqueTheme].name}特效` : ''
+        }`
       : `${growthTier.label}角色，当前为基础训练装`,
   };
 }

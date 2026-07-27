@@ -10,6 +10,9 @@
 /** 三职业。剑姬=战士，魔女=法师，灵巫=道士 */
 export type ClassId = 'swordsman' | 'witch' | 'shaman';
 
+/** 精品商店首批换装系列。 */
+export type BoutiqueThemeId = 'berry-cream' | 'moon-sugar' | 'rose-night';
+
 /** 属性克制三角：炎 → 冰 → 雷 → 炎 */
 export type Element = 'fire' | 'ice' | 'thunder' | 'none';
 
@@ -96,6 +99,10 @@ export interface EquipmentDef {
    * 存档仍只保存 defId，因此新增外观素材不需要迁移旧存档。
    */
   appearanceId: string;
+  /** 职业专属装备；未填写表示三职业通用。 */
+  classId?: ClassId;
+  /** 精品换装系列，用于统一人物光环、攻击换肤和互动。 */
+  boutiqueTheme?: BoutiqueThemeId;
   /** 固定词条，套装件常用 */
   fixedAffixes?: Affix[];
   /** 金色装备的专属效果描述 */
@@ -112,6 +119,19 @@ export interface EquipmentInstance {
   affixes: Affix[];
   /** 是否锁定（防止被一键分解） */
   locked: boolean;
+}
+
+export type ShopOfferCategory = 'weapon' | 'dress' | 'armor' | 'accessory';
+
+/** 商店静态商品配置。价格只允许由数据表读取，UI 不得传入。 */
+export interface ShopOffer {
+  id: string;
+  defId: string;
+  price: number;
+  unlockLevel: number;
+  unlockStageId: string;
+  category: ShopOfferCategory;
+  featured: boolean;
 }
 
 // ─────────────────────────── 技能 ───────────────────────────

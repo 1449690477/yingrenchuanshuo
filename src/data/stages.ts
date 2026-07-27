@@ -98,7 +98,8 @@ function buildStages(): Record<string, Stage> {
             count: isFinal ? 2 : idx + 1,
           },
         ],
-        lootTableId: lootTableIdFor(spec.id, isFinal && bossId ? 'boss' : 'normal'),
+        // 持续挂机的每次普通击杀只掷普通表；BOSS 表由完整波次结束时单独结算。
+        lootTableId: lootTableIdFor(spec.id, 'normal'),
         maxKillsPerSec: DEFAULT_MAX_KILLS_PER_SEC,
         element: spec.element,
       };

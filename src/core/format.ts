@@ -32,7 +32,8 @@ export function abbr(n: number, digits = 2): string {
     if (abs >= u.v) {
       const val = abs / u.v;
       // 去掉多余的 .00 / .10 尾零
-      const str = val.toFixed(val >= 100 ? 0 : digits).replace(/\.?0+$/, '');
+      const fixed = val.toFixed(val >= 100 ? 0 : digits);
+      const str = fixed.includes('.') ? fixed.replace(/0+$/, '').replace(/\.$/, '') : fixed;
       return sign + str + u.s;
     }
   }

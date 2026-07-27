@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import { ChevronDown } from '@lucide/vue';
 import { abbr } from '@/core/format';
 import { battleMonsterIdAt } from '@/core/battleVisual';
+import { aggregateLootEntries, type LootDisplayCategory } from '@/core/lootGrouping';
 import { useInventoryStore } from '@/stores/inventory';
 import { usePlayerStore } from '@/stores/player';
 import { useStageStore } from '@/stores/stage';
@@ -19,6 +21,41 @@ const player = usePlayerStore();
 const inventory = useInventoryStore();
 const stage = useStageStore();
 const showStages = ref(false);
+const collapsedLoot = ref<Record<LootDisplayCategory, boolean>>({
+  equipment: false,
+  material: false,
+  consumable: false,
+  fragment: false,
+  currency: false,
+});
+
+const lootCategoryLabels: Record<LootDisplayCategory, string> = {
+  equipment: '装备',
+  material: '材料',
+  consumable: '消耗品',
+  fragment: '碎片',
+  currency: '货币',
+};
+
+const groupedLoot = computed(() =>
+  aggregateLootEntries(
+    stage.lootLog.map((entry) => ({
+      ...entry,
+      category: entry.isEquipment
+        ? ('equipment' as const)
+        : (requireItem(entry.itemId).kind as LootDisplayCategory),
+    })),
+  ),
+);
+const allLootCollapsed = computed(
+  () =>
+    groupedLoot.value.length > 0 && groupedLoot.value.every((g) => collapsedLoot.value[g.category]),
+);
+
+function toggleAllLoot(): void {
+  const next = !allLootCollapsed.value;
+  for (const group of groupedLoot.value) collapsedLoot.value[group.category] = next;
+}
 
 const region = computed(() => requireRegionOfChapter(stage.current.chapterId));
 const chapter = computed(() => requireChapter(stage.current.chapterId));
@@ -33,11 +70,11 @@ const monsters = computed(() => {
 });
 
 /**
- * 视觉目标严格跟随波次顺序：推关阶段用累计击杀数，已通关挂机则用击杀脉冲循环。
- * 它只改变画面，不改动 M2 的收益与伤害公式。
+ * 视觉目标严格跟随波次顺序：BOSS 关使用持久化的循环进度，
+ * 因而画面走到 BOSS 时才会触发 BOSS 掉落；普通已通关关卡继续用击杀脉冲循环。
  */
 const visualMonsterCursor = computed(() =>
-  stage.cleared ? (stage.battlePulse?.id ?? 0) : stage.kills,
+  stage.cleared && !stage.current.bossId ? (stage.battlePulse?.id ?? 0) : stage.kills,
 );
 const target = computed(() =>
   requireMonster(battleMonsterIdAt(stage.current, visualMonsterCursor.value)),
@@ -134,18 +171,45 @@ const cpWarn = computed(() => {
     </section>
 
     <section class="loot card">
-      <div class="loot-head">掉落</div>
+      <div class="loot-head">
+        <span>
+          最近掉落
+          <small>{{ stage.lootLog.length }}/40 条 · {{ groupedLoot.length }} 类</small>
+        </span>
+        <button v-if="groupedLoot.length" @click="toggleAllLoot">
+          {{ allLootCollapsed ? '全部展开' : '全部折叠' }}
+        </button>
+      </div>
       <div v-if="stage.lootLog.length === 0" class="loot-empty">还没有掉落，稍等一下…</div>
-      <TransitionGroup v-else name="drop" tag="div" class="loot-list scroll-y">
-        <div v-for="e in stage.lootLog" :key="e.id" class="loot-row">
-          <EquipmentIcon v-if="e.isEquipment" :def="requireEquipment(e.itemId)" size="sm" />
-          <ItemIcon v-else :item="requireItem(e.itemId)" />
-          <span class="loot-name" :class="'q-' + e.quality">
-            {{ e.name }}
-          </span>
-          <span class="loot-count num">×{{ e.count }}</span>
-        </div>
-      </TransitionGroup>
+      <div v-else class="loot-list scroll-y">
+        <section v-for="group in groupedLoot" :key="group.category" class="loot-group">
+          <button
+            class="loot-group-head"
+            :aria-expanded="!collapsedLoot[group.category]"
+            @click="collapsedLoot[group.category] = !collapsedLoot[group.category]"
+          >
+            <span class="loot-category">{{ lootCategoryLabels[group.category] }}</span>
+            <span class="loot-summary">
+              {{ group.distinctCount }} 种 · 共 {{ group.totalCount }} 件
+            </span>
+            <ChevronDown
+              :size="14"
+              :class="{ folded: collapsedLoot[group.category] }"
+              aria-hidden="true"
+            />
+          </button>
+          <Transition name="loot-fold">
+            <div v-if="!collapsedLoot[group.category]" class="loot-items">
+              <div v-for="e in group.items" :key="e.itemId" class="loot-row">
+                <EquipmentIcon v-if="e.isEquipment" :def="requireEquipment(e.itemId)" size="sm" />
+                <ItemIcon v-else :item="requireItem(e.itemId)" />
+                <span class="loot-name" :class="'q-' + e.quality">{{ e.name }}</span>
+                <span class="loot-count num">×{{ e.count }}</span>
+              </div>
+            </div>
+          </Transition>
+        </section>
+      </div>
     </section>
 
     <StageSelect v-if="showStages" @close="showStages = false" />
@@ -291,9 +355,35 @@ const cpWarn = computed(() => {
 }
 
 .loot-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   margin-bottom: 6px;
   font-size: 11px;
   color: var(--text-dim);
+}
+
+.loot-head > span {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-weight: 700;
+  color: var(--text-mid);
+}
+
+.loot-head small {
+  font-size: 8px;
+  font-weight: 400;
+  color: var(--text-dim);
+}
+
+.loot-head button {
+  min-height: 34px;
+  padding: 0 9px;
+  font-size: 9px;
+  color: var(--blue-deep);
+  background: var(--blue-soft);
+  border-radius: 10px;
 }
 
 .loot-empty {
@@ -308,7 +398,54 @@ const cpWarn = computed(() => {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 5px;
+}
+
+.loot-group {
+  overflow: hidden;
+  flex-shrink: 0;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.loot-group-head {
+  width: 100%;
+  min-height: 38px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 8px;
+  text-align: left;
+}
+
+.loot-category {
+  padding: 3px 7px;
+  font-size: 9px;
+  font-weight: 800;
+  color: var(--pink-deep);
+  background: #fff0f6;
+  border-radius: 999px;
+}
+
+.loot-summary {
+  font-size: 9px;
+  color: var(--text-dim);
+}
+
+.loot-group-head svg {
+  color: var(--text-dim);
+  transition: transform 0.18s ease;
+}
+
+.loot-group-head svg.folded {
+  transform: rotate(-90deg);
+}
+
+.loot-items {
+  padding: 0 4px 4px;
+  border-top: 1px solid var(--line);
 }
 
 .loot-row {
@@ -322,7 +459,7 @@ const cpWarn = computed(() => {
 }
 
 .loot-row:nth-child(odd) {
-  background: var(--panel-2);
+  background: rgb(255 255 255 / 74%);
 }
 
 .loot-name {
@@ -338,12 +475,14 @@ const cpWarn = computed(() => {
   color: var(--text-dim);
 }
 
-.drop-enter-from {
+.loot-fold-enter-from,
+.loot-fold-leave-to {
   opacity: 0;
-  transform: translateX(-10px);
+  transform: translateY(-4px);
 }
 
-.drop-enter-active {
-  transition: all 0.22s;
+.loot-fold-enter-active,
+.loot-fold-leave-active {
+  transition: all 0.18s ease;
 }
 </style>

@@ -10,7 +10,14 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 
-import type { EquipSlot, EquipmentInstance, IdleYield, LootResult, Stats } from '@/core/types';
+import type {
+  EquipSlot,
+  EquipmentInstance,
+  IdleYield,
+  LootResult,
+  ShopOffer,
+  Stats,
+} from '@/core/types';
 import { Rng } from '@/core/rng';
 import { addStats, combatPower, zeroStats } from '@/core/formula';
 import {
@@ -25,10 +32,14 @@ import {
   staminaMaxForLevel,
 } from '@/core/progression';
 import { createInstance, totalEquipStats } from '@/core/equipment';
+import { decomposeGold } from '@/core/economy';
+import { rollLoot } from '@/core/loot';
+import { assessShopOffer, type ShopBlockReason } from '@/core/shop';
+import { advanceStageKillProgress } from '@/core/stageProgress';
 import { accumulateIdle, killsPerSecond, recoverStamina, settleOffline } from '@/core/idle';
 import type { IdleContext } from '@/core/idle';
 
-import { CRIT_RATE_CAP, DECOMPOSE_GOLD_PER_LEVEL, SLOT_ORDER } from '@/data/constants';
+import { CRIT_RATE_CAP, SLOT_ORDER } from '@/data/constants';
 import { getEquipment, requireEquipment } from '@/data/equipment';
 import { requireMonster } from '@/data/monsters';
 import { requireLootTable } from '@/data/lootTables';
@@ -41,6 +52,7 @@ import {
   totalMonsterCount,
 } from '@/data/stages';
 import { requireChapter } from '@/data/regions';
+import { requireShopOffer } from '@/data/shop';
 
 import { createSave, type SaveData } from '@/save/schema';
 import { clearSave, loadSave, saveSave } from '@/save/storage';
@@ -61,6 +73,10 @@ export interface BattlePulse {
   damage: number;
   kills: number;
 }
+
+export type ShopPurchaseResult =
+  | { ok: true; instance: EquipmentInstance; offer: ShopOffer }
+  | { ok: false; reason: ShopBlockReason };
 
 const AUTO_SAVE_INTERVAL_MS = 3_000;
 const LOOT_LOG_MAX = 40;
@@ -393,25 +409,42 @@ export const useGameStore = defineStore('game', () => {
     }
   }
 
-  /** 挂机累计击杀足够时标记通关，并发放一次性首通奖励。 */
+  /**
+   * 推进首通或已通关 BOSS 循环。
+   *
+   * 普通击杀始终使用关卡的 normal 掉落表；只有完整跑完含 BOSS 的波次，
+   * 才单独掷一次 BOSS 表，避免最终关卡的每只小怪都冒充 BOSS。
+   */
   function applyStageKills(kills: number, log: boolean): void {
     if (!save.value) return;
     const stage = currentStage.value;
-    if (save.value.progress.clearedStageIds.includes(stage.id)) return;
-
-    const accumulated = (save.value.progress.stageKills[stage.id] ?? 0) + kills;
-    save.value.progress.stageKills[stage.id] = accumulated;
     const need = stage.waves.reduce(
       (sum, w) => sum + w.monsters.reduce((n, m) => n + m.count, 0),
       0,
     );
-    if (accumulated >= need) {
-      save.value.progress.stageKills[stage.id] = need;
+    const wasCleared = save.value.progress.clearedStageIds.includes(stage.id);
+    const result = advanceStageKillProgress(
+      save.value.progress.stageKills[stage.id] ?? 0,
+      kills,
+      need,
+      wasCleared,
+      !!stage.bossId,
+    );
+    save.value.progress.stageKills[stage.id] = result.progress;
+
+    if (result.clearedNow) {
       save.value.progress.clearedStageIds.push(stage.id);
       for (const reward of stage.firstClearRewards) addLoot(reward, log);
-      if (stage.bossId) {
-        save.value.stats.bossKills[stage.bossId] =
-          (save.value.stats.bossKills[stage.bossId] ?? 0) + 1;
+    }
+
+    if (stage.bossId && result.bossKills > 0) {
+      save.value.stats.bossKills[stage.bossId] =
+        (save.value.stats.bossKills[stage.bossId] ?? 0) + result.bossKills;
+      const bossTable = requireLootTable(requireMonster(stage.bossId).lootTableId);
+      for (let i = 0; i < result.bossKills; i++) {
+        for (const drop of rollLoot(bossTable, rng, save.value.progress.pity)) {
+          addLoot(drop, log);
+        }
       }
     }
   }
@@ -466,6 +499,7 @@ export const useGameStore = defineStore('game', () => {
     const inst = s.bag.equipment[idx]!;
     const def = requireEquipment(inst.defId);
     if (s.player.level < def.level) return false;
+    if (def.classId && def.classId !== s.player.classId) return false;
 
     const before = cp.value;
     const old = s.equipped[def.slot];
@@ -501,7 +535,11 @@ export const useGameStore = defineStore('game', () => {
     for (const slot of SLOT_ORDER) {
       const candidates = save.value.bag.equipment.filter((e) => {
         const def = requireEquipment(e.defId);
-        return def.slot === slot && def.level <= save.value!.player.level;
+        return (
+          def.slot === slot &&
+          def.level <= save.value!.player.level &&
+          (!def.classId || def.classId === save.value!.player.classId)
+        );
       });
       if (candidates.length === 0) continue;
 
@@ -583,7 +621,7 @@ export const useGameStore = defineStore('game', () => {
       const inst = s.bag.equipment[idx]!;
       if (inst.locked) continue;
       const def = requireEquipment(inst.defId);
-      gold += Math.round(def.level * DECOMPOSE_GOLD_PER_LEVEL * (1 + inst.enhance));
+      gold += decomposeGold(def, inst);
       s.bag.equipment.splice(idx, 1);
       count++;
     }
@@ -593,6 +631,52 @@ export const useGameStore = defineStore('game', () => {
       void persist();
     }
     return { count, gold };
+  }
+
+  function shopContext() {
+    if (!save.value) return null;
+    return {
+      gold: save.value.player.gold,
+      playerLevel: save.value.player.level,
+      classId: save.value.player.classId,
+      clearedStageIds: save.value.progress.clearedStageIds,
+      purchasedOfferIds: save.value.shop.purchasedOfferIds,
+    };
+  }
+
+  function assessShopOfferById(offerId: string) {
+    const offer = requireShopOffer(offerId);
+    const def = requireEquipment(offer.defId);
+    const context = shopContext();
+    if (!context) return { ok: false, reason: 'stage-locked' as const };
+    return assessShopOffer(offer, def, context);
+  }
+
+  /** 珍品购买原子操作：校验、扣款、生成装备、限购登记在同一同步事务中完成。 */
+  function purchaseShopOffer(offerId: string): ShopPurchaseResult {
+    if (!save.value) return { ok: false, reason: 'stage-locked' };
+    const offer = requireShopOffer(offerId);
+    const def = requireEquipment(offer.defId);
+    const assessment = assessShopOffer(offer, def, shopContext()!);
+    if (!assessment.ok) return assessment;
+
+    const s = save.value;
+    const instance: EquipmentInstance = {
+      uid: `e${s.nextUid}`,
+      defId: def.id,
+      enhance: 0,
+      // 珍品词条全部写在 EquipmentDef.fixedAffixes，掉落与购买版本完全一致。
+      affixes: [],
+      // 高价珍品默认锁定，避免玩家一键分解误删。
+      locked: true,
+    };
+
+    s.player.gold -= offer.price;
+    s.nextUid += 1;
+    s.bag.equipment.push(instance);
+    s.shop.purchasedOfferIds.push(offer.id);
+    void persist();
+    return { ok: true, instance, offer };
   }
 
   function toggleLock(uid: string): void {
@@ -683,6 +767,8 @@ export const useGameStore = defineStore('game', () => {
     unequip,
     equipBest,
     decompose,
+    assessShopOfferById,
+    purchaseShopOffer,
     toggleLock,
     equipmentCandidateCp,
     equipmentCpDelta,

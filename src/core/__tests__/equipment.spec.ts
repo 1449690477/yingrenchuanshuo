@@ -102,6 +102,19 @@ describe('随机词条', () => {
     expect(new Set(affixes.map((affix) => affix.key)).size).toBe(affixes.length);
   });
 
+  it('固定词条占用品质词条名额且不会重复 key', () => {
+    const definition = def({
+      quality: 'epic',
+      fixedAffixes: [
+        { key: 'atk', value: 10 },
+        { key: 'critRate', value: 2 },
+      ],
+    });
+    const random = rollAffixes(definition, new Rng(2027));
+    expect(random).toHaveLength(1);
+    expect(random.some((affix) => affix.key === 'atk' || affix.key === 'critRate')).toBe(false);
+  });
+
   it('同种子生成完全相同的装备实例', () => {
     const definition = def({ quality: 'legendary' });
     const make = () => createInstance(definition, new Rng(88), 'e88');

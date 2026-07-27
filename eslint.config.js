@@ -5,7 +5,16 @@ import prettier from 'eslint-config-prettier';
 import globals from 'globals';
 
 export default tseslint.config(
-  { ignores: ['dist/**', 'node_modules/**', 'coverage/**', 'dev-dist/**'] },
+  {
+    ignores: [
+      'dist/**',
+      'node_modules/**',
+      'coverage/**',
+      'dev-dist/**',
+      'tmp/**',
+      'scripts/out/**',
+    ],
+  },
 
   js.configs.recommended,
   ...tseslint.configs.recommended,

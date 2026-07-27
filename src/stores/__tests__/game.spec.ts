@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createInstance } from '@/core/equipment';
 import { Rng } from '@/core/rng';
 import { requireEquipment } from '@/data/equipment';
+import { SHOP_OFFERS } from '@/data/shop';
 import { createSave } from '@/save/schema';
 import { clearSave, loadSave } from '@/save/storage';
 import { useGameStore } from '../game';
@@ -82,6 +83,79 @@ describe('equipment decisions', () => {
     expect(game.equip(item.uid)).toBe(false);
     expect(game.equipBest()).toBe(0);
     expect(game.save?.equipped.weapon).toBeNull();
+    await game.persist();
+  });
+
+  it('职业专属武器不能被其他职业穿戴或一键选中', async () => {
+    const game = useGameStore();
+    const save = createSave('职业测试', 'swordsman', 10, Date.now());
+    save.player.level = 20;
+    const witchWeapon = requireEquipment('eq_shop_berry-cream_weapon_witch');
+    const item = createInstance(witchWeapon, new Rng(3), 'e3');
+    save.bag.equipment.push(item);
+    game.loadFrom(save);
+
+    expect(game.equip(item.uid)).toBe(false);
+    expect(game.equipBest()).toBe(0);
+    expect(game.save?.equipped.weapon).toBeNull();
+    await game.persist();
+  });
+});
+
+describe('boutique purchase transaction', () => {
+  const offer = SHOP_OFFERS.find((entry) => entry.defId === 'eq_shop_berry-cream_body')!;
+
+  function richSave() {
+    const save = createSave('商店测试', 'witch', 88, Date.now());
+    save.player.level = 20;
+    save.player.gold = offer.price * 2;
+    save.progress.clearedStageIds.push(offer.unlockStageId);
+    return save;
+  }
+
+  it('成功购买只扣一次金币、只生成一件装备并持久化限购状态', async () => {
+    const game = useGameStore();
+    const save = richSave();
+    const beforeUid = save.nextUid;
+    game.loadFrom(save);
+
+    const result = game.purchaseShopOffer(offer.id);
+    expect(result.ok).toBe(true);
+    expect(game.save?.player.gold).toBe(offer.price);
+    expect(game.save?.bag.equipment).toHaveLength(1);
+    expect(game.save?.bag.equipment[0]).toMatchObject({
+      uid: `e${beforeUid}`,
+      defId: offer.defId,
+      affixes: [],
+      locked: true,
+    });
+    expect(game.save?.nextUid).toBe(beforeUid + 1);
+    expect(game.save?.shop.purchasedOfferIds).toEqual([offer.id]);
+
+    const second = game.purchaseShopOffer(offer.id);
+    expect(second).toEqual({ ok: false, reason: 'sold-out' });
+    expect(game.save?.player.gold).toBe(offer.price);
+    expect(game.save?.bag.equipment).toHaveLength(1);
+    expect(game.save?.nextUid).toBe(beforeUid + 1);
+
+    await game.persist();
+    const loaded = await loadSave();
+    expect(loaded?.shop.purchasedOfferIds).toEqual([offer.id]);
+    expect(loaded?.bag.equipment[0]?.defId).toBe(offer.defId);
+  });
+
+  it('金币、等级或关卡不足时不修改任何资产字段', async () => {
+    const game = useGameStore();
+    const save = richSave();
+    save.player.gold = offer.price - 1;
+    game.loadFrom(save);
+    const before = JSON.parse(JSON.stringify(game.save));
+
+    expect(game.purchaseShopOffer(offer.id)).toEqual({
+      ok: false,
+      reason: 'insufficient-gold',
+    });
+    expect(game.save).toEqual(before);
     await game.persist();
   });
 });

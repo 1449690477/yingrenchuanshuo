@@ -13,6 +13,7 @@ import type { LootTable, MonsterType, Quality } from '@/core/types';
 import { ALL_CHAPTERS, regionOfChapter, type ChapterSpec } from './regions';
 import { equipIdsOf } from './equipment';
 import { lootTableIdFor } from './monsters';
+import { boutiqueBossDropIds } from './shop';
 
 /** 各怪物类型能掉的装备品质及权重 */
 const QUALITY_WEIGHTS: Record<MonsterType, Partial<Record<Quality, number>>> = {
@@ -71,7 +72,20 @@ function buildTable(spec: ChapterSpec, type: MonsterType): LootTable {
     }
   }
 
-  // ── BOSS 额外：洗练石与保护符 ──
+  // ── BOSS 珍品直掉：商店同款也必须有「靠打获得」路径 ──
+  if (type === 'boss') {
+    for (const equipmentId of boutiqueBossDropIds(spec.id)) {
+      entries.push({
+        itemId: equipmentId,
+        // 每件独立约十余天在线刷取；商店是昂贵但确定的保底路径。
+        weight: 0.001,
+        minCount: 1,
+        maxCount: 1,
+      });
+    }
+  }
+
+  // ── BOSS 额外：洗练石 ──
   const guaranteed: LootTable['entries'] = [];
   if (type === 'boss') {
     guaranteed.push({ itemId: 'stone_reforge', weight: 0, minCount: 1, maxCount: 3 });

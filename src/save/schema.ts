@@ -15,7 +15,7 @@ import { CLASS_BASE_STATS, STAMINA_BASE_MAX } from '@/data/constants';
 import { FIRST_STAGE_ID } from '@/data/stages';
 
 /** 当前存档版本。加字段就 +1。 */
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 
 export const SAVE_KEY = 'main';
 
@@ -67,6 +67,11 @@ export interface StatsSave {
   bossKills: Record<string, number>;
 }
 
+export interface ShopSave {
+  /** 珍品每件限购一次，防止连续点击重复扣款与背包刷副本。 */
+  purchasedOfferIds: string[];
+}
+
 export interface SaveData {
   version: number;
   createdAt: number;
@@ -86,6 +91,7 @@ export interface SaveData {
   progress: ProgressSave;
   settings: SettingsSave;
   stats: StatsSave;
+  shop: ShopSave;
 }
 
 export function emptyEquipped(): Record<EquipSlot, EquipmentInstance | null> {
@@ -135,6 +141,7 @@ export function createSave(name: string, classId: ClassId, seed: number, now: nu
       reduceMotion: false,
     },
     stats: { totalKills: 0, totalPlaySec: 0, bossKills: {} },
+    shop: { purchasedOfferIds: [] },
   };
 }
 
@@ -252,6 +259,11 @@ export const saveDataSchema = z
         totalKills: nonNegativeInteger,
         totalPlaySec: nonNegativeNumber,
         bossKills: z.record(z.string(), nonNegativeInteger),
+      })
+      .strict(),
+    shop: z
+      .object({
+        purchasedOfferIds: z.array(z.string().min(1)),
       })
       .strict(),
   })
