@@ -81,6 +81,12 @@ export const migrations: Record<number, Migration> = {
     version: 5,
     encounters: { progressSec: 0, generatedCount: 0, resolvedCount: 0, pending: [] },
   }),
+  // v6 扩展 classId 合法值域，旧档字段本身无需改写；仅升级版本，
+  // 让包含 catkin 的新档不会被旧版程序误判成损坏存档。
+  5: (save) => ({
+    ...save,
+    version: 6,
+  }),
 };
 
 export class SaveTooNewError extends Error {

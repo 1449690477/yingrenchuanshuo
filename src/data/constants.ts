@@ -135,6 +135,7 @@ export const CLASS_BASE_STATS: Record<ClassId, Stats> = {
   swordsman: { atk: 12, def: 8, hp: 200, acc: 85, eva: 5, critRate: 5, critDmg: 50, spd: 1.0 },
   witch: { atk: 18, def: 4, hp: 120, acc: 80, eva: 8, critRate: 8, critDmg: 50, spd: 0.9 },
   shaman: { atk: 10, def: 6, hp: 160, acc: 82, eva: 10, critRate: 6, critDmg: 50, spd: 1.1 },
+  catkin: { atk: 13, def: 5, hp: 140, acc: 88, eva: 12, critRate: 10, critDmg: 50, spd: 1.25 },
 };
 
 /** 各职业每级成长（线性） */
@@ -142,6 +143,7 @@ export const CLASS_GROWTH: Record<ClassId, Pick<Stats, 'atk' | 'def' | 'hp'>> = 
   swordsman: { atk: 2.2, def: 1.8, hp: 45 },
   witch: { atk: 3.4, def: 0.8, hp: 22 },
   shaman: { atk: 1.9, def: 1.3, hp: 33 },
+  catkin: { atk: 2.6, def: 1.0, hp: 28 },
 };
 
 /**
@@ -156,14 +158,16 @@ export const CLASS_GROWTH: Record<ClassId, Pick<Stats, 'atk' | 'def' | 'hp'>> = 
  *   剑姬 1.00 × 1.0 = 100%
  *   魔女 1.06 × 0.9 =  95%
  *   灵巫 0.78 × 1.1 =  86%
+ *   喵喵 0.76 × 1.25 = 95%（再由高暴击与技能多段形成上限）
  */
 export const CLASS_ATK_MUL: Record<ClassId, number> = {
   swordsman: 1.0,
   witch: 1.06,
   shaman: 0.78,
+  catkin: 0.76,
 };
 
-/** 命中与闪避每级成长（三职业相同） */
+/** 命中与闪避每级成长（全职业相同） */
 export const ACC_PER_LEVEL = 1.5;
 export const EVA_PER_LEVEL = 0.8;
 
@@ -437,6 +441,12 @@ export const CLASS_INFO: Record<
     role: '召唤 · 自愈 · 续航',
     desc: '有治疗和召唤，长时间离线挂机最不容易断。',
     color: 'var(--mint)',
+  },
+  catkin: {
+    name: '喵喵',
+    role: '高速连击 · 闪避反击',
+    desc: '以猫爪印记串起高速连击，动作最灵活；血防较低，需要靠走位与爆发抢先解决敌人。',
+    color: '#6d6bc8',
   },
 };
 

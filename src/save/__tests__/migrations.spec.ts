@@ -67,6 +67,11 @@ function v4Save(): Record<string, unknown> {
   return { ...legacy, version: 4 };
 }
 
+function v5Save(): Record<string, unknown> {
+  const current = createSave('v5 少女', 'witch', 28, 1_800_000_000_000);
+  return { ...current, version: 5 };
+}
+
 describe('save migrations', () => {
   it('v0 依次迁移到当前版本且不丢旧数据', () => {
     const migrated = migrate(v0Save());
@@ -175,6 +180,18 @@ describe('save migrations', () => {
     });
     expect(migrated.player.gold).toBe(8_765_432);
     expect(migrated.player.name).toBe('v4 少女');
+  });
+
+  it('v5 → v6 扩展职业值域且不改写旧职业与资产', () => {
+    const raw = v5Save();
+    const legacyPlayer = raw.player as { gold: number };
+    legacyPlayer.gold = 9_876_543;
+    const migrated = migrate(raw);
+
+    expect(migrated.version).toBe(SAVE_VERSION);
+    expect(migrated.player.classId).toBe('witch');
+    expect(migrated.player.gold).toBe(9_876_543);
+    expect(migrated.player.name).toBe('v5 少女');
   });
 
   it('当前版本不迁移，只做严格结构校验', () => {

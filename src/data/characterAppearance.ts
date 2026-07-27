@@ -1,16 +1,26 @@
-import type {
-  BoutiqueThemeId,
-  ClassId,
-  EquipmentInstance,
-  EquipSlot,
-  ForgeStage,
-  Quality,
+import {
+  CLASS_IDS,
+  type BoutiqueThemeId,
+  type ClassId,
+  type EquipmentInstance,
+  type EquipSlot,
+  type ForgeStage,
+  type Quality,
 } from '@/core/types';
 import { forgeStageAt } from '@/core/equipment';
 import { requireEquipment } from './equipment';
 import { BOUTIQUE_THEME_LIST, BOUTIQUE_THEMES, boutiqueAppearanceId } from './boutique';
 
-export type CharacterAction = 'idle' | 'attack' | 'cast' | 'react';
+export type CharacterAction =
+  | 'idle'
+  | 'attack'
+  | 'cast'
+  | 'react'
+  | 'dash'
+  | 'flurry'
+  | 'spin'
+  | 'counter'
+  | 'victory';
 export type CharacterVariant = 'showcase' | 'battle' | 'avatar';
 export type GrowthTierId = 'bud' | 'bloom' | 'moon' | 'star' | 'legend';
 
@@ -58,12 +68,14 @@ const classAssets = (fileName: string): Record<ClassId, string> => ({
   swordsman: `assets/characters/modular/swordsman/${fileName}.png`,
   witch: `assets/characters/modular/witch/${fileName}.png`,
   shaman: `assets/characters/modular/shaman/${fileName}.png`,
+  catkin: `assets/characters/modular/catkin/${fileName}.png`,
 });
 
 const sameTransform = (transform: LayerTransform): Record<ClassId, LayerTransform> => ({
   swordsman: transform,
   witch: transform,
   shaman: transform,
+  catkin: transform,
 });
 
 /**
@@ -77,6 +89,7 @@ function boutiqueClassAssets(themeId: BoutiqueThemeId, slot: 'body' | 'head' | '
     swordsman: `assets/characters/modular/shop/${themeId}/swordsman-${slot}.png`,
     witch: `assets/characters/modular/shop/${themeId}/witch-${slot}.png`,
     shaman: `assets/characters/modular/shop/${themeId}/shaman-${slot}.png`,
+    catkin: `assets/characters/modular/shop/${themeId}/catkin-${slot}.png`,
   } satisfies Record<ClassId, string>;
 }
 
@@ -93,7 +106,7 @@ function buildBoutiqueAppearances(): Record<string, EquipmentAppearance> {
         transforms: alignedTransforms,
       };
     }
-    for (const classId of ['swordsman', 'witch', 'shaman'] as const) {
+    for (const classId of CLASS_IDS) {
       const id = boutiqueAppearanceId(theme.id, 'weapon', classId);
       out[id] = {
         id,
@@ -180,12 +193,14 @@ export const CHARACTER_BASE_ASSETS: Readonly<Record<ClassId, string>> = {
   swordsman: 'assets/characters/modular/swordsman/base.png',
   witch: 'assets/characters/modular/witch/base.png',
   shaman: 'assets/characters/modular/shaman/base.png',
+  catkin: 'assets/characters/modular/catkin/base.png',
 };
 
 export const BASIC_ATTACK_EFFECTS: Readonly<Record<ClassId, string>> = {
   swordsman: 'assets/effects/basic/swordsman-strike.png',
   witch: 'assets/effects/basic/witch-spark.png',
   shaman: 'assets/effects/basic/shaman-wisp.png',
+  catkin: 'assets/effects/basic/catkin-paw.png',
 };
 
 const QUALITY_RANK: Readonly<Record<Quality, number>> = {

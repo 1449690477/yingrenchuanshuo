@@ -6,7 +6,7 @@
  * 手机浏览器切后台会节流定时器，累加出来的时间是错的。
  */
 
-import type { Combatant, IdleYield, LootResult, LootTable } from './types';
+import type { ClassId, Combatant, IdleYield, LootResult, LootTable } from './types';
 import type { Rng } from './rng';
 import { estimateDps } from './combat';
 import { expectedLoot, rollLoot, type PityCounters } from './loot';
@@ -19,6 +19,8 @@ import {
 } from '@/data/constants';
 
 export interface IdleContext {
+  /** 用于过滤职业专属掉落；含专属条目的表结算时不可缺省。 */
+  classId?: ClassId;
   player: Combatant;
   /** 关卡的代表性怪物（取该关平均水平的小怪） */
   monster: Combatant;
@@ -97,13 +99,13 @@ export function settleIdle(ctx: IdleContext, seconds: number, opts: SettleOption
   if (useRoll) {
     const acc = new Map<string, number>();
     for (let i = 0; i < kills; i++) {
-      for (const d of rollLoot(ctx.lootTable, opts.rng!, opts.pity)) {
+      for (const d of rollLoot(ctx.lootTable, opts.rng!, opts.pity, ctx.classId)) {
         acc.set(d.itemId, (acc.get(d.itemId) ?? 0) + d.count);
       }
     }
     loot = [...acc].map(([itemId, count]) => ({ itemId, count }));
   } else {
-    loot = expectedLoot(ctx.lootTable, kills);
+    loot = expectedLoot(ctx.lootTable, kills, ctx.classId);
   }
 
   return {

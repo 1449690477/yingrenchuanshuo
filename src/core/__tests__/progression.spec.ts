@@ -16,6 +16,7 @@ import {
   EXP_BASE,
   STAMINA_BASE_MAX,
 } from '@/data/constants';
+import { CLASS_IDS } from '../types';
 
 describe('expToNext', () => {
   // 断言公式关系而非硬编码数字 —— 否则每次调平衡都要改测试
@@ -46,7 +47,7 @@ describe('totalExpTo', () => {
 
 describe('baseStatsFor', () => {
   it('Lv1 等于职业基础属性', () => {
-    for (const cls of ['swordsman', 'witch', 'shaman'] as const) {
+    for (const cls of CLASS_IDS) {
       const s = baseStatsFor(cls, 1);
       expect(s.atk).toBe(CLASS_BASE_STATS[cls].atk);
       expect(s.def).toBe(CLASS_BASE_STATS[cls].def);
@@ -65,6 +66,16 @@ describe('baseStatsFor', () => {
     expect(sword.hp).toBeGreaterThan(witch.hp);
     expect(sword.hp).toBeGreaterThan(shaman.hp);
     expect(sword.def).toBeGreaterThan(witch.def);
+  });
+
+  it('喵喵是四职业中攻速、闪避和基础暴击最高的高速职业', () => {
+    const catkin = baseStatsFor('catkin', 50);
+    for (const classId of CLASS_IDS.filter((id) => id !== 'catkin')) {
+      const other = baseStatsFor(classId, 50);
+      expect(catkin.spd).toBeGreaterThan(other.spd);
+      expect(catkin.eva).toBeGreaterThan(other.eva);
+      expect(catkin.critRate).toBeGreaterThan(other.critRate);
+    }
   });
 
   it('属性随等级单调增长', () => {

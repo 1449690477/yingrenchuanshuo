@@ -106,7 +106,12 @@ describe('advanceRhythm', () => {
     const atk: number[] = [];
     const skill: number[] = [];
     for (let i = 0; i < 200; i++) {
-      const r = advanceRhythm(s, 0.25, { ...params, critRate: 0 }, rng);
+      const r = advanceRhythm(
+        s,
+        0.25,
+        { ...params, critRate: 0, skillCooldowns: [4] },
+        rng,
+      );
       s = r.state;
       for (const b of r.beats) {
         if (b.kind === 'player-attack') atk.push(b.damage);
@@ -187,6 +192,23 @@ describe('advanceRhythm', () => {
     const snapshot = JSON.parse(JSON.stringify(s));
     advanceRhythm(s, 5, params, new Rng(1));
     expect(s).toEqual(snapshot);
+  });
+
+  it('技能冷却数量不匹配时直接报错', () => {
+    const state = createRhythmState(2);
+    expect(() =>
+      advanceRhythm(state, 0.25, { ...params, skillCooldowns: [4] }, new Rng(1)),
+    ).toThrow(/数量/);
+  });
+
+  it.each([
+    ['零冷却', [0]],
+    ['NaN 冷却', [Number.NaN]],
+  ])('%s 配置直接报错', (_label, skillCooldowns) => {
+    const state = createRhythmState(1);
+    expect(() =>
+      advanceRhythm(state, 0.25, { ...params, skillCooldowns }, new Rng(1)),
+    ).toThrow(/技能冷却/);
   });
 });
 

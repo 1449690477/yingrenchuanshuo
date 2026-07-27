@@ -45,6 +45,7 @@ const seedByClass: Record<ClassId, number> = {
   swordsman: 0x51a7c0de,
   witch: 0x7a11ce55,
   shaman: 0x5a4a0a11,
+  catkin: 0xca7c1a55,
 };
 const interactionRng = new Rng(seedByClass[props.classId]);
 
@@ -56,6 +57,12 @@ const reactions: Record<ClassId, readonly string[]> = {
     '听，铃铛响了一下。',
     '今天的气息很温柔。',
     '守护灵也喜欢这套衣服。',
+  ],
+  catkin: [
+    '喵呜！今天也要一起冒险！',
+    '尾巴才没有偷偷摇起来呢。',
+    '要摸摸肉球吗？只给你一下哦。',
+    '闻到了……是宝箱的味道！',
   ],
 };
 
@@ -120,7 +127,7 @@ function play(nextAction: CharacterAction, skill: VisualSkill | null = null): vo
 
 function previewSkill(skill: VisualSkill): void {
   if (props.level < skill.unlockLevel) return;
-  play('cast', skill);
+  play(skill.characterAction, skill);
 }
 
 function interact(kind: 'greet' | 'pose' | 'celebrate' = 'greet'): void {
@@ -132,7 +139,7 @@ function interact(kind: 'greet' | 'pose' | 'celebrate' = 'greet'): void {
   reactionText.value = themed
     ? themeLines[kind === 'greet' ? 0 : kind === 'pose' ? 1 : 2]!
     : interactionRng.pick(reactions[props.classId]);
-  action.value = 'react';
+  action.value = kind === 'greet' ? 'react' : kind === 'pose' ? 'cast' : 'victory';
   activeSkill.value = null;
   showBasicEffect.value = false;
   actionSequence.value += 1;

@@ -11,7 +11,7 @@
 
 import { z } from 'zod';
 import type { EncounterState } from '@/core/encounters';
-import type { ClassId, EquipmentInstance, EquipSlot, Quality } from '@/core/types';
+import { CLASS_IDS, type ClassId, type EquipmentInstance, type EquipSlot, type Quality } from '@/core/types';
 import {
   CLASS_BASE_STATS,
   ENHANCE_GAIN_TIERS,
@@ -24,7 +24,7 @@ import {
 import { FIRST_STAGE_ID } from '@/data/stages';
 
 /** 当前存档版本。加字段就 +1。 */
-export const SAVE_VERSION = 5;
+export const SAVE_VERSION = 6;
 
 export const SAVE_KEY = 'main';
 
@@ -169,7 +169,7 @@ export function isValidClass(id: string): id is ClassId {
  * IndexedDB 里的对象真的符合 SaveData。这里用 Zod 做完整校验，
  * 缺字段、类型错误和非法枚举都会直接报错，不能拿默认值掩盖坏档。
  */
-const classIdSchema = z.enum(['swordsman', 'witch', 'shaman']);
+const classIdSchema = z.enum(CLASS_IDS);
 const qualitySchema = z.enum(['common', 'fine', 'rare', 'epic', 'legendary', 'mythic', 'divine']);
 const elementSchema = z.enum(['fire', 'ice', 'thunder', 'none']);
 const affixKeySchema = z.enum([

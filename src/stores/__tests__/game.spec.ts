@@ -10,7 +10,7 @@ import { ENHANCE_MAX, ENHANCE_MATERIAL_IDS } from '@/data/constants';
 import { requireEquipment } from '@/data/equipment';
 import { SHOP_OFFERS } from '@/data/shop';
 import { ORDERED_STAGE_IDS, STAGES, nextStageId, totalMonsterCount } from '@/data/stages';
-import { createSave } from '@/save/schema';
+import { createSave, SAVE_VERSION } from '@/save/schema';
 import { clearSave, loadSave } from '@/save/storage';
 import { useGameStore } from '../game';
 import { useInventoryStore } from '../inventory';
@@ -36,6 +36,16 @@ describe('game store persistence', () => {
     const loaded = await loadSave();
     expect(loaded?.player.name).toBe('小樱');
     expect(loaded?.player.classId).toBe('swordsman');
+  });
+
+  it('喵喵创角会以稳定 catkin 职业标识写入 IndexedDB', async () => {
+    const game = useGameStore();
+    await game.startNewGame('喵喵', 'catkin');
+
+    const loaded = await loadSave();
+    expect(loaded?.version).toBe(SAVE_VERSION);
+    expect(loaded?.player.name).toBe('喵喵');
+    expect(loaded?.player.classId).toBe('catkin');
   });
 
   it('四个领域 store 读取同一份响应式存档', async () => {

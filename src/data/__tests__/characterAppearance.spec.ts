@@ -101,4 +101,24 @@ describe('角色换装外观解析', () => {
     expect(appearance.baseAsset).toBe('assets/characters/modular/shaman/base.png');
     expect(appearance.ariaLabel).toContain('基础训练装');
   });
+
+  it('喵喵基础、两区装备和珍品换装都解析到独立 catkin 图层', () => {
+    const equipped = emptyEquipped();
+    equipped.weapon = instance('eq_shop_berry-cream_weapon_catkin');
+    equipped.body = instance('eq_shop_berry-cream_body');
+    equipped.head = instance('eq_r2_head_fine');
+
+    const appearance = resolveCharacterAppearance('catkin', 30, equipped);
+
+    expect(appearance.baseAsset).toBe('assets/characters/modular/catkin/base.png');
+    expect(appearance.layers.map((layer) => layer.asset)).toEqual([
+      'assets/characters/modular/shop/berry-cream/catkin-body.png',
+      'assets/characters/modular/catkin/r2-head.png',
+      'assets/characters/modular/shop/berry-cream/catkin-weapon.png',
+    ]);
+    expect(appearance.activeBoutiqueTheme).toBe('berry-cream');
+    expect(appearance.boutiqueEffectAsset).toBe(
+      'assets/effects/boutique/berry-cream-catkin.png',
+    );
+  });
 });

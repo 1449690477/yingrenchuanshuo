@@ -1,14 +1,17 @@
 /**
  * 全局类型定义。
  *
- * 这一层是纯类型，不含任何运行时逻辑。
+ * 这一层只放纯数据类型与稳定枚举，不含任何副作用。
  * 见 AGENTS.md 铁律 1：core 层禁止依赖 Vue / Pinia / DOM。
  */
 
 // ─────────────────────────── 枚举类 ───────────────────────────
 
-/** 三职业。剑姬=战士，魔女=法师，灵巫=道士 */
-export type ClassId = 'swordsman' | 'witch' | 'shaman';
+/** 稳定职业 ID；显示名可以改，存档里的 ID 不可随角色改名变化。 */
+export const CLASS_IDS = ['swordsman', 'witch', 'shaman', 'catkin'] as const;
+
+/** 四职业。catkin 的暂定显示名为「喵喵」。 */
+export type ClassId = (typeof CLASS_IDS)[number];
 
 /** 精品商店首批换装系列。 */
 export type BoutiqueThemeId = 'berry-cream' | 'moon-sugar' | 'rose-night';
@@ -102,7 +105,7 @@ export interface EquipmentDef {
    * 存档仍只保存 defId，因此新增外观素材不需要迁移旧存档。
    */
   appearanceId: string;
-  /** 职业专属装备；未填写表示三职业通用。 */
+  /** 职业专属装备；未填写表示全职业通用。 */
   classId?: ClassId;
   /** 精品换装系列，用于统一人物光环、攻击换肤和互动。 */
   boutiqueTheme?: BoutiqueThemeId;
@@ -149,27 +152,198 @@ export interface ShopOffer {
 
 // ─────────────────────────── 技能 ───────────────────────────
 
-export interface Skill {
+/** 随技能等级成长的数值；ratio 一律使用 0.2=20% 的小数语义。 */
+export interface LevelScalar {
+  base: number;
+  perLevel?: number;
+  max?: number;
+}
+
+export type SkillTarget =
+  | { kind: 'self' }
+  | { kind: 'primary-enemy' }
+  /** 触发器事件的来源单位，例如 on-dodge 时刚刚攻击自己的敌人。 */
+  | { kind: 'event-source' }
+  | { kind: 'hit-enemies' }
+  | { kind: 'enemies'; count: number | 'all' }
+  | { kind: 'all-allies' };
+
+export type SkillCondition =
+  | { kind: 'self-hp-at-most'; ratio: number }
+  | { kind: 'target-hp-at-most'; ratio: number }
+  | { kind: 'monster-type'; types: readonly MonsterType[] }
+  | { kind: 'status-stacks-at-least'; statusId: string; stacks: number }
+  | { kind: 'has-status'; statusId: string };
+
+/**
+ * 属性修正显式区分三种单位，防止把「闪避率 +20 个百分点」
+ * 误写成 eva +20 或相对乘 1.2。
+ */
+export type SkillStatModifier =
+  | {
+      unit: 'flat';
+      stat: 'atk' | 'def' | 'hp' | 'acc' | 'eva' | 'spd';
+      amount: LevelScalar;
+    }
+  | {
+      unit: 'ratio';
+      stat:
+        | 'atk'
+        | 'def'
+        | 'hp'
+        | 'spd'
+        | 'damageDone'
+        | 'damageTaken'
+        /** 仅放大施加该状态的来源单位造成的伤害。 */
+        | 'damageTakenFromSource'
+        | 'dotDamage';
+      ratio: LevelScalar;
+    }
+  | {
+      unit: 'percentage-points';
+      stat: 'critRate' | 'critDmg' | 'hitChance' | 'dodgeChance';
+      points: LevelScalar;
+    };
+
+export type SkillEffect =
+  | {
+      kind: 'damage';
+      target: SkillTarget;
+      /** 一次完整施法的总倍率；多段权重不会重复放大此倍率。 */
+      multiplier: LevelScalar;
+      /**
+       * 决定段数和每段相对伤害权重；执行器归一化后总倍率不变。
+       * 视觉命中时序由表现层的 hitOffsetsMs 控制。
+       */
+      hitWeights?: readonly number[];
+      element?: Element;
+      defenseIgnoreRatio?: number;
+      statusScaling?: {
+        statusId: string;
+        /**
+         * 线性叠层：总伤害 = 基础总伤害 × (1 + 快照层数 × damageRatioPerStack)。
+         * AoE 对每个目标分别快照其层数，全部伤害结算后再消费。
+         */
+        damageRatioPerStack: number;
+        consume: 'none' | 'all' | number;
+      };
+    }
+  | {
+      kind: 'periodic-damage';
+      target: SkillTarget;
+      totalMultiplier: LevelScalar;
+      ticks: number;
+      durationSec: number;
+      element?: Element;
+      maxStacks?: number;
+    }
+  | {
+      kind: 'heal';
+      target: SkillTarget;
+      maxHpRatio: LevelScalar;
+    }
+  | {
+      kind: 'shield';
+      target: SkillTarget;
+      maxHpRatio: LevelScalar;
+      durationSec: number;
+    }
+  | {
+      kind: 'modifier';
+      target: SkillTarget;
+      modifier: SkillStatModifier;
+      durationSec?: number;
+    }
+  | {
+      kind: 'apply-status';
+      target: SkillTarget;
+      statusId: string;
+      stacks: number;
+      maxStacks: number;
+      durationSec: number;
+      refresh: 'duration' | 'replace' | 'add-duration';
+      /** true 表示状态每层各自应用一次 modifiers。 */
+      modifiersPerStack?: boolean;
+      modifiers?: readonly SkillStatModifier[];
+    }
+  | {
+      kind: 'consume-status';
+      target: SkillTarget;
+      statusId: string;
+      stacks: number | 'all';
+    }
+  | {
+      kind: 'control';
+      target: SkillTarget;
+      control: 'stun' | 'freeze' | 'slow' | 'knockback';
+      chance: number;
+      durationSec: number;
+      /** slow/knockback 强度；0.2 表示 20%。 */
+      strengthRatio?: number;
+    }
+  | {
+      kind: 'trigger';
+      event:
+        | 'after-skill-resolved'
+        | 'on-hit'
+        | 'on-crit'
+        | 'on-dodge'
+        | 'on-damage-taken'
+        | 'on-low-hp';
+      chance?: number;
+      durationSec?: number;
+      maxTriggers?: number;
+      when?: SkillCondition;
+      effects: readonly SkillEffect[];
+    }
+  | {
+      kind: 'conditional';
+      when: SkillCondition;
+      effects: readonly SkillEffect[];
+    }
+  | {
+      kind: 'avoid-next-hit';
+      durationSec: number;
+      count: number;
+    }
+  | {
+      kind: 'summon';
+      summonId: string;
+      durationSec: number;
+    }
+  | {
+      kind: 'dispel';
+      target: SkillTarget;
+      polarity: 'buff' | 'debuff';
+      count: number | 'all';
+    };
+
+interface SkillBase {
   id: string;
   name: string;
   class: ClassId;
-  type: 'active' | 'passive';
   element: Element;
   unlockLevel: number;
-  /** 主动技能倍率；被动填 0 */
-  baseMultiplier: number;
-  /** 每级增幅，通常 0.06 */
-  perLevelMultiplier: number;
-  /** 冷却秒数；被动填 0 */
-  cooldown: number;
-  /** 1=单体，0=全体，N=N 个目标 */
-  targets: number;
-  /** 自动释放优先级，越大越优先 */
-  priority: number;
-  passiveEffect?: Affix[];
   icon: string;
   desc: string;
 }
+
+export interface ActiveSkill extends SkillBase {
+  type: 'active';
+  cooldownSec: number;
+  /** 自动释放优先级，越大越优先。 */
+  priority: number;
+  /** 条件不满足时跳过该技能，继续检查下一优先级。 */
+  castWhen?: SkillCondition;
+  effects: readonly SkillEffect[];
+}
+
+export interface PassiveSkill extends SkillBase {
+  type: 'passive';
+  effects: readonly SkillEffect[];
+}
+
+export type Skill = ActiveSkill | PassiveSkill;
 
 // ─────────────────────────── 怪物 ───────────────────────────
 
@@ -193,6 +367,8 @@ export interface MonsterDef {
 
 export interface LootEntry {
   itemId: string;
+  /** 职业专属掉落；未填写表示所有职业都可进入该掉落池。 */
+  classId?: ClassId;
   /** 权重，不是概率。实际概率 = weight / 总weight */
   weight: number;
   minCount: number;

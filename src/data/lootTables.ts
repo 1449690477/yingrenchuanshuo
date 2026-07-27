@@ -11,7 +11,7 @@
 
 import type { LootTable, MonsterType, Quality } from '@/core/types';
 import { ALL_CHAPTERS, regionOfChapter, type ChapterSpec } from './regions';
-import { equipIdsOf } from './equipment';
+import { equipIdsOf, requireEquipment } from './equipment';
 import { lootTableIdFor } from './monsters';
 import { boutiqueBossDropIds } from './shop';
 import { requireEnhanceProgression } from './enhanceProgression';
@@ -82,8 +82,10 @@ function buildTable(spec: ChapterSpec, type: MonsterType): LootTable {
   // ── BOSS 珍品直掉：商店同款也必须有「靠打获得」路径 ──
   if (type === 'boss') {
     for (const equipmentId of boutiqueBossDropIds(spec.id)) {
+      const equipment = requireEquipment(equipmentId);
       entries.push({
         itemId: equipmentId,
+        ...(equipment.classId ? { classId: equipment.classId } : {}),
         // 每件独立约十余天在线刷取；商店是昂贵但确定的保底路径。
         weight: 0.001,
         minCount: 1,

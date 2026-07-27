@@ -29,10 +29,12 @@ const weapons = (
   swordsman: Omit<BoutiqueItemSpec, 'slot' | 'category' | 'classId'>,
   witch: Omit<BoutiqueItemSpec, 'slot' | 'category' | 'classId'>,
   shaman: Omit<BoutiqueItemSpec, 'slot' | 'category' | 'classId'>,
+  catkin: Omit<BoutiqueItemSpec, 'slot' | 'category' | 'classId'>,
 ): BoutiqueItemSpec[] => [
   { ...swordsman, slot: 'weapon', category: 'weapon', classId: 'swordsman' },
   { ...witch, slot: 'weapon', category: 'weapon', classId: 'witch' },
   { ...shaman, slot: 'weapon', category: 'weapon', classId: 'shaman' },
+  { ...catkin, slot: 'weapon', category: 'weapon', classId: 'catkin' },
 ];
 
 export const BOUTIQUE_THEMES: Readonly<Record<BoutiqueThemeId, BoutiqueTheme>> = {
@@ -56,6 +58,7 @@ export const BOUTIQUE_THEMES: Readonly<Record<BoutiqueThemeId, BoutiqueTheme>> =
       swordsman: 'assets/effects/boutique/berry-cream-swordsman.png',
       witch: 'assets/effects/boutique/berry-cream-witch.png',
       shaman: 'assets/effects/boutique/berry-cream-shaman.png',
+      catkin: 'assets/effects/boutique/berry-cream-catkin.png',
     },
     items: [
       ...weapons(
@@ -73,6 +76,11 @@ export const BOUTIQUE_THEMES: Readonly<Record<BoutiqueThemeId, BoutiqueTheme>> =
           name: '草莓奶霜茶铃',
           price: 1_350_000,
           uniqueEffect: '施法换肤：茶铃绽开粉白治愈波纹。',
+        },
+        {
+          name: '草莓奶霜糖晶爪',
+          price: 1_350_000,
+          uniqueEffect: '攻击换肤：草莓心晶在双爪交错处迸开。',
         },
       ),
       {
@@ -146,6 +154,7 @@ export const BOUTIQUE_THEMES: Readonly<Record<BoutiqueThemeId, BoutiqueTheme>> =
       swordsman: 'assets/effects/boutique/moon-sugar-swordsman.png',
       witch: 'assets/effects/boutique/moon-sugar-witch.png',
       shaman: 'assets/effects/boutique/moon-sugar-shaman.png',
+      catkin: 'assets/effects/boutique/moon-sugar-catkin.png',
     },
     items: [
       ...weapons(
@@ -163,6 +172,11 @@ export const BOUTIQUE_THEMES: Readonly<Record<BoutiqueThemeId, BoutiqueTheme>> =
           name: '月桂星糖祷灯',
           price: 6_800_000,
           uniqueEffect: '施法换肤：祷灯灵火环绕成金色月相。',
+        },
+        {
+          name: '月桂星糖月兔爪',
+          price: 6_800_000,
+          uniqueEffect: '攻击换肤：月兔新月沿蓝紫晶爪跃出。',
         },
       ),
       {
@@ -236,6 +250,7 @@ export const BOUTIQUE_THEMES: Readonly<Record<BoutiqueThemeId, BoutiqueTheme>> =
       swordsman: 'assets/effects/boutique/rose-night-swordsman.png',
       witch: 'assets/effects/boutique/rose-night-witch.png',
       shaman: 'assets/effects/boutique/rose-night-shaman.png',
+      catkin: 'assets/effects/boutique/rose-night-catkin.png',
     },
     items: [
       ...weapons(
@@ -253,6 +268,11 @@ export const BOUTIQUE_THEMES: Readonly<Record<BoutiqueThemeId, BoutiqueTheme>> =
           name: '绯樱星愿御灵扇',
           price: 22_000_000,
           uniqueEffect: '施法换肤：御灵蝶扇阵卷起绯樱星尘。',
+        },
+        {
+          name: '绯樱星愿蔷薇爪',
+          price: 22_000_000,
+          uniqueEffect: '攻击换肤：赤金蔷薇在交错爪痕中央盛开。',
         },
       ),
       {

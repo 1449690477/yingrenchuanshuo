@@ -4,8 +4,12 @@ import type { ClassId, MonsterDef } from '@/core/types';
 import type { BattleVitals } from '@/core/battleVisual';
 import type { BattleBeat } from '@/core/battleRhythm';
 import { abbr } from '@/core/format';
-import { BASIC_ATTACK_EFFECTS, type EquippedRecord } from '@/data/characterAppearance';
-import type { VisualSkill } from '@/data/skills';
+import {
+  BASIC_ATTACK_EFFECTS,
+  type CharacterAction,
+  type EquippedRecord,
+} from '@/data/characterAppearance';
+import { battleRhythmSkills, type ActiveVisualSkill } from '@/data/skills';
 import CharacterAppearance from '@/components/CharacterAppearance.vue';
 import MonsterArtwork from '@/components/MonsterArtwork.vue';
 
@@ -24,8 +28,6 @@ const props = defineProps<{
   /** 当前关卡波次进度（0-1）；通关后不传。 */
   waveRatio?: number;
   pulse: { id: number; targetId: string; damage: number; kills: number } | null;
-  skill: VisualSkill | null;
-  effectUrl: string | null;
   drop: { id: number; name: string; quality: string; assetUrl: string } | null;
   /** 持续战斗演出的拍子流，见 core/battleRhythm */
   beats: BattleBeat[];
@@ -44,12 +46,15 @@ const basicEffectUrl = computed(
 // ────────────────────────────────────────────────────────────
 
 /** 一拍演出在屏幕上存活多久（毫秒） */
-const BEAT_LIFE_MS = 620;
+const BEAT_LIFE_MS = 980;
 /** 同屏最多几个飘字，防止高攻速时糊成一片 */
 const MAX_LIVE_BEATS = 6;
 
 interface LiveBeat {
+  /** UI 唯一序号；多段技能由原始拍子序号扩展而来。 */
   seq: number;
+  /** core/battleRhythm 产生的原始拍子序号；一整套多段动作只重播一次。 */
+  sourceSeq: number;
   kind: BattleBeat['kind'];
   crit: boolean;
   damage: number;
@@ -60,12 +65,17 @@ interface LiveBeat {
 
 const liveBeats = ref<LiveBeat[]>([]);
 const timers = new Map<number, number>();
+const queuedTimers = new Set<number>();
 let lastSeenSeq = 0;
 
 watch(
   () => props.beats,
   (beats) => {
-    if (!beats || beats.length === 0) return;
+    if (!beats || beats.length === 0) {
+      lastSeenSeq = 0;
+      clearAllBeats();
+      return;
+    }
     for (const beat of beats) {
       if (beat.seq <= lastSeenSeq) continue;
       lastSeenSeq = beat.seq;
@@ -76,21 +86,44 @@ watch(
 );
 
 function addLiveBeat(beat: BattleBeat): void {
+  const beatSkill =
+    beat.kind === 'player-skill' ? requireRhythmSkill(beat.skillIndex) : null;
+  const offsets =
+    beatSkill && beatSkill.hitOffsetsMs.length > 0 ? beatSkill.hitOffsetsMs : ([0] as const);
+  const damagePerHit = Math.max(1, Math.round(beat.damage / offsets.length));
+
+  offsets.forEach((delayMs, hitIndex) => {
+    const visualSeq = beat.seq * 100 + hitIndex;
+    const append = () => appendLiveBeat(beat, visualSeq, damagePerHit);
+    if (delayMs <= 0) {
+      append();
+      return;
+    }
+    const timerId = window.setTimeout(() => {
+      queuedTimers.delete(timerId);
+      append();
+    }, delayMs);
+    queuedTimers.add(timerId);
+  });
+}
+
+function appendLiveBeat(beat: BattleBeat, visualSeq: number, damage: number): void {
   liveBeats.value.push({
-    seq: beat.seq,
+    seq: visualSeq,
+    sourceSeq: beat.seq,
     kind: beat.kind,
     crit: beat.crit,
-    damage: beat.damage,
+    damage,
     skillIndex: beat.skillIndex,
     // 用序号做伪随机偏移，无需引入随机源，且同一拍每次渲染位置稳定
-    offset: ((beat.seq * 37) % 46) - 23,
+    offset: ((visualSeq * 37) % 46) - 23,
   });
   if (liveBeats.value.length > MAX_LIVE_BEATS) {
     const dropped = liveBeats.value.shift();
     if (dropped) clearBeatTimer(dropped.seq);
   }
-  const id = window.setTimeout(() => removeLiveBeat(beat.seq), BEAT_LIFE_MS);
-  timers.set(beat.seq, id);
+  const id = window.setTimeout(() => removeLiveBeat(visualSeq), BEAT_LIFE_MS);
+  timers.set(visualSeq, id);
 }
 
 function removeLiveBeat(seq: number): void {
@@ -106,6 +139,14 @@ function clearBeatTimer(seq: number): void {
   }
 }
 
+function clearAllBeats(): void {
+  for (const id of timers.values()) clearTimeout(id);
+  for (const id of queuedTimers) clearTimeout(id);
+  timers.clear();
+  queuedTimers.clear();
+  liveBeats.value = [];
+}
+
 /** 玩家出手的拍子（普攻或技能） */
 const playerBeats = computed(() => liveBeats.value.filter((b) => b.kind !== 'monster-attack'));
 /** 怪物出手的拍子 */
@@ -115,13 +156,48 @@ const monsterBeats = computed(() => liveBeats.value.filter((b) => b.kind === 'mo
 const latestPlayerBeat = computed(() => playerBeats.value.at(-1) ?? null);
 
 /**
- * 角色动作。
- * 施法优先于普攻，普攻优先于待机；击杀演出（pulse）仍然可以盖过节奏。
+ * 与 core/battleRhythm 使用完全相同的主动技能顺序。
+ * 拍子只保存稳定的 skillIndex，视图在这里把它还原为技能和专属动作。
  */
-const heroAction = computed<'idle' | 'attack' | 'cast'>(() => {
-  if (props.skill && props.pulse) return 'cast';
+const rhythmSkills = computed<readonly ActiveVisualSkill[]>(() =>
+  battleRhythmSkills(props.classId, props.level),
+);
+
+function skillForBeat(beat: LiveBeat): ActiveVisualSkill | null {
+  if (beat.kind !== 'player-skill') return null;
+  return requireRhythmSkill(beat.skillIndex);
+}
+
+function requireRhythmSkill(skillIndex: number | null): ActiveVisualSkill {
+  if (!Number.isSafeInteger(skillIndex) || skillIndex === null || skillIndex < 0) {
+    throw new Error(`[战斗演出] 技能拍缺少合法索引：${String(skillIndex)}`);
+  }
+  const skill = rhythmSkills.value[skillIndex];
+  if (!skill) {
+    throw new Error(
+      `[战斗演出] 技能拍索引越界：${skillIndex}/${rhythmSkills.value.length}`,
+    );
+  }
+  return skill;
+}
+
+function effectUrlForBeat(beat: LiveBeat): string {
+  const beatSkill = skillForBeat(beat);
+  return beatSkill ? `${import.meta.env.BASE_URL}${beatSkill.effectAsset}` : basicEffectUrl.value;
+}
+
+const latestRhythmSkill = computed(() => {
   const beat = latestPlayerBeat.value;
-  if (beat?.kind === 'player-skill') return 'cast';
+  return beat ? skillForBeat(beat) : null;
+});
+
+/**
+ * 角色动作。
+ * 技能动作来自唯一的冷却拍子流；击杀脉冲只负责受击与掉落，不再另选技能。
+ */
+const heroAction = computed<CharacterAction>(() => {
+  const beat = latestPlayerBeat.value;
+  if (latestRhythmSkill.value) return latestRhythmSkill.value.characterAction;
   if (beat || props.pulse) return 'attack';
   return 'idle';
 });
@@ -131,7 +207,7 @@ const heroAction = computed<'idle' | 'attack' | 'cast'>(() => {
  * 每次出手都换 key，让 CharacterAppearance 重新播放一次动作，
  * 否则连续攻击时立绘只会在第一次动一下。
  */
-const heroActorKey = computed(() => latestPlayerBeat.value?.seq ?? props.pulse?.id ?? 0);
+const heroActorKey = computed(() => latestPlayerBeat.value?.sourceSeq ?? props.pulse?.id ?? 0);
 
 /** 怪物正在挨打 */
 const enemyHit = computed(() => !!props.pulse || playerBeats.value.length > 0);
@@ -139,8 +215,7 @@ const enemyHit = computed(() => !!props.pulse || playerBeats.value.length > 0);
 const heroHurt = computed(() => monsterBeats.value.length > 0);
 
 onUnmounted(() => {
-  for (const id of timers.values()) clearTimeout(id);
-  timers.clear();
+  clearAllBeats();
 });
 const playerHpPercent = computed(
   () => (props.vitals.player.currentHp / props.vitals.player.maxHp) * 100,
@@ -179,9 +254,13 @@ onUnmounted(() => clearTimeout(spawnTimer));
     class="battle-scene"
     :class="[
       `target-${monster.type}`,
-      { active, casting: !!skill && !!pulse, 'player-low': playerHpPercent <= 25 },
+      {
+        active,
+        casting: !!latestRhythmSkill,
+        'player-low': playerHpPercent <= 25,
+      },
     ]"
-    :style="{ '--impact-delay': skill ? '300ms' : '110ms' }"
+    :style="{ '--impact-delay': latestRhythmSkill ? '300ms' : '110ms' }"
     :aria-label="`${playerName}正在与${monster.name}战斗`"
   >
     <Transition name="bg-fade">
@@ -233,6 +312,7 @@ onUnmounted(() => clearTimeout(spawnTimer));
         :aria-valuenow="vitals.monster.currentHp"
         :aria-valuetext="`${vitals.monster.currentHp} / ${vitals.monster.maxHp}`"
       >
+        <span class="hp-ghost" :style="{ width: `${monsterHpPercent}%` }" />
         <span class="hpbar-fill" :style="{ width: `${monsterHpPercent}%` }" />
         <span class="hp-shine" />
       </div>
@@ -255,6 +335,7 @@ onUnmounted(() => clearTimeout(spawnTimer));
         :aria-valuenow="vitals.player.currentHp"
         :aria-valuetext="`${vitals.player.currentHp} / ${vitals.player.maxHp}`"
       >
+        <span class="hp-ghost" :style="{ width: `${playerHpPercent}%` }" />
         <span class="hpbar-fill" :style="{ width: `${playerHpPercent}%` }" />
         <span class="hp-shine" />
       </div>
@@ -318,34 +399,15 @@ onUnmounted(() => clearTimeout(spawnTimer));
         v-for="b in playerBeats"
         :key="b.seq"
         class="swing-fx"
-        :class="[`swing-${classId}`, { 'is-skill': b.kind === 'player-skill', crit: b.crit }]"
+        :class="[
+          `swing-${classId}`,
+          skillForBeat(b) ? `kind-${skillForBeat(b)!.visualKind}` : 'kind-basic',
+          { 'is-skill': b.kind === 'player-skill', crit: b.crit },
+        ]"
       >
-        <img :src="b.kind === 'player-skill' && effectUrl ? effectUrl : basicEffectUrl" alt="" draggable="false" />
+        <img :src="effectUrlForBeat(b)" alt="" draggable="false" />
       </div>
     </TransitionGroup>
-
-    <div
-      v-if="pulse && !skill"
-      :key="`basic-${pulse.id}`"
-      class="basic-attack-fx"
-      :class="`basic-${classId}`"
-      aria-hidden="true"
-    >
-      <img :src="basicEffectUrl" alt="" draggable="false" />
-      <i v-for="n in 5" :key="n" />
-    </div>
-
-    <div
-      v-if="skill && effectUrl && pulse"
-      :key="pulse.id"
-      class="spell-fx"
-      :class="`kind-${skill.visualKind}`"
-      aria-hidden="true"
-    >
-      <img :src="effectUrl" alt="" draggable="false" />
-      <i v-for="n in 8" :key="n" class="fx-particle" />
-      <span class="spell-name">{{ skill.name }}</span>
-    </div>
 
     <div
       v-if="drop"
@@ -354,6 +416,7 @@ onUnmounted(() => clearTimeout(spawnTimer));
       :class="`drop-${drop.quality}`"
       aria-hidden="true"
     >
+      <span class="loot-ring" />
       <span class="loot-orb">
         <img :src="drop.assetUrl" alt="" draggable="false" />
       </span>
@@ -443,7 +506,8 @@ onUnmounted(() => clearTimeout(spawnTimer));
 .hero-hud,
 .actor-name {
   text-shadow: 0 1px 3px rgb(24 31 44 / 82%);
-  backdrop-filter: blur(4px);
+  backdrop-filter: blur(9px) saturate(1.45);
+  -webkit-backdrop-filter: blur(9px) saturate(1.45);
 }
 
 .battle-status {
@@ -456,13 +520,15 @@ onUnmounted(() => clearTimeout(spawnTimer));
   align-items: center;
   gap: 2px 5px;
   max-width: 42%;
-  padding: 4px 8px;
+  padding: 5px 9px;
   font-size: 10px;
   line-height: 1.1;
-  background: rgb(28 42 61 / 58%);
-  border: 1px solid rgb(255 255 255 / 28%);
-  border-radius: 10px;
-  box-shadow: 0 3px 8px rgb(25 33 47 / 15%);
+  background: rgb(24 37 55 / 46%);
+  border: 1px solid rgb(255 255 255 / 20%);
+  border-radius: 12px;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 14%),
+    0 4px 12px rgb(25 33 47 / 20%);
 }
 
 .battle-status strong {
@@ -483,6 +549,7 @@ onUnmounted(() => clearTimeout(spawnTimer));
 }
 
 .wave-track i {
+  position: relative;
   display: block;
   width: 100%;
   height: 100%;
@@ -491,6 +558,20 @@ onUnmounted(() => clearTimeout(spawnTimer));
   box-shadow: 0 0 5px rgb(255 194 217 / 70%);
   transform-origin: left center;
   transition: transform 0.45s var(--ease-soft);
+}
+
+/* 进度前端的发光引导点，像 Apple Watch 活动环的端点。 */
+.wave-track i::after {
+  position: absolute;
+  top: 50%;
+  right: -1px;
+  width: 5px;
+  height: 5px;
+  content: '';
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 6px 2px rgb(255 235 245 / 85%);
+  transform: translateY(-50%);
 }
 
 .bg-fade-enter-from,
@@ -523,11 +604,13 @@ onUnmounted(() => clearTimeout(spawnTimer));
   top: 9px;
   right: 9px;
   width: min(49%, 172px);
-  padding: 5px 7px 6px;
-  background: rgb(30 40 58 / 64%);
-  border: 1px solid rgb(255 255 255 / 30%);
-  border-radius: 10px;
-  box-shadow: 0 3px 8px rgb(25 33 47 / 15%);
+  padding: 6px 8px 7px;
+  background: rgb(24 34 52 / 48%);
+  border: 1px solid rgb(255 255 255 / 20%);
+  border-radius: 12px;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 14%),
+    0 4px 12px rgb(25 33 47 / 20%);
 }
 
 .hero-hud {
@@ -536,11 +619,13 @@ onUnmounted(() => clearTimeout(spawnTimer));
   bottom: 9px;
   left: 9px;
   width: min(42%, 148px);
-  padding: 5px 7px 6px;
-  background: rgb(30 40 58 / 64%);
-  border: 1px solid rgb(255 255 255 / 30%);
-  border-radius: 9px;
-  box-shadow: 0 3px 8px rgb(25 33 47 / 15%);
+  padding: 6px 8px 7px;
+  background: rgb(24 34 52 / 48%);
+  border: 1px solid rgb(255 255 255 / 20%);
+  border-radius: 12px;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 14%),
+    0 4px 12px rgb(25 33 47 / 20%);
 }
 
 .enemy-line {
@@ -618,7 +703,19 @@ onUnmounted(() => clearTimeout(spawnTimer));
   border-radius: 999px;
 }
 
+/* 幽灵拖尾：受击时白色残条延迟消退，伤害读起来更有份量（纯 CSS 双填充）。 */
+.hp-ghost {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  background: rgb(255 255 255 / 62%);
+  border-radius: inherit;
+  transition: width 0.72s var(--ease-ios) 0.3s;
+}
+
 .hpbar-fill {
+  position: relative;
   display: block;
   height: 100%;
   background: linear-gradient(90deg, #ff769b, #ffb0c6);
@@ -796,14 +893,16 @@ onUnmounted(() => clearTimeout(spawnTimer));
   z-index: 14;
   top: 35%;
   right: 18%;
-  font-size: 20px;
+  font-size: 21px;
   font-weight: 900;
+  letter-spacing: -0.02em;
   color: #fff4bc;
   text-shadow:
     0 2px 0 #bd4d59,
-    0 0 8px rgb(255 105 137 / 75%);
+    0 0 10px rgb(255 105 137 / 80%),
+    0 4px 14px rgb(120 40 70 / 35%);
   pointer-events: none;
-  animation: damage-pop 0.78s ease-out both;
+  animation: damage-pop 0.82s var(--ease-ios) both;
   animation-delay: var(--impact-delay);
 }
 
@@ -847,6 +946,13 @@ onUnmounted(() => clearTimeout(spawnTimer));
   right: 20%;
   bottom: 25%;
   width: 31%;
+}
+
+.basic-catkin {
+  right: 15%;
+  bottom: 20%;
+  width: 43%;
+  transform: rotate(-5deg);
 }
 
 .basic-attack-fx i {
@@ -1129,6 +1235,32 @@ onUnmounted(() => clearTimeout(spawnTimer));
   box-shadow: 0 2px 5px rgb(35 43 58 / 14%);
 }
 
+/* 掉落出生时的扩散光环，强化“爆装备”的获得感。 */
+.loot-ring {
+  position: absolute;
+  left: 50%;
+  top: 17px;
+  width: 34px;
+  height: 34px;
+  border: 2px solid var(--loot-color);
+  border-radius: 50%;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -50%) scale(0.5);
+  animation: loot-ring-expand 0.72s var(--ease-ios) both;
+}
+
+@keyframes loot-ring-expand {
+  0% {
+    opacity: 0.9;
+    transform: translate(-50%, -50%) scale(0.5);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(2.4);
+  }
+}
+
 .loot-burst i {
   --spark-x: 25px;
   --spark-y: -19px;
@@ -1352,16 +1484,20 @@ onUnmounted(() => clearTimeout(spawnTimer));
 @keyframes damage-pop {
   0% {
     opacity: 0;
-    transform: translateY(12px) scale(0.7);
+    transform: translateY(14px) scale(0.5);
   }
-  22%,
-  50% {
+  18% {
+    opacity: 1;
+    transform: translateY(-2px) scale(1.22);
+  }
+  32%,
+  55% {
     opacity: 1;
     transform: translateY(0) scale(1);
   }
   100% {
     opacity: 0;
-    transform: translateY(-24px) scale(1.08);
+    transform: translateY(-26px) scale(1.06);
   }
 }
 
@@ -1608,11 +1744,13 @@ onUnmounted(() => clearTimeout(spawnTimer));
   .basic-attack-fx,
   .basic-attack-fx i,
   .loot-burst,
-  .loot-burst i {
+  .loot-burst i,
+  .loot-ring {
     animation: none !important;
   }
 
   .wave-track i,
+  .hp-ghost,
   .bg-fade-enter-active,
   .bg-fade-leave-active {
     transition: none !important;
@@ -1716,6 +1854,62 @@ onUnmounted(() => clearTimeout(spawnTimer));
   top: 20%;
 }
 
+.swing-fx.kind-multi-slash,
+.swing-fx.kind-ultimate {
+  width: 172px;
+  height: 172px;
+  right: 9%;
+  top: 15%;
+}
+
+.swing-fx.kind-dash-impact,
+.swing-fx.kind-ambush {
+  width: 162px;
+  height: 162px;
+  right: 11%;
+  top: 18%;
+}
+
+.swing-fx.kind-counter {
+  width: 142px;
+  height: 142px;
+  right: 35%;
+  top: 24%;
+}
+
+.swing-fx.kind-vortex,
+.swing-fx.kind-storm {
+  width: 178px;
+  height: 178px;
+  right: 7%;
+  top: 13%;
+}
+
+.swing-fx.kind-multi-slash img {
+  animation: rhythm-claw-flurry 0.58s steps(3, end) both;
+}
+
+.swing-fx.kind-dash-impact img,
+.swing-fx.kind-ambush img {
+  animation: rhythm-dash-impact 0.58s ease-out both;
+}
+
+.swing-fx.kind-counter img {
+  animation: rhythm-counter-guard 0.58s ease-out both;
+}
+
+.swing-fx.kind-vortex img {
+  animation: rhythm-vortex 0.62s ease-out both;
+}
+
+.swing-fx.kind-storm img {
+  animation: rhythm-storm 0.62s ease-out both;
+}
+
+.swing-fx.kind-ultimate img {
+  animation: rhythm-ultimate 0.62s cubic-bezier(0.2, 0.74, 0.22, 1) both;
+}
+
 .swing-fx.crit img {
   filter: drop-shadow(0 0 16px rgb(255 140 120 / 95%)) saturate(1.3);
 }
@@ -1758,6 +1952,101 @@ onUnmounted(() => clearTimeout(spawnTimer));
   }
 }
 
+@keyframes rhythm-claw-flurry {
+  0% {
+    opacity: 0;
+    transform: scale(0.55) rotate(-18deg);
+  }
+  38% {
+    opacity: 1;
+    transform: scale(1.04) rotate(7deg);
+  }
+  72% {
+    transform: scale(0.94) rotate(-5deg);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.18) rotate(10deg);
+  }
+}
+
+@keyframes rhythm-dash-impact {
+  0% {
+    opacity: 0;
+    transform: translateX(-54px) scale(0.42);
+  }
+  42% {
+    opacity: 1;
+    transform: translateX(0) scale(1.08);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(18px) scale(1.2);
+  }
+}
+
+@keyframes rhythm-counter-guard {
+  0% {
+    opacity: 0;
+    transform: scale(0.5) rotate(-14deg);
+  }
+  45%,
+  72% {
+    opacity: 1;
+    transform: scale(1.05) rotate(3deg);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.16) rotate(8deg);
+  }
+}
+
+@keyframes rhythm-vortex {
+  0% {
+    opacity: 0;
+    transform: scale(0.42) rotate(-70deg);
+  }
+  48% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.16) rotate(42deg);
+  }
+}
+
+@keyframes rhythm-storm {
+  0% {
+    opacity: 0;
+    transform: translateY(30px) scale(0.55);
+  }
+  42%,
+  72% {
+    opacity: 1;
+    filter: brightness(1.18) drop-shadow(0 0 14px rgb(119 196 255 / 78%));
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-12px) scale(1.14);
+  }
+}
+
+@keyframes rhythm-ultimate {
+  0% {
+    opacity: 0;
+    transform: scale(0.3) rotate(-24deg);
+  }
+  32%,
+  65% {
+    opacity: 1;
+    filter: brightness(1.28) saturate(1.2) drop-shadow(0 0 18px rgb(255 121 196 / 88%));
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.28) rotate(12deg);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .beat-float-enter-active,
   .beat-float-leave-active,
@@ -1770,5 +2059,4 @@ onUnmounted(() => clearTimeout(spawnTimer));
     animation: none;
   }
 }
-
 </style>

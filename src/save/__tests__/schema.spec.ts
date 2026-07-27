@@ -10,6 +10,12 @@ describe('save schema', () => {
     expect(save.version).toBe(SAVE_VERSION);
   });
 
+  it('喵喵使用稳定 catkin ID 创建并通过严格校验', () => {
+    const save = createSave('喵喵', 'catkin', 20260727, 1_800_000_000_000);
+    expect(parseSave(save).player.classId).toBe('catkin');
+    expect(looksLikeSave(save)).toBe(true);
+  });
+
   it('能把 Vue 响应式对象解析成可持久化的普通对象', () => {
     const proxy = reactive(createSave('小樱', 'witch', 7, 1_800_000_000_000));
     const parsed = parseSave(proxy);

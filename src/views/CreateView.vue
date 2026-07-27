@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import type { ClassId } from '@/core/types';
+import { CLASS_IDS, type ClassId } from '@/core/types';
 import { CLASS_INFO } from '@/data/constants';
 import { CLASS_VISUALS } from '@/data/classVisuals';
 import { usePlayerStore } from '@/stores/player';
@@ -13,7 +13,7 @@ const name = ref('');
 const picked = ref<ClassId>('swordsman');
 const busy = ref(false);
 
-const classes: ClassId[] = ['swordsman', 'witch', 'shaman'];
+const classes: readonly ClassId[] = CLASS_IDS;
 
 async function start() {
   if (busy.value) return;
@@ -193,6 +193,10 @@ async function start() {
   animation: shaman-breathe 3.8s ease-in-out infinite;
 }
 
+.portrait-stage.class-catkin :deep(.portrait) {
+  animation: catkin-ready 2.2s cubic-bezier(0.36, 0, 0.24, 1) infinite;
+}
+
 .magic-ring {
   position: absolute;
   z-index: 1;
@@ -269,6 +273,19 @@ async function start() {
   }
 }
 
+@keyframes catkin-ready {
+  0%,
+  100% {
+    transform: translateY(2px) rotate(-0.3deg);
+  }
+  42% {
+    transform: translateY(-5px) rotate(0.6deg) scale(1.012);
+  }
+  58% {
+    transform: translateY(-3px) rotate(-0.2deg) scale(1.006);
+  }
+}
+
 @keyframes ring-spin {
   to {
     transform: rotate(360deg);
@@ -307,7 +324,7 @@ async function start() {
 
 .classes {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
 

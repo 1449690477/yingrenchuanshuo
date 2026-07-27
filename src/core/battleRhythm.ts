@@ -116,12 +116,13 @@ export function advanceRhythm(
   params: RhythmParams,
   rng: Rng,
 ): RhythmAdvance {
+  validateRhythmInputs(state, params);
   if (!Number.isFinite(dt) || dt <= 0) {
     return { state, beats: [], dropped: 0 };
   }
 
-  const playerInterval = Math.max(MIN_INTERVAL, params.playerInterval);
-  const monsterInterval = Math.max(MIN_INTERVAL, params.monsterInterval);
+  const playerInterval = params.playerInterval;
+  const monsterInterval = params.monsterInterval;
 
   let seq = state.seq;
   let playerCd = state.playerCd - dt;
@@ -142,7 +143,7 @@ export function advanceRhythm(
   // ── 玩家普攻 ──
   let guard = 0;
   while (playerCd <= 0 && guard++ < 200) {
-    const crit = rng.chance(clamp01(params.critRate));
+    const crit = rng.chance(params.critRate);
     push({
       kind: 'player-attack',
       crit,
@@ -154,10 +155,10 @@ export function advanceRhythm(
 
   // ── 技能 ──
   for (let i = 0; i < skillCds.length; i++) {
-    const cooldown = Math.max(MIN_INTERVAL, params.skillCooldowns[i] ?? 8);
+    const cooldown = params.skillCooldowns[i]!;
     let g = 0;
     while (skillCds[i]! <= 0 && g++ < 50) {
-      const crit = rng.chance(clamp01(params.critRate));
+      const crit = rng.chance(params.critRate);
       push({
         kind: 'player-skill',
         crit,
@@ -198,7 +199,37 @@ function rollDamage(base: number, crit: boolean, rng: Rng): number {
   return Math.max(1, Math.round(base * variance * critMul));
 }
 
-function clamp01(v: number): number {
-  if (!Number.isFinite(v)) return 0;
-  return v < 0 ? 0 : v > 1 ? 1 : v;
+function validateRhythmInputs(state: RhythmState, params: RhythmParams): void {
+  if (params.skillCooldowns.length !== state.skillCds.length) {
+    throw new Error(
+      `[战斗节奏] 技能冷却数量 ${params.skillCooldowns.length} 与状态数量 ${state.skillCds.length} 不一致`,
+    );
+  }
+  if (state.skillCds.some((cooldown) => !Number.isFinite(cooldown))) {
+    throw new Error('[战斗节奏] 状态中的技能冷却必须全部是有限数');
+  }
+  for (const [label, interval] of [
+    ['玩家攻击间隔', params.playerInterval],
+    ['怪物攻击间隔', params.monsterInterval],
+  ] as const) {
+    if (!Number.isFinite(interval) || interval < MIN_INTERVAL) {
+      throw new Error(`[战斗节奏] ${label}必须是 >= ${MIN_INTERVAL} 秒的有限数`);
+    }
+  }
+  if (
+    params.skillCooldowns.some(
+      (cooldown) => !Number.isFinite(cooldown) || cooldown < MIN_INTERVAL,
+    )
+  ) {
+    throw new Error(`[战斗节奏] 技能冷却必须全部是 >= ${MIN_INTERVAL} 秒的有限数`);
+  }
+  if (!Number.isFinite(params.critRate) || params.critRate < 0 || params.critRate > 1) {
+    throw new Error('[战斗节奏] 暴击率必须在 0~1');
+  }
+  if (!Number.isFinite(params.playerHit) || params.playerHit <= 0) {
+    throw new Error('[战斗节奏] 玩家展示伤害必须是正有限数');
+  }
+  if (!Number.isFinite(params.monsterHit) || params.monsterHit <= 0) {
+    throw new Error('[战斗节奏] 怪物展示伤害必须是正有限数');
+  }
 }

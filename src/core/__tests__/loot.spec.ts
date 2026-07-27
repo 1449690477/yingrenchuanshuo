@@ -54,6 +54,35 @@ describe('rollLoot', () => {
     expect(out).toHaveLength(1);
     expect(out[0]!.count).toBe(10);
   });
+
+  it('职业专属掉落只进入对应职业池，缺少职业上下文直接报错', () => {
+    const classTable: LootTable = {
+      id: 'class-loot',
+      rolls: 8,
+      entries: [
+        { itemId: 'shared', weight: 1, minCount: 1, maxCount: 1 },
+        {
+          itemId: 'cat-claw',
+          classId: 'catkin',
+          weight: 100,
+          minCount: 1,
+          maxCount: 1,
+        },
+        {
+          itemId: 'sword',
+          classId: 'swordsman',
+          weight: 100,
+          minCount: 1,
+          maxCount: 1,
+        },
+      ],
+    };
+
+    expect(() => rollLoot(classTable, new Rng(1))).toThrow(/classId/);
+    const catDrops = rollLoot(classTable, new Rng(1), {}, 'catkin');
+    expect(catDrops.some((drop) => drop.itemId === 'sword')).toBe(false);
+    expect(catDrops.some((drop) => drop.itemId === 'cat-claw')).toBe(true);
+  });
 });
 
 describe('保底机制（防止非酋流失）', () => {
@@ -116,6 +145,34 @@ describe('expectedLoot', () => {
 
   it('0 次击杀产出为空', () => {
     expect(expectedLoot(table, 0)).toEqual([]);
+  });
+
+  it('期望值结算同样过滤其他职业专属物品', () => {
+    const classTable: LootTable = {
+      id: 'expected-class-loot',
+      rolls: 1,
+      entries: [
+        {
+          itemId: 'cat-claw',
+          classId: 'catkin',
+          weight: 1,
+          minCount: 1,
+          maxCount: 1,
+        },
+        {
+          itemId: 'sword',
+          classId: 'swordsman',
+          weight: 1,
+          minCount: 1,
+          maxCount: 1,
+        },
+      ],
+    };
+
+    expect(expectedLoot(classTable, 100, 'catkin')).toEqual([
+      { itemId: 'cat-claw', count: 100 },
+    ]);
+    expect(dropChance(classTable, 'sword', 'catkin')).toBe(0);
   });
 });
 

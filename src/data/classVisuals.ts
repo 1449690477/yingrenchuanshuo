@@ -32,4 +32,9 @@ export const CLASS_VISUALS: Record<ClassId, ClassVisual> = {
     portrait: 'assets/characters/shaman-spirit.png',
     castPortrait: 'assets/characters/shaman-spirit-cast.png',
   },
+  catkin: {
+    symbol: '🐾',
+    portrait: 'assets/characters/catkin-sakura.png',
+    castPortrait: 'assets/characters/catkin-sakura-cast.png',
+  },
 };

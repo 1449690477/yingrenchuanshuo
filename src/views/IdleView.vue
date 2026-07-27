@@ -12,7 +12,6 @@ import { requireChapter, requireRegionOfChapter } from '@/data/regions';
 import { requireMonster } from '@/data/monsters';
 import { requireEquipment } from '@/data/equipment';
 import { requireItem } from '@/data/items';
-import { battleVisualSkillFor, type VisualSkill } from '@/data/skills';
 import StageSelect from '@/components/StageSelect.vue';
 import BattleScene from '@/components/BattleScene.vue';
 import EquipmentIcon from '@/components/EquipmentIcon.vue';
@@ -88,23 +87,6 @@ const battleVitals = computed(() => {
   );
 });
 
-/**
- * M3 技能自动释放尚未接入前，视觉演出只跟随真实击杀脉冲。
- * 技能按玩家等级解锁，绝不提前展示未学会的技能；伤害仍由 M2 平均技能倍率结算。
- */
-const activeVisualSkill = computed<VisualSkill | null>(() => {
-  const p = player.player;
-  const pulse = stage.battlePulse;
-  if (!p || !pulse) return null;
-  return battleVisualSkillFor(p.classId, p.level, pulse.id);
-});
-
-const activeEffectUrl = computed(() =>
-  activeVisualSkill.value
-    ? `${import.meta.env.BASE_URL}${activeVisualSkill.value.effectAsset}`
-    : null,
-);
-
 const recentDrop = computed(() => {
   const entry = stage.lootLog[0];
   if (!entry) return null;
@@ -169,8 +151,6 @@ const cpWarn = computed(() => {
         :wave-ratio="stage.cleared ? undefined : stage.kills / stage.killTarget"
         :beats="stage.battleBeats"
         :pulse="stage.battlePulse"
-        :skill="activeVisualSkill"
-        :effect-url="activeEffectUrl"
         :drop="recentDrop"
       />
       <div v-if="stage.cleared" class="cleared">✓ 本关已通关，可继续挂机刷材料</div>
@@ -205,7 +185,9 @@ const cpWarn = computed(() => {
             :aria-expanded="!collapsedLoot[group.category]"
             @click="collapsedLoot[group.category] = !collapsedLoot[group.category]"
           >
-            <span class="loot-category">{{ lootCategoryLabels[group.category] }}</span>
+            <span class="loot-category" :class="'cat-' + group.category">{{
+              lootCategoryLabels[group.category]
+            }}</span>
             <span class="loot-summary">
               {{ group.distinctCount }} 种 · 共 {{ group.totalCount }} 件
             </span>
@@ -260,14 +242,22 @@ const cpWarn = computed(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 64px;
+  min-height: 68px;
   overflow: hidden;
-  padding: 11px 14px;
+  padding: 12px 14px;
   background: linear-gradient(100deg, var(--blue-soft), var(--pink-soft));
-  border: 1px solid var(--line);
-  border-radius: var(--r);
+  border: 1px solid rgb(255 255 255 / 80%);
+  border-radius: 18px;
   text-align: left;
   color: #fff;
+  box-shadow: var(--shadow-float);
+  transition:
+    transform var(--t-fast) var(--ease-spring),
+    box-shadow var(--t-mid) var(--ease-soft);
+}
+
+.stage-bar:active {
+  transform: scale(0.985);
 }
 
 /* 低频扫光提示关卡横幅可点击；只移动合成层，不触发布局重排。 */
@@ -322,13 +312,19 @@ const cpWarn = computed(() => {
 
 .region {
   font-size: 10px;
-  color: rgb(255 255 255 / 78%);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: rgb(255 255 255 / 82%);
+  text-shadow: 0 1px 3px rgb(24 38 52 / 45%);
 }
 
 .stage-name {
-  font-size: 15px;
-  font-weight: 700;
-  text-shadow: 0 1px 4px rgb(24 38 52 / 58%);
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  text-shadow:
+    0 1px 3px rgb(24 38 52 / 52%),
+    0 3px 10px rgb(24 38 52 / 30%);
 }
 
 .stage-right {
@@ -341,12 +337,19 @@ const cpWarn = computed(() => {
 }
 
 .lv {
-  padding: 2px 6px;
+  padding: 4px 9px;
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 800;
+  letter-spacing: 0.01em;
   color: #fff;
-  background: rgb(255 255 255 / 18%);
+  background: rgb(255 255 255 / 22%);
+  border: 1px solid rgb(255 255 255 / 34%);
   border-radius: 999px;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 28%),
+    0 2px 6px rgb(24 38 52 / 18%);
+  backdrop-filter: blur(6px) saturate(1.3);
+  -webkit-backdrop-filter: blur(6px) saturate(1.3);
 }
 
 .chev {
@@ -474,8 +477,11 @@ const cpWarn = computed(() => {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 12px;
+  padding: 13px;
   overflow: hidden;
+  border: 1px solid var(--hairline);
+  border-radius: 18px;
+  box-shadow: var(--shadow-float);
 }
 
 /* 极淡的樱花纹理只填补留白，不影响掉落内容与点击。 */
@@ -509,8 +515,10 @@ const cpWarn = computed(() => {
   display: flex;
   flex-direction: column;
   gap: 1px;
-  font-weight: 700;
-  color: var(--text-mid);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--text);
 }
 
 .loot-head small {
@@ -546,9 +554,10 @@ const cpWarn = computed(() => {
 .loot-group {
   overflow: hidden;
   flex-shrink: 0;
-  background: var(--panel-2);
-  border: 1px solid var(--line);
-  border-radius: 10px;
+  background: rgb(255 255 255 / 82%);
+  border: 1px solid var(--hairline);
+  border-radius: 14px;
+  box-shadow: var(--shadow-ambient);
 }
 
 .loot-group-head {
@@ -563,12 +572,39 @@ const cpWarn = computed(() => {
 }
 
 .loot-category {
-  padding: 3px 7px;
+  padding: 3px 8px;
   font-size: 9px;
   font-weight: 800;
+  letter-spacing: 0.03em;
   color: var(--pink-deep);
   background: #fff0f6;
+  border: 1px solid rgb(245 121 159 / 20%);
   border-radius: 999px;
+}
+
+/* iOS 分组列表式的分类色：一眼区分掉落类型。 */
+.loot-category.cat-material {
+  color: #2f7fc4;
+  background: #e9f5ff;
+  border-color: rgb(63 163 232 / 20%);
+}
+
+.loot-category.cat-consumable {
+  color: #1f9c78;
+  background: #e8faf3;
+  border-color: rgb(143 224 200 / 30%);
+}
+
+.loot-category.cat-fragment {
+  color: #9a6b1c;
+  background: #fff6dd;
+  border-color: rgb(255 200 96 / 34%);
+}
+
+.loot-category.cat-currency {
+  color: #b0582e;
+  background: #ffeee4;
+  border-color: rgb(255 180 84 / 30%);
 }
 
 .loot-summary {
@@ -587,7 +623,7 @@ const cpWarn = computed(() => {
 
 .loot-items {
   padding: 0 4px 4px;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--hairline);
 }
 
 .loot-row {
@@ -597,9 +633,37 @@ const cpWarn = computed(() => {
   min-height: 38px;
   padding: 3px 6px;
   font-size: 12px;
-  border-radius: 6px;
-  animation: row-in var(--t-slow) var(--ease-soft) both;
+  border-radius: 8px;
+  animation: loot-row-pop 0.42s var(--ease-ios) both;
   animation-delay: var(--row-delay, 0ms);
+}
+
+@keyframes loot-row-pop {
+  0% {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* 紫装以上的掉落行带品质色柔光底，扫一眼就知道出了好货。 */
+.loot-row.q-epic {
+  background: linear-gradient(90deg, rgb(171 111 224 / 10%), transparent 72%);
+}
+
+.loot-row.q-legendary {
+  background: linear-gradient(90deg, rgb(255 154 60 / 12%), transparent 72%);
+}
+
+.loot-row.q-mythic {
+  background: linear-gradient(90deg, rgb(255 107 122 / 12%), transparent 72%);
+}
+
+.loot-row.q-divine {
+  background: linear-gradient(90deg, rgb(232 172 31 / 14%), transparent 72%);
 }
 
 /* currentColor 来自行上的品质类，形成紧凑的稀有度提示。 */
@@ -614,8 +678,8 @@ const cpWarn = computed(() => {
   opacity: 0.65;
 }
 
-.loot-row:nth-child(odd) {
-  background: rgb(255 255 255 / 74%);
+.loot-row:nth-child(odd):not(.q-epic):not(.q-legendary):not(.q-mythic):not(.q-divine) {
+  background: rgb(247 250 253 / 80%);
 }
 
 .loot-name {

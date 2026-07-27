@@ -2,6 +2,7 @@ import { existsSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
+import { CLASS_IDS } from '../../core/types';
 import { countStageMonsterKills } from '../../core/stageLoot';
 import { CLASS_VISUALS } from '../classVisuals';
 import {
@@ -11,10 +12,11 @@ import {
   growthTierFor,
 } from '../characterAppearance';
 import {
+  CATKIN_VISUAL_SKILLS,
   SHAMAN_VISUAL_SKILLS,
   SWORDSMAN_VISUAL_SKILLS,
   WITCH_VISUAL_SKILLS,
-  battleVisualSkillFor,
+  battleRhythmSkills,
 } from '../skills';
 import { EQUIPMENT } from '../equipment';
 import { ITEMS } from '../items';
@@ -93,12 +95,24 @@ describe('区域 1–2 内容完整性', () => {
     }
   });
 
+  it('喵喵 14 个技能与十套主动特效完整', () => {
+    expect(CATKIN_VISUAL_SKILLS).toHaveLength(14);
+    expect(CATKIN_VISUAL_SKILLS.filter((skill) => skill.type === 'active')).toHaveLength(10);
+    expect(CATKIN_VISUAL_SKILLS.filter((skill) => skill.type === 'passive')).toHaveLength(4);
+    for (const skill of CATKIN_VISUAL_SKILLS) {
+      expect(skill.class).toBe('catkin');
+      expect(skill.unlockLevel).toBeGreaterThan(0);
+      expect(existsSync(resolve('public', skill.icon)), `${skill.id} icon`).toBe(true);
+      expect(existsSync(resolve('public', skill.effectAsset)), `${skill.id} effect`).toBe(true);
+    }
+  });
+
   it('数量达到 M2 内容目标', () => {
     expect(REGIONS).toHaveLength(2);
     expect(ALL_CHAPTERS).toHaveLength(10);
     expect(Object.keys(STAGES)).toHaveLength(60);
     expect(Object.keys(MONSTERS)).toHaveLength(49);
-    expect(Object.keys(EQUIPMENT)).toHaveLength(78);
+    expect(Object.keys(EQUIPMENT)).toHaveLength(81);
     expect(Object.keys(LOOT_TABLES)).toHaveLength(30);
   });
 
@@ -414,12 +428,12 @@ describe('区域 1–2 内容完整性', () => {
     }
   });
 
-  it('三职业纸娃娃底模与两区主要装备层全部透明对齐', async () => {
+  it('四职业纸娃娃底模与两区主要装备层全部透明对齐', async () => {
     const layerAssets = Object.values(EQUIPMENT_APPEARANCES)
       .filter((appearance) => appearance.renderMode === 'layer')
       .flatMap((appearance) => Object.values(appearance.assets));
     const assets = [...new Set([...Object.values(CHARACTER_BASE_ASSETS), ...layerAssets])];
-    expect(assets).toHaveLength(57);
+    expect(assets).toHaveLength(76);
 
     for (const asset of assets) {
       const assetPath = resolve('public', asset);
@@ -444,12 +458,12 @@ describe('区域 1–2 内容完整性', () => {
     }
   });
 
-  it('珍品商店首发 30 件定义，每个职业可见 24 件且价格与词条合法', () => {
+  it('珍品商店首发 33 件定义，每个职业可见 24 件且价格与词条合法', () => {
     expect(BOUTIQUE_THEME_LIST).toHaveLength(3);
-    expect(SHOP_OFFERS).toHaveLength(30);
-    expect(new Set(SHOP_OFFERS.map((offer) => offer.id)).size).toBe(30);
+    expect(SHOP_OFFERS).toHaveLength(33);
+    expect(new Set(SHOP_OFFERS.map((offer) => offer.id)).size).toBe(33);
 
-    for (const classId of ['swordsman', 'witch', 'shaman'] as const) {
+    for (const classId of CLASS_IDS) {
       const visible = SHOP_OFFERS.filter((offer) => {
         const equipment = EQUIPMENT[offer.defId]!;
         return !equipment.classId || equipment.classId === classId;
@@ -473,21 +487,25 @@ describe('区域 1–2 内容完整性', () => {
   });
 
   it('全部金色与红色商店同款都有 BOSS 掉落路径', () => {
-    const bossEntryIds = new Set(
-      Object.values(LOOT_TABLES)
-        .filter((table) => table.id.endsWith('_boss'))
-        .flatMap((table) => table.entries.map((entry) => entry.itemId)),
-    );
+    const bossEntries = Object.values(LOOT_TABLES)
+      .filter((table) => table.id.endsWith('_boss'))
+      .flatMap((table) => table.entries);
+    const bossEntryIds = new Set(bossEntries.map((entry) => entry.itemId));
     for (const offer of SHOP_OFFERS) {
       const equipment = EQUIPMENT[offer.defId]!;
       if (equipment.quality !== 'legendary' && equipment.quality !== 'mythic') continue;
       expect(bossEntryIds.has(equipment.id), equipment.id).toBe(true);
+      if (equipment.classId) {
+        expect(bossEntries.find((entry) => entry.itemId === equipment.id)?.classId).toBe(
+          equipment.classId,
+        );
+      }
     }
   });
 
-  it('珍品商品图标、三职业换装层与九套攻击特效符合移动端规格', async () => {
+  it('珍品商品图标、四职业换装层与十二套攻击特效符合移动端规格', async () => {
     const iconAssets = [...new Set(SHOP_OFFERS.map((offer) => EQUIPMENT[offer.defId]!.icon))];
-    expect(iconAssets).toHaveLength(30);
+    expect(iconAssets).toHaveLength(33);
     for (const asset of iconAssets) {
       const path = resolve('public', asset);
       expect(existsSync(path), asset).toBe(true);
@@ -504,7 +522,7 @@ describe('区域 1–2 内容完整性', () => {
       .flatMap(([, appearance]) =>
         appearance.renderMode === 'layer' ? Object.values(appearance.assets) : [],
       );
-    expect(new Set(boutiqueLayers).size).toBe(36);
+    expect(new Set(boutiqueLayers).size).toBe(48);
     for (const asset of boutiqueLayers) {
       expect(asset).toBeDefined();
       const path = resolve('public', asset!);
@@ -518,7 +536,7 @@ describe('区域 1–2 内容完整性', () => {
     }
 
     const effects = BOUTIQUE_THEME_LIST.flatMap((theme) => Object.values(theme.attackEffects));
-    expect(new Set(effects).size).toBe(9);
+    expect(new Set(effects).size).toBe(12);
     for (const asset of effects) {
       const path = resolve('public', asset);
       expect(existsSync(path), asset).toBe(true);
@@ -555,8 +573,13 @@ describe('区域 1–2 内容完整性', () => {
   });
 
   it('技能图标与大特效使用各自清晰度规格', async () => {
-    const skills = [...SWORDSMAN_VISUAL_SKILLS, ...WITCH_VISUAL_SKILLS, ...SHAMAN_VISUAL_SKILLS];
-    expect(skills).toHaveLength(9);
+    const skills = [
+      ...SWORDSMAN_VISUAL_SKILLS,
+      ...WITCH_VISUAL_SKILLS,
+      ...SHAMAN_VISUAL_SKILLS,
+      ...CATKIN_VISUAL_SKILLS,
+    ];
+    expect(skills).toHaveLength(23);
     for (const skill of skills) {
       const icon = await sharp(resolve('public', skill.icon)).metadata();
       const effect = await sharp(resolve('public', skill.effectAsset)).metadata();
@@ -564,20 +587,32 @@ describe('区域 1–2 内容完整性', () => {
         width: 256,
         height: 256,
       });
-      expect({ width: effect.width, height: effect.height }, `${skill.id} effect`).toEqual({
-        width: 512,
-        height: 512,
-      });
+      expect({ width: effect.width, height: effect.height }, `${skill.id} effect`).toEqual(
+        skill.type === 'active'
+          ? { width: 512, height: 512 }
+          : { width: 256, height: 256 },
+      );
     }
   });
 
-  it('战斗演出保持三次普攻接一次伤害技能，治疗和召唤不冒充攻击', () => {
-    expect(battleVisualSkillFor('witch', 1, 1)).toBeNull();
-    expect(battleVisualSkillFor('witch', 1, 4)?.id).toBe('skill_witch_fireball');
-    expect(battleVisualSkillFor('shaman', 1, 4)).toBeNull();
-    expect(battleVisualSkillFor('shaman', 10, 4)?.id).toBe('skill_shaman_poison');
-    expect(battleVisualSkillFor('swordsman', 35, 4)?.id).toBe('skill_swordsman_attack');
-    expect(battleVisualSkillFor('swordsman', 35, 8)?.id).toBe('skill_swordsman_halfmoon');
+  it('冷却视觉节奏只收录无条件主动伤害技能，治疗和召唤不冒充攻击', () => {
+    expect(battleRhythmSkills('witch', 1).map((skill) => skill.id)).toEqual([
+      'skill_witch_fireball',
+    ]);
+    expect(battleRhythmSkills('shaman', 1)).toEqual([]);
+    expect(battleRhythmSkills('shaman', 10).map((skill) => skill.id)).toEqual([
+      'skill_shaman_poison',
+    ]);
+    expect(battleRhythmSkills('swordsman', 35).map((skill) => skill.id)).toEqual([
+      'skill_swordsman_attack',
+      'skill_swordsman_halfmoon',
+      'skill_swordsman_flame',
+    ]);
+    expect(battleRhythmSkills('catkin', 20).map((skill) => skill.id)).toEqual([
+      'skill_catkin_paw_combo',
+      'skill_catkin_light_pounce',
+      'skill_catkin_scratch_frenzy',
+    ]);
   });
 
   it('全部物品都引用真实存在的正式图标', () => {

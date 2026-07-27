@@ -194,6 +194,13 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
   --face-ry: 8.8%;
 }
 
+.class-catkin {
+  --face-x: 50%;
+  --face-y: 9.7%;
+  --face-rx: 18.5%;
+  --face-ry: 9.3%;
+}
+
 .base-layer {
   z-index: 1;
   filter: drop-shadow(0 7px 5px rgb(38 47 69 / 18%));
@@ -217,6 +224,11 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
 
 .slot-head {
   z-index: 5;
+}
+
+/* 猫耳属于底模身份特征，喵喵的帽饰必须压在安全脸层后方，不能盖掉眼睛与耳朵。 */
+.class-catkin .slot-head {
+  z-index: 3;
 }
 
 .slot-weapon {
@@ -281,12 +293,17 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
 }
 
 .boutique-attack img,
-.boutique-cast img {
+.boutique-cast img,
+.boutique-dash img,
+.boutique-flurry img,
+.boutique-spin img,
+.boutique-counter img {
   opacity: 0;
   animation: boutique-burst 0.78s ease-out;
 }
 
-.boutique-react img {
+.boutique-react img,
+.boutique-victory img {
   opacity: 0;
   animation: boutique-reaction 0.92s ease-out;
 }
@@ -563,6 +580,19 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
   pointer-events: none;
 }
 
+.class-catkin .weapon-trail {
+  left: 7%;
+  bottom: 39%;
+  width: 84%;
+  height: 22%;
+  background:
+    radial-gradient(ellipse at 24% 64%, rgb(154 220 255 / 52%), transparent 45%),
+    radial-gradient(ellipse at 76% 36%, rgb(255 160 205 / 45%), transparent 43%);
+  border-top: 2px solid rgb(132 210 255 / 76%);
+  border-bottom: 2px solid rgb(255 164 205 / 66%);
+  transform: rotate(-17deg);
+}
+
 .weapon-forge-gleam .weapon-trail,
 .weapon-forge-radiant .weapon-trail,
 .weapon-forge-starforged .weapon-trail,
@@ -594,8 +624,16 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
   animation: character-idle 2.6s ease-in-out infinite;
 }
 
+.class-catkin.action-idle .doll {
+  animation: catkin-idle 1.85s cubic-bezier(0.42, 0, 0.34, 1) infinite;
+}
+
 .action-attack .doll {
   animation: character-attack 0.62s cubic-bezier(0.24, 0.82, 0.32, 1);
+}
+
+.class-catkin.action-attack .doll {
+  animation: catkin-attack 0.54s cubic-bezier(0.18, 0.82, 0.24, 1);
 }
 
 .action-attack .weapon-trail {
@@ -612,6 +650,33 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
 
 .action-react .doll {
   animation: character-react 0.72s ease-out;
+}
+
+.action-dash .doll {
+  animation: character-dash 0.74s cubic-bezier(0.18, 0.84, 0.24, 1);
+}
+
+.action-flurry .doll {
+  animation: character-flurry 0.82s cubic-bezier(0.2, 0.78, 0.28, 1);
+}
+
+.action-flurry .weapon-trail,
+.action-dash .weapon-trail,
+.action-spin .weapon-trail,
+.action-counter .weapon-trail {
+  animation: catkin-claw-trail 0.78s ease-out;
+}
+
+.action-spin .doll {
+  animation: character-spin 0.9s cubic-bezier(0.24, 0.7, 0.28, 1);
+}
+
+.action-counter .doll {
+  animation: character-counter 0.9s cubic-bezier(0.2, 0.76, 0.24, 1);
+}
+
+.action-victory .doll {
+  animation: character-victory 1.05s cubic-bezier(0.22, 0.72, 0.26, 1);
 }
 
 .is-avatar .growth-aura,
@@ -641,6 +706,22 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
   }
 }
 
+@keyframes catkin-idle {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-0.25deg) scale(1);
+  }
+  35% {
+    transform: translateY(-1.05%) rotate(0.45deg) scale(1.004);
+  }
+  52% {
+    transform: translateY(-1.35%) rotate(-0.15deg) scale(1.008);
+  }
+  72% {
+    transform: translateY(-0.25%) rotate(0.35deg) scale(0.998);
+  }
+}
+
 @keyframes character-attack {
   0%,
   100% {
@@ -651,6 +732,22 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
   }
   52% {
     transform: translate(7%, -1.5%) scale(1.035) rotate(2.2deg);
+  }
+}
+
+@keyframes catkin-attack {
+  0%,
+  100% {
+    transform: translate(0) scale(1) rotate(0);
+  }
+  18% {
+    transform: translate(-4%, 1.5%) scale(0.97) rotate(-2.4deg);
+  }
+  48% {
+    transform: translate(8%, -2.2%) scale(1.045) rotate(3.2deg);
+  }
+  67% {
+    transform: translate(3%, -0.8%) scale(1.018) rotate(-1.5deg);
   }
 }
 
@@ -679,6 +776,111 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
   }
   62% {
     transform: translateY(-0.6%) scale(0.99) rotate(0.7deg);
+  }
+}
+
+@keyframes character-dash {
+  0%,
+  100% {
+    transform: translate(0) scale(1) rotate(0);
+  }
+  20% {
+    transform: translate(-8%, 2%) scale(0.95, 1.02) rotate(-3deg);
+  }
+  46% {
+    transform: translate(14%, -2%) scale(1.06, 0.97) rotate(4deg);
+  }
+  68% {
+    transform: translate(5%, -1%) scale(1.02) rotate(-1deg);
+  }
+}
+
+@keyframes character-flurry {
+  0%,
+  100% {
+    transform: translate(0) scale(1) rotate(0);
+  }
+  18% {
+    transform: translate(-4%, 0) scale(0.98) rotate(-2.8deg);
+  }
+  34% {
+    transform: translate(6%, -1%) scale(1.035) rotate(3.5deg);
+  }
+  49% {
+    transform: translate(-3%, -2%) scale(1.02) rotate(-3.2deg);
+  }
+  65% {
+    transform: translate(7%, -1%) scale(1.04) rotate(3.8deg);
+  }
+  80% {
+    transform: translate(1%, 0) scale(0.99) rotate(-1deg);
+  }
+}
+
+@keyframes character-spin {
+  0%,
+  100% {
+    transform: translateY(0) scale(1) rotate(0);
+  }
+  24% {
+    transform: translateY(-2%) scale(0.96, 1.03) rotate(-7deg);
+  }
+  48% {
+    transform: translateY(-3.2%) scale(1.06, 0.96) rotate(8deg);
+  }
+  72% {
+    transform: translateY(-1%) scale(1.02) rotate(-4deg);
+  }
+}
+
+@keyframes character-counter {
+  0%,
+  100% {
+    transform: translate(0) scale(1) rotate(0);
+    filter: brightness(1);
+  }
+  24% {
+    transform: translate(-3%, -1%) scale(1.07, 0.98) rotate(-2deg);
+    filter: brightness(1.12);
+  }
+  42% {
+    transform: translate(-5%, 1%) scale(1.1, 0.96) rotate(-3deg);
+  }
+  68% {
+    transform: translate(9%, -2%) scale(1.03) rotate(3deg);
+    filter: brightness(1.18);
+  }
+}
+
+@keyframes character-victory {
+  0%,
+  100% {
+    transform: translateY(0) scale(1) rotate(0);
+  }
+  28% {
+    transform: translateY(-5%) scale(1.025) rotate(-2deg);
+  }
+  48% {
+    transform: translateY(-1%) scale(0.99) rotate(1.5deg);
+  }
+  68% {
+    transform: translateY(-3.2%) scale(1.015) rotate(2deg);
+  }
+}
+
+@keyframes catkin-claw-trail {
+  0%,
+  100% {
+    opacity: 0;
+    transform: rotate(-28deg) scale(0.35);
+  }
+  24%,
+  64% {
+    opacity: 0.95;
+  }
+  78% {
+    opacity: 0;
+    transform: rotate(13deg) scale(1.24);
   }
 }
 

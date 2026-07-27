@@ -17,7 +17,14 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import type { ClassId, Combatant, EquipSlot, Quality, Stats } from '../src/core/types';
+import {
+  CLASS_IDS,
+  type ClassId,
+  type Combatant,
+  type EquipSlot,
+  type Quality,
+  type Stats,
+} from '../src/core/types';
 import { combatPower, zeroStats } from '../src/core/formula';
 import {
   enhanceMultiplier,
@@ -128,6 +135,7 @@ function buildContext(cls: ClassId, level: number, stageLevel: number): IdleCont
     sprite: '',
   });
   return {
+    classId: cls,
     player,
     monster,
     expPerKill: monsterExp(stageLevel),
@@ -241,31 +249,31 @@ function simulateDays(cls: ClassId, days: number, levelCap = 120): DayRecord[] {
 }
 
 // ──────────────────────────────────────────────────────────
-// 3. 三职业挂机效率对比
+// 3. 四职业挂机效率对比
 // ──────────────────────────────────────────────────────────
 
 function classBalance() {
   const levels = [10, 30, 50, 70, 90];
   const rows = levels.map((L) => {
-    const kps: Record<ClassId, number> = {
-      swordsman: killsPerSecond(buildContext('swordsman', L, L)),
-      witch: killsPerSecond(buildContext('witch', L, L)),
-      shaman: killsPerSecond(buildContext('shaman', L, L)),
-    };
-    const avg = (kps.swordsman + kps.witch + kps.shaman) / 3;
+    const kps = Object.fromEntries(
+      CLASS_IDS.map((classId) => [classId, killsPerSecond(buildContext(classId, L, L))]),
+    ) as Record<ClassId, number>;
+    const avg = CLASS_IDS.reduce((sum, classId) => sum + kps[classId], 0) / CLASS_IDS.length;
     const dev = (v: number) => `${(((v - avg) / avg) * 100).toFixed(1)}%`;
     return {
       等级: L,
       剑姬: kps.swordsman.toFixed(3),
       魔女: kps.witch.toFixed(3),
       灵巫: kps.shaman.toFixed(3),
+      喵喵: kps.catkin.toFixed(3),
       剑姬偏离: dev(kps.swordsman),
       魔女偏离: dev(kps.witch),
       灵巫偏离: dev(kps.shaman),
+      喵喵偏离: dev(kps.catkin),
     };
   });
 
-  console.log('\n【三职业挂机效率】偏离超过 ±20% 需要调整（docs/13 第四节）\n');
+  console.log('\n【四职业挂机效率】偏离超过 ±20% 需要调整（docs/13 第四节）\n');
   console.table(rows);
   return rows;
 }

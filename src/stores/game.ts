@@ -102,7 +102,7 @@ import {
 } from '@/data/stages';
 import { requireChapter, requireRegionOfChapter } from '@/data/regions';
 import { requireShopOffer } from '@/data/shop';
-import { unlockedVisualSkills, type VisualSkill } from '@/data/skills';
+import { battleRhythmSkills } from '@/data/skills';
 
 import { createSave, type SaveData } from '@/save/schema';
 import { clearSave, loadSave, saveSave } from '@/save/storage';
@@ -324,6 +324,7 @@ export const useGameStore = defineStore('game', () => {
     const monster = makeMonster(monDef);
 
     return {
+      classId: p.classId,
       player: makePlayer(p.name, p.level, finalStats.value),
       monster,
       expPerKill: monsterExp(monDef.level, monDef.type, monDef.expMul ?? 1),
@@ -488,10 +489,7 @@ export const useGameStore = defineStore('game', () => {
    * 这里产生的伤害数字仅供飘字展示，不参与任何真实结算。
    */
   function advanceBattleRhythm(dt: number, ctx: IdleContext): void {
-    const skills = unlockedVisualSkills(
-      save.value!.player.classId,
-      save.value!.player.level,
-    ).filter((s: VisualSkill) => s.type === 'active');
+    const skills = battleRhythmSkills(save.value!.player.classId, save.value!.player.level);
 
     rhythmState = resizeSkillCds(rhythmState, skills.length);
 
@@ -506,7 +504,7 @@ export const useGameStore = defineStore('game', () => {
       {
         playerInterval: 1 / Math.max(0.2, playerStats.spd),
         monsterInterval: 1 / Math.max(0.2, monsterStats.spd),
-        skillCooldowns: skills.map((s: VisualSkill) => s.cooldown),
+        skillCooldowns: skills.map((skill) => skill.cooldownSec),
         critRate: playerStats.critRate / 100,
         playerHit: perHit,
         monsterHit: Math.max(1, monsterStats.atk * 0.35),
@@ -776,7 +774,12 @@ export const useGameStore = defineStore('game', () => {
       if (monster.type === 'normal') continue;
       const specialTable = requireLootTable(monster.lootTableId);
       for (let index = 0; index < count; index++) {
-        for (const drop of rollLoot(specialTable, rng, save.value.progress.pity)) {
+        for (const drop of rollLoot(
+          specialTable,
+          rng,
+          save.value.progress.pity,
+          save.value.player.classId,
+        )) {
           grantBonus(drop);
         }
       }
