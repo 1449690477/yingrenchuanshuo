@@ -43,6 +43,7 @@ import {
 import {
   createFixedInstance,
   createInstance,
+  instanceStats,
   rollEnhanceGainPermille,
   totalEquipStats,
   type PermilleRoll,
@@ -303,6 +304,8 @@ export const useGameStore = defineStore('game', () => {
         save.value = data;
         rng = new Rng(data.rngState);
         resetBattleVisualState();
+        // 老存档可能已经堆了上万件，先裁剪再结算，否则一进游戏点背包就卡死
+        enforceBagCapacity(); // 载入时先裁剪
         settleOfflineNow();
       }
     } catch (error) {
@@ -486,7 +489,28 @@ export const useGameStore = defineStore('game', () => {
   }
 
   /**
-   * 背包超容时自动分解最不值钱的白/绿装。
+   * 装备自身战力，算不出来时返回 0。
+   *
+   * ⚠ 必须容错。instanceStats 会校验「胚子倍率」等后加的字段，
+   * 老存档里更早产出的装备没有这些字段，直接调用会抛
+   * 「装备胚子倍率必须是 1000~1200 的整数，收到 undefined」。
+   * 一件坏数据就能让整个背包裁剪中断（异常被载入流程的 try/catch 吞掉），
+   * 表现就是「自动分解完全不生效、背包继续涨到上万件」。
+   *
+   * 返回 0 意味着这类残缺装备排在最末，会被优先清理掉 —— 正是我们想要的。
+   */
+  function safeItemCp(inst: EquipmentInstance): number {
+    const def = getEquipment(inst.defId);
+    if (!def) return 0;
+    try {
+      return combatPower(instanceStats(def, inst));
+    } catch {
+      return 0;
+    }
+  }
+
+  /**
+   * 背包超容时自动分解最不值钱的装备。
    *
    * 放在产出结算之后统一做一次，而不是每掉一件就检查 ——
    * 一次离线结算可能塞进几千件，逐件裁剪会非常慢。
@@ -497,7 +521,10 @@ export const useGameStore = defineStore('game', () => {
     if (s.bag.equipment.length <= BAG_CAPACITY) return 0;
 
     const { kept, removed } = trimBag(s.bag.equipment, BAG_CAPACITY, {
-      valueOf: (inst) => equipmentContributionCp(inst),
+      // 用装备自身战力，而不是 equipmentContributionCp。
+      // 后者要跟当前穿戴做换装差值，每次都遍历 8 个槽位重算全身属性；
+      // 裁剪只需要「谁更垃圾」的相对排序，自身战力足够且便宜得多。
+      valueOf: (inst) => safeItemCp(inst),
       slotOf: (inst) => getEquipment(inst.defId)?.slot,
       qualityOf: (inst) => getEquipment(inst.defId)?.quality,
     });
@@ -506,7 +533,12 @@ export const useGameStore = defineStore('game', () => {
     let gold = 0;
     for (const inst of removed) {
       const def = getEquipment(inst.defId);
-      if (def) gold += decomposeGold(def, inst);
+      if (!def) continue;
+      try {
+        gold += decomposeGold(def, inst);
+      } catch {
+        // 老存档的残缺装备算不出价格，按 0 处理，但仍然要清掉
+      }
     }
     s.bag.equipment = kept;
     s.player.gold += gold;

@@ -17,8 +17,21 @@
 
 import type { EquipmentInstance, EquipSlot, Quality } from './types';
 
-/** 自动分解只会碰这些品质 */
-const AUTO_DECOMPOSE_QUALITIES: ReadonlySet<Quality> = new Set<Quality>(['common', 'fine']);
+/**
+ * 自动分解会碰的品质。
+ *
+ * ⚠ 必须包含稀有（蓝装）。
+ * 最初只放了白/绿，结果玩家背包里堆的全是蓝色「秘银·XX」，
+ * 保护规则把它们全挡下来，1.5 万件一件没删，卡死照旧。
+ * 蓝装在中后期就是消耗品，堆几千件毫无意义。
+ *
+ * 史诗（紫）及以上永不自动分解 —— 那是玩家真正在追的东西。
+ */
+const AUTO_DECOMPOSE_QUALITIES: ReadonlySet<Quality> = new Set<Quality>([
+  'common',
+  'fine',
+  'rare',
+]);
 
 export interface TrimContext {
   /** 装备的战力评分，越高越值钱 */
@@ -51,13 +64,22 @@ export function trimBag(
     return { kept: [...equipment], removed: [] };
   }
 
+  // ⚠ 战力必须先一次性算好缓存起来。
+  // 早先在排序比较器里直接调 ctx.valueOf，1.5 万件会触发约 43 万次战力计算，
+  // 直接把页面卡死 —— 和 BagView 当初踩的是同一个坑。
+  const valueCache = new Map<string, number>();
+  for (const inst of equipment) {
+    valueCache.set(inst.uid, ctx.valueOf(inst));
+  }
+  const cachedValue = (inst: EquipmentInstance): number => valueCache.get(inst.uid) ?? 0;
+
   // 每个部位战力最高的那件，无论品质都要留住
   const bestPerSlot = new Map<EquipSlot, string>();
   const bestValue = new Map<EquipSlot, number>();
   for (const inst of equipment) {
     const slot = ctx.slotOf(inst);
     if (!slot) continue;
-    const v = ctx.valueOf(inst);
+    const v = cachedValue(inst);
     if (!bestValue.has(slot) || v > bestValue.get(slot)!) {
       bestValue.set(slot, v);
       bestPerSlot.set(slot, inst.uid);
@@ -86,8 +108,8 @@ export function trimBag(
     return { kept: [...equipment], removed: [] };
   }
 
-  // 战力低的先删
-  candidates.sort((a, b) => ctx.valueOf(a) - ctx.valueOf(b));
+  // 战力低的先删。用缓存值排序，绝不能在比较器里现算。
+  candidates.sort((a, b) => cachedValue(a) - cachedValue(b));
   const removeCount = Math.min(overflow, candidates.length);
   const removed = candidates.slice(0, removeCount);
   const removedIds = new Set(removed.map((e) => e.uid));
