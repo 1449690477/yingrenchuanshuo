@@ -179,6 +179,11 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
   pointer-events: none;
 }
 
+/* 成长符文只服务于养成展示，战斗中会与攻击特效重叠并显得突然。 */
+.is-battle .growth-aura {
+  display: none;
+}
+
 .aura-ring {
   position: absolute;
   left: 50%;
