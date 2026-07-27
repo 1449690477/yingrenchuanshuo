@@ -19,6 +19,7 @@ const props = defineProps<{
   backgroundUrl: string;
   active: boolean;
   casting: boolean;
+  impactDelayMs: number;
   hpPercent: number;
   currentHp: number;
   maxHp: number;
@@ -47,7 +48,7 @@ const basicEffectUrl = computed(
   <div
     class="battle-scene"
     :class="[`target-${monster.type}`, { active, casting }]"
-    :style="{ '--impact-delay': skill ? '300ms' : '110ms' }"
+    :style="{ '--impact-delay': `${impactDelayMs}ms` }"
     :aria-label="`${playerName}正在与${monster.name}战斗`"
   >
     <img class="scene-background" :src="backgroundUrl" alt="" aria-hidden="true" />

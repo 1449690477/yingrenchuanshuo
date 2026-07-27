@@ -20,6 +20,8 @@ const player = usePlayerStore();
 const inventory = useInventoryStore();
 const stage = useStageStore();
 const showStages = ref(false);
+const BASIC_ATTACK_IMPACT_MS = 320;
+const SKILL_IMPACT_MS = 310;
 const casting = ref(false);
 const monsterCasting = ref(false);
 let castTimer = 0;
@@ -75,6 +77,9 @@ const activeVisualSkill = computed<VisualSkill | null>(() => {
   if (!cast || cast.pulseId !== stage.battlePulse?.id) return null;
   return cast.skill;
 });
+const activeImpactDelayMs = computed(() =>
+  activeVisualSkill.value ? SKILL_IMPACT_MS : BASIC_ATTACK_IMPACT_MS,
+);
 const skillStates = computed(() =>
   unlockedSkills.value.map((skill) => ({
     skill,
@@ -105,7 +110,7 @@ watch(
 
     const pulse = stage.battlePulse;
     if (!pulse) return;
-    const impactDelay = ready ? 300 : 110;
+    const impactDelay = ready ? SKILL_IMPACT_MS : BASIC_ATTACK_IMPACT_MS;
     const hitTimer = window.setTimeout(() => {
       monsterHitTimers.delete(hitTimer);
       const sequence = ++monsterHpSequence;
@@ -218,6 +223,7 @@ const cpWarn = computed(() => {
         :background-url="battleMapUrl"
         :active="stage.canIdle"
         :casting="casting"
+        :impact-delay-ms="activeImpactDelayMs"
         :hp-percent="hpPercent"
         :current-hp="targetCurrentHp"
         :max-hp="targetMaxHp"
