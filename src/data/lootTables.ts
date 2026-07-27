@@ -55,6 +55,32 @@ function buildTable(spec: ChapterSpec, type: MonsterType): LootTable {
     maxCount: type === 'boss' ? 8 : type === 'elite' ? 4 : 2,
   });
 
+  // +10 以上材料必须有真实可重复来源，不能让强化台在 +9 后变成死功能。
+  if (type === 'elite' && spec.levelFrom >= 7) {
+    entries.push({
+      itemId: 'ore_black',
+      weight: 8,
+      minCount: 1,
+      maxCount: 2,
+    });
+  }
+  if (type === 'boss' && spec.boss) {
+    entries.push(
+      {
+        itemId: 'lucky_nine',
+        weight: 6,
+        minCount: 1,
+        maxCount: 1,
+      },
+      {
+        itemId: 'charm_protect',
+        weight: 2,
+        minCount: 1,
+        maxCount: 1,
+      },
+    );
+  }
+
   // ── 装备 ──
   if (region) {
     for (const [quality, weight] of Object.entries(QUALITY_WEIGHTS[type]) as [Quality, number][]) {
@@ -87,8 +113,11 @@ function buildTable(spec: ChapterSpec, type: MonsterType): LootTable {
 
   // ── BOSS 额外：洗练石 ──
   const guaranteed: LootTable['entries'] = [];
-  if (type === 'boss') {
-    guaranteed.push({ itemId: 'stone_reforge', weight: 0, minCount: 1, maxCount: 3 });
+  if (type === 'boss' && spec.boss) {
+    guaranteed.push(
+      { itemId: 'stone_reforge', weight: 0, minCount: 1, maxCount: 3 },
+      { itemId: 'ore_black', weight: 0, minCount: 3, maxCount: 6 },
+    );
   }
 
   return { id, rolls: ROLLS[type], entries, ...(guaranteed.length > 0 ? { guaranteed } : {}) };

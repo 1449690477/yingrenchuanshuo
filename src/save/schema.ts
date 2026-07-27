@@ -11,11 +11,19 @@
 
 import { z } from 'zod';
 import type { ClassId, EquipmentInstance, EquipSlot, Quality } from '@/core/types';
-import { CLASS_BASE_STATS, STAMINA_BASE_MAX } from '@/data/constants';
+import {
+  CLASS_BASE_STATS,
+  ENHANCE_GAIN_TIERS,
+  ENHANCE_MAX,
+  EQUIPMENT_BASE_ROLL_MAX,
+  EQUIPMENT_BASE_ROLL_MIN,
+  LUCK_FULL,
+  STAMINA_BASE_MAX,
+} from '@/data/constants';
 import { FIRST_STAGE_ID } from '@/data/stages';
 
 /** 当前存档版本。加字段就 +1。 */
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 
 export const SAVE_KEY = 'main';
 
@@ -188,15 +196,43 @@ const affixSchema = z
   })
   .strict();
 
+const enhanceGainSchema = z
+  .array(
+    z
+      .number()
+      .int()
+      .refine(
+        (gain) =>
+          gain === 0 || ENHANCE_GAIN_TIERS.some((tier) => gain >= tier.min && gain <= tier.max),
+        '强化增幅不在配置档位内',
+      ),
+  )
+  .length(ENHANCE_MAX);
+const enhanceLuckKeySchema = z.string().regex(/^(?:[1-9]|1[0-5])$/);
+
 const equipmentInstanceSchema = z
   .object({
     uid: z.string().min(1),
     defId: z.string().min(1),
-    enhance: z.number().int().min(0).max(15),
+    enhance: z.number().int().min(0).max(ENHANCE_MAX),
+    baseRollPermille: z.number().int().min(EQUIPMENT_BASE_ROLL_MIN).max(EQUIPMENT_BASE_ROLL_MAX),
+    enhanceGainPermille: enhanceGainSchema,
+    enhanceLuck: z.record(enhanceLuckKeySchema, z.number().int().min(1).max(LUCK_FULL)),
     affixes: z.array(affixSchema),
     locked: z.boolean(),
   })
-  .strict();
+  .strict()
+  .superRefine((instance, ctx) => {
+    for (let index = 0; index < instance.enhance; index++) {
+      if (instance.enhanceGainPermille[index] === 0) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['enhanceGainPermille', index],
+          message: `已强化到 +${instance.enhance}，前 ${instance.enhance} 格增幅必须存在`,
+        });
+      }
+    }
+  });
 
 const equippedSchema = z
   .object({
@@ -267,7 +303,49 @@ export const saveDataSchema = z
       })
       .strict(),
   })
-  .strict();
+  .strict()
+  .superRefine((save, ctx) => {
+    const seenUids = new Set<string>();
+    let maxNumericUid = 0;
+    const instances: { instance: EquipmentInstance; path: (string | number)[] }[] = [
+      ...save.bag.equipment.map((instance, index) => ({
+        instance,
+        path: ['bag', 'equipment', index] as (string | number)[],
+      })),
+      ...Object.entries(save.equipped).flatMap(([slot, instance]) =>
+        instance
+          ? [
+              {
+                instance,
+                path: ['equipped', slot] as (string | number)[],
+              },
+            ]
+          : [],
+      ),
+    ];
+
+    for (const { instance, path } of instances) {
+      if (seenUids.has(instance.uid)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: [...path, 'uid'],
+          message: `装备 UID 重复：${instance.uid}`,
+        });
+      }
+      seenUids.add(instance.uid);
+
+      const match = /^e(\d+)$/.exec(instance.uid);
+      if (match) maxNumericUid = Math.max(maxNumericUid, Number(match[1]));
+    }
+
+    if (save.nextUid <= maxNumericUid) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['nextUid'],
+        message: `nextUid 必须大于现有最大装备编号 e${maxNumericUid}`,
+      });
+    }
+  });
 
 export class SaveValidationError extends Error {
   constructor(readonly issues: z.core.$ZodIssue[]) {

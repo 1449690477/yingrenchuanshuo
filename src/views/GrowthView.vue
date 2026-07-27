@@ -8,8 +8,8 @@ import { CLASS_INFO, SLOT_LABELS, STAT_LABELS } from '@/data/constants';
 import { visualSkillsFor } from '@/data/skills';
 import EquipDetail from '@/components/EquipDetail.vue';
 import CharacterShowcase from '@/components/CharacterShowcase.vue';
+import EnhancePanel from '@/components/EnhancePanel.vue';
 import SkillIcon from '@/components/SkillIcon.vue';
-import SystemArtwork from '@/components/SystemArtwork.vue';
 
 const inventory = useInventoryStore();
 const player = usePlayerStore();
@@ -76,6 +76,8 @@ onUnmounted(() => clearTimeout(feedbackTimer));
       </div>
     </Transition>
 
+    <EnhancePanel />
+
     <section v-if="visualSkills.length > 0" class="card skills-card">
       <div class="card-head">
         <span>{{ CLASS_INFO[player.player.classId].name }}技能演出</span>
@@ -108,25 +110,6 @@ onUnmounted(() => clearTimeout(feedbackTimer));
           <span class="s-label">{{ r.label }}</span>
           <span class="s-value num">{{ r.value }}</span>
         </div>
-      </div>
-    </section>
-
-    <!-- 强化系统视觉预告：M3-2 接入真实强化交互时沿用 -->
-    <section class="card forge-preview">
-      <div class="forge-copy">
-        <span class="forge-tag">M3-2 · 即将开放</span>
-        <strong>樱光强化台</strong>
-        <span>消耗强化石提升装备属性，成功、掉级与碎裂都会有独立演出。</span>
-        <div class="forge-feedback" aria-label="计划中的强化反馈">
-          <span class="success">成功 · 樱光绽放</span>
-          <span class="failed">失败 · 星屑消散</span>
-        </div>
-      </div>
-      <div class="forge-art-wrap">
-        <SystemArtwork kind="enhance" class="forge-art" />
-        <i class="spark s1" />
-        <i class="spark s2" />
-        <i class="spark s3" />
       </div>
     </section>
 
@@ -283,113 +266,6 @@ onUnmounted(() => clearTimeout(feedbackTimer));
   font-weight: 600;
 }
 
-/* ── 强化预告与后续系统 ── */
-.forge-preview {
-  position: relative;
-  min-height: 142px;
-  display: flex;
-  align-items: stretch;
-  overflow: hidden;
-  background:
-    radial-gradient(circle at 78% 48%, rgb(126 214 241 / 25%), transparent 31%),
-    linear-gradient(115deg, #fff7fb 4%, #f1f8ff 96%);
-}
-
-.forge-copy {
-  position: relative;
-  z-index: 2;
-  width: 62%;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 5px;
-  padding: 14px 0 14px 14px;
-}
-
-.forge-tag {
-  padding: 2px 7px;
-  font-size: 9px;
-  font-weight: 700;
-  color: var(--pink-deep);
-  background: rgb(255 255 255 / 82%);
-  border-radius: 999px;
-}
-
-.forge-copy strong {
-  font-size: 15px;
-}
-
-.forge-copy > span:not(.forge-tag) {
-  font-size: 9px;
-  line-height: 1.55;
-  color: var(--text-mid);
-}
-
-.forge-feedback {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 2px;
-}
-
-.forge-feedback span {
-  padding: 2px 6px;
-  font-size: 8px;
-  border-radius: 999px;
-}
-
-.forge-feedback .success {
-  color: #238763;
-  background: #e5f9f0;
-}
-
-.forge-feedback .failed {
-  color: #a45e78;
-  background: #fff0f5;
-}
-
-.forge-art-wrap {
-  position: absolute;
-  right: -14px;
-  bottom: -14px;
-  width: 162px;
-  height: 162px;
-}
-
-.forge-art {
-  width: 100%;
-  height: 100%;
-  animation: forge-breathe 2.8s ease-in-out infinite;
-}
-
-.spark {
-  position: absolute;
-  width: 5px;
-  height: 5px;
-  background: #fff;
-  border: 1px solid #83daf2;
-  transform: rotate(45deg);
-  box-shadow: 0 0 7px #77dff8;
-  animation: spark-pop 1.6s ease-in-out infinite;
-}
-
-.s1 {
-  top: 38px;
-  right: 29px;
-}
-
-.s2 {
-  top: 62px;
-  left: 34px;
-  animation-delay: -0.55s;
-}
-
-.s3 {
-  top: 23px;
-  left: 73px;
-  animation-delay: -1.1s;
-}
-
 .soon-list {
   display: flex;
   flex-wrap: wrap;
@@ -403,34 +279,5 @@ onUnmounted(() => clearTimeout(feedbackTimer));
   color: var(--text-dim);
   background: var(--panel-3);
   border-radius: 999px;
-}
-
-@keyframes forge-breathe {
-  0%,
-  100% {
-    transform: translateY(0) scale(1);
-  }
-  50% {
-    transform: translateY(-3px) scale(1.015);
-  }
-}
-
-@keyframes spark-pop {
-  0%,
-  100% {
-    opacity: 0.25;
-    transform: rotate(45deg) scale(0.65);
-  }
-  50% {
-    opacity: 1;
-    transform: rotate(45deg) scale(1.2);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .forge-art,
-  .spark {
-    animation: none;
-  }
 }
 </style>

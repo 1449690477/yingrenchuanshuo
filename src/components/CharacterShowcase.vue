@@ -71,6 +71,16 @@ const boutiqueTheme = computed(() =>
     ? BOUTIQUE_THEMES[appearance.value.activeBoutiqueTheme]
     : null,
 );
+const forgeStageLabel = computed(
+  () =>
+    ({
+      original: '',
+      gleam: '微光锻造',
+      radiant: '辉光锻造',
+      starforged: '星铸锻造',
+      sakura: '樱华锻造',
+    })[appearance.value.forgeStage],
+);
 const interactionBond = computed(() => Math.min(100, interactionCount.value * 20));
 const effectUrl = computed(() => {
   if (activeSkill.value) return `${import.meta.env.BASE_URL}${activeSkill.value.effectAsset}`;
@@ -154,6 +164,7 @@ onUnmounted(() => clearTimeout(previewTimer));
       <span class="tier-badge">{{ appearance.growthTier.label }}</span>
       <span>{{ appearance.equippedCount }}/8 已装备</span>
       <span>{{ appearance.visibleEquippedCount }}/4 外观部位已变化</span>
+      <span v-if="forgeStageLabel" class="forge-badge">{{ forgeStageLabel }}</span>
       <span v-if="boutiqueTheme" class="boutique-badge">{{ boutiqueTheme.shortName }}特效</span>
     </div>
 
@@ -170,6 +181,7 @@ onUnmounted(() => clearTimeout(previewTimer));
           <EquipmentIcon
             v-if="instanceOf(slot)"
             :def="requireEquipment(instanceOf(slot)!.defId)"
+            :enhance="instanceOf(slot)!.enhance"
             size="sm"
             decorative
           />
@@ -227,6 +239,7 @@ onUnmounted(() => clearTimeout(previewTimer));
           <EquipmentIcon
             v-if="instanceOf(slot)"
             :def="requireEquipment(instanceOf(slot)!.defId)"
+            :enhance="instanceOf(slot)!.enhance"
             size="sm"
             decorative
           />
@@ -375,6 +388,14 @@ onUnmounted(() => clearTimeout(previewTimer));
   font-weight: 800;
   color: #8d496f;
   background: linear-gradient(120deg, #ffe8f2, #fff2c9);
+  border-radius: 999px;
+}
+
+.forge-badge {
+  padding: 2px 6px;
+  font-weight: 800;
+  color: #5b69a4;
+  background: linear-gradient(120deg, #eaf7ff, #f5ecff);
   border-radius: 999px;
 }
 

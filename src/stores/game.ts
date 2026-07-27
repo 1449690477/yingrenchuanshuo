@@ -21,6 +21,15 @@ import type {
 import { Rng } from '@/core/rng';
 import { addStats, combatPower, zeroStats } from '@/core/formula';
 import {
+  attemptEnhance,
+  enhanceCost,
+  enhanceRule,
+  luckGainForRate,
+  type EnhanceCost,
+  type EnhanceResult,
+  type EnhanceRule,
+} from '@/core/enhance';
+import {
   applyClassMods,
   averageSkillMultiplier,
   baseStatsFor,
@@ -31,7 +40,14 @@ import {
   monsterGold,
   staminaMaxForLevel,
 } from '@/core/progression';
-import { createInstance, totalEquipStats } from '@/core/equipment';
+import {
+  createFixedInstance,
+  createInstance,
+  rollEnhanceGainPermille,
+  totalEquipStats,
+  type PermilleRoll,
+  type EnhanceGainGrade,
+} from '@/core/equipment';
 import { decomposeGold } from '@/core/economy';
 import { rollLoot } from '@/core/loot';
 import { assessShopOffer, type ShopBlockReason } from '@/core/shop';
@@ -40,7 +56,13 @@ import { advanceBattleVisualCursor, battleMonsterIdAt } from '@/core/battleVisua
 import { accumulateIdle, killsPerSecond, recoverStamina, settleOffline } from '@/core/idle';
 import type { IdleContext } from '@/core/idle';
 
-import { CRIT_RATE_CAP, SLOT_ORDER } from '@/data/constants';
+import {
+  CRIT_RATE_CAP,
+  ENHANCE_MAX,
+  ENHANCE_MATERIAL_IDS,
+  LUCK_FULL,
+  SLOT_ORDER,
+} from '@/data/constants';
 import { getEquipment, requireEquipment } from '@/data/equipment';
 import { requireMonster } from '@/data/monsters';
 import { requireLootTable } from '@/data/lootTables';
@@ -81,11 +103,51 @@ export type ShopPurchaseResult =
   | { ok: true; instance: EquipmentInstance; offer: ShopOffer }
   | { ok: false; reason: ShopBlockReason };
 
+export type EnhanceBlockReason =
+  | 'not-found'
+  | 'max-level'
+  | 'protection-not-allowed'
+  | 'insufficient-gold'
+  | 'insufficient-stone'
+  | 'insufficient-ore'
+  | 'insufficient-lucky'
+  | 'insufficient-protection';
+
+export type EnhanceQuote =
+  | { ok: false; reason: EnhanceBlockReason }
+  | {
+      ok: true;
+      instance: EquipmentInstance;
+      rule: EnhanceRule;
+      cost: EnhanceCost;
+      luck: number;
+      luckGain: number;
+      guaranteed: boolean;
+      protectionCount: number;
+    };
+
+export type EnhanceEquipmentResult =
+  | { ok: false; reason: EnhanceBlockReason }
+  | {
+      ok: true;
+      result: EnhanceResult;
+      cost: EnhanceCost;
+      instance: EquipmentInstance | null;
+      gainRoll: PermilleRoll<EnhanceGainGrade> | null;
+      cpDelta: number;
+    };
+
 const AUTO_SAVE_INTERVAL_MS = 3_000;
 const LOOT_LOG_MAX = 40;
 const BATTLE_PULSE_SECONDS = 0.72;
 /** 高速挂机只采样部分击杀演出，给下一只怪留出可见的掉血阶段。 */
 const BATTLE_PULSE_COOLDOWN_SECONDS = 0.9;
+/** 强化属性子随机流的模块盐；不会额外推进主 RNG。 */
+const ENHANCE_GAIN_DERIVE_SALT = 0x73616b75;
+
+type OwnedEquipmentLocation =
+  | { kind: 'bag'; index: number; instance: EquipmentInstance }
+  | { kind: 'equipped'; slot: EquipSlot; instance: EquipmentInstance };
 
 export const useGameStore = defineStore('game', () => {
   // ─────────── 状态 ───────────
@@ -416,7 +478,10 @@ export const useGameStore = defineStore('game', () => {
     if (eqDef) {
       // 装备逐件生成实例（每件的随机词条不同）
       for (let i = 0; i < drop.count; i++) {
-        const inst = createInstance(eqDef, rng.derive(s.nextUid), `e${s.nextUid}`);
+        const uid = `e${s.nextUid}`;
+        const inst = eqDef.boutiqueTheme
+          ? createFixedInstance(eqDef, uid, true)
+          : createInstance(eqDef, rng.derive(s.nextUid), uid);
         s.nextUid++;
         s.bag.equipment.push(inst);
       }
@@ -655,6 +720,147 @@ export const useGameStore = defineStore('game', () => {
     return cpForEquipment(withItem) - cpForEquipment(withoutItem);
   }
 
+  function findOwnedEquipment(uid: string): OwnedEquipmentLocation | null {
+    if (!save.value) return null;
+    const bagIndex = save.value.bag.equipment.findIndex((instance) => instance.uid === uid);
+    if (bagIndex >= 0) {
+      return {
+        kind: 'bag',
+        index: bagIndex,
+        instance: save.value.bag.equipment[bagIndex]!,
+      };
+    }
+    for (const slot of SLOT_ORDER) {
+      const instance = save.value.equipped[slot];
+      if (instance?.uid === uid) return { kind: 'equipped', slot, instance };
+    }
+    return null;
+  }
+
+  /** 强化报价只接收装备 UID 与保护选择，费用和成功率全部从可信配置重算。 */
+  function quoteEnhance(uid: string, useProtection: boolean): EnhanceQuote {
+    if (!save.value) return { ok: false, reason: 'not-found' };
+    const located = findOwnedEquipment(uid);
+    if (!located) return { ok: false, reason: 'not-found' };
+    if (located.instance.enhance >= ENHANCE_MAX) return { ok: false, reason: 'max-level' };
+
+    const targetLevel = located.instance.enhance + 1;
+    const rule = enhanceRule(targetLevel);
+    if (useProtection && rule.failure !== 'break') {
+      return { ok: false, reason: 'protection-not-allowed' };
+    }
+
+    const definition = requireEquipment(located.instance.defId);
+    const cost = enhanceCost(targetLevel, definition.level);
+    const luck = located.instance.enhanceLuck[String(targetLevel)] ?? 0;
+    const guaranteed = rule.rate < 1 && luck === LUCK_FULL;
+    const protectionCount = save.value.bag.items[ENHANCE_MATERIAL_IDS.protection] ?? 0;
+
+    if (save.value.player.gold < cost.gold) return { ok: false, reason: 'insufficient-gold' };
+    if ((save.value.bag.items[ENHANCE_MATERIAL_IDS.stone] ?? 0) < cost.stone) {
+      return { ok: false, reason: 'insufficient-stone' };
+    }
+    if ((save.value.bag.items[ENHANCE_MATERIAL_IDS.ore] ?? 0) < cost.ore) {
+      return { ok: false, reason: 'insufficient-ore' };
+    }
+    if ((save.value.bag.items[ENHANCE_MATERIAL_IDS.lucky] ?? 0) < cost.lucky) {
+      return { ok: false, reason: 'insufficient-lucky' };
+    }
+    if (useProtection && !guaranteed && protectionCount < 1) {
+      return { ok: false, reason: 'insufficient-protection' };
+    }
+
+    return {
+      ok: true,
+      instance: located.instance,
+      rule,
+      cost,
+      luck,
+      luckGain: luckGainForRate(rule.rate),
+      guaranteed,
+      protectionCount,
+    };
+  }
+
+  /**
+   * 单次强化原子事务。
+   *
+   * 先用克隆 RNG 规划完整结果；全部计算成功后，才一次性提交金币、材料、
+   * 装备、幸运桶和主 RNG 状态。任何预检失败都不会消耗资产或随机格。
+   */
+  function enhanceEquipment(uid: string, useProtection: boolean): EnhanceEquipmentResult {
+    if (!save.value) return { ok: false, reason: 'not-found' };
+    const quote = quoteEnhance(uid, useProtection);
+    if (!quote.ok) return quote;
+    const located = findOwnedEquipment(uid);
+    if (!located) return { ok: false, reason: 'not-found' };
+
+    const s = save.value;
+    const beforeCp = cp.value;
+    const txRng = new Rng(1);
+    txRng.setState(rng.getState());
+    const result = attemptEnhance(
+      {
+        level: located.instance.enhance,
+        luck: quote.luck,
+        useProtection,
+      },
+      txRng,
+    );
+
+    const nextItems = { ...s.bag.items };
+    debitMaterial(nextItems, ENHANCE_MATERIAL_IDS.stone, quote.cost.stone);
+    debitMaterial(nextItems, ENHANCE_MATERIAL_IDS.ore, quote.cost.ore);
+    debitMaterial(nextItems, ENHANCE_MATERIAL_IDS.lucky, quote.cost.lucky);
+    if (result.protectionConsumed) {
+      debitMaterial(nextItems, ENHANCE_MATERIAL_IDS.protection, 1);
+    }
+
+    let nextInstance: EquipmentInstance | null = null;
+    let gainRoll: PermilleRoll<EnhanceGainGrade> | null = null;
+    if (result.nextLevel !== null) {
+      nextInstance = cloneEquipmentInstance(located.instance);
+      const targetKey = String(result.targetLevel);
+
+      if (result.outcome === 'success') {
+        const gainIndex = result.targetLevel - 1;
+        if (nextInstance.enhanceGainPermille[gainIndex] === 0) {
+          gainRoll = rollEnhanceGainPermille(
+            txRng.derive(enhanceGainSalt(uid, result.targetLevel)),
+          );
+          nextInstance.enhanceGainPermille[gainIndex] = gainRoll.permille;
+        }
+        delete nextInstance.enhanceLuck[targetKey];
+      } else if (result.nextLuck !== null) {
+        nextInstance.enhanceLuck[targetKey] = result.nextLuck;
+      }
+      nextInstance.enhance = result.nextLevel;
+    }
+
+    // 从这里开始只做不会抛错的同步赋值，构成一次原子提交。
+    rng.setState(txRng.getState());
+    s.player.gold -= quote.cost.gold;
+    s.bag.items = nextItems;
+    if (located.kind === 'bag') {
+      if (nextInstance) s.bag.equipment[located.index] = nextInstance;
+      else s.bag.equipment.splice(located.index, 1);
+    } else {
+      s.equipped[located.slot] = nextInstance;
+    }
+
+    const cpChange = cp.value - beforeCp;
+    noteCpDelta(beforeCp);
+    void persist();
+    return {
+      ok: true,
+      result,
+      cost: quote.cost,
+      instance: nextInstance,
+      gainRoll,
+      cpDelta: cpChange,
+    };
+  }
+
   /** 分解装备换金币。locked 的跳过。 */
   function decompose(uids: string[]): { count: number; gold: number } {
     if (!save.value) return { count: 0, gold: 0 };
@@ -708,15 +914,8 @@ export const useGameStore = defineStore('game', () => {
     if (!assessment.ok) return assessment;
 
     const s = save.value;
-    const instance: EquipmentInstance = {
-      uid: `e${s.nextUid}`,
-      defId: def.id,
-      enhance: 0,
-      // 珍品词条全部写在 EquipmentDef.fixedAffixes，掉落与购买版本完全一致。
-      affixes: [],
-      // 高价珍品默认锁定，避免玩家一键分解误删。
-      locked: true,
-    };
+    // 珍品词条全部写在 EquipmentDef.fixedAffixes；商店、预览和 BOSS 同款不盲抽。
+    const instance = createFixedInstance(def, `e${s.nextUid}`, true);
 
     s.player.gold -= offer.price;
     s.nextUid += 1;
@@ -820,9 +1019,35 @@ export const useGameStore = defineStore('game', () => {
     equipmentCandidateCp,
     equipmentCpDelta,
     equipmentContributionCp,
+    quoteEnhance,
+    enhanceEquipment,
     dismissOffline,
   };
 });
+
+function cloneEquipmentInstance(instance: EquipmentInstance): EquipmentInstance {
+  return {
+    ...instance,
+    enhanceGainPermille: [...instance.enhanceGainPermille],
+    enhanceLuck: { ...instance.enhanceLuck },
+    affixes: instance.affixes.map((affix) => ({ ...affix })),
+  };
+}
+
+function debitMaterial(items: Record<string, number>, itemId: string, count: number): void {
+  if (count === 0) return;
+  const next = items[itemId]! - count;
+  if (next === 0) delete items[itemId];
+  else items[itemId] = next;
+}
+
+function enhanceGainSalt(uid: string, targetLevel: number): number {
+  let hash = ENHANCE_GAIN_DERIVE_SALT;
+  for (let index = 0; index < uid.length; index++) {
+    hash = Math.imul(hash ^ uid.charCodeAt(index), 0x01000193);
+  }
+  return (hash ^ targetLevel) >>> 0;
+}
 
 /** 新角色主种子来自系统加密随机源；之后所有游戏随机都由 seeded RNG 派生。 */
 function createSeed(): number {

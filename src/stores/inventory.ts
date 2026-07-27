@@ -2,7 +2,7 @@
 import { computed } from 'vue';
 import { defineStore } from 'pinia';
 import type { EquipSlot, EquipmentInstance } from '@/core/types';
-import { useGameStore } from './game';
+import { useGameStore, type EnhanceEquipmentResult, type EnhanceQuote } from './game';
 
 export const useInventoryStore = defineStore('inventory', () => {
   const game = useGameStore();
@@ -43,6 +43,14 @@ export const useInventoryStore = defineStore('inventory', () => {
     return game.equipmentContributionCp(inst);
   }
 
+  function quoteEnhance(uid: string, useProtection: boolean): EnhanceQuote {
+    return game.quoteEnhance(uid, useProtection);
+  }
+
+  function enhance(uid: string, useProtection: boolean): EnhanceEquipmentResult {
+    return game.enhanceEquipment(uid, useProtection);
+  }
+
   return {
     bag,
     equipped,
@@ -55,5 +63,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     candidateCp,
     cpDelta,
     contributionCp,
+    quoteEnhance,
+    enhance,
   };
 });

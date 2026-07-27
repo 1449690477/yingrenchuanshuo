@@ -1,4 +1,12 @@
-import type { BoutiqueThemeId, ClassId, EquipmentInstance, EquipSlot, Quality } from '@/core/types';
+import type {
+  BoutiqueThemeId,
+  ClassId,
+  EquipmentInstance,
+  EquipSlot,
+  ForgeStage,
+  Quality,
+} from '@/core/types';
+import { forgeStageAt } from '@/core/equipment';
 import { requireEquipment } from './equipment';
 import { BOUTIQUE_THEME_LIST, BOUTIQUE_THEMES, boutiqueAppearanceId } from './boutique';
 
@@ -197,6 +205,7 @@ export interface ResolvedAppearanceLayer {
   name: string;
   quality: Quality;
   enhance: number;
+  forgeStage: ForgeStage;
   transform: LayerTransform;
 }
 
@@ -210,7 +219,8 @@ export interface ResolvedCharacterAppearance {
   highestVisibleQuality: Quality;
   activeBoutiqueTheme: BoutiqueThemeId | null;
   boutiqueEffectAsset: string | null;
-  enhanceStage: 0 | 1 | 2 | 3 | 4;
+  forgeStage: ForgeStage;
+  weaponForgeStage: ForgeStage;
   signature: string;
   ariaLabel: string;
 }
@@ -231,14 +241,6 @@ export function requireEquipmentAppearance(id: string): EquipmentAppearance {
   return appearance;
 }
 
-function enhanceStageFor(level: number): 0 | 1 | 2 | 3 | 4 {
-  if (level >= 15) return 4;
-  if (level >= 13) return 3;
-  if (level >= 10) return 2;
-  if (level >= 5) return 1;
-  return 0;
-}
-
 export function resolveCharacterAppearance(
   classId: ClassId,
   level: number,
@@ -247,7 +249,8 @@ export function resolveCharacterAppearance(
   const layers: ResolvedAppearanceLayer[] = [];
   let equippedCount = 0;
   let highestVisibleQuality: Quality = 'common';
-  let highestEnhance = 0;
+  let highestVisibleEnhance = 0;
+  let weaponEnhance = 0;
   let activeBoutiqueTheme: BoutiqueThemeId | null = null;
 
   if (equipped) {
@@ -264,9 +267,6 @@ export function resolveCharacterAppearance(
           `[配置错误] ${equipment.id} 的外观槽位 ${appearance.slot} 与装备槽位 ${slot} 不一致`,
         );
       }
-      if (QUALITY_RANK[equipment.quality] > QUALITY_RANK[highestVisibleQuality]) {
-        highestVisibleQuality = equipment.quality;
-      }
       if (
         equipment.boutiqueTheme &&
         (!activeBoutiqueTheme ||
@@ -274,8 +274,12 @@ export function resolveCharacterAppearance(
       ) {
         activeBoutiqueTheme = equipment.boutiqueTheme;
       }
-      highestEnhance = Math.max(highestEnhance, instance.enhance);
       if (appearance.renderMode === 'slot-only') continue;
+      if (QUALITY_RANK[equipment.quality] > QUALITY_RANK[highestVisibleQuality]) {
+        highestVisibleQuality = equipment.quality;
+      }
+      highestVisibleEnhance = Math.max(highestVisibleEnhance, instance.enhance);
+      if (slot === 'weapon') weaponEnhance = instance.enhance;
 
       const asset = appearance.assets[classId];
       const transform = appearance.transforms[classId];
@@ -289,6 +293,7 @@ export function resolveCharacterAppearance(
         name: equipment.name,
         quality: equipment.quality,
         enhance: instance.enhance,
+        forgeStage: forgeStageAt(instance.enhance),
         transform,
       });
     }
@@ -320,7 +325,8 @@ export function resolveCharacterAppearance(
     boutiqueEffectAsset: activeBoutiqueTheme
       ? BOUTIQUE_THEMES[activeBoutiqueTheme].attackEffects[classId]
       : null,
-    enhanceStage: enhanceStageFor(highestEnhance),
+    forgeStage: forgeStageAt(highestVisibleEnhance),
+    weaponForgeStage: forgeStageAt(weaponEnhance),
     signature: [
       layers.map((layer) => `${layer.slot}:${layer.id}`).join('|') || 'base',
       activeBoutiqueTheme ? `theme:${activeBoutiqueTheme}` : '',

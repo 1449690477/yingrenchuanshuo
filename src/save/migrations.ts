@@ -11,6 +11,7 @@
  */
 
 import { SAVE_VERSION, parseSave, type SaveData } from './schema';
+import { ENHANCE_MAX, ENHANCE_PER_LEVEL } from '@/data/constants';
 
 /** 迁移函数接收上一版本的存档（结构未知，故用宽类型），返回下一版本 */
 export type Migration = (save: Record<string, unknown>) => Record<string, unknown>;
@@ -51,6 +52,30 @@ export const migrations: Record<number, Migration> = {
       purchasedOfferIds: [],
     },
   }),
+  3: (save) => {
+    const bag = asObject(save.bag, 3, 'bag');
+    if (!Array.isArray(bag.equipment)) {
+      throw new MigrationError(3, 'bag.equipment 缺失或格式错误');
+    }
+    const equipped = asObject(save.equipped, 3, 'equipped');
+
+    return {
+      ...save,
+      version: 4,
+      bag: {
+        ...bag,
+        equipment: bag.equipment.map((instance, index) =>
+          migrateEquipmentInstance(instance, `bag.equipment.${index}`),
+        ),
+      },
+      equipped: Object.fromEntries(
+        Object.entries(equipped).map(([slot, instance]) => [
+          slot,
+          instance === null ? null : migrateEquipmentInstance(instance, `equipped.${slot}`),
+        ]),
+      ),
+    };
+  },
 };
 
 export class SaveTooNewError extends Error {
@@ -97,4 +122,30 @@ export function migrate(raw: Record<string, unknown>): SaveData {
   }
 
   return parseSave(cur);
+}
+
+function asObject(value: unknown, fromVersion: number, path: string): Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new MigrationError(fromVersion, `${path} 缺失或格式错误`);
+  }
+  return value as Record<string, unknown>;
+}
+
+function migrateEquipmentInstance(value: unknown, path: string): Record<string, unknown> {
+  const instance = asObject(value, 3, path);
+  const enhance = instance.enhance;
+  if (!Number.isInteger(enhance) || (enhance as number) < 0 || (enhance as number) > ENHANCE_MAX) {
+    throw new MigrationError(3, `${path}.enhance 必须在 0~${ENHANCE_MAX}`);
+  }
+
+  const legacyGain = ENHANCE_PER_LEVEL * 1000;
+  return {
+    ...instance,
+    // 合法 v3 不存在这些字段，必须无条件写入旧版等价值，不能信任注入字段。
+    baseRollPermille: 1000,
+    enhanceGainPermille: Array.from({ length: ENHANCE_MAX }, (_, index) =>
+      index < (enhance as number) ? legacyGain : 0,
+    ),
+    enhanceLuck: {},
+  };
 }

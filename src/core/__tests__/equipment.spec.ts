@@ -2,15 +2,29 @@ import { describe, expect, it } from 'vitest';
 import type { EquipmentDef, EquipmentInstance } from '../types';
 import {
   baseEquipStats,
+  baseRollGrade,
+  createFixedInstance,
   createInstance,
+  enhanceGainGrade,
   enhanceMultiplier,
+  forgeStageAt,
   instanceStats,
   itemBaseValue,
+  rollBasePermille,
   rollAffixes,
+  rollEnhanceGainPermille,
   totalEquipStats,
 } from '../equipment';
 import { Rng } from '../rng';
-import { ENHANCE_MAX, ENHANCE_PER_LEVEL, QUALITY_AFFIX_COUNT, QUALITY_MUL } from '@/data/constants';
+import {
+  ENHANCE_MAX,
+  ENHANCE_PER_LEVEL,
+  ENHANCE_TOTAL_GAIN_CAP_PERMILLE,
+  EQUIPMENT_BASE_ROLL_MAX,
+  EQUIPMENT_BASE_ROLL_MIN,
+  QUALITY_AFFIX_COUNT,
+  QUALITY_MUL,
+} from '@/data/constants';
 
 function def(overrides: Partial<EquipmentDef> = {}): EquipmentDef {
   return {
@@ -30,6 +44,9 @@ function inst(overrides: Partial<EquipmentInstance> = {}): EquipmentInstance {
     uid: 'e1',
     defId: 'eq_test',
     enhance: 0,
+    baseRollPermille: 1000,
+    enhanceGainPermille: Array<number>(ENHANCE_MAX).fill(0),
+    enhanceLuck: {},
     affixes: [],
     locked: false,
     ...overrides,
@@ -61,19 +78,56 @@ describe('装备基础属性', () => {
 });
 
 describe('强化与实例属性', () => {
-  it('+15 倍率来自配置，且百分比属性不受强化放大', () => {
-    expect(enhanceMultiplier(ENHANCE_MAX)).toBeCloseTo(1 + ENHANCE_PER_LEVEL * ENHANCE_MAX, 8);
+  it('旧版每级 8% 记录在 +15 时仍精确为 2.2 倍，且百分比属性不受放大', () => {
+    const legacyGains = Array<number>(ENHANCE_MAX).fill(ENHANCE_PER_LEVEL * 1000);
+    expect(enhanceMultiplier(ENHANCE_MAX, legacyGains)).toBeCloseTo(
+      1 + ENHANCE_PER_LEVEL * ENHANCE_MAX,
+      8,
+    );
 
     const definition = def();
     const plain = instanceStats(definition, inst());
-    const enhanced = instanceStats(definition, inst({ enhance: ENHANCE_MAX }));
-    expect(enhanced.atk).toBeCloseTo(plain.atk * enhanceMultiplier(ENHANCE_MAX), 8);
+    const enhanced = instanceStats(
+      definition,
+      inst({ enhance: ENHANCE_MAX, enhanceGainPermille: legacyGains }),
+    );
+    expect(enhanced.atk).toBeCloseTo(plain.atk * enhanceMultiplier(ENHANCE_MAX, legacyGains), 8);
     expect(enhanced.critRate).toBe(plain.critRate);
   });
 
-  it('强化等级越界直接报错', () => {
-    expect(() => enhanceMultiplier(-1)).toThrow();
-    expect(() => enhanceMultiplier(ENHANCE_MAX + 1)).toThrow();
+  it('胚子只放大绝对基础属性，不放大百分比属性与词条', () => {
+    const definition = def({
+      slot: 'weapon',
+      fixedAffixes: [{ key: 'atk', value: 100 }],
+    });
+    const standard = instanceStats(definition, inst({ affixes: [{ key: 'atk', value: 50 }] }));
+    const miracle = instanceStats(
+      definition,
+      inst({
+        baseRollPermille: 1200,
+        affixes: [{ key: 'atk', value: 50 }],
+      }),
+    );
+    const base = baseEquipStats(definition);
+
+    expect(miracle.atk - standard.atk).toBeCloseTo(base.atk * 0.2, 8);
+    expect(miracle.critRate).toBe(standard.critRate);
+  });
+
+  it('强化总增幅受 ×2.35 硬上限约束', () => {
+    const allMiracle = Array<number>(ENHANCE_MAX).fill(125);
+    expect(enhanceMultiplier(ENHANCE_MAX, allMiracle)).toBe(
+      1 + ENHANCE_TOTAL_GAIN_CAP_PERMILLE / 1000,
+    );
+  });
+
+  it('强化等级、胚子和逐级记录非法时直接报错', () => {
+    const empty = Array<number>(ENHANCE_MAX).fill(0);
+    expect(() => enhanceMultiplier(-1, empty)).toThrow();
+    expect(() => enhanceMultiplier(ENHANCE_MAX + 1, empty)).toThrow();
+    expect(() => enhanceMultiplier(1, empty)).toThrow('第 1 格增幅不能为 0');
+    expect(() => enhanceMultiplier(0, [0])).toThrow('固定为');
+    expect(() => instanceStats(def(), inst({ baseRollPermille: 999 }))).toThrow('胚子倍率');
   });
 
   it('固定词条与随机词条都会叠加', () => {
@@ -121,6 +175,57 @@ describe('随机词条', () => {
     expect(make()).toEqual(make());
   });
 
+  it('掉落胚子始终位于 100%~120%，并能掷出精工与奇迹档', () => {
+    const rolls = Array.from({ length: 1000 }, (_, seed) => rollBasePermille(new Rng(seed + 1)));
+
+    expect(
+      rolls.every(
+        ({ permille }) =>
+          permille >= EQUIPMENT_BASE_ROLL_MIN && permille <= EQUIPMENT_BASE_ROLL_MAX,
+      ),
+    ).toBe(true);
+    expect(rolls.some(({ grade }) => grade === 'refined')).toBe(true);
+    expect(rolls.some(({ grade }) => grade === 'miracle')).toBe(true);
+    expect(baseRollGrade(1000)).toBe('steady');
+    expect(baseRollGrade(1061)).toBe('refined');
+    expect(baseRollGrade(1200)).toBe('miracle');
+  });
+
+  it('强化增幅最低不低于旧版，低概率出现奇迹档', () => {
+    const rolls = Array.from({ length: 1000 }, (_, seed) =>
+      rollEnhanceGainPermille(new Rng(seed + 1)),
+    );
+
+    expect(rolls.every(({ permille }) => permille >= 80 && permille <= 125)).toBe(true);
+    expect(rolls.some(({ grade }) => grade === 'excellent')).toBe(true);
+    expect(rolls.some(({ grade }) => grade === 'miracle')).toBe(true);
+    expect(enhanceGainGrade(80)).toBe('stable');
+    expect(enhanceGainGrade(83)).toBe('excellent');
+    expect(enhanceGainGrade(110)).toBe('miracle');
+    expect(() => enhanceGainGrade(100)).toThrow('未配置');
+  });
+
+  it('奇迹胚子会自动锁定，确定珍品则保持固定 100% 胚子', () => {
+    let miracleSeed = 0;
+    for (let seed = 1; seed < 10_000; seed++) {
+      if (rollBasePermille(new Rng(seed)).grade === 'miracle') {
+        miracleSeed = seed;
+        break;
+      }
+    }
+    expect(miracleSeed).toBeGreaterThan(0);
+    expect(createInstance(def(), new Rng(miracleSeed), 'miracle').locked).toBe(true);
+
+    expect(createFixedInstance(def(), 'shop', true)).toMatchObject({
+      baseRollPermille: 1000,
+      enhance: 0,
+      enhanceGainPermille: Array<number>(ENHANCE_MAX).fill(0),
+      enhanceLuck: {},
+      affixes: [],
+      locked: true,
+    });
+  });
+
   it('攻速词条保留两位小数，不会被四舍五入成 0', () => {
     const speedValues: number[] = [];
     for (let seed = 1; seed <= 200; seed++) {
@@ -131,5 +236,26 @@ describe('随机词条', () => {
 
     expect(speedValues.length).toBeGreaterThan(0);
     expect(speedValues.every((value) => value >= 0.01 && value <= 0.05)).toBe(true);
+  });
+});
+
+describe('锻造外观阶段', () => {
+  it.each([
+    [0, 'original'],
+    [4, 'original'],
+    [5, 'gleam'],
+    [8, 'gleam'],
+    [9, 'radiant'],
+    [11, 'radiant'],
+    [12, 'starforged'],
+    [14, 'starforged'],
+    [15, 'sakura'],
+  ] as const)('+%i 对应 %s', (level, stage) => {
+    expect(forgeStageAt(level)).toBe(stage);
+  });
+
+  it('拒绝越界等级', () => {
+    expect(() => forgeStageAt(-1)).toThrow();
+    expect(() => forgeStageAt(16)).toThrow();
   });
 });

@@ -260,6 +260,34 @@ describe('区域 1–2 内容完整性', () => {
     }
   });
 
+  it('高阶强化材料同时具备首通赠予和真实可重复掉落来源', () => {
+    const highTierMaterials = ['ore_black', 'lucky_nine', 'charm_protect'];
+    const bossTableIds = new Set(
+      Object.values(MONSTERS)
+        .filter((monster) => monster.type === 'boss')
+        .map((monster) => monster.lootTableId),
+    );
+
+    for (const itemId of highTierMaterials) {
+      expect(
+        Object.values(STAGES).some((stage) =>
+          stage.firstClearRewards.some((reward) => reward.itemId === itemId),
+        ),
+        `${itemId} 缺少首通来源`,
+      ).toBe(true);
+      expect(
+        [...bossTableIds].some((tableId) => {
+          const table = LOOT_TABLES[tableId]!;
+          return [...table.entries, ...(table.guaranteed ?? [])].some(
+            (entry) => entry.itemId === itemId,
+          );
+        }),
+        `${itemId} 缺少可重复 BOSS 来源`,
+      ).toBe(true);
+      expect(existsSync(resolve('public', ITEMS[itemId]!.icon)), `${itemId} 图标`).toBe(true);
+    }
+  });
+
   it('装备定义满足槽位、等级和品质基本约束', () => {
     for (const [id, equipment] of Object.entries(EQUIPMENT)) {
       expect(equipment.id).toBe(id);

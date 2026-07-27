@@ -3,10 +3,11 @@
  *
  * 用法：npm run sim
  *
- * 输出三份东西：
+ * 输出四份东西：
  *   1. 校验点表     —— 用来核对 docs/10-数值与战斗.md 里的关键数字
  *   2. 30 天成长曲线 —— 玩家每天能到几级，有没有断档
  *   3. 三职业对比    —— 挂机效率是否在 ±20% 平衡带内
+ *   4. 装备随机健康检查 —— 独立验证胚子与逐级强化随机，不混入理想满配曲线
  *
  * 之所以能有这个工具，是因为 core 层是纯函数（AGENTS.md 铁律 1）。
  * 任何人改了公式，跑一次这个脚本就知道有没有把曲线搞坏。
@@ -18,6 +19,11 @@ import { fileURLToPath } from 'node:url';
 
 import type { ClassId, Combatant, EquipSlot, Quality, Stats } from '../src/core/types';
 import { combatPower, zeroStats } from '../src/core/formula';
+import {
+  enhanceMultiplier,
+  rollBasePermille,
+  rollEnhanceGainPermille,
+} from '../src/core/equipment';
 import {
   applyClassMods,
   averageSkillMultiplier,
@@ -38,9 +44,13 @@ import {
   SLOT_PCT_WEIGHTS,
   SLOT_WEIGHTS,
   CRIT_RATE_CAP,
+  ENHANCE_MAX,
+  ENHANCE_PER_LEVEL,
+  ENHANCE_TOTAL_GAIN_CAP_PERMILLE,
 } from '../src/data/constants';
 import { killsPerSecond } from '../src/core/idle';
 import type { IdleContext } from '../src/core/idle';
+import { Rng } from '../src/core/rng';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = resolve(__dirname, 'out');
@@ -261,6 +271,126 @@ function classBalance() {
 }
 
 // ──────────────────────────────────────────────────────────
+// 4. 装备随机健康检查
+//
+// 这一段只采样独立的掉落胚子与 +1～+15 单级增幅，不把随机强化
+// 乘进上面的 30 天「理想满配」模型。两者混用会让随机方差掩盖
+// 玩家/怪物成长指数本身的问题。
+// ──────────────────────────────────────────────────────────
+
+const EQUIPMENT_RANDOM_SAMPLE_SIZE = 10_000;
+const EQUIPMENT_RANDOM_SEED = 0x5341_4b55;
+const MAX_BASE_MIRACLE_RATE = 0.03;
+const MAX_ENHANCE_MIRACLE_RATE = 0.02;
+
+type GradeCounts = Record<string, number>;
+
+function incrementGrade(counts: GradeCounts, grade: string): void {
+  counts[grade] = (counts[grade] ?? 0) + 1;
+}
+
+function nearestRank(sorted: readonly number[], percentile: number): number {
+  if (sorted.length === 0) throw new Error('nearestRank: 样本不能为空');
+  if (!Number.isFinite(percentile) || percentile < 0 || percentile > 1) {
+    throw new Error(`nearestRank: 分位数必须在 0~1，收到 ${percentile}`);
+  }
+  const index = Math.max(0, Math.ceil(percentile * sorted.length) - 1);
+  return sorted[index]!;
+}
+
+function gradeRows(counts: GradeCounts, total: number) {
+  return Object.entries(counts).map(([grade, count]) => ({
+    档位: grade,
+    数量: count,
+    占比: `${((count / total) * 100).toFixed(2)}%`,
+  }));
+}
+
+function equipmentRandomHealth() {
+  const rng = new Rng(EQUIPMENT_RANDOM_SEED);
+  const baseCounts: GradeCounts = {};
+  const enhanceCounts: GradeCounts = {};
+  const multipliers: number[] = [];
+
+  for (let item = 0; item < EQUIPMENT_RANDOM_SAMPLE_SIZE; item++) {
+    const baseRoll = rollBasePermille(rng);
+    incrementGrade(baseCounts, baseRoll.grade);
+
+    const gains = Array.from({ length: ENHANCE_MAX }, () => {
+      const gain = rollEnhanceGainPermille(rng);
+      incrementGrade(enhanceCounts, gain.grade);
+      return gain.permille;
+    });
+    multipliers.push(enhanceMultiplier(ENHANCE_MAX, gains));
+  }
+
+  multipliers.sort((a, b) => a - b);
+  const average = multipliers.reduce((sum, value) => sum + value, 0) / multipliers.length;
+  const summary = {
+    min: multipliers[0]!,
+    avg: average,
+    p50: nearestRank(multipliers, 0.5),
+    p95: nearestRank(multipliers, 0.95),
+    p99: nearestRank(multipliers, 0.99),
+    max: multipliers[multipliers.length - 1]!,
+  };
+
+  console.log(
+    `\n【装备随机健康检查】固定种子 0x${EQUIPMENT_RANDOM_SEED.toString(16)}，${EQUIPMENT_RANDOM_SAMPLE_SIZE.toLocaleString()} 件装备\n`,
+  );
+  console.log('胚子档位占比：');
+  console.table(gradeRows(baseCounts, EQUIPMENT_RANDOM_SAMPLE_SIZE));
+  console.log(
+    `单级强化档位占比（共 ${(EQUIPMENT_RANDOM_SAMPLE_SIZE * ENHANCE_MAX).toLocaleString()} 次）：`,
+  );
+  console.table(gradeRows(enhanceCounts, EQUIPMENT_RANDOM_SAMPLE_SIZE * ENHANCE_MAX));
+  console.log('+15 强化倍率分布（不含胚子倍率）：');
+  console.table([
+    Object.fromEntries(
+      Object.entries(summary).map(([key, value]) => [key, `×${value.toFixed(4)}`]),
+    ),
+  ]);
+
+  const legacyMultiplier = 1 + ENHANCE_PER_LEVEL * ENHANCE_MAX;
+  const multiplierCap = 1 + ENHANCE_TOTAL_GAIN_CAP_PERMILLE / 1000;
+  const baseMiracleCount = baseCounts.miracle ?? 0;
+  const enhanceMiracleCount = enhanceCounts.miracle ?? 0;
+  const baseMiracleRate = baseMiracleCount / EQUIPMENT_RANDOM_SAMPLE_SIZE;
+  const enhanceMiracleRate = enhanceMiracleCount / (EQUIPMENT_RANDOM_SAMPLE_SIZE * ENHANCE_MAX);
+  const epsilon = 1e-12;
+
+  if (summary.min + epsilon < legacyMultiplier) {
+    throw new Error(
+      `[装备随机失衡] +15 最低倍率 ×${summary.min.toFixed(4)} 低于旧版 ×${legacyMultiplier.toFixed(2)}`,
+    );
+  }
+  if (summary.max - epsilon > multiplierCap) {
+    throw new Error(
+      `[装备随机失衡] +15 最高倍率 ×${summary.max.toFixed(4)} 超过硬上限 ×${multiplierCap.toFixed(2)}`,
+    );
+  }
+  if (baseMiracleCount === 0 || baseMiracleRate > MAX_BASE_MIRACLE_RATE) {
+    throw new Error(
+      `[装备随机失衡] 奇迹胚子数量 ${baseMiracleCount}，占比 ${(baseMiracleRate * 100).toFixed(2)}%`,
+    );
+  }
+  if (enhanceMiracleCount === 0 || enhanceMiracleRate > MAX_ENHANCE_MIRACLE_RATE) {
+    throw new Error(
+      `[装备随机失衡] 奇迹单级增幅数量 ${enhanceMiracleCount}，占比 ${(enhanceMiracleRate * 100).toFixed(2)}%`,
+    );
+  }
+
+  console.log(
+    `✔ 最低倍率不低于旧版 ×${legacyMultiplier.toFixed(2)}，最高不超过 ×${multiplierCap.toFixed(2)}`,
+  );
+  console.log(
+    `✔ 奇迹胚子 ${(baseMiracleRate * 100).toFixed(2)}%，奇迹单级增幅 ${(enhanceMiracleRate * 100).toFixed(2)}%，均非零且未过量\n`,
+  );
+
+  return { baseCounts, enhanceCounts, summary };
+}
+
+// ──────────────────────────────────────────────────────────
 // 主流程
 // ──────────────────────────────────────────────────────────
 
@@ -282,6 +412,7 @@ function main() {
   );
 
   const balance = classBalance();
+  equipmentRandomHealth();
 
   mkdirSync(OUT_DIR, { recursive: true });
   writeFileSync(resolve(OUT_DIR, 'checkpoints.csv'), toCsv(checkpoints), 'utf8');

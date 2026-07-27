@@ -7,7 +7,9 @@
 
 import {
   ENHANCE_BREAK_FROM,
+  ENHANCE_COST_TIERS,
   ENHANCE_DOWNGRADE_FROM,
+  ENHANCE_GOLD_PER_EQUIPMENT_LEVEL,
   ENHANCE_MAX,
   ENHANCE_RATES,
   LUCK_FULL,
@@ -60,6 +62,15 @@ export interface EnhanceResult {
   protectionConsumed: boolean;
 }
 
+export interface EnhanceCost {
+  targetLevel: number;
+  equipmentLevel: number;
+  gold: number;
+  stone: number;
+  ore: number;
+  lucky: number;
+}
+
 /**
  * 查询目标强化等级的成功率与失败惩罚。
  */
@@ -96,6 +107,37 @@ export function luckGainForRate(rate: number): number {
 }
 
 /**
+ * 单次强化的确定消耗。
+ *
+ * 强化石数量 = 目标等级²；金币再乘装备需求等级，让高等级装备保持长期消耗价值。
+ * 玄铁矿与幸运九由数据表的强化分段决定，UI 和 store 不得重复写公式。
+ */
+export function enhanceCost(targetLevel: number, equipmentLevel: number): EnhanceCost {
+  enhanceRule(targetLevel);
+  if (!Number.isInteger(equipmentLevel) || equipmentLevel < 1) {
+    throw new Error(`enhanceCost: 装备等级必须是正整数，收到 ${equipmentLevel}`);
+  }
+
+  const tier = ENHANCE_COST_TIERS.find((entry) => targetLevel >= entry.minTargetLevel);
+  if (!tier) throw new Error(`[配置错误] +${targetLevel} 缺少强化消耗分段`);
+
+  const stone = targetLevel ** 2;
+  const gold = stone * equipmentLevel * ENHANCE_GOLD_PER_EQUIPMENT_LEVEL;
+  if (!Number.isSafeInteger(gold)) {
+    throw new Error(`enhanceCost: 金币消耗超出安全整数范围`);
+  }
+
+  return {
+    targetLevel,
+    equipmentLevel,
+    gold,
+    stone,
+    ore: tier.ore,
+    lucky: tier.lucky,
+  };
+}
+
+/**
  * 判定一次强化。
  *
  * 每个合法尝试固定推进 RNG 一次，便于按「一次操作对应一格随机流」复盘。
@@ -105,9 +147,7 @@ export function attemptEnhance(attempt: EnhanceAttempt, rng: Rng): EnhanceResult
   const { level, luck, useProtection } = attempt;
 
   if (!Number.isInteger(level) || level < 0 || level >= ENHANCE_MAX) {
-    throw new Error(
-      `attemptEnhance: 当前强化等级必须在 0~${ENHANCE_MAX - 1}，收到 ${level}`,
-    );
+    throw new Error(`attemptEnhance: 当前强化等级必须在 0~${ENHANCE_MAX - 1}，收到 ${level}`);
   }
   if (!Number.isInteger(luck) || luck < 0 || luck > LUCK_FULL) {
     throw new Error(`attemptEnhance: 幸运值必须在 0~${LUCK_FULL}，收到 ${luck}`);

@@ -19,6 +19,9 @@ export type Element = 'fire' | 'ice' | 'thunder' | 'none';
 /** 装备品质，见 docs/12-装备体系.md */
 export type Quality = 'common' | 'fine' | 'rare' | 'epic' | 'legendary' | 'mythic' | 'divine';
 
+/** 强化里程碑对应的锻造外观阶段；不改变装备本身品质。 */
+export type ForgeStage = 'original' | 'gleam' | 'radiant' | 'starforged' | 'sakura';
+
 /** 8 个装备槽位 */
 export type EquipSlot =
   'weapon' | 'head' | 'body' | 'necklace' | 'bracelet' | 'ring' | 'belt' | 'shoes';
@@ -115,6 +118,16 @@ export interface EquipmentInstance {
   defId: string;
   /** 强化等级 0~15 */
   enhance: number;
+  /** 基础胚子倍率，千分数；1000 表示定义基础属性的 100%。 */
+  baseRollPermille: number;
+  /**
+   * +1～+15 每一级首次成功时固定下来的强化增幅，千分数。
+   *
+   * 未到达且从未成功过的等级为 0；掉级后保留原值，重新升回时不得重掷。
+   */
+  enhanceGainPermille: number[];
+  /** 目标强化等级字符串 → 幸运值；只保存非零桶。 */
+  enhanceLuck: Record<string, number>;
   /** 随机词条，数量由品质决定 */
   affixes: Affix[];
   /** 是否锁定（防止被一键分解） */

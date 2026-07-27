@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { attemptEnhance, enhanceRule, luckGainForRate } from '../enhance';
+import { attemptEnhance, enhanceCost, enhanceRule, luckGainForRate } from '../enhance';
 import { Rng } from '../rng';
 
 /**
@@ -51,6 +51,36 @@ describe('强化规则', () => {
       expect(() => enhanceRule(targetLevel)).toThrow();
     },
   );
+});
+
+describe('强化消耗', () => {
+  it.each([
+    [1, 20, 1, 160, 0, 0],
+    [9, 20, 81, 12_960, 0, 0],
+    [10, 20, 100, 16_000, 5, 0],
+    [12, 20, 144, 23_040, 5, 0],
+    [13, 20, 169, 27_040, 20, 1],
+    [15, 20, 225, 36_000, 20, 1],
+  ])(
+    '目标 +%i、装备 Lv%i 的消耗来自唯一公式',
+    (targetLevel, equipmentLevel, stone, gold, ore, lucky) => {
+      expect(enhanceCost(targetLevel, equipmentLevel)).toEqual({
+        targetLevel,
+        equipmentLevel,
+        stone,
+        gold,
+        ore,
+        lucky,
+      });
+    },
+  );
+
+  it('拒绝非法目标等级与装备等级', () => {
+    expect(() => enhanceCost(0, 20)).toThrow();
+    expect(() => enhanceCost(16, 20)).toThrow();
+    expect(() => enhanceCost(1, 0)).toThrow('装备等级');
+    expect(() => enhanceCost(1, 1.5)).toThrow('装备等级');
+  });
 });
 
 describe('幸运值', () => {

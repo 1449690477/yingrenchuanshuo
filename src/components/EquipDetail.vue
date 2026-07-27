@@ -3,7 +3,7 @@ import { computed } from 'vue';
 import { X } from '@lucide/vue';
 import { abbr, signed } from '@/core/format';
 import { zeroStats } from '@/core/formula';
-import { instanceStats } from '@/core/equipment';
+import { baseRollGrade, enhanceMultiplier, forgeStageAt, instanceStats } from '@/core/equipment';
 import type { EquipmentInstance, Stats } from '@/core/types';
 import { useInventoryStore } from '@/stores/inventory';
 import { usePlayerStore } from '@/stores/player';
@@ -23,6 +23,29 @@ const stats = computed<Stats>(() =>
 );
 
 const cp = computed(() => inventory.contributionCp(props.inst));
+const baseGrade = computed(() => baseRollGrade(props.inst.baseRollPermille));
+const forgeStage = computed(() => forgeStageAt(props.inst.enhance));
+const enhanceBonus = computed(
+  () => (enhanceMultiplier(props.inst.enhance, props.inst.enhanceGainPermille) - 1) * 100,
+);
+const baseGradeLabel = computed(
+  () =>
+    ({
+      steady: '稳固胚',
+      refined: '精工胚',
+      miracle: '奇迹胚',
+    })[baseGrade.value],
+);
+const forgeStageLabel = computed(
+  () =>
+    ({
+      original: '原初',
+      gleam: '微光',
+      radiant: '辉光',
+      starforged: '星铸',
+      sakura: '樱华',
+    })[forgeStage.value],
+);
 const classMatched = computed(
   () => !def.value.classId || def.value.classId === player.player?.classId,
 );
@@ -81,7 +104,7 @@ function doDecompose() {
   <div class="overlay" @click.self="emit('close')">
     <div v-if="def" class="sheet">
       <header class="head" :class="'hq-' + def.quality">
-        <EquipmentIcon :def="def" size="lg" :locked="inst.locked" />
+        <EquipmentIcon :def="def" :enhance="inst.enhance" size="lg" :locked="inst.locked" />
         <div class="title">
           <span class="name" :class="'q-' + def.quality">
             {{ def.name }}
@@ -107,8 +130,20 @@ function doDecompose() {
           <span class="num">{{ signed(compare.delta) }}</span>
         </div>
 
+        <section class="growth-rolls">
+          <span :class="`base-${baseGrade}`">
+            <small>随机胚子</small>
+            <b>{{ baseGradeLabel }} · +{{ ((inst.baseRollPermille - 1000) / 10).toFixed(1) }}%</b>
+          </span>
+          <span :class="`forge-${forgeStage}`">
+            <small>锻造阶段</small>
+            <b>{{ forgeStageLabel }} · 强化成长 +{{ enhanceBonus.toFixed(1) }}%</b>
+          </span>
+          <p>每级首次强化成功时固定成长；掉级后重新升回不会重掷，惊喜数值会永久保留。</p>
+        </section>
+
         <section class="group">
-          <div class="group-head">属性</div>
+          <div class="group-head">最终属性（已含胚子、强化与词条）</div>
           <div v-for="s in shownStats" :key="s.key" class="stat">
             <span>{{ s.label }}</span>
             <span class="num">{{ fmtStat(s.key, s.value) }}</span>
@@ -268,6 +303,60 @@ function doDecompose() {
 .cmp.down {
   color: #a33b43;
   background: #ffeef0;
+}
+
+.growth-rolls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.growth-rolls > span {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 9px;
+  color: #416c83;
+  background: #eef8fc;
+  border: 1px solid #c6e2ee;
+  border-radius: 9px;
+}
+
+.growth-rolls small {
+  font-size: 8px;
+  opacity: 0.75;
+}
+
+.growth-rolls b {
+  overflow: hidden;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.growth-rolls .base-refined,
+.growth-rolls .forge-radiant {
+  color: #6552a0;
+  background: #f4f0ff;
+  border-color: #d8caf4;
+}
+
+.growth-rolls .base-miracle,
+.growth-rolls .forge-starforged,
+.growth-rolls .forge-sakura {
+  color: #9b5c36;
+  background: linear-gradient(120deg, #fff8df, #fff0f6);
+  border-color: #f0d0a9;
+}
+
+.growth-rolls p {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 0 2px;
+  color: var(--text-dim);
+  font-size: 8px;
+  line-height: 1.45;
 }
 
 .group {

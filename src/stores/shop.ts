@@ -1,6 +1,7 @@
 import { computed } from 'vue';
 import { defineStore } from 'pinia';
 import type { EquipmentInstance } from '@/core/types';
+import { createFixedInstance } from '@/core/equipment';
 import { BOUTIQUE_THEMES } from '@/data/boutique';
 import { requireEquipment } from '@/data/equipment';
 import { SHOP_OFFERS } from '@/data/shop';
@@ -31,13 +32,7 @@ export const useShopStore = defineStore('shop', () => {
   const purchasedCount = computed(() => game.save?.shop.purchasedOfferIds.length ?? 0);
 
   function previewInstance(defId: string): EquipmentInstance {
-    return {
-      uid: `shop-preview-${defId}`,
-      defId,
-      enhance: 0,
-      affixes: [],
-      locked: true,
-    };
+    return createFixedInstance(requireEquipment(defId), `shop-preview-${defId}`, true);
   }
 
   return {

@@ -2,7 +2,9 @@ import 'fake-indexeddb/auto';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createInstance } from '@/core/equipment';
+import type { EquipmentInstance } from '@/core/types';
 import { Rng } from '@/core/rng';
+import { ENHANCE_MAX, ENHANCE_MATERIAL_IDS } from '@/data/constants';
 import { requireEquipment } from '@/data/equipment';
 import { SHOP_OFFERS } from '@/data/shop';
 import { createSave } from '@/save/schema';
@@ -98,6 +100,225 @@ describe('equipment decisions', () => {
     expect(game.equip(item.uid)).toBe(false);
     expect(game.equipBest()).toBe(0);
     expect(game.save?.equipped.weapon).toBeNull();
+    await game.persist();
+  });
+});
+
+function enhancedInstance(
+  enhance: number,
+  overrides: Partial<EquipmentInstance> = {},
+): EquipmentInstance {
+  return {
+    uid: 'e1',
+    defId: 'eq_r1_weapon_common',
+    enhance,
+    baseRollPermille: 1000,
+    enhanceGainPermille: Array.from({ length: ENHANCE_MAX }, (_, index) =>
+      index < enhance ? 80 : 0,
+    ),
+    enhanceLuck: {},
+    affixes: [],
+    locked: false,
+    ...overrides,
+  };
+}
+
+function forgeSave(instance: EquipmentInstance, seed: number) {
+  const save = createSave('强化测试', 'swordsman', seed, Date.now());
+  save.player.level = 20;
+  save.player.gold = 10_000_000;
+  save.nextUid = 2;
+  save.bag.items = {
+    [ENHANCE_MATERIAL_IDS.stone]: 100_000,
+    [ENHANCE_MATERIAL_IDS.ore]: 100_000,
+    [ENHANCE_MATERIAL_IDS.lucky]: 100_000,
+    [ENHANCE_MATERIAL_IDS.protection]: 10,
+  };
+  save.bag.equipment.push(instance);
+  return save;
+}
+
+function seedForRoll(predicate: (roll: number) => boolean): number {
+  for (let seed = 1; seed < 100_000; seed++) {
+    if (predicate(new Rng(seed).next())) return seed;
+  }
+  throw new Error('测试未找到符合条件的种子');
+}
+
+describe('enhancement transaction', () => {
+  it('满幸运成功只推进一格主 RNG，并固定首次成功的随机增幅', async () => {
+    const seed = 91;
+    const instance = enhancedInstance(5, { enhanceLuck: { '6': 100 } });
+    const game = useGameStore();
+    const save = forgeSave(instance, seed);
+    save.bag.equipment = [];
+    save.equipped.weapon = instance;
+    game.loadFrom(save);
+    const expectedRng = new Rng(seed);
+    expectedRng.next();
+
+    const result = game.enhanceEquipment(instance.uid, false);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.result).toMatchObject({
+      outcome: 'success',
+      targetLevel: 6,
+      nextLevel: 6,
+      guaranteed: true,
+      protectionConsumed: false,
+    });
+    expect(result.gainRoll).not.toBeNull();
+    expect(result.instance?.enhance).toBe(6);
+    expect(result.instance?.enhanceGainPermille[5]).toBe(result.gainRoll?.permille);
+    expect(result.instance?.enhanceLuck).not.toHaveProperty('6');
+    expect(game.save?.rngState).toBe(expectedRng.getState());
+    expect(result.cpDelta).toBeGreaterThan(0);
+    await game.persist();
+  });
+
+  it('普通失败保级、增加当前目标幸运，并照常扣基础材料', async () => {
+    const seed = seedForRoll((roll) => roll >= 0.85);
+    const instance = enhancedInstance(5);
+    const save = forgeSave(instance, seed);
+    const beforeGold = save.player.gold;
+    const beforeStone = save.bag.items[ENHANCE_MATERIAL_IDS.stone]!;
+    const game = useGameStore();
+    game.loadFrom(save);
+
+    const result = game.enhanceEquipment(instance.uid, false);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.result.outcome).toBe('failed');
+    expect(result.instance?.enhance).toBe(5);
+    expect(result.instance?.enhanceLuck['6']).toBe(2);
+    expect(game.save?.player.gold).toBe(beforeGold - result.cost.gold);
+    expect(game.save?.bag.items[ENHANCE_MATERIAL_IDS.stone]).toBe(beforeStone - result.cost.stone);
+    await game.persist();
+  });
+
+  it('冲 +10 失败会掉级，但保留已掷出的高位增幅供复升复用', async () => {
+    const seed = seedForRoll((roll) => roll >= 0.45);
+    const instance = enhancedInstance(9);
+    const game = useGameStore();
+    game.loadFrom(forgeSave(instance, seed));
+
+    const result = game.enhanceEquipment(instance.uid, false);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.result.outcome).toBe('downgraded');
+    expect(result.instance?.enhance).toBe(8);
+    expect(result.instance?.enhanceGainPermille[8]).toBe(80);
+    expect(result.instance?.enhanceLuck['10']).toBe(3);
+    await game.persist();
+  });
+
+  it('保护符只在实际防住碎裂时消耗', async () => {
+    const seed = seedForRoll((roll) => roll >= 0.22);
+    const instance = enhancedInstance(12);
+    const save = forgeSave(instance, seed);
+    save.bag.items[ENHANCE_MATERIAL_IDS.protection] = 1;
+    const game = useGameStore();
+    game.loadFrom(save);
+
+    const result = game.enhanceEquipment(instance.uid, true);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.result.outcome).toBe('protected');
+    expect(result.result.protectionConsumed).toBe(true);
+    expect(result.instance?.enhance).toBe(12);
+    expect(result.instance?.enhanceLuck['13']).toBe(5);
+    expect(game.save?.bag.items[ENHANCE_MATERIAL_IDS.protection]).toBeUndefined();
+    await game.persist();
+  });
+
+  it('碎裂会从背包或穿戴槽删除整件装备及其全部幸运桶', async () => {
+    const seed = seedForRoll((roll) => roll >= 0.22);
+
+    for (const location of ['bag', 'equipped'] as const) {
+      setActivePinia(createPinia());
+      const instance = enhancedInstance(12, { enhanceLuck: { '13': 40, '14': 12 } });
+      const save = forgeSave(instance, seed);
+      if (location === 'equipped') {
+        save.bag.equipment = [];
+        save.equipped.weapon = instance;
+      }
+      const game = useGameStore();
+      game.loadFrom(save);
+
+      const result = game.enhanceEquipment(instance.uid, false);
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) continue;
+      expect(result.result.outcome).toBe('broken');
+      expect(result.instance).toBeNull();
+      expect(game.save?.bag.equipment).toHaveLength(0);
+      expect(game.save?.equipped.weapon).toBeNull();
+      await game.persist();
+    }
+  });
+
+  it('幸运保底成功不要求也不消耗保护符', async () => {
+    const instance = enhancedInstance(12, { enhanceLuck: { '13': 100 } });
+    const save = forgeSave(instance, 12);
+    delete save.bag.items[ENHANCE_MATERIAL_IDS.protection];
+    const game = useGameStore();
+    game.loadFrom(save);
+
+    const quote = game.quoteEnhance(instance.uid, true);
+    expect(quote.ok && quote.guaranteed).toBe(true);
+    const result = game.enhanceEquipment(instance.uid, true);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.result.outcome).toBe('success');
+    expect(result.result.protectionConsumed).toBe(false);
+    expect(game.save?.bag.items[ENHANCE_MATERIAL_IDS.protection]).toBeUndefined();
+    await game.persist();
+  });
+
+  it('掉级后复升已有增幅时不重掷该格', async () => {
+    const gains: number[] = Array.from({ length: ENHANCE_MAX }, (_, index) => (index < 8 ? 80 : 0));
+    gains[8] = 110;
+    const instance = enhancedInstance(8, {
+      enhanceGainPermille: gains,
+      enhanceLuck: { '9': 100 },
+    });
+    const game = useGameStore();
+    game.loadFrom(forgeSave(instance, 44));
+
+    const result = game.enhanceEquipment(instance.uid, false);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.result.outcome).toBe('success');
+    expect(result.gainRoll).toBeNull();
+    expect(result.instance?.enhanceGainPermille[8]).toBe(110);
+    await game.persist();
+  });
+
+  it.each([
+    ['insufficient-gold', 'gold'],
+    ['insufficient-stone', 'stone'],
+    ['insufficient-ore', 'ore'],
+    ['insufficient-lucky', 'lucky'],
+    ['insufficient-protection', 'protection'],
+  ] as const)('%s 时资产与 RNG 完全不变', async (reason, missing) => {
+    const instance = enhancedInstance(12);
+    const save = forgeSave(instance, 77);
+    if (missing === 'gold') save.player.gold = 0;
+    else delete save.bag.items[ENHANCE_MATERIAL_IDS[missing]];
+    const game = useGameStore();
+    game.loadFrom(save);
+    const before = JSON.parse(JSON.stringify(game.save));
+
+    const result = game.enhanceEquipment(instance.uid, missing === 'protection');
+
+    expect(result).toEqual({ ok: false, reason });
+    expect(game.save).toEqual(before);
     await game.persist();
   });
 });

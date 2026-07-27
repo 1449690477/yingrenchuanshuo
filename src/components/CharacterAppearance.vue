@@ -49,7 +49,8 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
       `class-${classId}`,
       `tier-${appearance.growthTier.id}`,
       `quality-${appearance.highestVisibleQuality}`,
-      `enhance-${appearance.enhanceStage}`,
+      `forge-${appearance.forgeStage}`,
+      `weapon-forge-${appearance.weaponForgeStage}`,
       appearance.activeBoutiqueTheme ? `theme-${appearance.activeBoutiqueTheme}` : '',
     ]"
     role="img"
@@ -75,7 +76,12 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
           v-for="layer in appearance.layers"
           :key="`${layer.slot}:${layer.id}`"
           class="equip-layer"
-          :class="[`slot-${layer.slot}`, `q-${layer.quality}`, `plus-${layer.enhance}`]"
+          :class="[
+            `slot-${layer.slot}`,
+            `q-${layer.quality}`,
+            `plus-${layer.enhance}`,
+            `forge-${layer.forgeStage}`,
+          ]"
           :style="layerStyle(layer)"
           :src="assetUrl(layer.asset)"
           alt=""
@@ -105,6 +111,9 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
     <span class="growth-particles" aria-hidden="true">
       <i v-for="n in 9" :key="n" />
     </span>
+    <span class="enhance-particles" aria-hidden="true">
+      <i v-for="n in 9" :key="n" />
+    </span>
   </span>
 </template>
 
@@ -122,6 +131,7 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
 .doll-frame,
 .growth-aura,
 .growth-particles,
+.enhance-particles,
 .boutique-effect {
   position: absolute;
   inset: 0;
@@ -238,6 +248,22 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
   filter: drop-shadow(0 2px 7px rgb(202 57 93 / 52%)) drop-shadow(0 0 5px rgb(255 213 127 / 62%));
 }
 
+.equip-layer.forge-gleam {
+  filter: drop-shadow(0 0 4px rgb(126 215 255 / 58%));
+}
+
+.equip-layer.forge-radiant {
+  filter: drop-shadow(0 0 4px rgb(126 199 255 / 72%)) drop-shadow(0 0 7px rgb(188 151 255 / 48%));
+}
+
+.equip-layer.forge-starforged {
+  filter: drop-shadow(0 0 5px rgb(255 214 132 / 78%)) drop-shadow(0 0 9px rgb(255 154 204 / 55%));
+}
+
+.equip-layer.forge-sakura {
+  filter: drop-shadow(0 0 5px rgb(255 244 185 / 92%)) drop-shadow(0 0 11px rgb(255 116 172 / 72%));
+}
+
 .boutique-effect {
   z-index: 7;
   display: grid;
@@ -347,6 +373,100 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
   pointer-events: none;
 }
 
+.enhance-particles {
+  z-index: 7;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.enhance-particles i {
+  --forge-x: 22%;
+  --forge-y: 34%;
+  position: absolute;
+  left: var(--forge-x);
+  top: var(--forge-y);
+  width: 4px;
+  height: 4px;
+  opacity: 0;
+  background: #9be4ff;
+  border: 1px solid rgb(255 255 255 / 88%);
+  border-radius: 1px;
+  box-shadow: 0 0 6px #8bdcff;
+  transform: rotate(45deg);
+}
+
+.forge-gleam > .enhance-particles i:nth-child(-n + 3),
+.forge-radiant > .enhance-particles i:nth-child(-n + 5),
+.forge-starforged > .enhance-particles i:nth-child(-n + 7),
+.forge-sakura > .enhance-particles i {
+  opacity: 0.82;
+  animation: forge-star 2.4s ease-in-out infinite;
+}
+
+.forge-radiant > .enhance-particles i {
+  background: #c4a7ff;
+}
+
+.forge-starforged > .enhance-particles i {
+  background: #ffe3a0;
+  box-shadow: 0 0 7px #ffbfda;
+}
+
+.forge-sakura > .enhance-particles i {
+  background: #fff4b8;
+  box-shadow:
+    0 0 7px #fff0a8,
+    0 0 11px #ff8fbd;
+}
+
+.enhance-particles i:nth-child(2) {
+  --forge-x: 78%;
+  --forge-y: 29%;
+  animation-delay: -0.4s !important;
+}
+
+.enhance-particles i:nth-child(3) {
+  --forge-x: 14%;
+  --forge-y: 61%;
+  animation-delay: -0.8s !important;
+}
+
+.enhance-particles i:nth-child(4) {
+  --forge-x: 87%;
+  --forge-y: 58%;
+  animation-delay: -1.2s !important;
+}
+
+.enhance-particles i:nth-child(5) {
+  --forge-x: 31%;
+  --forge-y: 78%;
+  animation-delay: -1.6s !important;
+}
+
+.enhance-particles i:nth-child(6) {
+  --forge-x: 68%;
+  --forge-y: 74%;
+  animation-delay: -2s !important;
+}
+
+.enhance-particles i:nth-child(7) {
+  --forge-x: 48%;
+  --forge-y: 18%;
+  animation-delay: -0.65s !important;
+}
+
+.enhance-particles i:nth-child(8) {
+  --forge-x: 8%;
+  --forge-y: 43%;
+  animation-delay: -1.05s !important;
+}
+
+.enhance-particles i:nth-child(9) {
+  --forge-x: 91%;
+  --forge-y: 40%;
+  animation-delay: -1.45s !important;
+}
+
 .growth-particles i {
   --particle-x: 18%;
   --particle-y: 31%;
@@ -443,24 +563,31 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
   pointer-events: none;
 }
 
-.enhance-1 .weapon-trail,
-.enhance-2 .weapon-trail,
-.enhance-3 .weapon-trail,
-.enhance-4 .weapon-trail {
+.weapon-forge-gleam .weapon-trail,
+.weapon-forge-radiant .weapon-trail,
+.weapon-forge-starforged .weapon-trail,
+.weapon-forge-sakura .weapon-trail {
   opacity: 0.38;
 }
 
-.enhance-2 .weapon-trail {
+.weapon-forge-radiant .weapon-trail {
   opacity: 0.58;
   box-shadow: 0 0 8px #8fd7ff;
 }
 
-.enhance-3 .weapon-trail,
-.enhance-4 .weapon-trail {
+.weapon-forge-starforged .weapon-trail,
+.weapon-forge-sakura .weapon-trail {
   opacity: 0.76;
   box-shadow:
     0 0 9px #8fd7ff,
     0 0 16px #ff9fca;
+}
+
+.weapon-forge-sakura .weapon-trail {
+  border-color: rgb(255 232 159 / 92%);
+  box-shadow:
+    0 0 10px #fff0a2,
+    0 0 18px #ff8fbd;
 }
 
 .action-idle .doll {
@@ -488,7 +615,8 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
 }
 
 .is-avatar .growth-aura,
-.is-avatar .growth-particles {
+.is-avatar .growth-particles,
+.is-avatar .enhance-particles {
   display: none;
 }
 
@@ -591,6 +719,18 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
   }
 }
 
+@keyframes forge-star {
+  0%,
+  100% {
+    opacity: 0.32;
+    transform: translateY(5px) rotate(45deg) scale(0.72);
+  }
+  48% {
+    opacity: 0.96;
+    transform: translateY(-7px) rotate(135deg) scale(1.16);
+  }
+}
+
 @keyframes boutique-burst {
   0% {
     opacity: 0;
@@ -625,6 +765,7 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
   .doll,
   .growth-aura,
   .growth-particles i,
+  .enhance-particles i,
   .weapon-trail,
   .boutique-effect img {
     animation: none !important;

@@ -96,7 +96,7 @@ function playSalvageBurst() {
       <template v-if="tab === 'equip'">
         <p v-if="bagEquips.length === 0" class="empty">背包空空的，去挂机打点装备吧～</p>
         <button v-for="e in bagEquips" :key="e.uid" class="row equip-row" @click="detail = e">
-          <EquipmentIcon :def="requireEquipment(e.defId)" :locked="e.locked" />
+          <EquipmentIcon :def="requireEquipment(e.defId)" :enhance="e.enhance" :locked="e.locked" />
           <span class="mid">
             <span class="name" :class="'q-' + requireEquipment(e.defId).quality">
               {{ requireEquipment(e.defId).name }}

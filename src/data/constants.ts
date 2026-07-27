@@ -12,6 +12,7 @@ import type {
   ClassId,
   Element,
   EquipSlot,
+  ForgeStage,
   MonsterType,
   Quality,
   Stats,
@@ -441,10 +442,39 @@ export const CLASS_INFO: Record<
 
 // ─────────────────────── 强化 ───────────────────────
 
-/** 每级强化提升装备基础属性的比例 */
+/** v3 及更早存档使用的固定单级增幅；仅用于迁移保值与回归测试。 */
 export const ENHANCE_PER_LEVEL = 0.08;
 
 export const ENHANCE_MAX = 15;
+
+/** 掉落装备的基础胚子随机：最低不低于旧版，2% 概率出现奇迹胚子。 */
+export const EQUIPMENT_BASE_ROLL_TIERS = [
+  { id: 'steady', weight: 80, min: 1000, max: 1060 },
+  { id: 'refined', weight: 18, min: 1061, max: 1120 },
+  { id: 'miracle', weight: 2, min: 1121, max: 1200 },
+] as const;
+export const EQUIPMENT_BASE_ROLL_MIN = 1000;
+export const EQUIPMENT_BASE_ROLL_MAX = 1200;
+
+/** 强化首次成功时的单级增幅；稳定档也不低于旧版每级 8%。 */
+export const ENHANCE_GAIN_TIERS = [
+  { id: 'stable', weight: 86, min: 80, max: 82 },
+  { id: 'excellent', weight: 13, min: 83, max: 95 },
+  { id: 'miracle', weight: 1, min: 110, max: 125 },
+] as const;
+export const ENHANCE_GAIN_MIN = 80;
+export const ENHANCE_GAIN_MAX = 125;
+/** 所有已生效强化增幅的硬上限：+135%，即强化倍率最多 ×2.35。 */
+export const ENHANCE_TOTAL_GAIN_CAP_PERMILLE = 1350;
+
+/** 强化阶段只改变外观表现，不改变装备的掉落品质和词条数量。 */
+export const FORGE_STAGE_THRESHOLDS: readonly { minLevel: number; stage: ForgeStage }[] = [
+  { minLevel: 15, stage: 'sakura' },
+  { minLevel: 12, stage: 'starforged' },
+  { minLevel: 9, stage: 'radiant' },
+  { minLevel: 5, stage: 'gleam' },
+  { minLevel: 0, stage: 'original' },
+];
 
 /** 各强化等级的成功率（索引 = 目标等级） */
 export const ENHANCE_RATES: Record<number, number> = {
@@ -473,6 +503,20 @@ export const ENHANCE_BREAK_FROM = 13;
 
 /** 幸运值满值。每次失败累加 ceil(100 / 成功率百分数)，满则必成。 */
 export const LUCK_FULL = 100;
+
+/** 强化消耗配置；石头始终为目标等级平方，金币还会乘装备需求等级。 */
+export const ENHANCE_GOLD_PER_EQUIPMENT_LEVEL = 8;
+export const ENHANCE_COST_TIERS = [
+  { minTargetLevel: 13, ore: 20, lucky: 1 },
+  { minTargetLevel: 10, ore: 5, lucky: 0 },
+  { minTargetLevel: 1, ore: 0, lucky: 0 },
+] as const;
+export const ENHANCE_MATERIAL_IDS = {
+  stone: 'stone_enhance',
+  ore: 'ore_black',
+  lucky: 'lucky_nine',
+  protection: 'charm_protect',
+} as const;
 
 /** 分解装备所得金币 = 装备等级 × 此系数 × (1 + 强化等级)。 */
 export const DECOMPOSE_GOLD_PER_LEVEL = 8;

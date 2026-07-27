@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { decomposeGold } from '../economy';
 import type { EquipmentDef, EquipmentInstance, Quality } from '../types';
+import { ENHANCE_MAX } from '@/data/constants';
 import { EQUIPMENT } from '@/data/equipment';
 import { SHOP_OFFERS } from '@/data/shop';
 
@@ -17,7 +18,18 @@ function equipment(quality: Quality): EquipmentDef {
 }
 
 function instance(defId: string, enhance = 0): EquipmentInstance {
-  return { uid: 'e1', defId, enhance, affixes: [], locked: false };
+  return {
+    uid: 'e1',
+    defId,
+    enhance,
+    baseRollPermille: 1000,
+    enhanceGainPermille: Array.from({ length: ENHANCE_MAX }, (_, index) =>
+      index < enhance ? 80 : 0,
+    ),
+    enhanceLuck: {},
+    affixes: [],
+    locked: false,
+  };
 }
 
 describe('装备分解经济', () => {
