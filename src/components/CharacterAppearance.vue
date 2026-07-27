@@ -362,6 +362,14 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
   animation: character-idle 2.6s ease-in-out infinite;
 }
 
+.is-battle {
+  animation: character-idle 2.6s ease-in-out infinite;
+}
+
+.is-battle.action-idle .doll {
+  animation: none;
+}
+
 .action-attack .doll {
   animation: character-attack 0.62s cubic-bezier(0.24, 0.82, 0.32, 1);
 }
@@ -413,11 +421,14 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
   100% {
     transform: translate(0) scale(1) rotate(0);
   }
-  22% {
-    transform: translate(-3%, 1%) scale(0.98) rotate(-1.4deg);
+  18% {
+    transform: translate(0.5%, 0.2%) scale(0.995) rotate(-0.25deg);
   }
-  52% {
-    transform: translate(7%, -1.5%) scale(1.035) rotate(2.2deg);
+  50% {
+    transform: translate(7%, -1.5%) scale(1.035) rotate(2deg);
+  }
+  72% {
+    transform: translate(2.5%, -0.4%) scale(1.012) rotate(0.7deg);
   }
 }
 
