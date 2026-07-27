@@ -4,13 +4,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { battleMonsterIdAt } from '@/core/battleVisual';
 import { decomposeGold } from '@/core/economy';
 import { createInstance } from '@/core/equipment';
-import type { EquipmentInstance } from '@/core/types';
+import { CLASS_IDS, type EquipmentInstance } from '@/core/types';
 import { Rng } from '@/core/rng';
 import { ENHANCE_MAX, ENHANCE_MATERIAL_IDS } from '@/data/constants';
 import { requireEquipment } from '@/data/equipment';
 import { SHOP_OFFERS } from '@/data/shop';
 import { ORDERED_STAGE_IDS, STAGES, nextStageId, totalMonsterCount } from '@/data/stages';
-import { createSave, SAVE_VERSION } from '@/save/schema';
+import { createSave, SAVE_VERSION, type SaveData } from '@/save/schema';
 import { clearSave, loadSave } from '@/save/storage';
 import { useGameStore } from '../game';
 import { useInventoryStore } from '../inventory';
@@ -92,12 +92,220 @@ describe('game store persistence', () => {
 
     const oreInBag = game.save?.bag.items[ENHANCE_MATERIAL_IDS.ore] ?? 0;
     const oreInOfflineModal =
-      game.offlineResult?.yield.loot.find(
-        (drop) => drop.itemId === ENHANCE_MATERIAL_IDS.ore,
-      )?.count ?? 0;
+      game.offlineResult?.yield.loot.find((drop) => drop.itemId === ENHANCE_MATERIAL_IDS.ore)
+        ?.count ?? 0;
     expect(oreInBag).toBeGreaterThan(0);
     expect(oreInOfflineModal).toBe(oreInBag);
     await game.persist();
+  });
+});
+
+describe('shared-progress class switching', () => {
+  it('只切职业并安全卸下旧职业武器，完整保留账号进度与装备实例', async () => {
+    const game = useGameStore();
+    const save = classSwitchSave();
+    const exclusiveWeapon = createInstance(
+      requireEquipment('eq_shop_berry-cream_weapon_witch'),
+      new Rng(302),
+      'switch-witch-weapon',
+    );
+    exclusiveWeapon.enhance = 2;
+    exclusiveWeapon.enhanceGainPermille[0] = 80;
+    exclusiveWeapon.enhanceGainPermille[1] = 95;
+    exclusiveWeapon.enhanceLuck['3'] = 37;
+    exclusiveWeapon.locked = false;
+    const universalBody = createInstance(
+      requireEquipment('eq_r1_body_rare'),
+      new Rng(303),
+      'switch-universal-body',
+    );
+    save.equipped.weapon = exclusiveWeapon;
+    save.equipped.body = universalBody;
+    game.loadFrom(save);
+    await game.persist();
+
+    const progressBefore = sharedProgressSnapshot(game.save!);
+    const weaponBefore = jsonClone(game.save!.equipped.weapon!);
+    const bodyBefore = jsonClone(game.save!.equipped.body!);
+    const result = await game.switchClass('catkin');
+
+    expect(result).toMatchObject({
+      ok: true,
+      fromClassId: 'witch',
+      toClassId: 'catkin',
+      movedCount: 1,
+      newlyLockedCount: 1,
+    });
+    expect(game.save?.player.classId).toBe('catkin');
+    expect(game.save?.equipped.weapon).toBeNull();
+    expect(game.save?.equipped.body).toEqual(bodyBefore);
+    expect(game.save?.bag.equipment).toContainEqual({
+      ...weaponBefore,
+      locked: true,
+    });
+    expect(sharedProgressSnapshot(game.save!)).toEqual(progressBefore);
+
+    const allUids = ownedEquipmentUids(game.save!);
+    expect(allUids).toEqual(['switch-universal-body', 'switch-witch-weapon']);
+    expect(new Set(allUids).size).toBe(allUids.length);
+
+    const persisted = await loadSave();
+    expect(persisted?.player.classId).toBe('catkin');
+    expect(persisted?.equipped.body).toEqual(bodyBefore);
+    expect(persisted?.bag.equipment).toContainEqual({
+      ...weaponBefore,
+      locked: true,
+    });
+  });
+
+  it('同职业切换是明确的 no-op，重复轮换四职业也不会复制或丢失资产', async () => {
+    const game = useGameStore();
+    const save = classSwitchSave();
+    save.bag.equipment.push(
+      createInstance(requireEquipment('eq_r1_ring_fine'), new Rng(304), 'switch-ring'),
+    );
+    game.loadFrom(save);
+    await game.persist();
+
+    const before = jsonClone(game.save!);
+    expect(await game.switchClass('witch')).toEqual({
+      ok: false,
+      reason: 'same-class',
+    });
+    expect(game.save).toEqual(before);
+
+    for (let index = 0; index < 100; index++) {
+      const classId = CLASS_IDS[index % CLASS_IDS.length]!;
+      if (classId === game.save?.player.classId) continue;
+      expect((await game.switchClass(classId)).ok).toBe(true);
+    }
+
+    expect(ownedEquipmentUids(game.save!)).toEqual(['switch-ring']);
+    expect(game.save?.nextUid).toBe(before.nextUid);
+    expect(game.save?.player.level).toBe(before.player.level);
+    expect(game.save?.progress).toEqual(before.progress);
+  });
+
+  it('满背包切换时宁可临时超容，也不会分解或吞掉职业专属装备', async () => {
+    const game = useGameStore();
+    const save = classSwitchSave();
+    save.bag.equipment = Array.from({ length: 300 }, (_, index) =>
+      createInstance(
+        requireEquipment('eq_r1_ring_common'),
+        new Rng(index + 400),
+        `switch-bag-${index}`,
+      ),
+    );
+    save.equipped.weapon = createInstance(
+      requireEquipment('eq_shop_berry-cream_weapon_witch'),
+      new Rng(701),
+      'switch-full-bag-weapon',
+    );
+    game.loadFrom(save);
+    await game.persist();
+    const goldBefore = game.save!.player.gold;
+
+    expect((await game.switchClass('shaman')).ok).toBe(true);
+
+    expect(game.save?.bag.equipment).toHaveLength(301);
+    expect(ownedEquipmentUids(game.save!)).toHaveLength(301);
+    expect(game.save?.player.gold).toBe(goldBefore);
+    expect(game.save?.bag.equipment.at(-1)).toMatchObject({
+      uid: 'switch-full-bag-weapon',
+      locked: true,
+    });
+  });
+
+  it('战斗中切换保留当前怪物掉血比例，并清掉旧职业的攻击拍子', async () => {
+    const game = useGameStore();
+    game.loadFrom(classSwitchSave());
+    await game.persist();
+
+    const frames: FrameRequestCallback[] = [];
+    let rafSequence = 0;
+    vi.stubGlobal(
+      'requestAnimationFrame',
+      vi.fn((callback: FrameRequestCallback) => {
+        frames.push(callback);
+        return ++rafSequence;
+      }),
+    );
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+    let clock = 1_000;
+    vi.spyOn(performance, 'now').mockImplementation(() => clock);
+
+    game.startLoop();
+    const firstFrame = frames.shift();
+    expect(firstFrame).toBeDefined();
+    if (!firstFrame) throw new Error('实时挂机循环没有登记首帧回调');
+    // 实时循环小于 0.25 秒会主动跳帧；0.9 / 最高 3 KPS 仍有 0.3 秒，
+    // 既能进入主流程，又不会真的结算一只怪。
+    clock += (0.9 / game.kps) * 1_000;
+    firstFrame(clock);
+    game.stopLoop();
+
+    expect(game.battleProgress).toBeCloseTo(0.9, 5);
+    expect(game.battleBeats.length).toBeGreaterThan(0);
+    const progressBefore = game.battleProgress;
+    const killsBefore = game.save!.stats.totalKills;
+    const stageKillsBefore = jsonClone(game.save!.progress.stageKills);
+
+    expect((await game.switchClass('swordsman')).ok).toBe(true);
+
+    expect(game.battleProgress).toBeCloseTo(progressBefore, 10);
+    expect(game.battleBeats).toEqual([]);
+    expect(game.battlePulse).toBeNull();
+    expect(game.save?.stats.totalKills).toBe(killsBefore);
+    expect(game.save?.progress.stageKills).toEqual(stageKillsBefore);
+  });
+
+  it('回刷已通关关卡时切换职业不会把当前波次目标倒退到第一只怪', async () => {
+    const game = useGameStore();
+    const save = classSwitchSave();
+    const stage = STAGES[save.progress.currentStageId]!;
+    save.progress.clearedStageIds.push(stage.id);
+    save.progress.stageKills[stage.id] = totalMonsterCount(stage);
+    game.loadFrom(save);
+    await game.persist();
+
+    const firstTargetId = battleMonsterIdAt(stage, 0);
+    const nextTargetCursor = Array.from(
+      { length: totalMonsterCount(stage) },
+      (_, index) => index,
+    ).find((index) => index > 0 && battleMonsterIdAt(stage, index) !== firstTargetId);
+    expect(nextTargetCursor).toBeDefined();
+    if (!nextTargetCursor) throw new Error('测试关卡没有第二种可用于验收的怪物');
+
+    const frames: FrameRequestCallback[] = [];
+    let rafSequence = 0;
+    vi.stubGlobal(
+      'requestAnimationFrame',
+      vi.fn((callback: FrameRequestCallback) => {
+        frames.push(callback);
+        return ++rafSequence;
+      }),
+    );
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+    let clock = 2_000;
+    vi.spyOn(performance, 'now').mockImplementation(() => clock);
+
+    game.startLoop();
+    const firstFrame = frames.shift();
+    expect(firstFrame).toBeDefined();
+    if (!firstFrame) throw new Error('实时挂机循环没有登记首帧回调');
+    clock += ((nextTargetCursor + 0.4) / game.kps) * 1_000;
+    firstFrame(clock);
+    game.stopLoop();
+
+    const expectedTargetId = battleMonsterIdAt(stage, nextTargetCursor);
+    expect(expectedTargetId).not.toBe(firstTargetId);
+    expect(game.battlePulse).not.toBeNull();
+
+    expect((await game.switchClass('catkin')).ok).toBe(true);
+
+    expect(game.battlePulse).toBeNull();
+    expect(game.battleTargetId).toBe(expectedTargetId);
+    expect(game.battleProgress).toBeCloseTo(0.4, 5);
   });
 });
 
@@ -249,6 +457,78 @@ describe('encounter transaction', () => {
     await game.persist();
   });
 });
+
+function classSwitchSave(): SaveData {
+  const now = Date.now() + 60_000;
+  const save = createSave('共享进度测试', 'witch', 301, now);
+  save.player.level = 20;
+  save.player.exp = 7_654;
+  save.player.gold = 987_654;
+  save.player.stamina = 43;
+  save.bag.items = { stone_enhance: 88, ore_black: 13 };
+  save.progress.stageKills[save.progress.currentStageId] = 7;
+  save.progress.pity['loot_r1:eq_r1_ring_rare'] = 11;
+  save.progress.seenTutorials = ['chapter_1'];
+  save.settings.autoDecomposeBelow = 'rare';
+  save.stats.totalKills = 4321;
+  save.stats.totalPlaySec = 123.5;
+  save.stats.bossKills.mon_slime_king = 2;
+  save.shop.purchasedOfferIds = ['shop-proof'];
+  save.encounters = {
+    progressSec: 45,
+    generatedCount: 3,
+    resolvedCount: 2,
+    pending: [
+      {
+        uid: 'enc-switch-proof',
+        encounterId: 'enc_r1_petalsmith',
+        regionId: 'r1',
+      },
+    ],
+  };
+  return save;
+}
+
+function sharedProgressSnapshot(save: SaveData): unknown {
+  const snapshot = jsonClone(save);
+  return {
+    version: snapshot.version,
+    createdAt: snapshot.createdAt,
+    lastActiveAt: snapshot.lastActiveAt,
+    seed: snapshot.seed,
+    rngState: snapshot.rngState,
+    nextUid: snapshot.nextUid,
+    player: {
+      name: snapshot.player.name,
+      level: snapshot.player.level,
+      exp: snapshot.player.exp,
+      gold: snapshot.player.gold,
+      stamina: snapshot.player.stamina,
+      staminaRecoverAt: snapshot.player.staminaRecoverAt,
+    },
+    bagItems: snapshot.bag.items,
+    progress: snapshot.progress,
+    settings: snapshot.settings,
+    stats: snapshot.stats,
+    shop: snapshot.shop,
+    encounters: snapshot.encounters,
+  };
+}
+
+function ownedEquipmentUids(save: SaveData): string[] {
+  return [
+    ...save.bag.equipment,
+    ...Object.values(save.equipped).filter(
+      (instance): instance is EquipmentInstance => instance !== null,
+    ),
+  ]
+    .map((instance) => instance.uid)
+    .sort();
+}
+
+function jsonClone<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
 
 describe('equipment decisions', () => {
   it('装备比较使用角色整套属性，普通武器不会再被攻速 0 乘成零战力', async () => {

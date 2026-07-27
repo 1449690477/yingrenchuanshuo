@@ -7,7 +7,7 @@
 import { computed } from 'vue';
 import { defineStore } from 'pinia';
 import type { ClassId } from '@/core/types';
-import { useGameStore } from './game';
+import { useGameStore, type ClassSwitchResult } from './game';
 
 export const usePlayerStore = defineStore('player', () => {
   const game = useGameStore();
@@ -24,6 +24,10 @@ export const usePlayerStore = defineStore('player', () => {
     return game.startNewGame(name, classId);
   }
 
+  function switchClass(classId: ClassId): Promise<ClassSwitchResult> {
+    return game.switchClass(classId);
+  }
+
   return {
     player,
     finalStats,
@@ -33,5 +37,6 @@ export const usePlayerStore = defineStore('player', () => {
     expPercent,
     staminaMax,
     create,
+    switchClass,
   };
 });

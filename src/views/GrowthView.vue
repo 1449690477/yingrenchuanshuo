@@ -8,6 +8,7 @@ import { CLASS_INFO, SLOT_LABELS, STAT_LABELS } from '@/data/constants';
 import { visualSkillsFor } from '@/data/skills';
 import EquipDetail from '@/components/EquipDetail.vue';
 import CharacterShowcase from '@/components/CharacterShowcase.vue';
+import ClassSwitchModal from '@/components/ClassSwitchModal.vue';
 import EnhancePanel from '@/components/EnhancePanel.vue';
 import SkillIcon from '@/components/SkillIcon.vue';
 
@@ -15,6 +16,8 @@ const inventory = useInventoryStore();
 const player = usePlayerStore();
 const detail = ref<EquipmentInstance | null>(null);
 const feedback = ref('');
+const classSwitchOpen = ref(false);
+const classSwitchBusy = ref(false);
 let feedbackTimer = 0;
 
 const equipped = computed(() => inventory.equipped);
@@ -55,6 +58,29 @@ function equipBest(): void {
   announce(count > 0 ? `已替换 ${count} 件更强装备，角色外观同步更新。` : '当前已是最优装备。');
 }
 
+async function switchClass(target: Parameters<typeof player.switchClass>[0]): Promise<void> {
+  if (classSwitchBusy.value) return;
+  classSwitchBusy.value = true;
+  try {
+    const result = await player.switchClass(target);
+    if (!result.ok) {
+      announce(result.reason === 'no-save' ? '当前没有可切换的角色存档。' : '你已经是这个职业了。');
+      return;
+    }
+
+    classSwitchOpen.value = false;
+    const equipmentCopy =
+      result.movedCount > 0
+        ? `已安全收回 ${result.movedCount} 件旧职业专属装备并保持锁定${
+            result.newlyLockedCount > 0 ? `，其中 ${result.newlyLockedCount} 件新增保护` : ''
+          }。`
+        : '当前装备无需收回。';
+    announce(`已切换为 ${CLASS_INFO[target].name}，等级与全部进度完整保留。${equipmentCopy}`);
+  } finally {
+    classSwitchBusy.value = false;
+  }
+}
+
 onUnmounted(() => clearTimeout(feedbackTimer));
 </script>
 
@@ -68,6 +94,7 @@ onUnmounted(() => clearTimeout(feedbackTimer));
       :equipped="equipped"
       @select-slot="open"
       @equip-best="equipBest"
+      @switch-class="classSwitchOpen = true"
     />
 
     <Transition name="feedback">
@@ -130,6 +157,14 @@ onUnmounted(() => clearTimeout(feedbackTimer));
     <Transition name="modal-pop">
       <EquipDetail v-if="detail" :inst="detail" from="equipped" @close="detail = null" />
     </Transition>
+
+    <ClassSwitchModal
+      v-if="classSwitchOpen"
+      :current-class="player.player.classId"
+      :busy="classSwitchBusy"
+      @close="classSwitchOpen = false"
+      @confirm="switchClass"
+    />
   </div>
 </template>
 

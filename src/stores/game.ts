@@ -11,6 +11,7 @@ import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 
 import type {
+  ClassId,
   EquipSlot,
   EquipmentInstance,
   IdleYield,
@@ -37,6 +38,7 @@ import {
   type EnhanceBatchStopReason,
   type EnhanceBatchStrategy,
 } from '@/core/enhanceBatch';
+import { planClassSwitch } from '@/core/classSwitch';
 import {
   applyClassMods,
   averageSkillMultiplier,
@@ -180,6 +182,17 @@ export type EnhanceBatchActionResult =
 export type EncounterResolveResult =
   | { ok: true; outcome: string; rewards: ResourceBundle }
   | { ok: false; reason: 'not-found' | 'insufficient-resource' };
+
+export type ClassSwitchResult =
+  | { ok: false; reason: 'no-save' | 'same-class' }
+  | {
+      ok: true;
+      fromClassId: ClassId;
+      toClassId: ClassId;
+      movedCount: number;
+      newlyLockedCount: number;
+      cpDelta: number;
+    };
 
 const AUTO_SAVE_INTERVAL_MS = 3_000;
 const LOOT_LOG_MAX = 40;
@@ -386,6 +399,54 @@ export const useGameStore = defineStore('game', () => {
     lootLog.value = [];
     offlineResult.value = null;
     resetBattleVisualState();
+  }
+
+  /**
+   * 共享账号进度下切换职业。
+   *
+   * 等级、经验、货币、关卡、材料、强化、商店、奇遇与 RNG 全部留在原存档；
+   * 只替换职业，并把不兼容的专属穿戴完整收回背包。事务规划成功后才一次性写回。
+   */
+  async function switchClass(targetClassId: ClassId): Promise<ClassSwitchResult> {
+    if (!save.value) return { ok: false, reason: 'no-save' };
+
+    const fromClassId = save.value.player.classId;
+    const plan = planClassSwitch({
+      currentClassId: fromClassId,
+      targetClassId,
+      equipped: save.value.equipped,
+      bagEquipment: save.value.bag.equipment,
+      definitionOf: getEquipment,
+    });
+    if (!plan.ok) return plan;
+
+    const beforeCp = cp.value;
+    // idleCarrySec 是旧职业需要的秒数。换职业后按当前怪物掉血比例重算，
+    // 防止玩家通过反复切换快慢职业凭空刷出一只怪。
+    const preservedBattleProgress = battleProgress.value;
+    const preservedBattleVisualCursor = battleVisualCursor.value;
+
+    save.value.player.classId = targetClassId;
+    save.value.equipped = plan.equipped;
+    save.value.bag.equipment = plan.bagEquipment;
+    resetBattleVisualState();
+
+    const nextKps = kps.value;
+    idleCarrySec = nextKps > 0 ? preservedBattleProgress / nextKps : 0;
+    battleProgress.value = preservedBattleProgress;
+    battleVisualCursor.value = preservedBattleVisualCursor;
+
+    const delta = cp.value - beforeCp;
+    noteCpDelta(beforeCp);
+    await persist();
+    return {
+      ok: true,
+      fromClassId,
+      toClassId: targetClassId,
+      movedCount: plan.movedEquipment.length,
+      newlyLockedCount: plan.newlyLockedCount,
+      cpDelta: delta,
+    };
   }
 
   function settleOfflineNow(): void {
@@ -1387,6 +1448,7 @@ export const useGameStore = defineStore('game', () => {
     // 动作
     init,
     startNewGame,
+    switchClass,
     resetGame,
     startLoop,
     stopLoop,

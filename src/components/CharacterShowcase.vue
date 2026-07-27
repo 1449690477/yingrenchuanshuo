@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onUnmounted, ref } from 'vue';
+import { computed, onUnmounted, ref, watch } from 'vue';
 import { Rng } from '@/core/rng';
 import { abbr } from '@/core/format';
 import type { ClassId, EquipmentInstance, EquipSlot } from '@/core/types';
@@ -28,6 +28,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   selectSlot: [slot: EquipSlot];
   equipBest: [];
+  switchClass: [];
 }>();
 
 const leftSlots: readonly EquipSlot[] = ['weapon', 'necklace', 'bracelet', 'ring'];
@@ -47,7 +48,7 @@ const seedByClass: Record<ClassId, number> = {
   shaman: 0x5a4a0a11,
   catkin: 0xca7c1a55,
 };
-const interactionRng = new Rng(seedByClass[props.classId]);
+let interactionRng = new Rng(seedByClass[props.classId]);
 
 const reactions: Record<ClassId, readonly string[]> = {
   swordsman: ['要一起练剑吗？', '花瓣落在肩上啦。', '装备很合身！', '今天也会保护你。'],
@@ -150,6 +151,21 @@ function interact(kind: 'greet' | 'pose' | 'celebrate' = 'greet'): void {
   }, 1_250);
 }
 
+watch(
+  () => props.classId,
+  (classId) => {
+    clearTimeout(previewTimer);
+    interactionRng = new Rng(seedByClass[classId]);
+    action.value = 'idle';
+    activeSkill.value = null;
+    showBasicEffect.value = false;
+    reactionText.value = '';
+    interactionCount.value = 0;
+    lastInteraction.value = 'greet';
+    actionSequence.value += 1;
+  },
+);
+
 onUnmounted(() => clearTimeout(previewTimer));
 </script>
 
@@ -164,7 +180,10 @@ onUnmounted(() => clearTimeout(previewTimer));
         <small>战力</small>
         <strong class="num">{{ abbr(cp) }}</strong>
       </span>
-      <button class="best-button" @click="emit('equipBest')">一键最优</button>
+      <span class="head-actions">
+        <button type="button" class="switch-button" @click="emit('switchClass')">切换角色</button>
+        <button type="button" class="best-button" @click="emit('equipBest')">一键最优</button>
+      </span>
     </header>
 
     <div class="growth-status">
@@ -368,6 +387,47 @@ onUnmounted(() => clearTimeout(previewTimer));
   border: 1px solid rgb(255 255 255 / 75%);
   border-radius: 13px;
   box-shadow: 0 4px 9px rgb(115 137 181 / 20%);
+}
+
+.head-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.switch-button {
+  min-width: 70px;
+  min-height: 44px;
+  padding: 0 9px;
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--blue-deep);
+  background: rgb(238 248 255 / 92%);
+  border: 1px solid #c8e4f5;
+  border-radius: 13px;
+  box-shadow: 0 4px 9px rgb(77 123 158 / 9%);
+}
+
+.switch-button:active,
+.best-button:active {
+  transform: scale(0.96);
+}
+
+@media (max-width: 350px) {
+  .showcase-head {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .head-actions {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .switch-button,
+  .best-button {
+    width: 100%;
+  }
 }
 
 .growth-status {
@@ -763,6 +823,11 @@ onUnmounted(() => clearTimeout(previewTimer));
   .preview-effect,
   .preview-effect i {
     animation: none !important;
+  }
+
+  .switch-button,
+  .best-button {
+    transition: none;
   }
 }
 </style>
