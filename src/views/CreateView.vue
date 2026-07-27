@@ -26,12 +26,12 @@ async function start() {
 
 <template>
   <div class="create scroll-y">
-    <header class="hero">
+    <header class="hero row-in">
       <div class="logo">樱刃传说</div>
       <p class="tagline">挂着自动打 · 回来收装备</p>
     </header>
 
-    <section class="portrait-stage" :class="`class-${picked}`">
+    <section class="portrait-stage row-in" style="--row-delay: 70ms" :class="`class-${picked}`">
       <div class="magic-ring ring-one" />
       <div class="magic-ring ring-two" />
       <ClassArtwork :class-id="picked" variant="preview" />
@@ -39,7 +39,7 @@ async function start() {
       <span v-else class="art-ready">正式立绘已实装</span>
     </section>
 
-    <section class="block">
+    <section class="block row-in" style="--row-delay: 140ms">
       <label class="label">给你的少女起个名字</label>
       <input
         v-model="name"
@@ -50,7 +50,7 @@ async function start() {
       />
     </section>
 
-    <section class="block">
+    <section class="block row-in" style="--row-delay: 210ms">
       <label class="label">选择职业</label>
       <div class="classes">
         <button
@@ -68,11 +68,18 @@ async function start() {
       <p class="desc">{{ CLASS_INFO[picked].desc }}</p>
     </section>
 
-    <button class="btn btn-pink go" :disabled="busy" @click="start">
+    <button
+      class="btn btn-pink go row-in"
+      style="--row-delay: 280ms"
+      :disabled="busy"
+      @click="start"
+    >
       {{ busy ? '创建中…' : '开始冒险' }}
     </button>
 
-    <p class="note">存档保存在这台设备的浏览器里。建议在「更多」页定期导出备份。</p>
+    <p class="note row-in" style="--row-delay: 340ms">
+      存档保存在这台设备的浏览器里。建议在「更多」页定期导出备份。
+    </p>
   </div>
 </template>
 
@@ -263,7 +270,15 @@ async function start() {
   background: var(--panel);
   border: 2px solid var(--line);
   border-radius: var(--r);
-  transition: all 0.16s;
+  transition:
+    transform var(--t-mid) var(--ease-spring),
+    border-color var(--t-mid) var(--ease-soft),
+    background-color var(--t-mid) var(--ease-soft),
+    box-shadow var(--t-mid) var(--ease-soft);
+}
+
+.cls:active {
+  transform: scale(0.94);
 }
 
 .cls.on {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Component } from 'vue';
+import { computed, type Component } from 'vue';
 import { Backpack, Castle, Menu, Sparkles, Swords } from '@lucide/vue';
 import { useUiStore, type TabKey } from '@/stores/ui';
 
@@ -12,10 +12,14 @@ const tabs: { key: TabKey; label: string; icon: Component }[] = [
   { key: 'dungeon', label: '副本', icon: Castle },
   { key: 'more', label: '更多', icon: Menu },
 ];
+
+const activeIndex = computed(() => tabs.findIndex((t) => t.key === ui.activeTab));
 </script>
 
 <template>
   <nav class="tabbar">
+    <!-- 跟随激活项滑动的粉晕胶囊 -->
+    <span class="active-pill" :style="{ '--pill-x': activeIndex }" aria-hidden="true" />
     <button
       v-for="tab in tabs"
       :key="tab.key"
@@ -34,6 +38,7 @@ const tabs: { key: TabKey; label: string; icon: Component }[] = [
 
 <style scoped>
 .tabbar {
+  position: relative;
   display: flex;
   height: calc(var(--tabbar-h) + var(--sab));
   padding-bottom: var(--sab);
@@ -43,7 +48,27 @@ const tabs: { key: TabKey; label: string; icon: Component }[] = [
   flex-shrink: 0;
 }
 
+/* 激活胶囊：在五个等分 tab 之间弹簧滑动 */
+.active-pill {
+  position: absolute;
+  top: 6px;
+  bottom: calc(6px + var(--sab));
+  left: 0;
+  z-index: 0;
+  width: 20%;
+  border-radius: 14px;
+  background:
+    radial-gradient(120% 130% at 50% 0%, rgb(255 190 216 / 46%), transparent 62%),
+    linear-gradient(180deg, rgb(255 234 242 / 82%), rgb(255 234 242 / 34%));
+  box-shadow: inset 0 0 0 1px rgb(255 158 196 / 22%);
+  transform: translateX(calc(var(--pill-x) * 100%));
+  transition: transform var(--t-slow) var(--ease-spring);
+  pointer-events: none;
+}
+
 .tab {
+  position: relative;
+  z-index: 1;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -51,8 +76,11 @@ const tabs: { key: TabKey; label: string; icon: Component }[] = [
   justify-content: center;
   gap: 2px;
   color: var(--text-dim);
-  transition: color 0.15s;
-  position: relative;
+  transition: color var(--t-mid) var(--ease-soft);
+}
+
+.tab:active .icon {
+  transform: scale(0.86);
 }
 
 .tab.active {
@@ -76,14 +104,48 @@ const tabs: { key: TabKey; label: string; icon: Component }[] = [
   place-items: center;
   width: 22px;
   height: 22px;
-  transition: transform 0.16s ease;
+  transition: transform var(--t-mid) var(--ease-spring);
 }
 
 .tab.active .icon {
-  transform: translateY(-1px) scale(1.08);
+  transform: translateY(-2px) scale(1.14);
+  animation: icon-pop var(--t-slow) var(--ease-out-back);
 }
 
 .label {
   font-size: 10px;
+  transition:
+    font-weight var(--t-mid),
+    letter-spacing var(--t-mid);
+}
+
+.tab.active .label {
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+@keyframes icon-pop {
+  0% {
+    transform: translateY(1px) scale(0.82);
+  }
+  60% {
+    transform: translateY(-3px) scale(1.2);
+  }
+  100% {
+    transform: translateY(-2px) scale(1.14);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .active-pill,
+  .tab,
+  .icon,
+  .label {
+    transition-duration: 0.01s;
+  }
+
+  .tab.active .icon {
+    animation: none;
+  }
 }
 </style>

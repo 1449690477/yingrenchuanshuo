@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, onUnmounted, ref, watch } from 'vue';
 import type { ClassId, MonsterDef } from '@/core/types';
 import type { BattleVitals } from '@/core/battleVisual';
 import { abbr } from '@/core/format';
@@ -35,6 +35,30 @@ const playerHpPercent = computed(
 const monsterHpPercent = computed(
   () => (props.vitals.monster.currentHp / props.vitals.monster.maxHp) * 100,
 );
+
+/**
+ * 目标切换（新怪物上场）时播一次入场动画。
+ * 与受击动画分开：受击作用在立绘上，入场作用在整个怪物单元上，互不冲突。
+ */
+const spawning = ref(false);
+let spawnTimer = 0;
+
+function playSpawn(): void {
+  spawning.value = true;
+  clearTimeout(spawnTimer);
+  spawnTimer = window.setTimeout(() => (spawning.value = false), 480);
+}
+
+watch(
+  [() => props.monster.id, () => props.pulse?.id ?? 0],
+  ([monsterId, pulseId], [previousMonsterId, previousPulseId]) => {
+    const speciesChanged = monsterId !== previousMonsterId;
+    const defeatedMonsterLeft = previousPulseId > 0 && pulseId === 0;
+    if (speciesChanged || defeatedMonsterLeft) playSpawn();
+  },
+);
+
+onUnmounted(() => clearTimeout(spawnTimer));
 </script>
 
 <template>
@@ -74,6 +98,7 @@ const monsterHpPercent = computed(
       </div>
       <div
         class="hpbar"
+        :class="{ low: monsterHpPercent <= 25 }"
         role="meter"
         aria-label="目标生命"
         aria-valuemin="0"
@@ -95,6 +120,7 @@ const monsterHpPercent = computed(
       </div>
       <div
         class="hpbar hero-hpbar"
+        :class="{ low: playerHpPercent <= 25 }"
         role="meter"
         aria-label="玩家生命"
         aria-valuemin="0"
@@ -132,7 +158,7 @@ const monsterHpPercent = computed(
       <MonsterArtwork :monster="support" />
     </div>
 
-    <div :key="`${monster.id}-${pulse?.id ?? 0}`" class="enemy-unit" :class="{ hit: !!pulse }">
+    <div :key="monster.id" class="enemy-unit" :class="{ hit: !!pulse, spawn: spawning }">
       <span class="actor-shadow" aria-hidden="true" />
       <div class="enemy-actor">
         <MonsterArtwork :monster="monster" />
@@ -493,6 +519,16 @@ const monsterHpPercent = computed(
 .enemy-unit.hit .enemy-actor {
   animation: enemy-hit 0.42s ease-out;
   animation-delay: var(--impact-delay);
+}
+
+/* 新怪物从右侧轻轻弹入 */
+.enemy-unit.spawn {
+  animation: enemy-spawn 0.44s var(--ease-out-back) both;
+}
+
+/* 低血量警报：血条外发光脉冲 */
+.hpbar.low .hpbar-fill {
+  animation: hp-low-pulse 0.9s ease-in-out infinite;
 }
 
 .hero-actor :deep(.class-art),
@@ -1040,6 +1076,29 @@ const monsterHpPercent = computed(
   }
 }
 
+@keyframes enemy-spawn {
+  0% {
+    opacity: 0;
+    transform: translateX(26px) scale(0.86);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes hp-low-pulse {
+  0%,
+  100% {
+    filter: brightness(1);
+    box-shadow: 0 0 0 rgb(255 107 122 / 0%);
+  }
+  50% {
+    filter: brightness(1.35) saturate(1.3);
+    box-shadow: 0 0 8px rgb(255 107 122 / 85%);
+  }
+}
+
 @keyframes enemy-hit {
   0%,
   100% {
@@ -1320,6 +1379,8 @@ const monsterHpPercent = computed(
 @media (prefers-reduced-motion: reduce) {
   .hero-actor,
   .enemy-actor,
+  .enemy-unit,
+  .hpbar.low .hpbar-fill,
   .support-unit,
   .ambient-particles i,
   .basic-attack-fx,

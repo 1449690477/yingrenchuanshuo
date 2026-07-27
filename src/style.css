@@ -60,6 +60,14 @@
   /* ── 安全区 ── */
   --sat: env(safe-area-inset-top, 0px);
   --sab: env(safe-area-inset-bottom, 0px);
+
+  /* ── 动效曲线（全站统一手感）── */
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.44, 1);
+  --ease-soft: cubic-bezier(0.25, 0.9, 0.35, 1);
+  --ease-out-back: cubic-bezier(0.2, 1.25, 0.4, 1);
+  --t-fast: 0.14s;
+  --t-mid: 0.22s;
+  --t-slow: 0.34s;
 }
 
 *,
@@ -174,12 +182,14 @@ button:focus-visible {
   font-size: 13px;
   font-weight: 600;
   transition:
-    transform 0.12s,
-    filter 0.15s;
+    transform var(--t-fast) var(--ease-spring),
+    filter var(--t-mid) var(--ease-soft),
+    box-shadow var(--t-mid) var(--ease-soft);
 }
 
 .btn:active:not(:disabled) {
-  transform: scale(0.96);
+  transform: scale(0.94);
+  filter: brightness(1.04);
 }
 
 .btn-pink {
@@ -188,16 +198,41 @@ button:focus-visible {
   box-shadow: 0 3px 10px rgb(245 121 159 / 30%);
 }
 
+.btn-pink:active:not(:disabled) {
+  box-shadow: 0 1px 5px rgb(245 121 159 / 36%);
+}
+
 .btn-blue {
   color: var(--text-on-color);
   background: linear-gradient(135deg, #9fd8f7, var(--blue-deep));
   box-shadow: 0 3px 10px rgb(74 168 221 / 28%);
 }
 
+.btn-blue:active:not(:disabled) {
+  box-shadow: 0 1px 5px rgb(74 168 221 / 34%);
+}
+
 .btn-plain {
   color: var(--text-mid);
   background: var(--panel-3);
   border: 1px solid var(--line);
+}
+
+/* ── 可点卡片 / 列表行的统一按压反馈 ── */
+button.card,
+.card-clickable,
+.row-clickable {
+  transition:
+    transform var(--t-fast) var(--ease-spring),
+    box-shadow var(--t-mid) var(--ease-soft),
+    border-color var(--t-mid) var(--ease-soft),
+    background-color var(--t-mid) var(--ease-soft);
+}
+
+button.card:active,
+.card-clickable:active,
+.row-clickable:active {
+  transform: scale(0.985);
 }
 
 /* ── 品质文字与边框 ── */
@@ -238,4 +273,140 @@ button:focus-visible {
   padding: 20px;
   background: rgb(70 89 107 / 35%);
   backdrop-filter: blur(3px);
+}
+
+/* ============================================================
+   全站复用过渡（配合 <Transition> 的 name 使用）
+   ============================================================ */
+
+/* 主视图切换：旧视图淡出后新视图轻轻浮上来 */
+.view-switch-enter-from {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.view-switch-enter-active {
+  transition:
+    opacity var(--t-slow) var(--ease-soft),
+    transform var(--t-slow) var(--ease-soft);
+}
+
+.view-switch-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+.view-switch-leave-active {
+  transition:
+    opacity var(--t-fast) ease,
+    transform var(--t-fast) ease;
+}
+
+/* 弹窗：遮罩淡入 + 面板弹簧弹入（作用于整个 overlay 根节点） */
+.modal-pop-enter-from,
+.modal-pop-leave-to {
+  opacity: 0;
+}
+
+.modal-pop-enter-active,
+.modal-pop-leave-active {
+  transition: opacity var(--t-mid) ease;
+}
+
+.modal-pop-enter-active > :first-child {
+  animation: modal-panel-in var(--t-slow) var(--ease-out-back) both;
+}
+
+.modal-pop-leave-active > :first-child {
+  animation: modal-panel-out var(--t-fast) ease-in both;
+}
+
+@keyframes modal-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(26px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes modal-panel-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(14px) scale(0.96);
+  }
+}
+
+/* 整页覆盖层（如商店）：从底部整页滑入 */
+.page-up-enter-from,
+.page-up-leave-to {
+  transform: translateY(100%);
+}
+
+.page-up-enter-active,
+.page-up-leave-active {
+  transition: transform var(--t-slow) var(--ease-soft);
+}
+
+/* toast：底部轻轻浮起 */
+.toast-up-enter-from,
+.toast-up-leave-to {
+  opacity: 0;
+  transform: translate(-50%, 10px) scale(0.94);
+}
+
+.toast-up-enter-active,
+.toast-up-leave-active {
+  transition:
+    opacity var(--t-mid) ease,
+    transform var(--t-mid) var(--ease-spring);
+}
+
+/* 列表行入场：挂载时淡入 + 上移（stagger 通过 --row-delay 传入） */
+@keyframes row-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.row-in {
+  animation: row-in var(--t-slow) var(--ease-soft) both;
+  animation-delay: var(--row-delay, 0ms);
+}
+
+/* ============================================================
+   减弱动效偏好：全局兜底，局部组件里另有更精细的处理
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  .view-switch-enter-from,
+  .view-switch-leave-to,
+  .toast-up-enter-from,
+  .toast-up-leave-to {
+    transform: none;
+  }
+
+  .modal-pop-enter-active > :first-child,
+  .modal-pop-leave-active > :first-child {
+    animation: none;
+  }
+
+  .page-up-enter-active,
+  .page-up-leave-active {
+    transition-duration: 0.01s;
+  }
+
+  .row-in {
+    animation: none;
+  }
 }

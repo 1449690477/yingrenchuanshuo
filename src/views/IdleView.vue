@@ -128,7 +128,7 @@ const cpWarn = computed(() => {
 
 <template>
   <div class="idle">
-    <button class="stage-bar" @click="showStages = true">
+    <button class="stage-bar row-clickable" @click="showStages = true">
       <img class="stage-map" :src="chapterMapUrl" :alt="`${chapter.name}章节场景`" />
       <span class="stage-map-shade" />
       <span class="stage-info">
@@ -202,7 +202,12 @@ const cpWarn = computed(() => {
           </button>
           <Transition name="loot-fold">
             <div v-if="!collapsedLoot[group.category]" class="loot-items">
-              <div v-for="e in group.items" :key="e.itemId" class="loot-row">
+              <div
+                v-for="(e, i) in group.items"
+                :key="e.itemId"
+                class="loot-row"
+                :style="{ '--row-delay': `${Math.min(i, 8) * 28}ms` }"
+              >
                 <EquipmentIcon v-if="e.isEquipment" :def="requireEquipment(e.itemId)" size="sm" />
                 <ItemIcon v-else :item="requireItem(e.itemId)" />
                 <span class="loot-name" :class="'q-' + e.quality">{{ e.name }}</span>
@@ -214,7 +219,9 @@ const cpWarn = computed(() => {
       </div>
     </section>
 
-    <StageSelect v-if="showStages" @close="showStages = false" />
+    <Transition name="modal-pop">
+      <StageSelect v-if="showStages" @close="showStages = false" />
+    </Transition>
   </div>
 </template>
 
@@ -458,6 +465,8 @@ const cpWarn = computed(() => {
   padding: 3px 6px;
   font-size: 12px;
   border-radius: 6px;
+  animation: row-in var(--t-slow) var(--ease-soft) both;
+  animation-delay: var(--row-delay, 0ms);
 }
 
 .loot-row:nth-child(odd) {
@@ -480,11 +489,11 @@ const cpWarn = computed(() => {
 .loot-fold-enter-from,
 .loot-fold-leave-to {
   opacity: 0;
-  transform: translateY(-4px);
+  transform: translateY(-5px);
 }
 
 .loot-fold-enter-active,
 .loot-fold-leave-active {
-  transition: all 0.18s ease;
+  transition: all var(--t-mid) var(--ease-soft);
 }
 </style>

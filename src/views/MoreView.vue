@@ -15,6 +15,7 @@ const msg = ref<{ text: string; ok: boolean } | null>(null);
 const confirmReset = ref(false);
 const pendingImport = ref<SaveData | null>(null);
 const showShop = ref(false);
+const shopLeaving = ref(false);
 const shopEntryButton = ref<HTMLButtonElement | null>(null);
 const shopSceneUrl = `${import.meta.env.BASE_URL}assets/shops/sakura-boutique.webp`;
 
@@ -31,11 +32,17 @@ function pickFile() {
 }
 
 function openShop() {
+  shopLeaving.value = false;
   showShop.value = true;
 }
 
-async function closeShop() {
+function closeShop() {
+  shopLeaving.value = true;
   showShop.value = false;
+}
+
+async function afterShopLeave() {
+  shopLeaving.value = false;
   await nextTick();
   shopEntryButton.value?.focus();
 }
@@ -79,7 +86,11 @@ function say(text: string, ok: boolean) {
 
 <template>
   <div class="more scroll-y">
-    <div class="more-content" :inert="showShop" :aria-hidden="showShop ? 'true' : undefined">
+    <div
+      class="more-content"
+      :inert="showShop || shopLeaving"
+      :aria-hidden="showShop || shopLeaving ? 'true' : undefined"
+    >
       <section class="boutique-entry" :style="{ backgroundImage: `url(${shopSceneUrl})` }">
         <span class="boutique-shade" />
         <span class="boutique-copy">
@@ -179,7 +190,9 @@ function say(text: string, ok: boolean) {
       </Transition>
     </div>
 
-    <ShopView v-if="showShop" @close="closeShop" />
+    <Transition name="page-up" @after-leave="afterShopLeave">
+      <ShopView v-if="showShop" @close="closeShop" />
+    </Transition>
   </div>
 </template>
 

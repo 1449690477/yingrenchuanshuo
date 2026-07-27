@@ -95,7 +95,13 @@ function playSalvageBurst() {
     <div class="list scroll-y" :class="{ 'equip-list': tab === 'equip' }">
       <template v-if="tab === 'equip'">
         <p v-if="bagEquips.length === 0" class="empty">背包空空的，去挂机打点装备吧～</p>
-        <button v-for="e in bagEquips" :key="e.uid" class="row equip-row" @click="detail = e">
+        <button
+          v-for="(e, i) in bagEquips"
+          :key="e.uid"
+          class="row equip-row row-clickable"
+          :style="{ '--row-delay': `${Math.min(i, 9) * 32}ms` }"
+          @click="detail = e"
+        >
           <EquipmentIcon :def="requireEquipment(e.defId)" :enhance="e.enhance" :locked="e.locked" />
           <span class="mid">
             <span class="name" :class="'q-' + requireEquipment(e.defId).quality">
@@ -118,7 +124,12 @@ function playSalvageBurst() {
 
       <template v-else>
         <p v-if="bagItems.length === 0" class="empty">还没有材料。</p>
-        <div v-for="it in bagItems" :key="it.id" class="row static">
+        <div
+          v-for="(it, i) in bagItems"
+          :key="it.id"
+          class="row static"
+          :style="{ '--row-delay': `${Math.min(i, 9) * 32}ms` }"
+        >
           <ItemIcon :item="it.def" size="md" />
           <span class="mid">
             <span class="name" :class="'q-' + it.def.tier">
@@ -131,7 +142,7 @@ function playSalvageBurst() {
       </template>
     </div>
 
-    <Transition name="fade">
+    <Transition name="toast-up">
       <div v-if="toast" class="toast">{{ toast }}</div>
     </Transition>
 
@@ -145,7 +156,9 @@ function playSalvageBurst() {
       </div>
     </Transition>
 
-    <EquipDetail v-if="detail" :inst="detail" from="bag" @close="detail = null" />
+    <Transition name="modal-pop">
+      <EquipDetail v-if="detail" :inst="detail" from="bag" @close="detail = null" />
+    </Transition>
   </div>
 </template>
 
@@ -173,6 +186,14 @@ function playSalvageBurst() {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 999px;
+  transition:
+    color var(--t-mid) var(--ease-soft),
+    border-color var(--t-mid) var(--ease-soft),
+    transform var(--t-fast) var(--ease-spring);
+}
+
+.t:active {
+  transform: scale(0.95);
 }
 
 .t.on {
@@ -229,6 +250,8 @@ function playSalvageBurst() {
   border: 1px solid var(--line);
   border-radius: var(--r);
   text-align: left;
+  animation: row-in var(--t-slow) var(--ease-soft) both;
+  animation-delay: var(--row-delay, 0ms);
 }
 
 .row.static {
@@ -389,15 +412,5 @@ function playSalvageBurst() {
   .salvage-pop-enter-active {
     animation: none;
   }
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
-
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.2s;
 }
 </style>

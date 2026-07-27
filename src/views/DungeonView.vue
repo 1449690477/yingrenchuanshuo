@@ -48,7 +48,12 @@ const planned = [
       <SystemArtwork kind="dungeon" class="banner-art" />
     </div>
 
-    <div v-for="p in planned" :key="p.name" class="row card">
+    <div
+      v-for="(p, i) in planned"
+      :key="p.name"
+      class="row card row-in"
+      :style="{ '--row-delay': `${60 + i * 55}ms` }"
+    >
       <span class="row-icon">
         <component :is="p.icon" :size="18" :stroke-width="2" aria-hidden="true" />
       </span>

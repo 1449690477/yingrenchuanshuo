@@ -32,13 +32,15 @@ const cls = computed(() => (playerStore.player ? CLASS_INFO[playerStore.player.c
 
 <template>
   <header v-if="playerStore.player" class="topbar">
-    <div class="avatar">
-      <CharacterAppearance
-        :class-id="playerStore.player.classId"
-        :level="playerStore.player.level"
-        :equipped="inventoryStore.equipped"
-        variant="avatar"
-      />
+    <div class="avatar-halo">
+      <div class="avatar">
+        <CharacterAppearance
+          :class-id="playerStore.player.classId"
+          :level="playerStore.player.level"
+          :equipped="inventoryStore.equipped"
+          variant="avatar"
+        />
+      </div>
     </div>
 
     <div class="info">
@@ -91,10 +93,16 @@ const cls = computed(() => (playerStore.player ? CLASS_INFO[playerStore.player.c
   flex-shrink: 0;
 }
 
-.avatar {
+.avatar-halo {
+  position: relative;
   width: 36px;
   height: 36px;
   flex-shrink: 0;
+}
+
+.avatar {
+  width: 100%;
+  height: 100%;
   display: grid;
   place-items: center;
   font-size: 18px;
@@ -102,6 +110,17 @@ const cls = computed(() => (playerStore.player ? CLASS_INFO[playerStore.player.c
   background: linear-gradient(135deg, var(--pink-soft), var(--blue-soft));
   border: 1.5px solid var(--pink);
   overflow: hidden;
+}
+
+/* 头像外圈呼吸光环 */
+.avatar-halo::after {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  border-radius: 50%;
+  border: 2px solid rgb(255 158 196 / 55%);
+  animation: avatar-halo 3.2s ease-out infinite;
+  pointer-events: none;
 }
 
 .info {
@@ -148,10 +167,22 @@ const cls = computed(() => (playerStore.player ? CLASS_INFO[playerStore.player.c
 }
 
 .expbar-fill {
+  position: relative;
   height: 100%;
   border-radius: 3px;
   background: linear-gradient(90deg, var(--pink), var(--gold));
-  transition: width 0.35s;
+  transition: width 0.35s var(--ease-soft);
+}
+
+/* 经验条流光 */
+.expbar-fill::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(100deg, transparent 12%, rgb(255 255 255 / 72%) 50%, transparent 88%);
+  background-size: 220% 100%;
+  animation: exp-shimmer 2.6s var(--ease-soft) infinite;
 }
 
 .stats {
@@ -233,5 +264,34 @@ const cls = computed(() => (playerStore.player ? CLASS_INFO[playerStore.player.c
 
 .float-leave-active {
   transition: all 0.6s;
+}
+
+@keyframes exp-shimmer {
+  0% {
+    background-position: 120% 0;
+  }
+  60%,
+  100% {
+    background-position: -120% 0;
+  }
+}
+
+@keyframes avatar-halo {
+  0% {
+    opacity: 0.7;
+    transform: scale(0.9);
+  }
+  70%,
+  100% {
+    opacity: 0;
+    transform: scale(1.22);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .expbar-fill::after,
+  .avatar-halo::after {
+    animation: none;
+  }
 }
 </style>

@@ -44,53 +44,60 @@ const moreCount = computed(() => Math.max(0, (r.value?.yield.loot.length ?? 0) -
 </script>
 
 <template>
-  <div v-if="r" class="overlay">
-    <div class="sheet">
-      <div class="top">
-        <div class="sparkle">
-          <Sparkles :size="30" :stroke-width="2" aria-hidden="true" />
+  <Transition name="modal-pop" appear>
+    <div v-if="r" class="overlay">
+      <div class="sheet">
+        <div class="top">
+          <div class="sparkle">
+            <Sparkles :size="30" :stroke-width="2" aria-hidden="true" />
+          </div>
+          <h3>欢迎回来</h3>
+          <p class="sub">离线 {{ duration(r.seconds) }}，少女帮你打了一会儿</p>
         </div>
-        <h3>欢迎回来</h3>
-        <p class="sub">离线 {{ duration(r.seconds) }}，少女帮你打了一会儿</p>
-      </div>
 
-      <div class="gains">
-        <div class="gain">
-          <span class="g-label">经验</span>
-          <span class="g-value num">+{{ abbr(r.yield.exp) }}</span>
-        </div>
-        <div class="gain">
-          <span class="g-label">金币</span>
-          <span class="g-value num">+{{ abbr(r.yield.gold) }}</span>
-        </div>
-        <div class="gain">
-          <span class="g-label">击杀</span>
-          <span class="g-value num">{{ abbr(r.yield.kills) }}</span>
-        </div>
-      </div>
-
-      <div v-if="drops.length > 0" class="drops">
-        <div class="drops-head">掉落</div>
-        <div class="drop-list">
-          <div v-for="(d, i) in drops" :key="i" class="drop">
-            <EquipmentIcon v-if="d.isEquip" :def="requireEquipment(d.itemId)" size="sm" />
-            <ItemIcon v-else :item="requireItem(d.itemId)" />
-            <span class="d-name" :class="'q-' + d.quality">
-              {{ d.name }}
-            </span>
-            <span class="d-count num">×{{ abbr(d.count) }}</span>
+        <div class="gains">
+          <div class="gain">
+            <span class="g-label">经验</span>
+            <span class="g-value num">+{{ abbr(r.yield.exp) }}</span>
+          </div>
+          <div class="gain">
+            <span class="g-label">金币</span>
+            <span class="g-value num">+{{ abbr(r.yield.gold) }}</span>
+          </div>
+          <div class="gain">
+            <span class="g-label">击杀</span>
+            <span class="g-value num">{{ abbr(r.yield.kills) }}</span>
           </div>
         </div>
-        <p v-if="moreCount > 0" class="more">还有 {{ moreCount }} 种物品已放入背包</p>
+
+        <div v-if="drops.length > 0" class="drops">
+          <div class="drops-head">掉落</div>
+          <div class="drop-list">
+            <div
+              v-for="(d, i) in drops"
+              :key="i"
+              class="drop row-in"
+              :style="{ '--row-delay': `${120 + i * 50}ms` }"
+            >
+              <EquipmentIcon v-if="d.isEquip" :def="requireEquipment(d.itemId)" size="sm" />
+              <ItemIcon v-else :item="requireItem(d.itemId)" />
+              <span class="d-name" :class="'q-' + d.quality">
+                {{ d.name }}
+              </span>
+              <span class="d-count num">×{{ abbr(d.count) }}</span>
+            </div>
+          </div>
+          <p v-if="moreCount > 0" class="more">还有 {{ moreCount }} 种物品已放入背包</p>
+        </div>
+
+        <p v-if="r.cappedSeconds > 0" class="capped">
+          离线收益上限为 8 小时，超出的 {{ duration(r.cappedSeconds) }} 没有计入。
+        </p>
+
+        <button class="btn btn-pink take" @click="stage.dismissOffline()">收下</button>
       </div>
-
-      <p v-if="r.cappedSeconds > 0" class="capped">
-        离线收益上限为 8 小时，超出的 {{ duration(r.cappedSeconds) }} 没有计入。
-      </p>
-
-      <button class="btn btn-pink take" @click="stage.dismissOffline()">收下</button>
     </div>
-  </div>
+  </Transition>
 </template>
 
 <style scoped>

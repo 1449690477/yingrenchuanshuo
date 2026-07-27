@@ -48,49 +48,57 @@ function pick(stageId: string) {
             <span class="r-lv num">Lv {{ r.levelFrom }}–{{ r.levelTo }}</span>
           </button>
 
-          <div v-if="openRegion === r.id" class="chapters">
-            <div v-for="c in r.chapters" :key="c.id" class="chapter">
-              <button
-                class="chapter-head"
-                :class="{ open: openChapter === c.id }"
-                @click="openChapter = openChapter === c.id ? '' : c.id"
-              >
-                <img class="chapter-cover" :src="assetUrl(c.mapAsset)" :alt="`${c.name}章节场景`" />
-                <span class="chapter-shade" />
-                <span class="c-name">{{ c.id }} {{ c.name }}</span>
-                <span class="c-lv num">Lv {{ c.levelFrom }}–{{ c.levelTo }}</span>
-              </button>
-
-              <div v-if="openChapter === c.id" class="stages">
+          <Transition name="fold">
+            <div v-if="openRegion === r.id" class="chapters">
+              <div v-for="c in r.chapters" :key="c.id" class="chapter">
                 <button
-                  v-for="s in stagesOfChapter(c.id)"
-                  :key="s.id"
-                  class="stage"
-                  :class="{
-                    on: s.id === stage.current.id,
-                    locked: !stage.isUnlocked(s.id),
-                    boss: !!s.bossId,
-                  }"
-                  :disabled="!stage.isUnlocked(s.id)"
-                  @click="pick(s.id)"
+                  class="chapter-head"
+                  :class="{ open: openChapter === c.id }"
+                  @click="openChapter = openChapter === c.id ? '' : c.id"
                 >
-                  <span class="s-name">
-                    {{ s.name }}
-                    <span v-if="s.bossId" class="s-boss">BOSS</span>
-                  </span>
-                  <span class="s-meta">
-                    <span v-if="!stage.isUnlocked(s.id)" class="s-lock">
-                      <LockKeyhole :size="10" :stroke-width="2.2" aria-hidden="true" />
-                      未解锁
-                    </span>
-                    <span v-else class="s-cp num" :class="{ low: player.cp < s.recommendCP }">
-                      战力 {{ abbr(s.recommendCP) }}
-                    </span>
-                  </span>
+                  <img
+                    class="chapter-cover"
+                    :src="assetUrl(c.mapAsset)"
+                    :alt="`${c.name}章节场景`"
+                  />
+                  <span class="chapter-shade" />
+                  <span class="c-name">{{ c.id }} {{ c.name }}</span>
+                  <span class="c-lv num">Lv {{ c.levelFrom }}–{{ c.levelTo }}</span>
                 </button>
+
+                <Transition name="fold">
+                  <div v-if="openChapter === c.id" class="stages">
+                    <button
+                      v-for="s in stagesOfChapter(c.id)"
+                      :key="s.id"
+                      class="stage"
+                      :class="{
+                        on: s.id === stage.current.id,
+                        locked: !stage.isUnlocked(s.id),
+                        boss: !!s.bossId,
+                      }"
+                      :disabled="!stage.isUnlocked(s.id)"
+                      @click="pick(s.id)"
+                    >
+                      <span class="s-name">
+                        {{ s.name }}
+                        <span v-if="s.bossId" class="s-boss">BOSS</span>
+                      </span>
+                      <span class="s-meta">
+                        <span v-if="!stage.isUnlocked(s.id)" class="s-lock">
+                          <LockKeyhole :size="10" :stroke-width="2.2" aria-hidden="true" />
+                          未解锁
+                        </span>
+                        <span v-else class="s-cp num" :class="{ low: player.cp < s.recommendCP }">
+                          战力 {{ abbr(s.recommendCP) }}
+                        </span>
+                      </span>
+                    </button>
+                  </div>
+                </Transition>
               </div>
             </div>
-          </div>
+          </Transition>
         </div>
 
         <div class="sweep-teaser">
@@ -282,6 +290,14 @@ function pick(stageId: string) {
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
   text-align: left;
+  transition:
+    transform var(--t-fast) var(--ease-spring),
+    border-color var(--t-mid) var(--ease-soft),
+    background-color var(--t-mid) var(--ease-soft);
+}
+
+.stage:active:not(:disabled) {
+  transform: scale(0.95);
 }
 
 .stage.on {
@@ -388,6 +404,18 @@ function pick(stageId: string) {
   border-radius: 999px;
 }
 
+/* 区域/章节展开折叠：内容轻轻落下 */
+.fold-enter-from,
+.fold-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+.fold-enter-active,
+.fold-leave-active {
+  transition: all var(--t-mid) var(--ease-soft);
+}
+
 @keyframes sweep-breeze {
   0%,
   100% {
@@ -401,6 +429,16 @@ function pick(stageId: string) {
 @media (prefers-reduced-motion: reduce) {
   .sweep-art {
     animation: none;
+  }
+
+  .fold-enter-from,
+  .fold-leave-to {
+    transform: none;
+  }
+
+  .fold-enter-active,
+  .fold-leave-active {
+    transition: none;
   }
 }
 </style>
