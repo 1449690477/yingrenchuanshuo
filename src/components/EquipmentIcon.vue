@@ -8,10 +8,13 @@ const props = withDefaults(
     def: EquipmentDef;
     locked?: boolean;
     size?: 'sm' | 'md' | 'lg';
+    /** 父按钮已经提供完整名称时，避免读屏重复朗读同一件装备。 */
+    decorative?: boolean;
   }>(),
   {
     locked: false,
     size: 'md',
+    decorative: false,
   },
 );
 
@@ -22,8 +25,9 @@ const iconUrl = computed(() => `${import.meta.env.BASE_URL}${props.def.icon}`);
   <span
     class="equipment-icon"
     :class="[`quality-${def.quality}`, `size-${size}`, { locked }]"
-    role="img"
-    :aria-label="`${def.name}装备图标`"
+    :role="decorative ? undefined : 'img'"
+    :aria-hidden="decorative ? 'true' : undefined"
+    :aria-label="decorative ? undefined : `${def.name}装备图标`"
   >
     <span class="shine" aria-hidden="true"></span>
     <img :src="iconUrl" alt="" draggable="false" decoding="async" />

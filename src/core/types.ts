@@ -91,6 +91,11 @@ export interface EquipmentDef {
   element?: Element;
   setId?: string;
   icon: string;
+  /**
+   * 静态外观索引。品质不同但造型相同的装备共用一个 appearanceId。
+   * 存档仍只保存 defId，因此新增外观素材不需要迁移旧存档。
+   */
+  appearanceId: string;
   /** 固定词条，套装件常用 */
   fixedAffixes?: Affix[];
   /** 金色装备的专属效果描述 */

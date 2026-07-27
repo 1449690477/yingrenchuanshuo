@@ -36,6 +36,22 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,webp,woff2}'],
+        // 换装层会随区域持续增长，不应全部塞进首次安装包。
+        globIgnores: ['assets/characters/modular/**'],
+        runtimeCaching: [
+          {
+            urlPattern: ({ url }) => url.pathname.includes('/assets/characters/modular/'),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'character-appearance-v1',
+              cacheableResponse: { statuses: [0, 200] },
+              expiration: {
+                maxEntries: 64,
+                maxAgeSeconds: 60 * 60 * 24 * 30,
+              },
+            },
+          },
+        ],
       },
     }),
   ],

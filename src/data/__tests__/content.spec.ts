@@ -3,7 +3,18 @@ import { resolve } from 'node:path';
 import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
 import { CLASS_VISUALS } from '../classVisuals';
-import { SHAMAN_VISUAL_SKILLS, SWORDSMAN_VISUAL_SKILLS, WITCH_VISUAL_SKILLS } from '../skills';
+import {
+  BASIC_ATTACK_EFFECTS,
+  CHARACTER_BASE_ASSETS,
+  EQUIPMENT_APPEARANCES,
+  growthTierFor,
+} from '../characterAppearance';
+import {
+  SHAMAN_VISUAL_SKILLS,
+  SWORDSMAN_VISUAL_SKILLS,
+  WITCH_VISUAL_SKILLS,
+  battleVisualSkillFor,
+} from '../skills';
 import { EQUIPMENT } from '../equipment';
 import { ITEMS } from '../items';
 import { LOOT_TABLES } from '../lootTables';
@@ -244,8 +255,92 @@ describe('区域 1–2 内容完整性', () => {
       expect(equipment.level).toBeGreaterThan(0);
       expect(equipment.name.length).toBeGreaterThan(0);
       expect(equipment.icon.length).toBeGreaterThan(0);
+      expect(EQUIPMENT_APPEARANCES[equipment.appearanceId], equipment.appearanceId).toBeDefined();
       expect(existsSync(resolve('public', equipment.icon)), `${id} → ${equipment.icon}`).toBe(true);
     }
+  });
+
+  it('三职业纸娃娃底模与两区主要装备层全部透明对齐', async () => {
+    const layerAssets = Object.values(EQUIPMENT_APPEARANCES)
+      .filter((appearance) => appearance.renderMode === 'layer')
+      .flatMap((appearance) => Object.values(appearance.assets));
+    const assets = [...new Set([...Object.values(CHARACTER_BASE_ASSETS), ...layerAssets])];
+    expect(assets).toHaveLength(21);
+
+    for (const asset of assets) {
+      const assetPath = resolve('public', asset);
+      expect(existsSync(assetPath), asset).toBe(true);
+      const { data, info } = await sharp(assetPath).ensureAlpha().raw().toBuffer({
+        resolveWithObject: true,
+      });
+      expect({ width: info.width, height: info.height, channels: info.channels }, asset).toEqual({
+        width: 640,
+        height: 960,
+        channels: 4,
+      });
+      expect(
+        [
+          data[3],
+          data[(info.width - 1) * info.channels + 3],
+          data[(info.height - 1) * info.width * info.channels + 3],
+          data[(info.height * info.width - 1) * info.channels + 3],
+        ],
+        `${asset} 四角透明`,
+      ).toEqual([0, 0, 0, 0]);
+    }
+  });
+
+  it('普通攻击特效规格统一且成长外观在阈值切换', async () => {
+    expect(growthTierFor(1).id).toBe('bud');
+    expect(growthTierFor(9).id).toBe('bud');
+    expect(growthTierFor(10).id).toBe('bloom');
+    expect(growthTierFor(20).id).toBe('moon');
+    expect(growthTierFor(35).id).toBe('star');
+    expect(growthTierFor(50).id).toBe('legend');
+
+    for (const asset of Object.values(BASIC_ATTACK_EFFECTS)) {
+      const assetPath = resolve('public', asset);
+      expect(existsSync(assetPath), asset).toBe(true);
+      const metadata = await sharp(assetPath).metadata();
+      expect(
+        {
+          width: metadata.width,
+          height: metadata.height,
+          channels: metadata.channels,
+        },
+        asset,
+      ).toEqual({ width: 512, height: 512, channels: 4 });
+    }
+  });
+
+  it('技能图标与大特效使用各自清晰度规格', async () => {
+    const skills = [
+      ...SWORDSMAN_VISUAL_SKILLS,
+      ...WITCH_VISUAL_SKILLS,
+      ...SHAMAN_VISUAL_SKILLS,
+    ];
+    expect(skills).toHaveLength(9);
+    for (const skill of skills) {
+      const icon = await sharp(resolve('public', skill.icon)).metadata();
+      const effect = await sharp(resolve('public', skill.effectAsset)).metadata();
+      expect({ width: icon.width, height: icon.height }, `${skill.id} icon`).toEqual({
+        width: 256,
+        height: 256,
+      });
+      expect({ width: effect.width, height: effect.height }, `${skill.id} effect`).toEqual({
+        width: 512,
+        height: 512,
+      });
+    }
+  });
+
+  it('战斗演出保持三次普攻接一次伤害技能，治疗和召唤不冒充攻击', () => {
+    expect(battleVisualSkillFor('witch', 1, 1)).toBeNull();
+    expect(battleVisualSkillFor('witch', 1, 4)?.id).toBe('skill_witch_fireball');
+    expect(battleVisualSkillFor('shaman', 1, 4)).toBeNull();
+    expect(battleVisualSkillFor('shaman', 10, 4)?.id).toBe('skill_shaman_poison');
+    expect(battleVisualSkillFor('swordsman', 35, 4)?.id).toBe('skill_swordsman_attack');
+    expect(battleVisualSkillFor('swordsman', 35, 8)?.id).toBe('skill_swordsman_halfmoon');
   });
 
   it('全部物品都引用真实存在的正式图标', () => {

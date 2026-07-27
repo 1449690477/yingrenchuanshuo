@@ -113,6 +113,7 @@ function buildEquipment(): Record<string, EquipmentDef> {
           quality,
           level: Math.max(1, theme.level + QUALITY_LEVEL_OFFSET[quality]),
           icon: theme.icons[slot],
+          appearanceId: `${theme.regionId}-${slot}`,
         };
       }
     }

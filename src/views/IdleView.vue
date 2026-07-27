@@ -1,24 +1,24 @@
 <script setup lang="ts">
-import { computed, onUnmounted, ref, watch } from 'vue';
+import { computed, ref } from 'vue';
 import { abbr } from '@/core/format';
 import { battleMonsterIdAt } from '@/core/battleVisual';
+import { useInventoryStore } from '@/stores/inventory';
 import { usePlayerStore } from '@/stores/player';
 import { useStageStore } from '@/stores/stage';
 import { requireChapter, requireRegionOfChapter } from '@/data/regions';
 import { requireMonster } from '@/data/monsters';
 import { requireEquipment } from '@/data/equipment';
 import { requireItem } from '@/data/items';
-import { unlockedVisualSkills, type VisualSkill } from '@/data/skills';
+import { battleVisualSkillFor, type VisualSkill } from '@/data/skills';
 import StageSelect from '@/components/StageSelect.vue';
 import BattleScene from '@/components/BattleScene.vue';
 import EquipmentIcon from '@/components/EquipmentIcon.vue';
 import ItemIcon from '@/components/ItemIcon.vue';
 
 const player = usePlayerStore();
+const inventory = useInventoryStore();
 const stage = useStageStore();
 const showStages = ref(false);
-const casting = ref(false);
-let castTimer = 0;
 
 const region = computed(() => requireRegionOfChapter(stage.current.chapterId));
 const chapter = computed(() => requireChapter(stage.current.chapterId));
@@ -55,9 +55,7 @@ const activeVisualSkill = computed<VisualSkill | null>(() => {
   const p = player.player;
   const pulse = stage.battlePulse;
   if (!p || !pulse) return null;
-  const skills = unlockedVisualSkills(p.classId, p.level);
-  if (skills.length === 0) return null;
-  return skills[Math.floor((pulse.id - 1) / 3) % skills.length]!;
+  return battleVisualSkillFor(p.classId, p.level, pulse.id);
 });
 
 const activeEffectUrl = computed(() =>
@@ -66,17 +64,19 @@ const activeEffectUrl = computed(() =>
     : null,
 );
 
-watch(
-  () => stage.battlePulse?.id,
-  (pulseId) => {
-    if (!pulseId) return;
-    casting.value = true;
-    clearTimeout(castTimer);
-    castTimer = window.setTimeout(() => (casting.value = false), 720);
-  },
-);
-
-onUnmounted(() => clearTimeout(castTimer));
+const recentDrop = computed(() => {
+  const entry = stage.lootLog[0];
+  if (!entry) return null;
+  const asset = entry.isEquipment
+    ? requireEquipment(entry.itemId).icon
+    : requireItem(entry.itemId).icon;
+  return {
+    id: entry.id,
+    name: entry.name,
+    quality: entry.quality,
+    assetUrl: `${import.meta.env.BASE_URL}${asset}`,
+  };
+});
 
 /** 战力提示。宁可提示得保守，也不要让玩家白挂。 */
 const cpWarn = computed(() => {
@@ -113,12 +113,13 @@ const cpWarn = computed(() => {
       <BattleScene
         v-if="player.player"
         :class-id="player.player.classId"
+        :level="player.player.level"
+        :equipped="inventory.equipped"
         :player-name="player.player.name"
         :monster="target"
         :support-monsters="supportMonsters"
         :background-url="battleMapUrl"
         :active="stage.canIdle"
-        :casting="casting"
         :hp-percent="hpPercent"
         :status-text="stage.canIdle ? '自动战斗中' : '战斗已暂停'"
         :progress-text="
@@ -127,6 +128,7 @@ const cpWarn = computed(() => {
         :pulse="stage.battlePulse"
         :skill="activeVisualSkill"
         :effect-url="activeEffectUrl"
+        :drop="recentDrop"
       />
       <div v-if="stage.cleared" class="cleared">✓ 本关已通关，可继续挂机刷材料</div>
     </section>
