@@ -174,12 +174,14 @@ function say(text: string, ok: boolean) {
 
       <p class="ver">樱刃传说 · 开发版 M2</p>
 
-      <Transition name="fade">
+      <Transition name="toast-up">
         <div v-if="msg" class="toast" :class="{ bad: !msg.ok }">{{ msg.text }}</div>
       </Transition>
     </div>
 
-    <ShopView v-if="showShop" @close="closeShop" />
+    <Transition name="page-up">
+      <ShopView v-if="showShop" @close="closeShop" />
+    </Transition>
   </div>
 </template>
 
@@ -391,13 +393,28 @@ function say(text: string, ok: boolean) {
   background: rgb(200 70 80 / 94%);
 }
 
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
+/* 小店横幅低频扫光，提示可进入 */
+.boutique-shade::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -42%;
+  width: 36%;
+  background: linear-gradient(100deg, transparent, rgb(255 255 255 / 16%), transparent);
+  transform: skewX(-18deg);
+  animation: stage-shine 6.4s var(--ease-soft) infinite;
+  pointer-events: none;
 }
 
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.2s;
+@keyframes stage-shine {
+  0%,
+  62% {
+    left: -42%;
+  }
+  84%,
+  100% {
+    left: 114%;
+  }
 }
 </style>

@@ -76,9 +76,9 @@ onUnmounted(() => clearTimeout(feedbackTimer));
       </div>
     </Transition>
 
-    <EnhancePanel />
+    <EnhancePanel class="row-in" style="--row-delay: 140ms" />
 
-    <section v-if="visualSkills.length > 0" class="card skills-card">
+    <section v-if="visualSkills.length > 0" class="card skills-card row-in" style="--row-delay: 40ms">
       <div class="card-head">
         <span>{{ CLASS_INFO[player.player.classId].name }}技能演出</span>
         <span class="skill-hint">随等级解锁</span>
@@ -103,7 +103,7 @@ onUnmounted(() => clearTimeout(feedbackTimer));
     </section>
 
     <!-- 属性面板 -->
-    <section class="card stats-card">
+    <section class="card stats-card row-in" style="--row-delay: 90ms">
       <div class="card-head"><span>属性</span></div>
       <div class="stats">
         <div v-for="r in statRows" :key="r.key" class="stat">
@@ -113,7 +113,7 @@ onUnmounted(() => clearTimeout(feedbackTimer));
       </div>
     </section>
 
-    <section class="card soon">
+    <section class="card soon row-in" style="--row-delay: 190ms">
       <div class="card-head"><span>后续养成</span></div>
       <div class="soon-list">
         <span class="chip">技能 · M3-5</span>
@@ -123,7 +123,9 @@ onUnmounted(() => clearTimeout(feedbackTimer));
       </div>
     </section>
 
-    <EquipDetail v-if="detail" :inst="detail" from="equipped" @close="detail = null" />
+    <Transition name="modal-pop">
+      <EquipDetail v-if="detail" :inst="detail" from="equipped" @close="detail = null" />
+    </Transition>
   </div>
 </template>
 

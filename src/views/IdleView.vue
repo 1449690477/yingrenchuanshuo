@@ -128,7 +128,7 @@ const cpWarn = computed(() => {
 
 <template>
   <div class="idle">
-    <button class="stage-bar" @click="showStages = true">
+    <button class="stage-bar row-clickable" @click="showStages = true">
       <img class="stage-map" :src="chapterMapUrl" :alt="`${chapter.name}章节场景`" />
       <span class="stage-map-shade" />
       <span class="stage-info">
@@ -164,6 +164,7 @@ const cpWarn = computed(() => {
         :progress-text="
           stage.cleared ? `${stage.kps.toFixed(2)} 只/秒` : `${stage.kills}/${stage.killTarget}`
         "
+        :wave-ratio="stage.cleared ? undefined : stage.kills / stage.killTarget"
         :pulse="stage.battlePulse"
         :skill="activeVisualSkill"
         :effect-url="activeEffectUrl"
@@ -202,7 +203,13 @@ const cpWarn = computed(() => {
           </button>
           <Transition name="loot-fold">
             <div v-if="!collapsedLoot[group.category]" class="loot-items">
-              <div v-for="e in group.items" :key="e.itemId" class="loot-row">
+              <div
+                v-for="(e, i) in group.items"
+                :key="e.itemId"
+                class="loot-row"
+                :class="'q-' + e.quality"
+                :style="{ '--row-delay': `${Math.min(i, 8) * 28}ms` }"
+              >
                 <EquipmentIcon v-if="e.isEquipment" :def="requireEquipment(e.itemId)" size="sm" />
                 <ItemIcon v-else :item="requireItem(e.itemId)" />
                 <span class="loot-name" :class="'q-' + e.quality">{{ e.name }}</span>
@@ -214,7 +221,9 @@ const cpWarn = computed(() => {
       </div>
     </section>
 
-    <StageSelect v-if="showStages" @close="showStages = false" />
+    <Transition name="modal-pop">
+      <StageSelect v-if="showStages" @close="showStages = false" />
+    </Transition>
   </div>
 </template>
 
@@ -240,6 +249,31 @@ const cpWarn = computed(() => {
   border-radius: var(--r);
   text-align: left;
   color: #fff;
+}
+
+/* 低频扫光：提示这条横幅是可以点的 */
+.stage-bar::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -40%;
+  width: 34%;
+  background: linear-gradient(100deg, transparent, rgb(255 255 255 / 22%), transparent);
+  transform: skewX(-18deg);
+  animation: stage-shine 5.6s var(--ease-soft) infinite;
+  pointer-events: none;
+}
+
+@keyframes stage-shine {
+  0%,
+  62% {
+    left: -40%;
+  }
+  82%,
+  100% {
+    left: 112%;
+  }
 }
 
 .stage-map,
@@ -342,18 +376,52 @@ const cpWarn = computed(() => {
   margin-top: 10px;
   padding: 6px;
   font-size: 10px;
+  font-weight: 700;
   text-align: center;
   color: var(--success);
-  background: #eafaf1;
+  background: linear-gradient(90deg, #eafaf1, #f2fcf5, #eafaf1);
+  border: 1px solid #c2ecd3;
   border-radius: var(--r-sm);
+  animation: cleared-pop 0.5s var(--ease-out-back) both;
+}
+
+@keyframes cleared-pop {
+  0% {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.94);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .loot {
+  position: relative;
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
   padding: 12px;
+  overflow: hidden;
+}
+
+/* 空区域铺一层极淡的樱花纹理，让留白显得有设计感 */
+.loot::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(circle at 88% 82%, rgb(255 190 216 / 14%) 0 5px, transparent 6px),
+    radial-gradient(circle at 78% 92%, rgb(159 216 247 / 13%) 0 4px, transparent 5px),
+    radial-gradient(circle at 93% 94%, rgb(255 190 216 / 11%) 0 3px, transparent 4px),
+    radial-gradient(circle at 70% 78%, rgb(255 190 216 / 09%) 0 3px, transparent 4px);
+}
+
+.loot > * {
+  position: relative;
+  z-index: 1;
 }
 
 .loot-head {
@@ -458,6 +526,20 @@ const cpWarn = computed(() => {
   padding: 3px 6px;
   font-size: 12px;
   border-radius: 6px;
+  animation: row-in var(--t-slow) var(--ease-soft) both;
+  animation-delay: var(--row-delay, 0ms);
+}
+
+/* 品质色条：一眼分辨掉落稀有度（currentColor 取自行的 q-* 类） */
+.loot-row::before {
+  content: '';
+  flex-shrink: 0;
+  width: 3px;
+  height: 16px;
+  margin-right: -2px;
+  border-radius: 2px;
+  background: currentColor;
+  opacity: 0.65;
 }
 
 .loot-row:nth-child(odd) {
@@ -480,11 +562,11 @@ const cpWarn = computed(() => {
 .loot-fold-enter-from,
 .loot-fold-leave-to {
   opacity: 0;
-  transform: translateY(-4px);
+  transform: translateY(-5px);
 }
 
 .loot-fold-enter-active,
 .loot-fold-leave-active {
-  transition: all 0.18s ease;
+  transition: all var(--t-mid) var(--ease-soft);
 }
 </style>

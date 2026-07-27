@@ -38,59 +38,74 @@ function pick(stageId: string) {
 
       <div class="body scroll-y">
         <div v-for="r in regions" :key="r.id" class="region">
-          <button class="region-head" @click="openRegion = openRegion === r.id ? '' : r.id">
+          <button
+            class="region-head"
+            :class="{ open: openRegion === r.id }"
+            @click="openRegion = openRegion === r.id ? '' : r.id"
+          >
             <img class="region-cover" :src="assetUrl(r.mapAsset)" :alt="`${r.name}区域地图`" />
             <span class="region-shade" />
             <span class="r-left">
               <span class="r-name">{{ r.index }} · {{ r.name }}</span>
               <span class="r-sub">{{ r.subtitle }}</span>
             </span>
-            <span class="r-lv num">Lv {{ r.levelFrom }}–{{ r.levelTo }}</span>
+            <span class="r-right">
+              <span class="r-lv num">Lv {{ r.levelFrom }}–{{ r.levelTo }}</span>
+              <span class="r-chev" aria-hidden="true">▾</span>
+            </span>
           </button>
 
-          <div v-if="openRegion === r.id" class="chapters">
-            <div v-for="c in r.chapters" :key="c.id" class="chapter">
-              <button
-                class="chapter-head"
-                :class="{ open: openChapter === c.id }"
-                @click="openChapter = openChapter === c.id ? '' : c.id"
-              >
-                <img class="chapter-cover" :src="assetUrl(c.mapAsset)" :alt="`${c.name}章节场景`" />
-                <span class="chapter-shade" />
-                <span class="c-name">{{ c.id }} {{ c.name }}</span>
-                <span class="c-lv num">Lv {{ c.levelFrom }}–{{ c.levelTo }}</span>
-              </button>
-
-              <div v-if="openChapter === c.id" class="stages">
+          <Transition name="fold">
+            <div v-if="openRegion === r.id" class="chapters">
+              <div v-for="c in r.chapters" :key="c.id" class="chapter">
                 <button
-                  v-for="s in stagesOfChapter(c.id)"
-                  :key="s.id"
-                  class="stage"
-                  :class="{
-                    on: s.id === stage.current.id,
-                    locked: !stage.isUnlocked(s.id),
-                    boss: !!s.bossId,
-                  }"
-                  :disabled="!stage.isUnlocked(s.id)"
-                  @click="pick(s.id)"
+                  class="chapter-head"
+                  :class="{ open: openChapter === c.id }"
+                  @click="openChapter = openChapter === c.id ? '' : c.id"
                 >
-                  <span class="s-name">
-                    {{ s.name }}
-                    <span v-if="s.bossId" class="s-boss">BOSS</span>
-                  </span>
-                  <span class="s-meta">
-                    <span v-if="!stage.isUnlocked(s.id)" class="s-lock">
-                      <LockKeyhole :size="10" :stroke-width="2.2" aria-hidden="true" />
-                      未解锁
-                    </span>
-                    <span v-else class="s-cp num" :class="{ low: player.cp < s.recommendCP }">
-                      战力 {{ abbr(s.recommendCP) }}
-                    </span>
-                  </span>
+                  <img
+                    class="chapter-cover"
+                    :src="assetUrl(c.mapAsset)"
+                    :alt="`${c.name}章节场景`"
+                  />
+                  <span class="chapter-shade" />
+                  <span class="c-name">{{ c.id }} {{ c.name }}</span>
+                  <span class="c-lv num">Lv {{ c.levelFrom }}–{{ c.levelTo }}</span>
                 </button>
+
+                <Transition name="fold">
+                  <div v-if="openChapter === c.id" class="stages">
+                    <button
+                      v-for="s in stagesOfChapter(c.id)"
+                      :key="s.id"
+                      class="stage"
+                      :class="{
+                        on: s.id === stage.current.id,
+                        locked: !stage.isUnlocked(s.id),
+                        boss: !!s.bossId,
+                      }"
+                      :disabled="!stage.isUnlocked(s.id)"
+                      @click="pick(s.id)"
+                    >
+                      <span class="s-name">
+                        {{ s.name }}
+                        <span v-if="s.bossId" class="s-boss">BOSS</span>
+                      </span>
+                      <span class="s-meta">
+                        <span v-if="!stage.isUnlocked(s.id)" class="s-lock">
+                          <LockKeyhole :size="10" :stroke-width="2.2" aria-hidden="true" />
+                          未解锁
+                        </span>
+                        <span v-else class="s-cp num" :class="{ low: player.cp < s.recommendCP }">
+                          战力 {{ abbr(s.recommendCP) }}
+                        </span>
+                      </span>
+                    </button>
+                  </div>
+                </Transition>
               </div>
             </div>
-          </div>
+          </Transition>
         </div>
 
         <div class="sweep-teaser">
@@ -172,6 +187,30 @@ function pick(stageId: string) {
 .region-cover {
   object-fit: cover;
   object-position: center 45%;
+  transition: transform var(--t-slow) var(--ease-soft);
+}
+
+/* 展开的区域封面轻微放大，层次分明 */
+.region-head.open .region-cover {
+  transform: scale(1.045);
+}
+
+.r-right {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.r-chev {
+  display: inline-block;
+  font-size: 11px;
+  color: rgb(255 255 255 / 85%);
+  transition: transform var(--t-mid) var(--ease-spring);
+}
+
+.region-head.open .r-chev {
+  transform: rotate(180deg);
 }
 
 .region-shade {
@@ -244,6 +283,12 @@ function pick(stageId: string) {
 .chapter-cover {
   object-fit: cover;
   object-position: center 48%;
+  transition: transform var(--t-slow) var(--ease-soft);
+}
+
+/* 展开的章节封面轻微放大 */
+.chapter-head.open .chapter-cover {
+  transform: scale(1.05);
 }
 
 .chapter-shade {
@@ -282,11 +327,43 @@ function pick(stageId: string) {
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
   text-align: left;
+  transition:
+    transform var(--t-fast) var(--ease-spring),
+    border-color var(--t-mid) var(--ease-soft),
+    background-color var(--t-mid) var(--ease-soft);
+}
+
+.stage:active:not(:disabled) {
+  transform: scale(0.95);
 }
 
 .stage.on {
+  position: relative;
   border-color: var(--pink);
   background: var(--pink-soft);
+}
+
+/* 当前关卡：粉色呼吸描边 */
+.stage.on::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  border: 1.5px solid rgb(245 121 159 / 70%);
+  animation: stage-on-pulse 2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes stage-on-pulse {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.025);
+  }
 }
 
 .stage.boss {
@@ -386,6 +463,18 @@ function pick(stageId: string) {
   color: var(--blue-deep);
   background: rgb(255 255 255 / 78%);
   border-radius: 999px;
+}
+
+/* 区域/章节展开折叠：内容轻轻落下 */
+.fold-enter-from,
+.fold-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+.fold-enter-active,
+.fold-leave-active {
+  transition: all var(--t-mid) var(--ease-soft);
 }
 
 @keyframes sweep-breeze {

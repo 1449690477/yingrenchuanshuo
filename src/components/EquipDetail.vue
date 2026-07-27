@@ -193,6 +193,7 @@ function doDecompose() {
 
 <style scoped>
 .sheet {
+  position: relative;
   width: 100%;
   max-height: 78dvh;
   display: flex;
@@ -201,6 +202,18 @@ function doDecompose() {
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-lg);
   overflow: hidden;
+}
+
+/* 面板顶部品牌渐变条 */
+.sheet::before {
+  content: '';
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--pink), var(--gold), var(--blue));
 }
 
 .head {

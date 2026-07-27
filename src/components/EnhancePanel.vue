@@ -300,7 +300,7 @@ function attempt(forceDanger = false): void {
       </button>
     </header>
 
-    <div v-if="selected" class="selected-equipment">
+    <div v-if="selected" :key="selected.instance.uid" class="selected-equipment">
       <EquipmentIcon
         :def="selected.definition"
         :enhance="selected.instance.enhance"
@@ -476,11 +476,12 @@ function attempt(forceDanger = false): void {
           </header>
           <div class="picker-list scroll-y">
             <button
-              v-for="candidate in candidates"
+              v-for="(candidate, i) in candidates"
               :key="candidate.instance.uid"
               type="button"
               class="picker-row"
               :class="{ active: candidate.instance.uid === selectedUid }"
+              :style="{ '--row-delay': `${Math.min(i, 8) * 30}ms` }"
               @click="pick(candidate)"
             >
               <EquipmentIcon
@@ -596,6 +597,18 @@ function attempt(forceDanger = false): void {
   border: 1px solid rgb(232 201 220 / 66%);
   border-radius: 17px;
   box-shadow: inset 0 1px rgb(255 255 255 / 90%);
+  animation: selected-swap 0.3s var(--ease-soft) both;
+}
+
+@keyframes selected-swap {
+  0% {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .selected-copy {
@@ -637,6 +650,17 @@ function attempt(forceDanger = false): void {
   border: 1px solid #b9d8ee;
   border-radius: 50%;
   box-shadow: 0 0 12px rgb(108 190 238 / 20%);
+  animation: route-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes route-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 8px rgb(108 190 238 / 18%);
+  }
+  50% {
+    box-shadow: 0 0 18px rgb(108 190 238 / 45%);
+  }
 }
 
 .level-route small {
@@ -730,12 +754,33 @@ function attempt(forceDanger = false): void {
 }
 
 .luck-track i {
+  position: relative;
   display: block;
   height: 100%;
   background: linear-gradient(90deg, #9bcff3, #f69fc3, #ffe596);
   border-radius: inherit;
   box-shadow: 0 0 8px rgb(255 145 191 / 42%);
   transition: width 0.35s ease;
+}
+
+.luck-track i::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(100deg, transparent 15%, rgb(255 255 255 / 70%) 50%, transparent 85%);
+  background-size: 220% 100%;
+  animation: luck-shimmer 2.4s var(--ease-soft) infinite;
+}
+
+@keyframes luck-shimmer {
+  0% {
+    background-position: 120% 0;
+  }
+  60%,
+  100% {
+    background-position: -120% 0;
+  }
 }
 
 .luck-block > small {
@@ -859,7 +904,9 @@ function attempt(forceDanger = false): void {
 }
 
 .enhance-button {
+  position: relative;
   min-height: 48px;
+  overflow: hidden;
   color: #fff;
   font-size: 13px;
   font-weight: 800;
@@ -870,11 +917,57 @@ function attempt(forceDanger = false): void {
   box-shadow:
     inset 0 1px rgb(255 255 255 / 44%),
     0 7px 16px rgb(167 112 196 / 24%);
+  transition:
+    transform var(--t-fast) var(--ease-spring),
+    filter var(--t-mid) var(--ease-soft);
+}
+
+.enhance-button:active:not(:disabled) {
+  transform: scale(0.97);
+  filter: brightness(1.07);
+}
+
+/* 按钮上的低频扫光 */
+.enhance-button:not(:disabled)::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -46%;
+  width: 38%;
+  background: linear-gradient(100deg, transparent, rgb(255 255 255 / 34%), transparent);
+  transform: skewX(-18deg);
+  animation: forge-shine 4.2s var(--ease-soft) infinite;
+  pointer-events: none;
 }
 
 .enhance-button span {
   margin-right: 5px;
   color: #fff4b1;
+  animation: forge-spark 2.2s ease-in-out infinite;
+}
+
+@keyframes forge-shine {
+  0%,
+  55% {
+    left: -46%;
+  }
+  82%,
+  100% {
+    left: 116%;
+  }
+}
+
+@keyframes forge-spark {
+  0%,
+  100% {
+    opacity: 0.6;
+    transform: scale(0.9) rotate(0deg);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.25) rotate(20deg);
+  }
 }
 
 .enhance-button:disabled {
@@ -900,6 +993,26 @@ function attempt(forceDanger = false): void {
   background: #fff0f2;
   border: 1px solid #efb1bb;
   border-radius: 13px;
+  animation: danger-shake 0.42s ease-out both;
+}
+
+@keyframes danger-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-5px);
+  }
+  40% {
+    transform: translateX(4px);
+  }
+  60% {
+    transform: translateX(-3px);
+  }
+  80% {
+    transform: translateX(2px);
+  }
 }
 
 .danger-confirm > span {
@@ -923,14 +1036,86 @@ function attempt(forceDanger = false): void {
 }
 
 .result-feedback {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
   min-height: 50px;
   padding: 8px 10px;
+  overflow: hidden;
   background: #effaf5;
   border: 1px solid #bde5d3;
   border-radius: 13px;
+}
+
+/* 强化成功时四瓣樱花向外绽放 */
+.result-feedback.tone-success::before,
+.result-feedback.tone-success::after {
+  content: '';
+  position: absolute;
+  left: 22px;
+  top: 50%;
+  width: 7px;
+  height: 9px;
+  margin-top: -4px;
+  background: linear-gradient(160deg, #ffd9e8, #ff9fc4);
+  border-radius: 78% 22% 68% 32%;
+  pointer-events: none;
+  animation: success-petal 0.9s var(--ease-soft) both;
+}
+
+.result-feedback.tone-success::before {
+  --px: 58px;
+  --py: -30px;
+}
+
+.result-feedback.tone-success::after {
+  --px: -44px;
+  --py: -26px;
+  animation-delay: 0.08s;
+}
+
+.result-feedback.tone-success .result-spark::before,
+.result-feedback.tone-success .result-spark::after {
+  content: '';
+  position: absolute;
+  width: 6px;
+  height: 8px;
+  background: linear-gradient(160deg, #ffe9d0, #ffcf8a);
+  border-radius: 78% 22% 68% 32%;
+  pointer-events: none;
+  animation: success-petal 0.9s var(--ease-soft) both;
+}
+
+.result-feedback.tone-success .result-spark {
+  position: relative;
+}
+
+.result-feedback.tone-success .result-spark::before {
+  left: 4px;
+  top: 2px;
+  --px: 30px;
+  --py: 26px;
+  animation-delay: 0.04s;
+}
+
+.result-feedback.tone-success .result-spark::after {
+  left: 8px;
+  top: 4px;
+  --px: -26px;
+  --py: 22px;
+  animation-delay: 0.12s;
+}
+
+@keyframes success-petal {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) rotate(0deg) scale(0.7);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--px), var(--py)) rotate(260deg) scale(1.1);
+  }
 }
 
 .result-feedback > span:last-child {
@@ -1047,6 +1232,7 @@ function attempt(forceDanger = false): void {
 }
 
 .picker-sheet {
+  position: relative;
   display: flex;
   width: min(100%, 390px);
   max-height: min(72dvh, 620px);
@@ -1056,6 +1242,18 @@ function attempt(forceDanger = false): void {
   border: 1px solid rgb(255 255 255 / 82%);
   border-radius: 22px 22px 16px 16px;
   box-shadow: 0 18px 48px rgb(32 39 56 / 30%);
+}
+
+/* 面板顶部品牌渐变条 */
+.picker-sheet::before {
+  content: '';
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--pink), var(--gold), var(--blue));
 }
 
 .picker-sheet header {
@@ -1092,6 +1290,16 @@ function attempt(forceDanger = false): void {
   background: #fff;
   border: 1px solid var(--line);
   border-radius: 14px;
+  animation: row-in var(--t-slow) var(--ease-soft) both;
+  animation-delay: var(--row-delay, 0ms);
+  transition:
+    transform var(--t-fast) var(--ease-spring),
+    border-color var(--t-mid) var(--ease-soft),
+    background-color var(--t-mid) var(--ease-soft);
+}
+
+.picker-row:active {
+  transform: scale(0.97);
 }
 
 .picker-row.active {
@@ -1143,7 +1351,19 @@ function attempt(forceDanger = false): void {
 
 @media (prefers-reduced-motion: reduce) {
   .luck-track i,
+  .luck-track i::after,
   .result-spark,
+  .result-feedback::before,
+  .result-feedback::after,
+  .result-spark::before,
+  .result-spark::after,
+  .selected-equipment,
+  .level-route,
+  .enhance-button,
+  .enhance-button::after,
+  .enhance-button span,
+  .danger-confirm,
+  .picker-row,
   .result-pop-enter-active,
   .result-pop-leave-active,
   .picker-enter-active,

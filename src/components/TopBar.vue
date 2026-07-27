@@ -28,6 +28,25 @@ watch(
 onUnmounted(() => clearTimeout(hideTimer));
 
 const cls = computed(() => (playerStore.player ? CLASS_INFO[playerStore.player.classId] : null));
+
+/** 金币增加时图标的轻微弹跳（只响应变多，花掉不跳）。 */
+const goldBump = ref(false);
+let bumpTimer = 0;
+
+watch(
+  () => playerStore.player?.gold ?? 0,
+  (now, before) => {
+    if (now <= before) return;
+    goldBump.value = false;
+    requestAnimationFrame(() => {
+      goldBump.value = true;
+      clearTimeout(bumpTimer);
+      bumpTimer = window.setTimeout(() => (goldBump.value = false), 380);
+    });
+  },
+);
+
+onUnmounted(() => clearTimeout(bumpTimer));
 </script>
 
 <template>
@@ -68,7 +87,13 @@ const cls = computed(() => (playerStore.player ? CLASS_INFO[playerStore.player.c
         </Transition>
       </div>
       <div class="stat">
-        <Coins class="ic coin-icon" :size="12" :stroke-width="2.3" aria-hidden="true" />
+        <Coins
+          class="ic coin-icon"
+          :class="{ bump: goldBump }"
+          :size="12"
+          :stroke-width="2.3"
+          aria-hidden="true"
+        />
         <span class="val num">{{ abbr(playerStore.player.gold) }}</span>
       </div>
       <div class="stat">
@@ -92,6 +117,7 @@ const cls = computed(() => (playerStore.player ? CLASS_INFO[playerStore.player.c
 }
 
 .avatar {
+  position: relative;
   width: 36px;
   height: 36px;
   flex-shrink: 0;
@@ -102,6 +128,17 @@ const cls = computed(() => (playerStore.player ? CLASS_INFO[playerStore.player.c
   background: linear-gradient(135deg, var(--pink-soft), var(--blue-soft));
   border: 1.5px solid var(--pink);
   overflow: hidden;
+}
+
+/* 头像外圈呼吸光环 */
+.avatar::after {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  border-radius: 50%;
+  border: 2px solid rgb(255 158 196 / 55%);
+  animation: avatar-halo 3.2s ease-out infinite;
+  pointer-events: none;
 }
 
 .info {
@@ -148,10 +185,22 @@ const cls = computed(() => (playerStore.player ? CLASS_INFO[playerStore.player.c
 }
 
 .expbar-fill {
+  position: relative;
   height: 100%;
   border-radius: 3px;
   background: linear-gradient(90deg, var(--pink), var(--gold));
-  transition: width 0.35s;
+  transition: width 0.35s var(--ease-soft);
+}
+
+/* 经验条流光 */
+.expbar-fill::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(100deg, transparent 12%, rgb(255 255 255 / 72%) 50%, transparent 88%);
+  background-size: 220% 100%;
+  animation: exp-shimmer 2.6s var(--ease-soft) infinite;
 }
 
 .stats {
@@ -181,6 +230,22 @@ const cls = computed(() => (playerStore.player ? CLASS_INFO[playerStore.player.c
 
 .coin-icon {
   color: #e7a92d;
+}
+
+.coin-icon.bump {
+  animation: coin-bump 0.36s var(--ease-out-back);
+}
+
+@keyframes coin-bump {
+  0% {
+    transform: scale(1);
+  }
+  45% {
+    transform: scale(1.35) rotate(-8deg);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 
 .stamina-icon {
@@ -233,5 +298,34 @@ const cls = computed(() => (playerStore.player ? CLASS_INFO[playerStore.player.c
 
 .float-leave-active {
   transition: all 0.6s;
+}
+
+@keyframes exp-shimmer {
+  0% {
+    background-position: 120% 0;
+  }
+  60%,
+  100% {
+    background-position: -120% 0;
+  }
+}
+
+@keyframes avatar-halo {
+  0% {
+    opacity: 0.7;
+    transform: scale(0.9);
+  }
+  70%,
+  100% {
+    opacity: 0;
+    transform: scale(1.22);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .expbar-fill::after,
+  .avatar::after {
+    animation: none;
+  }
 }
 </style>

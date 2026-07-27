@@ -26,20 +26,23 @@ async function start() {
 
 <template>
   <div class="create scroll-y">
-    <header class="hero">
+    <header class="hero row-in">
       <div class="logo">樱刃传说</div>
       <p class="tagline">挂着自动打 · 回来收装备</p>
     </header>
 
-    <section class="portrait-stage" :class="`class-${picked}`">
+    <section class="portrait-stage row-in" style="--row-delay: 70ms" :class="`class-${picked}`">
       <div class="magic-ring ring-one" />
       <div class="magic-ring ring-two" />
+      <i class="stage-petal sp-1" aria-hidden="true" />
+      <i class="stage-petal sp-2" aria-hidden="true" />
+      <i class="stage-petal sp-3" aria-hidden="true" />
       <ClassArtwork :class-id="picked" variant="preview" />
       <span v-if="!CLASS_VISUALS[picked].portrait" class="art-pending">角色立绘制作中</span>
       <span v-else class="art-ready">正式立绘已实装</span>
     </section>
 
-    <section class="block">
+    <section class="block row-in" style="--row-delay: 140ms">
       <label class="label">给你的少女起个名字</label>
       <input
         v-model="name"
@@ -50,7 +53,7 @@ async function start() {
       />
     </section>
 
-    <section class="block">
+    <section class="block row-in" style="--row-delay: 210ms">
       <label class="label">选择职业</label>
       <div class="classes">
         <button
@@ -68,11 +71,18 @@ async function start() {
       <p class="desc">{{ CLASS_INFO[picked].desc }}</p>
     </section>
 
-    <button class="btn btn-pink go" :disabled="busy" @click="start">
+    <button
+      class="btn btn-pink go row-in"
+      style="--row-delay: 280ms"
+      :disabled="busy"
+      @click="start"
+    >
       {{ busy ? '创建中…' : '开始冒险' }}
     </button>
 
-    <p class="note">存档保存在这台设备的浏览器里。建议在「更多」页定期导出备份。</p>
+    <p class="note row-in" style="--row-delay: 340ms">
+      存档保存在这台设备的浏览器里。建议在「更多」页定期导出备份。
+    </p>
   </div>
 </template>
 
@@ -122,6 +132,53 @@ async function start() {
   z-index: 2;
   padding: 4px 46px 0;
   filter: drop-shadow(0 12px 12px rgb(74 103 143 / 16%));
+}
+
+/* 舞台内的小花瓣，呼应全局樱花氛围 */
+.stage-petal {
+  position: absolute;
+  z-index: 3;
+  width: 7px;
+  height: 9px;
+  background: linear-gradient(160deg, #ffd9e8, #ffb0cd);
+  border-radius: 78% 22% 68% 32%;
+  opacity: 0;
+  pointer-events: none;
+  animation: stage-petal-fall 7s linear infinite;
+}
+
+.sp-1 {
+  left: 16%;
+  animation-delay: -1.4s;
+}
+
+.sp-2 {
+  left: 78%;
+  animation-delay: -4.2s;
+  transform: scale(0.8);
+}
+
+.sp-3 {
+  left: 52%;
+  animation-delay: -6s;
+  transform: scale(0.66);
+}
+
+@keyframes stage-petal-fall {
+  0% {
+    opacity: 0;
+    translate: 0 -14px;
+    rotate: 0deg;
+  }
+  14%,
+  74% {
+    opacity: 0.85;
+  }
+  100% {
+    opacity: 0;
+    translate: 26px 210px;
+    rotate: 300deg;
+  }
 }
 
 .portrait-stage.class-witch :deep(.portrait) {
@@ -263,7 +320,15 @@ async function start() {
   background: var(--panel);
   border: 2px solid var(--line);
   border-radius: var(--r);
-  transition: all 0.16s;
+  transition:
+    transform var(--t-mid) var(--ease-spring),
+    border-color var(--t-mid) var(--ease-soft),
+    background-color var(--t-mid) var(--ease-soft),
+    box-shadow var(--t-mid) var(--ease-soft);
+}
+
+.cls:active {
+  transform: scale(0.94);
 }
 
 .cls.on {

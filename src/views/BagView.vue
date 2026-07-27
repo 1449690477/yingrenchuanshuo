@@ -123,11 +123,22 @@ function playSalvageBurst() {
 
     <div class="list scroll-y" :class="{ 'equip-list': tab === 'equip' }">
       <template v-if="tab === 'equip'">
-        <p v-if="equipCount === 0" class="empty">背包空空的，去挂机打点装备吧～</p>
+        <!--
+          合并说明：视觉部分取 UI 打磨版（空态图标、品质描边、入场错峰动画），
+          但列表数据必须保留性能版的 visibleEquips / row.def ——
+          直接 v-for 全量 bagEquips 并在模板里反复调 requireEquipment，
+          背包上万件时会把页面卡死（见 67334df）。
+        -->
+        <p v-if="equipCount === 0" class="empty">
+          <span class="empty-icon" aria-hidden="true">🎒</span>
+          背包空空的，去挂机打点装备吧～
+        </p>
         <button
-          v-for="row in visibleEquips"
+          v-for="(row, i) in visibleEquips"
           :key="row.inst.uid"
-          class="row equip-row"
+          class="row equip-row row-clickable"
+          :class="'q-accent-' + row.def.quality"
+          :style="{ '--row-delay': `${Math.min(i, 9) * 32}ms` }"
           @click="detail = row.inst"
         >
           <EquipmentIcon :def="row.def" :enhance="row.inst.enhance" :locked="row.inst.locked" />
@@ -157,8 +168,16 @@ function playSalvageBurst() {
       </template>
 
       <template v-else>
-        <p v-if="bagItems.length === 0" class="empty">还没有材料。</p>
-        <div v-for="it in bagItems" :key="it.id" class="row static">
+        <p v-if="bagItems.length === 0" class="empty">
+          <span class="empty-icon" aria-hidden="true">🧺</span>
+          还没有材料。
+        </p>
+        <div
+          v-for="(it, i) in bagItems"
+          :key="it.id"
+          class="row static"
+          :style="{ '--row-delay': `${Math.min(i, 9) * 32}ms` }"
+        >
           <ItemIcon :item="it.def" size="md" />
           <span class="mid">
             <span class="name" :class="'q-' + it.def.tier">
@@ -171,7 +190,7 @@ function playSalvageBurst() {
       </template>
     </div>
 
-    <Transition name="fade">
+    <Transition name="toast-up">
       <div v-if="toast" class="toast">{{ toast }}</div>
     </Transition>
 
@@ -185,7 +204,9 @@ function playSalvageBurst() {
       </div>
     </Transition>
 
-    <EquipDetail v-if="detail" :inst="detail" from="bag" @close="detail = null" />
+    <Transition name="modal-pop">
+      <EquipDetail v-if="detail" :inst="detail" from="bag" @close="detail = null" />
+    </Transition>
   </div>
 </template>
 
@@ -213,6 +234,14 @@ function playSalvageBurst() {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 999px;
+  transition:
+    color var(--t-mid) var(--ease-soft),
+    border-color var(--t-mid) var(--ease-soft),
+    transform var(--t-fast) var(--ease-spring);
+}
+
+.t:active {
+  transform: scale(0.95);
 }
 
 .t.on {
@@ -266,10 +295,30 @@ function playSalvageBurst() {
 
 .empty {
   grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
   padding: 30px 10px;
   font-size: 12px;
   text-align: center;
   color: var(--text-dim);
+}
+
+.empty-icon {
+  font-size: 26px;
+  filter: grayscale(20%) opacity(85%);
+  animation: empty-bob 2.6s ease-in-out infinite;
+}
+
+@keyframes empty-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
 }
 
 .row {
@@ -281,6 +330,8 @@ function playSalvageBurst() {
   border: 1px solid var(--line);
   border-radius: var(--r);
   text-align: left;
+  animation: row-in var(--t-slow) var(--ease-soft) both;
+  animation-delay: var(--row-delay, 0ms);
 }
 
 .row.static {
@@ -290,6 +341,35 @@ function playSalvageBurst() {
 .equip-row {
   min-height: 66px;
   padding: 7px 9px;
+}
+
+/* 品质左边条：不翻动详情也能快速分辨稀有度 */
+.q-accent-common {
+  box-shadow: inset 3px 0 0 var(--q-common);
+}
+
+.q-accent-fine {
+  box-shadow: inset 3px 0 0 var(--q-fine);
+}
+
+.q-accent-rare {
+  box-shadow: inset 3px 0 0 var(--q-rare);
+}
+
+.q-accent-epic {
+  box-shadow: inset 3px 0 0 var(--q-epic);
+}
+
+.q-accent-legendary {
+  box-shadow: inset 3px 0 0 var(--q-legendary);
+}
+
+.q-accent-mythic {
+  box-shadow: inset 3px 0 0 var(--q-mythic);
+}
+
+.q-accent-divine {
+  box-shadow: inset 3px 0 0 var(--q-divine);
 }
 
 .mid {
@@ -443,13 +523,4 @@ function playSalvageBurst() {
   }
 }
 
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
-
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.2s;
-}
 </style>

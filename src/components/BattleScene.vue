@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, onUnmounted, ref, watch } from 'vue';
 import type { ClassId, MonsterDef } from '@/core/types';
 import type { BattleVitals } from '@/core/battleVisual';
 import { abbr } from '@/core/format';
@@ -20,6 +20,8 @@ const props = defineProps<{
   vitals: BattleVitals;
   statusText: string;
   progressText: string;
+  /** 当前关卡波次进度（0-1），用于状态区的小进度条；通关后不传。 */
+  waveRatio?: number;
   pulse: { id: number; targetId: string; damage: number; kills: number } | null;
   skill: VisualSkill | null;
   effectUrl: string | null;
@@ -35,16 +37,39 @@ const playerHpPercent = computed(
 const monsterHpPercent = computed(
   () => (props.vitals.monster.currentHp / props.vitals.monster.maxHp) * 100,
 );
+
+/**
+ * 目标切换（新怪物上场）时播一次入场动画。
+ * 与受击动画分开：受击作用在立绘上，入场作用在整个怪物单元上，互不冲突。
+ */
+const spawning = ref(false);
+let spawnTimer = 0;
+
+watch(
+  () => props.monster.id,
+  () => {
+    spawning.value = true;
+    clearTimeout(spawnTimer);
+    spawnTimer = window.setTimeout(() => (spawning.value = false), 480);
+  },
+);
+
+onUnmounted(() => clearTimeout(spawnTimer));
 </script>
 
 <template>
   <div
     class="battle-scene"
-    :class="[`target-${monster.type}`, { active, casting: !!skill && !!pulse }]"
+    :class="[
+      `target-${monster.type}`,
+      { active, casting: !!skill && !!pulse, 'player-low': playerHpPercent <= 25 },
+    ]"
     :style="{ '--impact-delay': skill ? '300ms' : '110ms' }"
     :aria-label="`${playerName}正在与${monster.name}战斗`"
   >
-    <img class="scene-background" :src="backgroundUrl" alt="" aria-hidden="true" />
+    <Transition name="bg-fade">
+      <img :key="backgroundUrl" class="scene-background" :src="backgroundUrl" alt="" aria-hidden="true" />
+    </Transition>
     <span class="scene-haze" aria-hidden="true" />
     <span class="scene-glow" aria-hidden="true" />
 
@@ -56,6 +81,9 @@ const monsterHpPercent = computed(
       <span class="status-dot" />
       <span>{{ statusText }}</span>
       <strong class="num">{{ progressText }}</strong>
+      <span v-if="waveRatio !== undefined" class="wave-track" aria-hidden="true">
+        <i :style="{ width: `${Math.min(100, Math.max(0, waveRatio * 100))}%` }" />
+      </span>
     </div>
 
     <div class="enemy-hud">
@@ -74,6 +102,7 @@ const monsterHpPercent = computed(
       </div>
       <div
         class="hpbar"
+        :class="{ low: monsterHpPercent <= 25 }"
         role="meter"
         aria-label="目标生命"
         aria-valuemin="0"
@@ -95,6 +124,7 @@ const monsterHpPercent = computed(
       </div>
       <div
         class="hpbar hero-hpbar"
+        :class="{ low: playerHpPercent <= 25 }"
         role="meter"
         aria-label="玩家生命"
         aria-valuemin="0"
@@ -132,7 +162,11 @@ const monsterHpPercent = computed(
       <MonsterArtwork :monster="support" />
     </div>
 
-    <div :key="`${monster.id}-${pulse?.id ?? 0}`" class="enemy-unit" :class="{ hit: !!pulse }">
+    <div
+      :key="`${monster.id}-${pulse?.id ?? 0}`"
+      class="enemy-unit"
+      :class="{ hit: !!pulse, spawn: spawning }"
+    >
       <span class="actor-shadow" aria-hidden="true" />
       <div class="enemy-actor">
         <MonsterArtwork :monster="monster" />
@@ -220,6 +254,24 @@ const monsterHpPercent = computed(
   transform: scale(1.012);
 }
 
+/* 背景极缓慢地呼吸漂移，让战斗画面"活"起来 */
+.active .scene-background {
+  animation: bg-drift 26s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+/* 玩家濒危：屏幕边缘红晕脉冲 */
+.player-low::after {
+  content: '';
+  position: absolute;
+  z-index: 30;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: inset 0 0 26px 4px rgb(255 90 110 / 42%);
+  animation: danger-vignette 1.1s ease-in-out infinite;
+}
+
 .scene-haze {
   z-index: -3;
   background:
@@ -274,6 +326,37 @@ const monsterHpPercent = computed(
   padding-left: 11px;
   font-size: 9px;
   color: #fff5c7;
+}
+
+/* 波次小进度条：推关过程一眼可见 */
+.wave-track {
+  grid-column: 1 / -1;
+  display: block;
+  height: 3px;
+  margin-top: 2px;
+  overflow: hidden;
+  background: rgb(255 255 255 / 24%);
+  border-radius: 999px;
+}
+
+.wave-track i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #ffc2d9, #ffe596, #9fd8f7);
+  border-radius: inherit;
+  box-shadow: 0 0 5px rgb(255 194 217 / 70%);
+  transition: width 0.45s var(--ease-soft);
+}
+
+/* 切换关卡时新旧背景交叉淡化 */
+.bg-fade-enter-from,
+.bg-fade-leave-to {
+  opacity: 0;
+}
+
+.bg-fade-enter-active,
+.bg-fade-leave-active {
+  transition: opacity 0.5s var(--ease-soft);
 }
 
 .status-dot {
@@ -493,6 +576,16 @@ const monsterHpPercent = computed(
 .enemy-unit.hit .enemy-actor {
   animation: enemy-hit 0.42s ease-out;
   animation-delay: var(--impact-delay);
+}
+
+/* 新怪物从右侧轻轻弹入 */
+.enemy-unit.spawn {
+  animation: enemy-spawn 0.44s var(--ease-out-back) both;
+}
+
+/* 低血量警报：血条外发光脉冲 */
+.hpbar.low .hpbar-fill {
+  animation: hp-low-pulse 0.9s ease-in-out infinite;
 }
 
 .hero-actor :deep(.class-art),
@@ -1040,6 +1133,48 @@ const monsterHpPercent = computed(
   }
 }
 
+@keyframes enemy-spawn {
+  0% {
+    opacity: 0;
+    transform: translateX(26px) scale(0.86);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes bg-drift {
+  0% {
+    transform: scale(1.03) translate(0.4%, 0.3%);
+  }
+  100% {
+    transform: scale(1.08) translate(-0.7%, -0.5%);
+  }
+}
+
+@keyframes danger-vignette {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes hp-low-pulse {
+  0%,
+  100% {
+    filter: brightness(1);
+    box-shadow: 0 0 0 rgb(255 107 122 / 0%);
+  }
+  50% {
+    filter: brightness(1.35) saturate(1.3);
+    box-shadow: 0 0 8px rgb(255 107 122 / 85%);
+  }
+}
+
 @keyframes enemy-hit {
   0%,
   100% {
@@ -1320,6 +1455,10 @@ const monsterHpPercent = computed(
 @media (prefers-reduced-motion: reduce) {
   .hero-actor,
   .enemy-actor,
+  .enemy-unit,
+  .hpbar.low .hpbar-fill,
+  .scene-background,
+  .player-low::after,
   .support-unit,
   .ambient-particles i,
   .basic-attack-fx,
