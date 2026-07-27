@@ -5,6 +5,7 @@ import { createInstance } from '@/core/equipment';
 import { Rng } from '@/core/rng';
 import { requireEquipment } from '@/data/equipment';
 import { SHOP_OFFERS } from '@/data/shop';
+import { ORDERED_STAGE_IDS, STAGES, nextStageId, totalMonsterCount } from '@/data/stages';
 import { createSave } from '@/save/schema';
 import { clearSave, loadSave } from '@/save/storage';
 import { useGameStore } from '../game';
@@ -41,15 +42,49 @@ describe('game store persistence', () => {
     await game.persist();
   });
 
-  it('离线击杀会推进通关、累计统计并发放首通奖励', async () => {
+  it('离线击杀完成首通后发放奖励并自动进入下一关', async () => {
     const game = useGameStore();
     const save = createSave('离线测试', 'swordsman', 11, Date.now() - 120_000);
+    const clearedStageId = save.progress.currentStageId;
+    const expectedNextStageId = nextStageId(clearedStageId)!;
     game.loadFrom(save);
 
     expect(game.save?.stats.totalKills).toBeGreaterThan(0);
-    expect(game.save?.progress.clearedStageIds).toContain(game.currentStage.id);
-    expect(game.save?.progress.stageKills[game.currentStage.id]).toBeGreaterThan(0);
+    expect(game.save?.progress.clearedStageIds).toContain(clearedStageId);
+    expect(game.save?.progress.stageKills[clearedStageId]).toBeGreaterThan(0);
+    expect(game.currentStage.id).toBe(expectedNextStageId);
     expect(game.save?.bag.items.stone_enhance).toBeGreaterThan(0);
+    await game.persist();
+  });
+
+  it('手动回到已通关旧关后继续离线挂机不会自动跳走', async () => {
+    const game = useGameStore();
+    const oldStageId = ORDERED_STAGE_IDS[0]!;
+    const oldStage = STAGES[oldStageId]!;
+    const save = createSave('回刷测试', 'swordsman', 12, Date.now() - 120_000);
+    save.progress.currentStageId = oldStageId;
+    save.progress.clearedStageIds.push(oldStageId);
+    save.progress.stageKills[oldStageId] = totalMonsterCount(oldStage);
+
+    game.loadFrom(save);
+
+    expect(game.save?.stats.totalKills).toBeGreaterThan(0);
+    expect(game.currentStage.id).toBe(oldStageId);
+    await game.persist();
+  });
+
+  it('最后一关首通后没有下一关，继续停留在最后一关', async () => {
+    const game = useGameStore();
+    const lastStageId = ORDERED_STAGE_IDS.at(-1)!;
+    const save = createSave('末关测试', 'swordsman', 13, Date.now() - 3_600_000);
+    save.player.level = 120;
+    save.progress.currentStageId = lastStageId;
+    save.progress.clearedStageIds.push(...ORDERED_STAGE_IDS.slice(0, -1));
+
+    game.loadFrom(save);
+
+    expect(game.save?.progress.clearedStageIds).toContain(lastStageId);
+    expect(game.currentStage.id).toBe(lastStageId);
     await game.persist();
   });
 });

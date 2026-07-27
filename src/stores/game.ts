@@ -495,6 +495,11 @@ export const useGameStore = defineStore('game', () => {
         }
       }
     }
+
+    // 只在“刚刚首通”的这一刻自动前进：玩家手动回到已通关旧关时，
+    // result.clearedNow 始终为 false，因此可以稳定留在旧关刷材料。
+    // 最后一关没有 nextStageId，advanceStage 会返回 false 并保持原地。
+    if (result.clearedNow) advanceStage();
   }
 
   // ─────────── 关卡 ───────────
