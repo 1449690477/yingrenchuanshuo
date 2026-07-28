@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
-import { ChevronDown, Heart, Sparkles, X } from '@lucide/vue';
+import { ChevronDown, Heart, History, Pause, Play, Sparkles, X } from '@lucide/vue';
 import { createFocusTrap, type FocusTrap } from 'focus-trap';
 import type { AffectionMood } from '@/core/affection';
 import type { EncounterLine } from '@/core/encounters';
@@ -44,7 +44,16 @@ const phase = ref<StoryPhase>('opening');
 const selectedChoice = ref<AffectionStoryChoiceDefinition | null>(null);
 const lineIndex = ref(0);
 const typedCount = ref(0);
+/** 自动播放：到选项或收尾自动停下，选择权永远在玩家手里 */
+const autoMode = ref(false);
+/** 对白回放面板 */
+const showBacklog = ref(false);
+/** 出 CG 时的一记白闪 */
+const cgFlash = ref(false);
+/** 本场已播台词，回放面板的数据源 */
+const backlog = ref<readonly { speaker: string | null; text: string }[]>([]);
 let typeTimer = 0;
+let autoTimer = 0;
 let dialogFocusTrap: FocusTrap | null = null;
 
 const modalStyle = computed(() => ({
@@ -118,6 +127,16 @@ function advanceDialogue(): void {
   if (!isLastLine.value) lineIndex.value++;
 }
 
+/** 自动播放调度：打完一句后按句长停顿再翻页，长句多停、短句快走 */
+function scheduleAutoAdvance(): void {
+  clearTimeout(autoTimer);
+  if (!autoMode.value || isTyping.value || !currentLine.value || isLastLine.value) return;
+  const wait = 1100 + currentLine.value.text.length * 45;
+  autoTimer = window.setTimeout(() => {
+    if (autoMode.value && !isTyping.value && !isLastLine.value) lineIndex.value++;
+  }, wait);
+}
+
 async function skipDialogue(): Promise<void> {
   lineIndex.value = Math.max(0, dialogue.value.length - 1);
   await nextTick();
@@ -149,15 +168,50 @@ function requestClose(): void {
 
 function resetStory(): void {
   stopTyping();
+  clearTimeout(autoTimer);
   phase.value = 'opening';
   selectedChoice.value = null;
   lineIndex.value = 0;
   typedCount.value = 0;
+  autoMode.value = false;
+  showBacklog.value = false;
+  cgFlash.value = false;
+  backlog.value = [];
   nextTick(startTyping);
 }
 
 watch(currentLine, startTyping, { immediate: true });
 watch(() => props.story.id, resetStory);
+
+// 每播一句记一句，回放面板随时能翻看本场台词
+watch(
+  currentLine,
+  (line) => {
+    if (!line) return;
+    const speaker = line.speaker ?? null;
+    const last = backlog.value[backlog.value.length - 1];
+    if (last && last.text === line.text && last.speaker === speaker) return;
+    backlog.value = [...backlog.value, { speaker, text: line.text }];
+  },
+  { immediate: true },
+);
+
+// 自动播放：打字完成 / 翻页 / 开关变化时重新评估是否要自动前进
+watch([isTyping, lineIndex, autoMode], scheduleAutoAdvance);
+
+// 选定回应、场景从据点换成专属 CG 时，给一记白闪强调「这一刻值得定格」
+let cgFlashTimer = 0;
+watch(sceneAsset, (asset, previous) => {
+  if (asset === previous) return;
+  if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+  if (props.story.cgAsset && asset === props.story.cgAsset) {
+    clearTimeout(cgFlashTimer);
+    cgFlash.value = true;
+    cgFlashTimer = window.setTimeout(() => {
+      cgFlash.value = false;
+    }, 520);
+  }
+});
 
 onMounted(async () => {
   await nextTick();
@@ -179,6 +233,8 @@ onMounted(async () => {
 
 onUnmounted(() => {
   stopTyping();
+  clearTimeout(autoTimer);
+  clearTimeout(cgFlashTimer);
   if (dialogFocusTrap?.active) {
     dialogFocusTrap.deactivate({
       returnFocus: true,
@@ -228,12 +284,19 @@ onUnmounted(() => {
             :class="[`mood-${activeMood}`, { response: selectedChoice }]"
             @click="advanceDialogue"
           >
-            <img class="scene-art" :src="sceneUrl" alt="" aria-hidden="true" />
+            <img
+              :key="sceneAsset"
+              class="scene-art"
+              :src="sceneUrl"
+              alt=""
+              aria-hidden="true"
+            />
             <span class="scene-veil" aria-hidden="true" />
             <span class="scene-bloom" aria-hidden="true" />
             <span class="floating-hearts" aria-hidden="true">
               <i v-for="index in 5" :key="index">♥</i>
             </span>
+            <span v-if="cgFlash" class="cg-flash" aria-hidden="true" />
 
             <div
               class="portrait-slot"
@@ -257,14 +320,40 @@ onUnmounted(() => {
               她仍记得你们做过的选择
             </p>
 
-            <button
-              v-if="!dialogueDone"
-              type="button"
-              class="skip-button"
-              @click.stop="skipDialogue"
-            >
-              跳过对白
-            </button>
+            <div class="stage-tools" @click.stop>
+              <button
+                type="button"
+                class="tool-chip"
+                :class="{ on: autoMode }"
+                :aria-pressed="autoMode"
+                :title="autoMode ? '关闭自动播放' : '开启自动播放（到选项自动停下）'"
+                @click="autoMode = !autoMode"
+              >
+                <Pause v-if="autoMode" :size="12" aria-hidden="true" />
+                <Play v-else :size="12" aria-hidden="true" />
+                自动
+              </button>
+              <button
+                type="button"
+                class="tool-chip"
+                :class="{ on: showBacklog }"
+                :aria-pressed="showBacklog"
+                title="回看本段剧情的对白"
+                @click="showBacklog = !showBacklog"
+              >
+                <History :size="12" aria-hidden="true" />
+                回放
+              </button>
+              <button
+                v-if="!dialogueDone"
+                type="button"
+                class="tool-chip"
+                title="立即显示全部对白"
+                @click="skipDialogue"
+              >
+                跳过
+              </button>
+            </div>
           </div>
 
           <div class="dialogue-area">
@@ -362,6 +451,38 @@ onUnmounted(() => {
               }}
             </button>
           </div>
+
+          <Transition name="backlog-pop">
+            <div v-if="showBacklog" class="backlog-panel" role="log" aria-label="对白回放">
+              <header class="backlog-head">
+                <span>
+                  <History :size="14" aria-hidden="true" />
+                  对白回放
+                </span>
+                <button
+                  type="button"
+                  class="backlog-close"
+                  aria-label="关闭对白回放"
+                  @click="showBacklog = false"
+                >
+                  <X :size="15" aria-hidden="true" />
+                </button>
+              </header>
+              <ul class="backlog-list">
+                <li
+                  v-for="(entry, index) in backlog"
+                  :key="index"
+                  :class="{ narration: !entry.speaker }"
+                >
+                  <b v-if="entry.speaker">{{ entry.speaker }}</b>
+                  <p>{{ entry.text }}</p>
+                </li>
+                <li v-if="!backlog.length" class="backlog-empty">
+                  这段故事才刚刚开始，还没有说出口的台词。
+                </li>
+              </ul>
+            </div>
+          </Transition>
         </section>
       </div>
     </Transition>
@@ -492,9 +613,35 @@ onUnmounted(() => {
   z-index: -4;
   object-fit: cover;
   object-position: center 32%;
+  animation: scene-dip 0.55s ease-out;
   transition:
     opacity 0.35s var(--ease-soft),
     transform 1.5s var(--ease-soft);
+}
+
+@keyframes scene-dip {
+  from {
+    opacity: 0;
+    transform: scale(1.04);
+  }
+}
+
+.cg-flash {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: #fff;
+  pointer-events: none;
+  animation: cg-flash-fade 0.52s ease-out forwards;
+}
+
+@keyframes cg-flash-fade {
+  from {
+    opacity: 0.92;
+  }
+  to {
+    opacity: 0;
+  }
 }
 
 .story-stage.response .scene-art {
@@ -545,14 +692,17 @@ onUnmounted(() => {
   box-shadow: 0 0 28px var(--story-glow);
 }
 
-.memory-echo,
-.skip-button {
+.memory-echo {
   position: absolute;
   top: 10px;
+  left: 10px;
   min-height: 36px;
   display: flex;
   align-items: center;
+  gap: 5px;
   z-index: 2;
+  max-width: 58%;
+  padding: 7px 10px;
   font-size: 8px;
   font-weight: 800;
   color: #fff;
@@ -562,18 +712,36 @@ onUnmounted(() => {
   backdrop-filter: blur(9px);
 }
 
-.memory-echo {
-  left: 10px;
-  gap: 5px;
-  max-width: 64%;
-  padding: 7px 10px;
+.stage-tools {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
+  display: flex;
+  gap: 6px;
 }
 
-.skip-button {
-  right: 10px;
-  min-width: 82px;
+.tool-chip {
+  min-height: 36px;
+  display: flex;
+  align-items: center;
   justify-content: center;
+  gap: 4px;
   padding: 0 10px;
+  font-size: 8px;
+  font-weight: 800;
+  color: #fff;
+  background: rgb(50 44 69 / 54%);
+  border: 1px solid rgb(255 255 255 / 36%);
+  border-radius: 999px;
+  backdrop-filter: blur(9px);
+  -webkit-backdrop-filter: blur(9px);
+}
+
+.tool-chip.on {
+  background: color-mix(in srgb, var(--story-accent) 62%, rgb(50 44 69 / 54%));
+  border-color: rgb(255 255 255 / 62%);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--story-accent) 45%, transparent);
 }
 
 .floating-hearts {
@@ -920,11 +1088,123 @@ onUnmounted(() => {
   }
 }
 
+.backlog-panel {
+  position: absolute;
+  inset: 0;
+  z-index: 9;
+  display: flex;
+  flex-direction: column;
+  background: rgb(24 22 38 / 82%);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.backlog-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  color: #fff;
+  border-bottom: 1px solid rgb(255 255 255 / 18%);
+}
+
+.backlog-head > span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.backlog-close {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: rgb(255 255 255 / 12%);
+  border: 1px solid rgb(255 255 255 / 28%);
+  border-radius: 50%;
+}
+
+.backlog-list {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 14px;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.backlog-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 9px 12px;
+  color: rgb(255 255 255 / 92%);
+  background: rgb(255 255 255 / 8%);
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 12px;
+}
+
+.backlog-list li b {
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--story-glow);
+  letter-spacing: 0.06em;
+}
+
+.backlog-list li p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.backlog-list li.narration {
+  background: rgb(255 255 255 / 4%);
+  border-style: dashed;
+}
+
+.backlog-list li.narration p {
+  font-style: italic;
+  color: rgb(255 255 255 / 68%);
+}
+
+.backlog-empty {
+  align-items: center;
+  padding: 26px 12px;
+  font-size: 11px;
+  color: rgb(255 255 255 / 55%);
+  text-align: center;
+}
+
+.backlog-pop-enter-active,
+.backlog-pop-leave-active {
+  transition:
+    opacity 0.24s var(--ease-soft, ease),
+    transform 0.24s var(--ease-soft, ease);
+}
+
+.backlog-pop-enter-from,
+.backlog-pop-leave-to {
+  opacity: 0;
+  transform: translateY(14px);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .floating-hearts i,
   .typing-caret,
-  .continue-mark {
+  .continue-mark,
+  .scene-art {
     animation: none;
+  }
+
+  .cg-flash {
+    display: none;
   }
 
   .scene-art,
@@ -932,7 +1212,9 @@ onUnmounted(() => {
   .story-modal-enter-active,
   .story-modal-leave-active,
   .story-modal-enter-active .story-dialog,
-  .story-modal-leave-active .story-dialog {
+  .story-modal-leave-active .story-dialog,
+  .backlog-pop-enter-active,
+  .backlog-pop-leave-active {
     transition: none;
   }
 }
