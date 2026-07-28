@@ -1,4 +1,8 @@
-import type { EncounterDefinition, EncounterTiming } from '@/core/encounters';
+import {
+  availableEncounterIds,
+  type EncounterDefinition,
+  type EncounterTiming,
+} from '@/core/encounters';
 
 /** 首次 60 秒便于试玩，之后约每 10 分钟一次。 */
 export const ENCOUNTER_TIMING: EncounterTiming = { firstSec: 60, intervalSec: 600, queueMax: 3 };
@@ -7,6 +11,7 @@ const DEFINITIONS: EncounterDefinition[] = [
   {
     id: 'enc_r1_petalsmith',
     regionIds: ['r1'],
+    unlockChapterId: '1-1',
     title: '花径上的见习刀匠',
     story: '一位见习刀匠蹲在路旁，正为缺少柔韧的包刀材料发愁。',
     speaker: '见习刀匠·茜',
@@ -39,6 +44,7 @@ const DEFINITIONS: EncounterDefinition[] = [
   {
     id: 'enc_r1_bell',
     regionIds: ['r1'],
+    unlockChapterId: '1-3',
     title: '会自己响的木铃',
     story: '林间传来清脆铃声，一只小木灵想收回散落的木铃。',
     speaker: '木铃',
@@ -71,6 +77,7 @@ const DEFINITIONS: EncounterDefinition[] = [
   {
     id: 'enc_r1_barrier',
     regionIds: ['r1'],
+    unlockChapterId: '1-5',
     title: '微微发亮的裂隙',
     story: '落樱结界裂开了一道细缝，温暖的光正一点点漏出来。',
     speaker: '结界裂隙',
@@ -102,6 +109,7 @@ const DEFINITIONS: EncounterDefinition[] = [
   {
     id: 'enc_r2_napper',
     regionIds: ['r2'],
+    unlockChapterId: '2-2',
     title: '睡过站的草原信使',
     story: '信使抱着包裹睡在草垛旁，醒来后发现捆包材料全散了。',
     speaker: '草原信使·穗',
@@ -134,6 +142,7 @@ const DEFINITIONS: EncounterDefinition[] = [
   {
     id: 'enc_r2_honey',
     regionIds: ['r2'],
+    unlockChapterId: '2-3',
     title: '蜂娘的下午茶',
     story: '巡逻的蜂娘想泡一壶甜茶，却怎么也找不到合适的杯垫。',
     speaker: '蜜蜂娘·芃',
@@ -166,6 +175,7 @@ const DEFINITIONS: EncounterDefinition[] = [
   {
     id: 'enc_r2_altar',
     regionIds: ['r2'],
+    unlockChapterId: '2-5',
     title: '草原祭坛的回声',
     story: '古老祭坛发出轻柔回声，似乎在等待一块失落的结晶。',
     speaker: '祭坛回声',
@@ -209,4 +219,11 @@ export function requireEncounter(id: string): EncounterDefinition {
 
 export function encounterIdsForRegion(regionId: string): string[] {
   return DEFINITIONS.filter((e) => e.regionIds.includes(regionId)).map((e) => e.id);
+}
+
+export function encounterIdsForProgress(
+  regionId: string,
+  unlockedChapterIds: ReadonlySet<string>,
+): string[] {
+  return availableEncounterIds(DEFINITIONS, regionId, unlockedChapterIds);
 }

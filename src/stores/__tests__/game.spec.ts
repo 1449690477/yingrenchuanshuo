@@ -936,6 +936,9 @@ describe('enhancement transaction', () => {
 describe('equipment dungeon transaction', () => {
   const now = Date.parse('2026-07-28T10:00:00+08:00');
 
+  beforeEach(() => vi.setSystemTime(now));
+  afterEach(() => vi.useRealTimers());
+
   function dungeonSave(powerful: boolean): SaveData {
     const save = createSave('副本测试', 'witch', 20260728, now);
     save.player.level = 90;

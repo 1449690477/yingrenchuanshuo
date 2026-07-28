@@ -36,6 +36,8 @@ export interface EncounterLine {
 export interface EncounterDefinition {
   id: string;
   regionIds: string[];
+  /** 玩家解锁这个章节后，奇遇才会进入新事件候选池。 */
+  unlockChapterId: string;
   title: string;
   story: string;
   choices: [EncounterChoice, EncounterChoice];
@@ -83,6 +85,20 @@ export interface ResourceWallet {
 export type EncounterChoiceResult =
   | { ok: true; wallet: ResourceWallet; rewards: ResourceBundle }
   | { ok: false; reason: 'insufficient-resource' };
+
+/** 按地区与历史已解锁章节筛选可生成的奇遇。 */
+export function availableEncounterIds(
+  definitions: readonly EncounterDefinition[],
+  regionId: string,
+  unlockedChapterIds: ReadonlySet<string>,
+): string[] {
+  return definitions
+    .filter(
+      (encounter) =>
+        encounter.regionIds.includes(regionId) && unlockedChapterIds.has(encounter.unlockChapterId),
+    )
+    .map((encounter) => encounter.id);
+}
 
 /** 用有效挂机时间推进队列；独立派生 RNG，不改变掉落随机序列。 */
 export function advanceEncounterState(

@@ -105,7 +105,7 @@ import {
 import { getEquipment, requireEquipment } from '@/data/equipment';
 import { requireMonster } from '@/data/monsters';
 import { requireLootTable } from '@/data/lootTables';
-import { ENCOUNTER_TIMING, encounterIdsForRegion, requireEncounter } from '@/data/encounters';
+import { ENCOUNTER_TIMING, encounterIdsForProgress, requireEncounter } from '@/data/encounters';
 import { requireItem } from '@/data/items';
 import {
   FIRST_STAGE_ID,
@@ -347,6 +347,14 @@ export const useGameStore = defineStore('game', () => {
 
   const staminaMax = computed(() => staminaMaxForLevel(player.value?.level ?? 1));
   const pendingEncounters = computed(() => save.value?.encounters.pending ?? []);
+  const unlockedEncounterChapterIds = computed(
+    () =>
+      new Set(
+        ORDERED_STAGE_IDS.filter((stageId) => isStageUnlocked(stageId)).map(
+          (stageId) => STAGES[stageId]!.chapterId,
+        ),
+      ),
+  );
   const equipmentDungeonRemaining = computed(() =>
     save.value
       ? equipmentDungeonAttemptsRemaining(save.value.equipmentDungeon, Date.now())
@@ -555,7 +563,7 @@ export const useGameStore = defineStore('game', () => {
       save.value.encounters,
       elapsedSec,
       regionId,
-      encounterIdsForRegion(regionId),
+      encounterIdsForProgress(regionId, unlockedEncounterChapterIds.value),
       save.value.seed,
       ENCOUNTER_TIMING,
     );

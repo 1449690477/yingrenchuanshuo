@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   advanceEncounterState,
+  availableEncounterIds,
   encounterRewardSeed,
   resolveEncounterChoice,
   type EncounterState,
@@ -26,6 +27,31 @@ describe('idle encounters', () => {
     expect(after.pending).toHaveLength(1);
     expect(after.pending[0]?.regionId).toBe('r1');
     expect(r1Ids).toContain(after.pending[0]?.encounterId);
+  });
+
+  it('只返回当前地区且开放章节已解锁的奇遇', () => {
+    const definitions = Object.values(ENCOUNTERS);
+    expect(availableEncounterIds(definitions, 'r1', new Set(['1-1']))).toEqual([
+      'enc_r1_petalsmith',
+    ]);
+    expect(availableEncounterIds(definitions, 'r1', new Set(['1-1', '1-3']))).toEqual([
+      'enc_r1_petalsmith',
+      'enc_r1_bell',
+    ]);
+    expect(availableEncounterIds(definitions, 'r1', new Set(['1-1', '1-3', '1-5']))).toEqual([
+      'enc_r1_petalsmith',
+      'enc_r1_bell',
+      'enc_r1_barrier',
+    ]);
+  });
+
+  it('回到旧关时仍按历史已解锁章节保留后续奇遇', () => {
+    const unlockedByHistory = new Set(['1-1', '1-2', '1-3', '1-4', '1-5']);
+    expect(availableEncounterIds(Object.values(ENCOUNTERS), 'r1', unlockedByHistory)).toEqual([
+      'enc_r1_petalsmith',
+      'enc_r1_bell',
+      'enc_r1_barrier',
+    ]);
   });
 
   it('相同种子、序号和地区产生相同序列', () => {
