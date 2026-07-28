@@ -467,8 +467,9 @@ function affixValueContext(
 export function rollAffixes(def: EquipmentDef, rng: Rng, classId: ClassId): Affix[] {
   const { fixedKeys, fixedCount, capacity } = validateFixedAffixLayout(def);
   const professionPool = requireProfessionAffixPool(classId);
-  if (def.fixedTemplate) return [];
 
+  // 固定模板装备的品质容量已被 fixedAffixes 写满，这里剩下的正好是额外槽位；
+  // 普通装备则是「容量 − 已固定」。两种情况同一个式子即可。
   const count = capacity - fixedCount;
   if (count <= 0) return [];
 
@@ -574,10 +575,15 @@ function validateFixedAffixLayout(def: EquipmentDef): {
 } {
   const fixedAffixes = def.fixedAffixes ?? [];
   const fixedCount = fixedAffixes.length;
-  const capacity = QUALITY_AFFIX_COUNT[def.quality];
-  if (fixedCount > capacity) {
+  const extraSlots = def.extraAffixSlots ?? 0;
+  if (!Number.isSafeInteger(extraSlots) || extraSlots < 0) {
+    throw new Error(`[配置错误] ${def.id} 额外词条槽必须是非负整数：${extraSlots}`);
+  }
+  const baseCapacity = QUALITY_AFFIX_COUNT[def.quality];
+  const capacity = baseCapacity + extraSlots;
+  if (fixedCount > baseCapacity) {
     throw new Error(
-      `[配置错误] ${def.id} 固定词条 ${fixedCount} 条，超过 ${def.quality} 品质容量 ${capacity}`,
+      `[配置错误] ${def.id} 固定词条 ${fixedCount} 条，超过 ${def.quality} 品质容量 ${baseCapacity}`,
     );
   }
 
@@ -585,9 +591,11 @@ function validateFixedAffixLayout(def: EquipmentDef): {
   if (fixedKeys.size !== fixedCount) {
     throw new Error(`[配置错误] ${def.id} 固定词条 key 不能重复`);
   }
-  if (def.fixedTemplate && fixedCount !== capacity) {
+  // fixedTemplate 要求写满的是**品质容量**，额外槽位不算在内 ——
+  // 额外槽位的定位就是「固定模板之外再开几个可洗的」。
+  if (def.fixedTemplate && fixedCount !== baseCapacity) {
     throw new Error(
-      `[配置错误] ${def.id} 已声明 fixedTemplate，但固定词条 ${fixedCount} 条，必须写满容量 ${capacity}`,
+      `[配置错误] ${def.id} 已声明 fixedTemplate，但固定词条 ${fixedCount} 条，必须写满容量 ${baseCapacity}`,
     );
   }
   return { fixedKeys, fixedCount, capacity };

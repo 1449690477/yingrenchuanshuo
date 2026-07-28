@@ -362,7 +362,7 @@ describe('save schema', () => {
     const forbiddenRandom = saveWithEquipment(
       testEquipment(fixedTemplate.id, [{ key: 'lifesteal', value: 1.2, tier: 2 }]),
     );
-    expect(() => parseSave(forbiddenRandom)).toThrow(/完整固定模板不能保存随机词条/);
+    expect(() => parseSave(forbiddenRandom)).toThrow(/完整固定模板的随机词条不得超过额外槽位/);
   });
 
   it('v10 重铸候选必须换类型，且采用后不能与其他随机或固定词条重复', () => {

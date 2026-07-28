@@ -413,6 +413,17 @@ function buildDefinition(
       boutiqueTheme: spec.appearanceTheme,
       fixedAffixes: affectionFixedAffixes(spec.slot, spec.level, collectionIndex),
       fixedTemplate: true,
+      /*
+       * 心虹珍藏额外开两个可洗练槽。
+       *
+       * 六条固定词条是这件装备的身份，一条都不该被洗掉；
+       * 但如果完全不能洗练，玩家在好感上的长期投入会随装备过时而作废 ——
+       * 那正是《上瘾》里「投入」环节最忌讳的事（见 docs/40 红线）。
+       *
+       * 两个槽的取值：既让心虹装备能跟着洗练系统一起成长，
+       * 又不至于喧宾夺主盖过定向副本产出的主力装备。
+       */
+      extraAffixSlots: 2,
       uniqueEffect: `心虹共鸣：激活「${BOUTIQUE_THEMES[spec.appearanceTheme].name}」角色外观、互动粒子与攻击换肤。`,
     },
   };

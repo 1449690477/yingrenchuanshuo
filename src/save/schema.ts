@@ -346,7 +346,11 @@ const equipmentInstanceSchema = z
     }
 
     const fixedAffixes = definition.fixedAffixes ?? [];
-    const remainingCapacity = QUALITY_AFFIX_COUNT[definition.quality] - fixedAffixes.length;
+    // 额外槽位是品质容量之外单独开的可洗练位（心虹珍藏用），必须计入剩余容量，
+    // 否则这类装备一存盘就会被判「随机词条超容量」而整件丢失。
+    const extraSlots = definition.extraAffixSlots ?? 0;
+    const remainingCapacity =
+      QUALITY_AFFIX_COUNT[definition.quality] + extraSlots - fixedAffixes.length;
     if (remainingCapacity < 0) {
       ctx.addIssue({
         code: 'custom',
@@ -355,11 +359,12 @@ const equipmentInstanceSchema = z
       });
       return;
     }
-    if (definition.fixedTemplate && instance.affixes.length > 0) {
+    // 固定模板只约束品质容量内的部分；额外槽位本就是给它开的可洗位。
+    if (definition.fixedTemplate && instance.affixes.length > extraSlots) {
       ctx.addIssue({
         code: 'custom',
         path: ['affixes'],
-        message: '完整固定模板不能保存随机词条',
+        message: `完整固定模板的随机词条不得超过额外槽位 ${extraSlots}`,
       });
     }
     if (instance.affixes.length > remainingCapacity) {
