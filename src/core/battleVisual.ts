@@ -118,8 +118,22 @@ export function battleVitalsAtProgress(
     throw new Error(`[战斗视觉错误] 玩家技能倍率必须是正有限数：${playerSkillMultiplier}`);
   }
 
-  const playerMaxHp = player.stats.hp;
-  const monsterMaxHp = monster.stats.hp;
+  /*
+   * 上限也要取整。
+   *
+   * stats.hp 是浮点数（装备与成长曲线算出来的），当前生命一直是 Math.ceil，
+   * 上限却原样透出 —— 满血时血条会显示成「1355 / 1355.1」，
+   * 玩家看到的是「刚出门就掉了一滴血」。
+   *
+   * 这个函数按注释就是专供画面展示的投影，输出可直接显示的整数才是它的契约；
+   * 取整放在这里，血条、读数、aria 值三处自然一致，不必各自再 round 一遍。
+   *
+   * 用 floor 而不是 round：展示值必须始终不超过真实生命，
+   * round 会把 1354.6 抬成 1355，凭空多出半点血 ——
+   * 「展示生命不得超过实际生命」这条不变量本就有测试守着。
+   */
+  const playerMaxHp = Math.max(1, Math.floor(player.stats.hp));
+  const monsterMaxHp = Math.max(1, Math.floor(monster.stats.hp));
   const encounterSeconds = timeToKill(player, monster, playerSkillMultiplier);
   const incomingDamage =
     progress === 0 ? 0 : estimateIncomingDps(player, monster) * encounterSeconds * progress;

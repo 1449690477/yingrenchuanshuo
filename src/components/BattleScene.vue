@@ -1084,12 +1084,23 @@ onUnmounted(() => {
   height: 100%;
 }
 
+/*
+ * 纵深陪衬怪的空气透视。
+ *
+ * 原本靠 opacity: 0.68 压远，问题是**背景会从怪物身体里透出来**——
+ * 读起来是「半透明的残影」，不是「站在远处的敌人」。
+ * 真实的空气透视靠的是三件事，没有一件是透明度：
+ *   失焦（景深）、失对比（雾气冲淡明暗）、提亮偏冷（大气散射）。
+ *
+ * 所以这里几乎保持不透明，只用 filter 做雾化。
+ * 远的那只（support-2）三项都更重一档，前后关系自然拉开。
+ */
 .support-unit {
   z-index: 3;
   width: 19%;
   height: 29%;
-  opacity: 0.68;
-  filter: saturate(0.86);
+  opacity: 0.94;
+  filter: blur(0.7px) saturate(0.62) contrast(0.84) brightness(1.12);
 }
 
 .support-unit .actor-shadow {
@@ -1113,7 +1124,10 @@ onUnmounted(() => {
   bottom: 35%;
   width: 16%;
   height: 24%;
-  opacity: 0.52;
+
+  /* 站得更远：雾更重、更糊、对比更低，但依然是实体不是残影 */
+  opacity: 0.88;
+  filter: blur(1.3px) saturate(0.48) contrast(0.76) brightness(1.2);
   animation: support-bob 2.8s 0.35s ease-in-out infinite;
 }
 

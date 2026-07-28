@@ -766,11 +766,20 @@ const cpWarn = computed(() => {
 }
 .loot {
   position: relative;
-  flex: 1;
+
+  /*
+   * 内容多长就多高，不再强行撑满剩余空间。
+   *
+   * 原本是 flex: 1，掉落只有三条时面板照样拉到屏幕底部，
+   * 下面留一大片白 —— 看起来像加载失败而不是「还没打到东西」。
+   * 改成 0 1 auto：内容少时贴合内容，内容多时被 flex 压缩，
+   * 由内层 .loot-list.scroll-y 接管滚动，两种情况都不会留白。
+   */
+  flex: 0 1 auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 13px;
+  padding: clamp(10px, 3.2vw, 13px);
   overflow: hidden;
   border: 1px solid var(--hairline);
   border-radius: 18px;
@@ -920,15 +929,50 @@ const cpWarn = computed(() => {
 }
 
 .loot-row {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 7px;
-  min-height: 38px;
-  padding: 3px 6px;
-  font-size: 12px;
-  border-radius: 8px;
+  gap: clamp(6px, 2vw, 9px);
+  min-height: 40px;
+  padding: 4px clamp(6px, 2vw, 9px) 4px 11px;
+  font-size: clamp(11px, 3.1vw, 12.5px);
+  background: linear-gradient(
+    100deg,
+    color-mix(in srgb, currentcolor 7%, transparent),
+    transparent 46%
+  );
+  border-radius: 10px;
   animation: loot-row-pop 0.42s var(--ease-ios) both;
   animation-delay: var(--row-delay, 0ms);
+}
+
+/*
+ * 品质色条。
+ *
+ * 原本整行只有名字带颜色，一屏十几条扫下来全是灰底白字，
+ * 稀有的那件和普通材料在余光里毫无区别。左侧一道 3px 的色条
+ * 成本最低 —— 不占宽度、不抢名字的注意力，却能让「这行不一样」
+ * 在扫视时立刻成立。currentcolor 直接继承 .q-* 已有的品质色，
+ * 不需要再写一遍七种品质的分支。
+ */
+.loot-row::before {
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: 3px;
+  width: 3px;
+  content: '';
+  background: currentcolor;
+  border-radius: 999px;
+  opacity: 0.55;
+}
+
+.loot-row:active {
+  background: linear-gradient(
+    100deg,
+    color-mix(in srgb, currentcolor 13%, transparent),
+    transparent 52%
+  );
 }
 
 @keyframes loot-row-pop {
@@ -994,9 +1038,15 @@ const cpWarn = computed(() => {
   white-space: nowrap;
 }
 
+/* 数量做成药丸：右端有了固定形状，长短不一的数字才不会显得参差 */
 .loot-count {
   flex-shrink: 0;
-  color: var(--text-dim);
+  padding: 2px 7px;
+  font-size: 0.92em;
+  font-weight: 700;
+  color: var(--text-mid);
+  background: color-mix(in srgb, currentcolor 8%, rgb(255 255 255 / 72%));
+  border-radius: 999px;
 }
 
 .loot-fold-enter-from,

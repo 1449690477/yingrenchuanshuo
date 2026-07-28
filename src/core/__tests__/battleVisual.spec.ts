@@ -224,3 +224,37 @@ describe('battleVitalsAtProgress', () => {
     expect(() => battleVitalsAtProgress(validPlayer, monster, 0, 0)).toThrow('技能倍率');
   });
 });
+
+describe('展示用生命值必须是整数', () => {
+  it('浮点上限不会漏到血条上 —— 满血时不该显示 1355 / 1355.1', () => {
+    const player = makePlayer('小樱', 30, { ...stats(), hp: 1355.1 });
+    const monster = visualMonster('normal', 20, 'normal');
+    monster.stats.hp = 60.4;
+    const vitals = battleVitalsAtProgress(player, monster, 0);
+    expect(Number.isInteger(vitals.player.maxHp)).toBe(true);
+    expect(Number.isInteger(vitals.monster.maxHp)).toBe(true);
+    // progress 为 0 时玩家应当是满血，两个数字必须完全相同
+    expect(vitals.player.currentHp).toBe(vitals.player.maxHp);
+  });
+
+  it('四个读数全部是整数，任意进度都不出现小数', () => {
+    const player = makePlayer('小樱', 30, { ...stats(), hp: 987.65 });
+    const monster = visualMonster('normal', 22, 'normal');
+    monster.stats.hp = 333.33;
+    for (const progress of [0, 0.17, 0.5, 0.83, 1]) {
+      const v = battleVitalsAtProgress(player, monster, progress);
+      for (const n of [v.player.currentHp, v.player.maxHp, v.monster.currentHp, v.monster.maxHp]) {
+        expect(Number.isInteger(n)).toBe(true);
+      }
+    }
+  });
+
+  it('极小的上限至少保留 1，血条不会除以零', () => {
+    const player = makePlayer('小樱', 30, { ...stats(), hp: 0.4 });
+    const monster = visualMonster('normal', 5, 'normal');
+    monster.stats.hp = 0.2;
+    const v = battleVitalsAtProgress(player, monster, 0.5);
+    expect(v.player.maxHp).toBeGreaterThanOrEqual(1);
+    expect(v.monster.maxHp).toBeGreaterThanOrEqual(1);
+  });
+});
