@@ -441,7 +441,6 @@ describe('encounter transaction', () => {
     if (!firstFrame) throw new Error('实时挂机循环没有登记首帧回调');
     clock += dt * 1_000;
     firstFrame(clock);
-    game.stopLoop();
 
     expect(game.save?.progress.stageKills[clearedStageId]).toBe(target);
     expect(game.save?.progress.clearedStageIds).toContain(clearedStageId);
@@ -450,6 +449,17 @@ describe('encounter transaction', () => {
     expect(game.battleProgress).toBe(0);
     expect(game.battlePulse).toBeNull();
     expect(game.battleTargetId).toBe(battleMonsterIdAt(STAGES[expectedNextStageId]!, 0));
+    expect(game.battleBeats).toEqual([]);
+
+    const newStageFrame = frames[1];
+    expect(newStageFrame).toBeDefined();
+    if (!newStageFrame) throw new Error('切换新关后没有登记下一帧回调');
+    clock += 300;
+    newStageFrame(clock);
+    game.stopLoop();
+
+    expect(game.battleBeats.length).toBeGreaterThan(0);
+    expect(game.battleBeats[0]?.seq).toBe(1);
     expect(game.save?.bag.items.stone_enhance).toBeGreaterThan(0);
     await game.persist();
   });

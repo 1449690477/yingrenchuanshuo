@@ -47,6 +47,83 @@ export interface RhythmState {
   skillCds: number[];
 }
 
+/**
+ * BattleScene 消费拍子时使用的纯状态。
+ *
+ * 关卡切换会把节奏生产者的 seq 重新从 1 开始；空拍数组就是这个“新纪元”
+ * 的显式边界。怪物入场期间产生的真实拍子暂存，入场结束后再消费，避免
+ * 用假动作填空，也避免第一拍被静默吞掉。
+ */
+export interface BattleBeatGateState {
+  /** 最近已观察到的生产者序号。 */
+  cursor: number;
+  /** 怪物入场期间已经产生、尚未交给表现层的真实拍子。 */
+  pending: BattleBeat[];
+}
+
+export type BattleBeatGateMode = 'active' | 'spawn' | 'pulse';
+
+export interface BattleBeatGateAdvance {
+  state: BattleBeatGateState;
+  /** 本次应交给表现层播放的真实拍子。 */
+  consume: BattleBeat[];
+  /** 生产者是否通过空数组开启了新的序号纪元。 */
+  reset: boolean;
+}
+
+export function createBattleBeatGateState(): BattleBeatGateState {
+  return { cursor: 0, pending: [] };
+}
+
+/**
+ * 推进 BattleScene 的拍子门控。
+ *
+ * - `active`：立即消费未见过的拍子，并先补播入场期间暂存的真实拍；
+ * - `spawn`：只暂存新拍，等待入场动画结束；
+ * - `pulse`：击杀定格期间只推进游标，不允许旧目标的拍子打到新目标；
+ * - 空数组：无条件归零游标。它是关卡 / 职业切换的生产者重置协议，
+ *   不能受 watcher 执行顺序或当前入场状态影响。
+ */
+export function advanceBattleBeatGate(
+  state: Readonly<BattleBeatGateState>,
+  beats: readonly BattleBeat[],
+  mode: BattleBeatGateMode,
+): BattleBeatGateAdvance {
+  if (!Number.isSafeInteger(state.cursor) || state.cursor < 0) {
+    throw new Error(`[战斗拍门] 游标必须是非负安全整数：${state.cursor}`);
+  }
+  if (beats.length === 0) {
+    return {
+      state: createBattleBeatGateState(),
+      consume: [],
+      reset: true,
+    };
+  }
+
+  const unseen = beats.filter((beat) => beat.seq > state.cursor);
+  const cursor = unseen.reduce((highest, beat) => Math.max(highest, beat.seq), state.cursor);
+
+  if (mode === 'pulse') {
+    return {
+      state: { cursor, pending: [] },
+      consume: [],
+      reset: false,
+    };
+  }
+  if (mode === 'spawn') {
+    return {
+      state: { cursor, pending: [...state.pending, ...unseen] },
+      consume: [],
+      reset: false,
+    };
+  }
+  return {
+    state: { cursor, pending: [] },
+    consume: [...state.pending, ...unseen],
+    reset: false,
+  };
+}
+
 export interface RhythmParams {
   /** 玩家普攻间隔（秒），通常是 1 / 攻速 */
   playerInterval: number;

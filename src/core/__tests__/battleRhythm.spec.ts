@@ -1,8 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import {
+  advanceBattleBeatGate,
   advanceRhythm,
+  createBattleBeatGateState,
   createRhythmState,
   resizeSkillCds,
+  type BattleBeat,
   type RhythmParams,
 } from '../battleRhythm';
 import { Rng } from '../rng';
@@ -15,6 +18,65 @@ const params: RhythmParams = {
   playerHit: 100,
   monsterHit: 40,
 };
+
+const beat = (seq: number, kind: BattleBeat['kind'] = 'player-attack'): BattleBeat => ({
+  seq,
+  kind,
+  crit: false,
+  damage: 10,
+  skillIndex: null,
+});
+
+describe('BattleScene 拍子门控', () => {
+  it('怪物先入场、随后收到空数组时也会无条件开启新序号纪元', () => {
+    const oldStage = { cursor: 42, pending: [] };
+
+    const reset = advanceBattleBeatGate(oldStage, [], 'spawn');
+
+    expect(reset.reset).toBe(true);
+    expect(reset.state).toEqual(createBattleBeatGateState());
+    expect(reset.consume).toEqual([]);
+  });
+
+  it('入场期间缓存新关真实拍，入场结束后各消费一次', () => {
+    const reset = advanceBattleBeatGate({ cursor: 42, pending: [] }, [], 'spawn');
+    const spawning = advanceBattleBeatGate(reset.state, [beat(1), beat(2)], 'spawn');
+
+    expect(spawning.state.cursor).toBe(2);
+    expect(spawning.state.pending.map((entry) => entry.seq)).toEqual([1, 2]);
+    expect(spawning.consume).toEqual([]);
+
+    const active = advanceBattleBeatGate(spawning.state, [beat(1), beat(2)], 'active');
+    expect(active.consume.map((entry) => entry.seq)).toEqual([1, 2]);
+    expect(active.state).toEqual({ cursor: 2, pending: [] });
+
+    const unchanged = advanceBattleBeatGate(active.state, [beat(1), beat(2)], 'active');
+    expect(unchanged.consume).toEqual([]);
+  });
+
+  it('击杀定格期间推进游标但不把旧目标拍子重放到新目标', () => {
+    const pulse = advanceBattleBeatGate(
+      { cursor: 10, pending: [beat(10)] },
+      [beat(10), beat(11), beat(12, 'monster-attack')],
+      'pulse',
+    );
+    expect(pulse.consume).toEqual([]);
+    expect(pulse.state).toEqual({ cursor: 12, pending: [] });
+
+    const active = advanceBattleBeatGate(
+      pulse.state,
+      [beat(11), beat(12, 'monster-attack'), beat(13)],
+      'active',
+    );
+    expect(active.consume.map((entry) => entry.seq)).toEqual([13]);
+  });
+
+  it('非法游标直接报错，不用静默归零掩盖状态错误', () => {
+    expect(() =>
+      advanceBattleBeatGate({ cursor: -1, pending: [] }, [beat(1)], 'active'),
+    ).toThrow(/游标/);
+  });
+});
 
 describe('createRhythmState', () => {
   it('技能冷却错峰，避免同一拍全部炸开', () => {

@@ -2,7 +2,12 @@
 import { computed, onUnmounted, ref, watch } from 'vue';
 import type { ClassId, MonsterDef } from '@/core/types';
 import type { BattleVitals } from '@/core/battleVisual';
-import type { BattleBeat } from '@/core/battleRhythm';
+import {
+  advanceBattleBeatGate,
+  createBattleBeatGateState,
+  type BattleBeat,
+  type BattleBeatGateMode,
+} from '@/core/battleRhythm';
 import { abbr } from '@/core/format';
 import {
   BASIC_ATTACK_EFFECTS,
@@ -89,7 +94,7 @@ const monsterHitSeq = ref<number | null>(null);
 const spawning = ref(false);
 const timers = new Map<number, number>();
 const queuedTimers = new Set<number>();
-let lastSeenSeq = 0;
+let beatGateState = createBattleBeatGateState();
 let monsterAttackTimer = 0;
 let monsterHitTimer = 0;
 let spawnTimer = 0;
@@ -149,32 +154,25 @@ function triggerImpact(kind: BattleBeat['kind'], crit: boolean): void {
   }
 }
 
-watch(
-  () => props.beats,
-  (beats) => {
-    if (!beats || beats.length === 0) {
-      if (!props.pulse && !spawning.value) lastSeenSeq = 0;
-      clearAllBeats();
-      return;
-    }
-    if (props.pulse || spawning.value) {
-      for (const beat of beats) lastSeenSeq = Math.max(lastSeenSeq, beat.seq);
-      clearAllBeats();
-      return;
-    }
-    for (const beat of beats) {
-      if (beat.seq <= lastSeenSeq) continue;
-      lastSeenSeq = beat.seq;
-      addLiveBeat(beat);
-    }
-  },
-  { deep: false },
-);
+function currentBeatGateMode(): BattleBeatGateMode {
+  if (props.pulse) return 'pulse';
+  if (spawning.value) return 'spawn';
+  return 'active';
+}
+
+function consumeBeatGate(mode = currentBeatGateMode()): void {
+  const advance = advanceBattleBeatGate(beatGateState, props.beats, mode);
+  beatGateState = advance.state;
+  if (advance.reset || mode !== 'active') clearAllBeats();
+  for (const beat of advance.consume) addLiveBeat(beat);
+}
+
+watch(() => props.beats, () => consumeBeatGate(), { deep: false });
 
 watch(
   () => props.classId,
   () => {
-    lastSeenSeq = 0;
+    beatGateState = createBattleBeatGateState();
     clearAllBeats();
   },
 );
@@ -396,7 +394,11 @@ const monsterHpPercent = computed(
 function playSpawn(): void {
   spawning.value = true;
   clearTimeout(spawnTimer);
-  spawnTimer = window.setTimeout(() => (spawning.value = false), 480);
+  spawnTimer = window.setTimeout(() => {
+    spawning.value = false;
+    // 入场期间没有制造假动作；这里一次性消费真正由 rhythm 产生并缓存的新拍。
+    consumeBeatGate('active');
+  }, 480);
 }
 
 watch(
