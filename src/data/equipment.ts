@@ -10,6 +10,7 @@
 
 import type { Affix, AffixKey, EquipmentDef, EquipSlot, Quality } from '@/core/types';
 import { QUALITY_AFFIX_COUNT, SLOT_ORDER } from './constants';
+import { AFFECTION_EQUIPMENT_LIST } from './affectionEquipment';
 import { BOUTIQUE_THEME_LIST, boutiqueAppearanceId, boutiqueEquipmentId } from './boutique';
 import { EQUIPMENT_DUNGEON_GEAR_LIST } from './equipmentDungeonGear';
 
@@ -87,6 +88,7 @@ const QUALITY_PREFIX: Record<Quality, string> = {
   epic: '灵纹·',
   legendary: '传世·',
   mythic: '神话·',
+  prismatic: '心虹·',
   divine: '圣痕·',
 };
 
@@ -98,6 +100,7 @@ const QUALITY_LEVEL_OFFSET: Record<Quality, number> = {
   epic: 4,
   legendary: 6,
   mythic: 8,
+  prismatic: 9,
   divine: 10,
 };
 
@@ -150,6 +153,14 @@ function buildEquipment(): Record<string, EquipmentDef> {
   }
 
   for (const definition of EQUIPMENT_DUNGEON_GEAR_LIST) {
+    if (out[definition.id]) {
+      throw new Error(`[配置错误] 装备 ID 重复：${definition.id}`);
+    }
+    out[definition.id] = definition;
+  }
+
+  for (const entry of AFFECTION_EQUIPMENT_LIST) {
+    const definition = entry.definition;
     if (out[definition.id]) {
       throw new Error(`[配置错误] 装备 ID 重复：${definition.id}`);
     }

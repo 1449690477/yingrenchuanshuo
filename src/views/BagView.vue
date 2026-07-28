@@ -39,6 +39,7 @@ const QUALITY_OPTIONS: readonly {
   { quality: 'epic', colorLabel: '紫', hint: '史诗' },
   { quality: 'legendary', colorLabel: '橙', hint: '传说' },
   { quality: 'mythic', colorLabel: '红', hint: '神话' },
+  { quality: 'prismatic', colorLabel: '虹', hint: '心虹珍藏' },
   { quality: 'divine', colorLabel: '金', hint: '圣器' },
 ];
 
@@ -46,6 +47,7 @@ const HIGH_RISK_QUALITIES: ReadonlySet<Quality> = new Set([
   'epic',
   'legendary',
   'mythic',
+  'prismatic',
   'divine',
 ]);
 
@@ -143,6 +145,7 @@ const snapshotQualityCounts = computed<Record<Quality, number>>(() => {
     epic: 0,
     legendary: 0,
     mythic: 0,
+    prismatic: 0,
     divine: 0,
   };
   for (const inst of decomposeSnapshot.value) {
@@ -478,7 +481,7 @@ onUnmounted(() => {
             <label v-if="hasHighRiskSelection" class="risk-confirm">
               <input v-model="highRiskConfirmed" type="checkbox" />
               <span>
-                <strong>我确认分解选中的紫 / 橙 / 红 / 金装备</strong>
+                <strong>我确认分解选中的紫 / 橙 / 红 / 虹 / 金装备</strong>
                 <small>高品质装备很难获得，请先锁定想保留的装备。</small>
               </span>
             </label>
@@ -719,6 +722,12 @@ onUnmounted(() => {
 
 .q-accent-mythic {
   box-shadow: inset 3px 0 0 var(--q-mythic);
+}
+
+.q-accent-prismatic {
+  box-shadow:
+    inset 3px 0 0 var(--q-prismatic),
+    inset 0 1px 0 rgb(86 190 241 / 20%);
 }
 
 .q-accent-divine {
@@ -1026,6 +1035,14 @@ onUnmounted(() => {
 
 .quality-mythic {
   --quality-color: var(--q-mythic);
+}
+
+.quality-prismatic {
+  --quality-color: var(--q-prismatic);
+}
+
+.quality-prismatic .quality-dot {
+  background: var(--q-prismatic-gradient);
 }
 
 .quality-divine {

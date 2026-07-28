@@ -15,6 +15,7 @@ import {
   createEquipmentDungeonState,
   type EquipmentDungeonState,
 } from '@/core/equipmentDungeon';
+import { createAffectionState, type AffectionState } from '@/core/affection';
 import { CLASS_IDS, type ClassId, type EquipmentInstance, type EquipSlot, type Quality } from '@/core/types';
 import {
   CLASS_BASE_STATS,
@@ -23,6 +24,7 @@ import {
   EQUIPMENT_BASE_ROLL_MAX,
   EQUIPMENT_BASE_ROLL_MIN,
   LUCK_FULL,
+  QUALITY_ORDER,
   STAMINA_BASE_MAX,
 } from '@/data/constants';
 import { ENCOUNTERS } from '@/data/encounters';
@@ -32,9 +34,12 @@ import {
   EQUIPMENT_DUNGEON_STAGES,
   EQUIPMENT_DUNGEON_STAGE_LIST,
 } from '@/data/equipmentDungeons';
+import { AFFECTION_CHARACTERS } from '@/data/affection';
+import { affectionEquipmentIdsForClass } from '@/data/affectionEquipment';
+import { AFFECTION_RULES } from '@/data/affectionRules';
 
 /** 当前存档版本。加字段就 +1。 */
-export const SAVE_VERSION = 8;
+export const SAVE_VERSION = 9;
 
 export const SAVE_KEY = 'main';
 
@@ -75,6 +80,8 @@ export interface SettingsSave {
   autoDecomposeBelow: Quality | 'none';
   bgm: boolean;
   sfx: boolean;
+  /** 好感互动的设备短震反馈；不支持振动的设备会自然忽略。 */
+  haptics: boolean;
   /** 降低动画以省电 */
   reduceMotion: boolean;
 }
@@ -115,6 +122,8 @@ export interface SaveData {
   encounters: EncounterState;
   /** 8 个定向装备副本共享的日次数与永久通关记录。 */
   equipmentDungeon: EquipmentDungeonState;
+  /** 四位可玩角色彼此独立的好感、剧情、保底与心虹图鉴。 */
+  affection: AffectionState;
 }
 
 export function emptyEquipped(): Record<EquipSlot, EquipmentInstance | null> {
@@ -161,12 +170,14 @@ export function createSave(name: string, classId: ClassId, seed: number, now: nu
       autoDecomposeBelow: 'none',
       bgm: false,
       sfx: true,
+      haptics: true,
       reduceMotion: false,
     },
     stats: { totalKills: 0, totalPlaySec: 0, bossKills: {} },
     shop: { purchasedOfferIds: [] },
     encounters: createEncounterState(),
     equipmentDungeon: createEquipmentDungeonState(now),
+    affection: createAffectionState(now, AFFECTION_RULES),
   };
 }
 
@@ -183,7 +194,8 @@ export function isValidClass(id: string): id is ClassId {
  * 缺字段、类型错误和非法枚举都会直接报错，不能拿默认值掩盖坏档。
  */
 const classIdSchema = z.enum(CLASS_IDS);
-const qualitySchema = z.enum(['common', 'fine', 'rare', 'epic', 'legendary', 'mythic', 'divine']);
+const qualitySchema = z.enum(QUALITY_ORDER);
+const affectionMoodSchema = z.enum(['calm', 'bright', 'shy', 'moved', 'playful']);
 const elementSchema = z.enum(['fire', 'ice', 'thunder', 'none']);
 const affixKeySchema = z.enum([
   'atk',
@@ -270,6 +282,36 @@ const equippedSchema = z
   })
   .strict();
 
+const affectionCharacterProgressSchema = z
+  .object({
+    points: nonNegativeInteger.max(AFFECTION_RULES.maxPoints),
+    mood: affectionMoodSchema,
+    dayKey: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    interactionsToday: z
+      .number()
+      .int()
+      .min(0)
+      .max(AFFECTION_RULES.dailyInteractionLimit),
+    totalInteractions: nonNegativeInteger,
+    gearPity: z
+      .number()
+      .int()
+      .min(0)
+      .max(AFFECTION_RULES.gearHardPity - 1),
+    discoveredGearIds: z
+      .array(z.string().min(1))
+      .refine((ids) => new Set(ids).size === ids.length, '心虹图鉴不能重复'),
+    completedStoryIds: z
+      .array(z.string().min(1))
+      .refine((ids) => new Set(ids).size === ids.length, '好感剧情完成记录不能重复'),
+    choiceHistory: z.record(z.string().min(1), z.string().min(1)),
+  })
+  .strict()
+  .refine(
+    (progress) => progress.totalInteractions >= progress.interactionsToday,
+    '总互动次数不能少于今日互动次数',
+  );
+
 export const saveDataSchema = z
   .object({
     version: z.literal(SAVE_VERSION),
@@ -310,6 +352,7 @@ export const saveDataSchema = z
         autoDecomposeBelow: z.union([qualitySchema, z.literal('none')]),
         bgm: z.boolean(),
         sfx: z.boolean(),
+        haptics: z.boolean(),
         reduceMotion: z.boolean(),
       })
       .strict(),
@@ -377,6 +420,18 @@ export const saveDataSchema = z
         ),
       })
       .strict(),
+    affection: z
+      .object({
+        characters: z
+          .object({
+            swordsman: affectionCharacterProgressSchema,
+            witch: affectionCharacterProgressSchema,
+            shaman: affectionCharacterProgressSchema,
+            catkin: affectionCharacterProgressSchema,
+          })
+          .strict(),
+      })
+      .strict(),
   })
   .strict()
   .superRefine((save, ctx) => {
@@ -403,6 +458,72 @@ export const saveDataSchema = z
             code: 'custom',
             path: ['encounters', 'characters', characterId, 'choiceHistory', encounterId],
             message: `剧情记忆 ${encounterId}/${choiceId} 与角色 ${characterId} 不匹配`,
+          });
+        }
+      }
+    }
+
+    for (const classId of CLASS_IDS) {
+      const progress = save.affection.characters[classId];
+      const character = AFFECTION_CHARACTERS[classId];
+      const storyById = new Map(character.stories.map((story) => [story.id, story]));
+      const completed = new Set(progress.completedStoryIds);
+      const validGearIds = new Set(affectionEquipmentIdsForClass(classId));
+
+      for (const [index, gearId] of progress.discoveredGearIds.entries()) {
+        if (!validGearIds.has(gearId)) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['affection', 'characters', classId, 'discoveredGearIds', index],
+            message: `${gearId} 不是 ${classId} 的心虹珍藏`,
+          });
+        }
+      }
+
+      for (const [index, storyId] of progress.completedStoryIds.entries()) {
+        const story = storyById.get(storyId);
+        if (!story) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['affection', 'characters', classId, 'completedStoryIds', index],
+            message: `${classId} 的好感剧情不存在：${storyId}`,
+          });
+          continue;
+        }
+        for (const requiredId of story.requiredStoryIds) {
+          if (!completed.has(requiredId)) {
+            ctx.addIssue({
+              code: 'custom',
+              path: ['affection', 'characters', classId, 'completedStoryIds', index],
+              message: `${storyId} 缺少前置好感剧情 ${requiredId}`,
+            });
+          }
+        }
+      }
+      for (const [storyId, choiceId] of Object.entries(progress.choiceHistory)) {
+        const story = storyById.get(storyId);
+        if (!story || !completed.has(storyId)) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['affection', 'characters', classId, 'choiceHistory', storyId],
+            message: `未完成的好感剧情不能保存回答：${storyId}`,
+          });
+          continue;
+        }
+        if (!story.choices.some((choice) => choice.id === choiceId)) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['affection', 'characters', classId, 'choiceHistory', storyId],
+            message: `${storyId} 不存在回答：${choiceId}`,
+          });
+        }
+      }
+      for (const storyId of completed) {
+        if (!(storyId in progress.choiceHistory)) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['affection', 'characters', classId, 'choiceHistory'],
+            message: `已完成剧情缺少回答记录：${storyId}`,
           });
         }
       }

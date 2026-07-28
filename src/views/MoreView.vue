@@ -41,6 +41,10 @@ function closeShop() {
   showShop.value = false;
 }
 
+function updateHaptics(event: Event) {
+  settings.setHaptics((event.currentTarget as HTMLInputElement).checked);
+}
+
 async function afterShopLeave() {
   shopLeaving.value = false;
   await nextTick();
@@ -122,6 +126,24 @@ function say(text: string, ok: boolean) {
             <span>金币</span><span class="num">{{ abbr(player.player?.gold ?? 0) }}</span>
           </div>
         </div>
+      </section>
+
+      <section class="card">
+        <div class="head">互动体验</div>
+        <label class="setting-row">
+          <span class="setting-copy">
+            <strong>角色心情震动</strong>
+            <small>点击互动、作出剧情选择或获得心虹珍藏时，用不同短震回应心情。</small>
+            <em>仅在支持震动的手机浏览器中生效；系统“减少动态效果”开启时会自动停用。</em>
+          </span>
+          <input
+            type="checkbox"
+            :checked="settings.settings?.haptics ?? false"
+            aria-label="角色心情震动"
+            @change="updateHaptics"
+          />
+          <span class="setting-switch" aria-hidden="true"><i /></span>
+        </label>
       </section>
 
       <section class="card">
@@ -306,6 +328,87 @@ function say(text: string, ok: boolean) {
 
 .r .num {
   font-weight: 600;
+}
+
+.setting-row {
+  min-height: 88px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 52px;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px 12px;
+  cursor: pointer;
+}
+
+.setting-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.setting-copy strong {
+  font-size: 12px;
+}
+
+.setting-copy small,
+.setting-copy em {
+  font-size: 9px;
+  font-style: normal;
+  line-height: 1.55;
+  color: var(--text-mid);
+}
+
+.setting-copy em {
+  font-size: 8px;
+  color: var(--text-dim);
+}
+
+.setting-row input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+}
+
+.setting-switch {
+  position: relative;
+  width: 52px;
+  height: 30px;
+  justify-self: end;
+  background: #dce1e8;
+  border: 1px solid #cfd6df;
+  border-radius: 999px;
+  box-shadow: inset 0 1px 2px rgb(53 65 78 / 12%);
+  transition:
+    background-color var(--t-fast) var(--ease-soft),
+    border-color var(--t-fast) var(--ease-soft);
+}
+
+.setting-switch i {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 2px 6px rgb(42 53 65 / 22%);
+  transition: transform var(--t-fast) var(--ease-spring);
+}
+
+.setting-row input:checked + .setting-switch {
+  background: linear-gradient(120deg, #ff7da7, #ab87de);
+  border-color: #f38cb0;
+}
+
+.setting-row input:checked + .setting-switch i {
+  transform: translateX(22px);
+}
+
+.setting-row input:focus-visible + .setting-switch {
+  outline: 3px solid rgb(255 126 168 / 28%);
+  outline-offset: 3px;
 }
 
 .warn-note {

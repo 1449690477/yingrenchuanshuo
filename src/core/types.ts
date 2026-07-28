@@ -24,7 +24,8 @@ export type BoutiqueThemeId =
 export type Element = 'fire' | 'ice' | 'thunder' | 'none';
 
 /** 装备品质，见 docs/12-装备体系.md */
-export type Quality = 'common' | 'fine' | 'rare' | 'epic' | 'legendary' | 'mythic' | 'divine';
+export type Quality =
+  'common' | 'fine' | 'rare' | 'epic' | 'legendary' | 'mythic' | 'prismatic' | 'divine';
 
 /** 强化里程碑对应的锻造外观阶段；不改变装备本身品质。 */
 export type ForgeStage = 'original' | 'gleam' | 'radiant' | 'starforged' | 'sakura';

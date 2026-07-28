@@ -47,6 +47,18 @@
   --q-epic: #ab6fe0;
   --q-legendary: #ff9a3c;
   --q-mythic: #ff6b7a;
+  --q-prismatic: #d557d9;
+  --q-prismatic-gradient: linear-gradient(
+    100deg,
+    #ff6b9d 0%,
+    #ffb84d 16%,
+    #f5dc62 30%,
+    #54d6a2 46%,
+    #55b9f3 62%,
+    #8c7cf0 78%,
+    #dc69df 92%,
+    #ff6b9d 100%
+  );
   --q-divine: #e8ac1f;
 
   /* ── 尺寸 ── */
@@ -271,6 +283,9 @@ button.card:active,
 }
 .q-mythic {
   color: var(--q-mythic);
+}
+.q-prismatic {
+  color: var(--q-prismatic);
 }
 .q-divine {
   color: var(--q-divine);

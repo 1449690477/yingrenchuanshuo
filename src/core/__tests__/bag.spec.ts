@@ -168,6 +168,7 @@ describe('planBulkDecompose', () => {
       'epic',
       'legendary',
       'mythic',
+      'prismatic',
       'divine',
     ];
     const list = qualities.map((quality) => mk(quality, { quality }));

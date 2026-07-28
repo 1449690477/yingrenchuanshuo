@@ -13,6 +13,7 @@ import { computed, ref } from 'vue';
 import type {
   ClassId,
   EquipSlot,
+  EquipmentDef,
   EquipmentInstance,
   IdleYield,
   LootResult,
@@ -21,6 +22,16 @@ import type {
 } from '@/core/types';
 import { Rng } from '@/core/rng';
 import { addStats, combatPower, zeroStats } from '@/core/formula';
+import {
+  affectionDayKey,
+  affectionInteractionsRemaining as calcAffectionInteractionsRemaining,
+  affectionTierAt,
+  applyAffectionCombatBonus,
+  completeAffectionStory,
+  performAffectionInteraction,
+  type AffectionInteractionResult,
+  type AffectionStoryResult,
+} from '@/core/affection';
 import {
   attemptEnhance,
   enhanceCost,
@@ -120,6 +131,12 @@ import {
 import { requireChapter, requireRegionOfChapter } from '@/data/regions';
 import { requireShopOffer } from '@/data/shop';
 import { battleRhythmSkills } from '@/data/skills';
+import { requireAffectionCharacter, requireAffectionStory } from '@/data/affection';
+import { AFFECTION_RULES } from '@/data/affectionRules';
+import {
+  eligibleAffectionEquipmentIds,
+  requireAffectionEquipment,
+} from '@/data/affectionEquipment';
 import {
   getEquipmentDungeonStage,
   type EquipmentDungeonStage,
@@ -247,6 +264,17 @@ export type EquipmentDungeonRunResult =
       instances: EquipmentInstance[];
     };
 
+export type AffectionInteractionActionResult =
+  | { ok: false; reason: 'no-save' | 'interaction-locked' }
+  | Extract<AffectionInteractionResult, { ok: false }>
+  | (Extract<AffectionInteractionResult, { ok: true }> & {
+      instance: EquipmentInstance | null;
+    });
+
+export type AffectionStoryChoiceActionResult =
+  | { ok: false; reason: 'no-save' }
+  | AffectionStoryResult;
+
 const AUTO_SAVE_INTERVAL_MS = 3_000;
 const LOOT_LOG_MAX = 40;
 /** 战斗拍子的环形缓冲长度。演出是瞬时的，留太多只会占内存。 */
@@ -298,6 +326,8 @@ export const useGameStore = defineStore('game', () => {
   const battleBeats = ref<BattleBeat[]>([]);
   /** 已通关普通关不再保存击杀余数，这里只维护其画面循环游标。 */
   const battleVisualCursor = ref(0);
+  /** 只在好感业务日切变化时更新，避免每个动画帧触发派生数据重算。 */
+  const affectionNow = ref(Date.now());
 
   let rng = new Rng(1);
   let lootLogSeq = 0;
@@ -311,6 +341,7 @@ export const useGameStore = defineStore('game', () => {
   let lastTickAt = 0;
   let lastSaveAt = 0;
   let rafId = 0;
+  let affectionDay = affectionDayKey(affectionNow.value, AFFECTION_RULES.resetHourCst);
 
   // ─────────── 派生数据 ───────────
   const hasSave = computed(() => save.value !== null);
@@ -332,6 +363,28 @@ export const useGameStore = defineStore('game', () => {
     ),
   );
 
+  const affectionState = computed(() => save.value?.affection ?? null);
+  const affectionProgress = computed(() => {
+    if (!save.value) return null;
+    return save.value.affection.characters[save.value.player.classId];
+  });
+  const affectionTier = computed(() =>
+    affectionProgress.value
+      ? affectionTierAt(affectionProgress.value.points, AFFECTION_RULES)
+      : null,
+  );
+  const affectionRemaining = computed(() => {
+    if (!save.value) return 0;
+    return calcAffectionInteractionsRemaining(
+      save.value.affection,
+      save.value.player.classId,
+      affectionNow.value,
+      AFFECTION_RULES,
+    );
+  });
+  /** UI 语义化别名：明确这是“可获奖励的互动剩余次数”。 */
+  const affectionInteractionsRemaining = affectionRemaining;
+
   /** 最终属性 = 裸属性 + 装备，再乘职业系数（顺序见 ADR-007） */
   const finalStats = computed<Stats>(() => {
     if (!save.value) return zeroStats();
@@ -342,7 +395,12 @@ export const useGameStore = defineStore('game', () => {
       equipmentSetResolution.value,
     );
     combined.critRate = Math.min(CRIT_RATE_CAP, combined.critRate);
-    return applyClassMods(p.classId, combined);
+    const classStats = applyClassMods(p.classId, combined);
+    return applyAffectionCombatBonus(
+      classStats,
+      save.value.affection.characters[p.classId].points,
+      AFFECTION_RULES,
+    );
   });
 
   const cp = computed(() => combatPower(finalStats.value));
@@ -442,6 +500,13 @@ export const useGameStore = defineStore('game', () => {
     battlePulseCooldownSec = 0;
     battleBeats.value = [];
     rhythmState = createRhythmState(0);
+  }
+
+  function refreshAffectionClock(now = Date.now()): void {
+    const nextDay = affectionDayKey(now, AFFECTION_RULES.resetHourCst);
+    if (nextDay === affectionDay) return;
+    affectionDay = nextDay;
+    affectionNow.value = now;
   }
 
   async function init(): Promise<void> {
@@ -619,6 +684,7 @@ export const useGameStore = defineStore('game', () => {
 
   /** 回到前台时按离线规则结算，再恢复实时循环。 */
   function resumeFromBackground(): void {
+    refreshAffectionClock();
     settleOfflineNow();
     startLoop();
     void persist();
@@ -668,6 +734,7 @@ export const useGameStore = defineStore('game', () => {
   /** 每帧推进：挂机结算 + 体力恢复 + 自动存档 */
   function tick(dt: number): void {
     if (!save.value) return;
+    refreshAffectionClock();
 
     let firstClearedStageId: string | null = null;
     battlePulseCooldownSec = Math.max(0, battlePulseCooldownSec - dt);
@@ -1235,10 +1302,120 @@ export const useGameStore = defineStore('game', () => {
 
   function cpForEquipment(equipped: (EquipmentInstance | null)[]): number {
     if (!save.value) return 0;
-    const base = baseStatsFor(save.value.player.classId, save.value.player.level);
-    const combined = addStats(base, totalEquipStats(equipped, getEquipment));
+    const { classId, level } = save.value.player;
+    const base = baseStatsFor(classId, level);
+    const setResolution = resolveEquipmentSetBonuses(equipped, getEquipment);
+    const combined = applyEquipmentSetStats(
+      addStats(base, totalEquipStats(equipped, getEquipment)),
+      setResolution,
+    );
     combined.critRate = Math.min(CRIT_RATE_CAP, combined.critRate);
-    return combatPower(applyClassMods(save.value.player.classId, combined));
+    const classStats = applyClassMods(classId, combined);
+    const affectionStats = applyAffectionCombatBonus(
+      classStats,
+      save.value.affection.characters[classId].points,
+      AFFECTION_RULES,
+    );
+    return combatPower(affectionStats);
+  }
+
+  function interactWithCharacter(
+    classId: ClassId,
+    interactionId: string,
+    now = Date.now(),
+  ): AffectionInteractionActionResult {
+    if (!save.value) return { ok: false, reason: 'no-save' };
+    const character = requireAffectionCharacter(classId);
+    const interaction = character.interactions.find((entry) => entry.id === interactionId);
+    if (!interaction) {
+      throw new Error(`[配置错误] ${classId} 的好感互动不存在：${interactionId}`);
+    }
+
+    const s = save.value;
+    const progress = s.affection.characters[classId];
+    if (
+      interaction.requiredStoryId &&
+      !progress.completedStoryIds.includes(interaction.requiredStoryId)
+    ) {
+      return { ok: false, reason: 'interaction-locked' };
+    }
+    const pointsAfterInteraction = Math.min(
+      AFFECTION_RULES.maxPoints,
+      progress.points + interaction.points,
+    );
+    const gearPoolIds = eligibleAffectionEquipmentIds(
+      classId,
+      pointsAfterInteraction,
+      s.player.level,
+    );
+    const result = performAffectionInteraction(
+      s.affection,
+      classId,
+      interaction,
+      gearPoolIds,
+      s.seed,
+      now,
+      AFFECTION_RULES,
+    );
+
+    if (!result.ok) {
+      s.affection = result.state;
+      void persist();
+      return result;
+    }
+
+    let instance: EquipmentInstance | null = null;
+    let rewardDefinition: EquipmentDef | null = null;
+    if (result.gearReward) {
+      // 先在局部完成全部可能抛错的配置读取与实例构造；成功后才提交互动与资产。
+      // 否则坏配置会留下“保底已消费、图鉴已点亮、装备却没进包”的半事务。
+      const definition = requireAffectionEquipment(result.gearReward.defId).definition;
+      rewardDefinition = definition;
+      instance = createInstance(
+        definition,
+        new Rng(result.gearReward.rewardSeed),
+        `e${s.nextUid}`,
+      );
+      instance.locked = true;
+    }
+
+    s.affection = result.state;
+    if (instance && rewardDefinition) {
+      s.nextUid += 1;
+      s.bag.equipment.push(instance);
+      pushLog(
+        rewardDefinition.id,
+        rewardDefinition.name,
+        1,
+        rewardDefinition.quality,
+        true,
+      );
+      enforceBagCapacity();
+    }
+
+    void persist();
+    return { ...result, instance };
+  }
+
+  function completeAffectionStoryChoice(
+    classId: ClassId,
+    storyId: string,
+    choiceId: string,
+  ): AffectionStoryChoiceActionResult {
+    if (!save.value) return { ok: false, reason: 'no-save' };
+    const story = requireAffectionStory(classId, storyId);
+    const result = completeAffectionStory(
+      save.value.affection,
+      classId,
+      story,
+      choiceId,
+      AFFECTION_RULES,
+    );
+    if (result.ok) {
+      save.value.affection = result.state;
+      void persist();
+    }
+    return result;
   }
 
   /** 背包装备相对当前穿戴方案的精确战力变化。 */
@@ -1597,6 +1774,14 @@ export const useGameStore = defineStore('game', () => {
     void persist();
   }
 
+  /** 开关只影响玩家主动触发的好感互动短震，不振动后台挂机或自动战斗。 */
+  function setHaptics(enabled: boolean): boolean {
+    if (!save.value) return false;
+    save.value.settings.haptics = enabled;
+    void persist();
+    return true;
+  }
+
   function noteCpDelta(before: number): void {
     const d = cp.value - before;
     if (d !== 0) cpDelta.value = { value: d, at: Date.now() };
@@ -1619,6 +1804,7 @@ export const useGameStore = defineStore('game', () => {
 
   function loadFrom(data: SaveData): void {
     save.value = data;
+    refreshAffectionClock();
     rng = new Rng(data.rngState);
     lootLog.value = [];
     idleCarrySec = 0;
@@ -1651,6 +1837,11 @@ export const useGameStore = defineStore('game', () => {
     finalStats,
     equipStats,
     equipmentSetResolution,
+    affectionState,
+    affectionProgress,
+    affectionTier,
+    affectionRemaining,
+    affectionInteractionsRemaining,
     cp,
     cpRatio,
     canIdle,
@@ -1674,6 +1865,7 @@ export const useGameStore = defineStore('game', () => {
     stopLoop,
     pauseForBackground,
     resumeFromBackground,
+    refreshAffectionClock,
     persist,
     loadFrom,
     selectStage,
@@ -1684,6 +1876,8 @@ export const useGameStore = defineStore('game', () => {
     resolvePendingEncounter,
     refreshEquipmentDungeon,
     runEquipmentDungeon,
+    interactWithCharacter,
+    completeAffectionStoryChoice,
     equip,
     unequip,
     equipBest,
@@ -1691,6 +1885,7 @@ export const useGameStore = defineStore('game', () => {
     assessShopOfferById,
     purchaseShopOffer,
     toggleLock,
+    setHaptics,
     equipmentCandidateCp,
     equipmentCpDelta,
     equipmentContributionCp,

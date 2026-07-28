@@ -15,12 +15,17 @@ export const useSettingsStore = defineStore('settings', () => {
     game.loadFrom(data);
   }
 
+  function setHaptics(enabled: boolean): boolean {
+    return game.setHaptics(enabled);
+  }
+
   return {
     settings,
     saveData,
     saveError,
     persist: game.persist,
     importSave,
+    setHaptics,
     reset: game.resetGame,
   };
 });

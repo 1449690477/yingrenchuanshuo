@@ -7,7 +7,12 @@
 import { computed } from 'vue';
 import { defineStore } from 'pinia';
 import type { ClassId } from '@/core/types';
-import { useGameStore, type ClassSwitchResult } from './game';
+import {
+  useGameStore,
+  type AffectionInteractionActionResult,
+  type AffectionStoryChoiceActionResult,
+  type ClassSwitchResult,
+} from './game';
 
 export const usePlayerStore = defineStore('player', () => {
   const game = useGameStore();
@@ -19,6 +24,13 @@ export const usePlayerStore = defineStore('player', () => {
   const expNeeded = computed(() => game.expNeeded);
   const expPercent = computed(() => game.expPercent);
   const staminaMax = computed(() => game.staminaMax);
+  const affectionState = computed(() => game.affectionState);
+  const affectionProgress = computed(() => game.affectionProgress);
+  const affectionTier = computed(() => game.affectionTier);
+  const affectionRemaining = computed(() => game.affectionRemaining);
+  const affectionInteractionsRemaining = computed(
+    () => game.affectionInteractionsRemaining,
+  );
 
   function create(name: string, classId: ClassId): Promise<void> {
     return game.startNewGame(name, classId);
@@ -26,6 +38,22 @@ export const usePlayerStore = defineStore('player', () => {
 
   function switchClass(classId: ClassId): Promise<ClassSwitchResult> {
     return game.switchClass(classId);
+  }
+
+  function interactWithCharacter(
+    classId: ClassId,
+    interactionId: string,
+    now?: number,
+  ): AffectionInteractionActionResult {
+    return game.interactWithCharacter(classId, interactionId, now);
+  }
+
+  function completeAffectionStoryChoice(
+    classId: ClassId,
+    storyId: string,
+    choiceId: string,
+  ): AffectionStoryChoiceActionResult {
+    return game.completeAffectionStoryChoice(classId, storyId, choiceId);
   }
 
   return {
@@ -36,7 +64,14 @@ export const usePlayerStore = defineStore('player', () => {
     expNeeded,
     expPercent,
     staminaMax,
+    affectionState,
+    affectionProgress,
+    affectionTier,
+    affectionRemaining,
+    affectionInteractionsRemaining,
     create,
     switchClass,
+    interactWithCharacter,
+    completeAffectionStoryChoice,
   };
 });

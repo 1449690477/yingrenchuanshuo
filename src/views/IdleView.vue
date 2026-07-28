@@ -12,6 +12,7 @@ import { requireChapter, requireRegionOfChapter } from '@/data/regions';
 import { requireMonster } from '@/data/monsters';
 import { requireEquipment } from '@/data/equipment';
 import { requireItem } from '@/data/items';
+import { QUALITY_LABELS, QUALITY_ORDER, QUALITY_RANK } from '@/data/constants';
 import StageSelect from '@/components/StageSelect.vue';
 import BattleScene from '@/components/BattleScene.vue';
 import EquipmentIcon from '@/components/EquipmentIcon.vue';
@@ -40,15 +41,10 @@ const lootCategoryLabels: Record<LootDisplayCategory, string> = {
 };
 
 /** 品质中文名，用于最新掉落聚焦与好货统计。 */
-const qualityLabels: Record<string, string> = {
-  common: '普通',
-  fine: '优良',
-  rare: '稀有',
-  epic: '史诗',
-  legendary: '传说',
-  mythic: '神话',
-  divine: '神赐',
-};
+const qualityLabels: Readonly<Record<string, string>> = QUALITY_LABELS;
+const highValueQualityOrder = [...QUALITY_ORDER]
+  .filter((quality) => QUALITY_RANK[quality] >= QUALITY_RANK.epic)
+  .reverse();
 
 /** 挂机窗口底部的实时统计条（纯展示，数据全部来自 store 现有字段）。 */
 const idleStats = computed(() => [
@@ -62,7 +58,7 @@ const idleStats = computed(() => [
 const qualitySummary = computed(() => {
   const counts = new Map<string, number>();
   for (const e of stage.lootLog) counts.set(e.quality, (counts.get(e.quality) ?? 0) + 1);
-  return ['divine', 'mythic', 'legendary', 'epic']
+  return highValueQualityOrder
     .filter((q) => counts.has(q))
     .map((q) => ({ quality: q, count: counts.get(q) ?? 0, label: qualityLabels[q] ?? q }));
 });
@@ -609,6 +605,12 @@ const cpWarn = computed(() => {
   border-color: rgb(255 107 122 / 50%);
   box-shadow: 0 3px 12px rgb(255 107 122 / 24%);
 }
+.loot-spot.q-prismatic {
+  border-color: rgb(205 93 218 / 58%);
+  box-shadow:
+    0 3px 12px rgb(205 93 218 / 22%),
+    0 0 10px rgb(84 185 240 / 16%);
+}
 .loot-spot.q-divine {
   border-color: rgb(232 172 31 / 55%);
   box-shadow: 0 3px 12px rgb(232 172 31 / 26%);
@@ -926,6 +928,15 @@ const cpWarn = computed(() => {
   background: linear-gradient(90deg, rgb(255 107 122 / 12%), transparent 72%);
 }
 
+.loot-row.q-prismatic {
+  background: linear-gradient(
+    90deg,
+    rgb(255 107 157 / 11%),
+    rgb(85 185 243 / 9%) 44%,
+    transparent 78%
+  );
+}
+
 .loot-row.q-divine {
   background: linear-gradient(90deg, rgb(232 172 31 / 14%), transparent 72%);
 }
@@ -942,7 +953,9 @@ const cpWarn = computed(() => {
   opacity: 0.65;
 }
 
-.loot-row:nth-child(odd):not(.q-epic):not(.q-legendary):not(.q-mythic):not(.q-divine) {
+.loot-row:nth-child(odd):not(.q-epic):not(.q-legendary):not(.q-mythic):not(.q-prismatic):not(
+    .q-divine
+  ) {
   background: rgb(247 250 253 / 80%);
 }
 

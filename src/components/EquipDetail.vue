@@ -242,6 +242,11 @@ function doDecompose() {
 .hq-mythic {
   background: #ffecee;
 }
+.hq-prismatic {
+  background:
+    radial-gradient(circle at 12% 0%, rgb(255 175 220 / 22%), transparent 44%),
+    linear-gradient(135deg, #fffaff, #f1f8ff 55%, #fff5fb);
+}
 .hq-divine {
   background: #fdf7e2;
 }

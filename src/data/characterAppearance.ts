@@ -10,6 +10,7 @@ import {
 import { forgeStageAt } from '@/core/equipment';
 import { requireEquipment } from './equipment';
 import { BOUTIQUE_THEME_LIST, BOUTIQUE_THEMES, boutiqueAppearanceId } from './boutique';
+import { QUALITY_RANK } from './constants';
 import {
   EQUIPMENT_DUNGEON_TIERS,
   equipmentDungeonAppearanceId,
@@ -265,16 +266,6 @@ export const BASIC_ATTACK_EFFECTS: Readonly<Record<ClassId, string>> = {
   witch: 'assets/effects/basic/witch-spark.png',
   shaman: 'assets/effects/basic/shaman-wisp.png',
   catkin: 'assets/effects/basic/catkin-paw.png',
-};
-
-const QUALITY_RANK: Readonly<Record<Quality, number>> = {
-  common: 0,
-  fine: 1,
-  rare: 2,
-  epic: 3,
-  legendary: 4,
-  mythic: 5,
-  divine: 6,
 };
 
 export interface ResolvedAppearanceLayer {

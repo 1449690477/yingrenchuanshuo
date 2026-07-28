@@ -14,6 +14,16 @@ describe('save schema', () => {
       totalClears: 0,
       records: {},
     });
+    expect(save.settings.haptics).toBe(true);
+    expect(save.affection.characters.witch).toMatchObject({
+      points: 0,
+      mood: 'calm',
+      interactionsToday: 0,
+      gearPity: 0,
+      discoveredGearIds: [],
+      completedStoryIds: [],
+      choiceHistory: {},
+    });
   });
 
   it('喵喵使用稳定 catkin ID 创建并通过严格校验', () => {
@@ -145,6 +155,65 @@ describe('save schema', () => {
     invalidHistory.encounters.characters.char_akane!.choiceHistory.enc_r1_petalsmith =
       'lasting_grip';
     expect(looksLikeSave(invalidHistory)).toBe(true);
+  });
+
+  it('v9 好感记录拒绝非法次数、失效剧情和伪造回答', () => {
+    const tooMany = createSave('小樱', 'witch', 9, 1_800_000_000_000);
+    tooMany.affection.characters.witch.interactionsToday = 5;
+    expect(looksLikeSave(tooMany)).toBe(false);
+
+    const invalidStory = createSave('小樱', 'witch', 9, 1_800_000_000_000);
+    invalidStory.affection.characters.witch.completedStoryIds.push('deleted_story');
+    invalidStory.affection.characters.witch.choiceHistory.deleted_story = 'deleted_choice';
+    expect(looksLikeSave(invalidStory)).toBe(false);
+
+    const invalidChoice = createSave('小樱', 'witch', 9, 1_800_000_000_000);
+    invalidChoice.affection.characters.witch.points = 30;
+    invalidChoice.affection.characters.witch.completedStoryIds.push('aff_witch_01_star');
+    invalidChoice.affection.characters.witch.choiceHistory.aff_witch_01_star = 'deleted_choice';
+    expect(looksLikeSave(invalidChoice)).toBe(false);
+
+    invalidChoice.affection.characters.witch.choiceHistory.aff_witch_01_star = 'ask_both';
+    expect(looksLikeSave(invalidChoice)).toBe(true);
+  });
+
+  it('v9 好感完成剧情必须有对应回答，图鉴与剧情记录不能重复', () => {
+    const missingChoice = createSave('小樱', 'swordsman', 9, 1_800_000_000_000);
+    missingChoice.affection.characters.swordsman.completedStoryIds.push(
+      'aff_swordsman_01_dawn',
+    );
+    expect(looksLikeSave(missingChoice)).toBe(false);
+
+    const duplicateGear = createSave('小樱', 'catkin', 9, 1_800_000_000_000);
+    duplicateGear.affection.characters.catkin.discoveredGearIds.push(
+      'eq_affection_catkin_head',
+      'eq_affection_catkin_head',
+    );
+    expect(looksLikeSave(duplicateGear)).toBe(false);
+  });
+
+  it('v9 好感图鉴拒绝其他职业装备，剧情完成记录必须包含前置篇章', () => {
+    const wrongClassGear = createSave('小樱', 'witch', 9, 1_800_000_000_000);
+    wrongClassGear.affection.characters.witch.discoveredGearIds.push(
+      'eq_affection_swordsman_morning-oath-sakura-crown',
+    );
+    expect(looksLikeSave(wrongClassGear)).toBe(false);
+
+    const missingPrerequisite = createSave('小樱', 'catkin', 9, 1_800_000_000_000);
+    missingPrerequisite.affection.characters.catkin.points = 300;
+    missingPrerequisite.affection.characters.catkin.completedStoryIds.push(
+      'aff_catkin_02_glove',
+    );
+    missingPrerequisite.affection.characters.catkin.choiceHistory.aff_catkin_02_glove =
+      'glove_highfive';
+    expect(looksLikeSave(missingPrerequisite)).toBe(false);
+
+    missingPrerequisite.affection.characters.catkin.completedStoryIds.unshift(
+      'aff_catkin_01_box',
+    );
+    missingPrerequisite.affection.characters.catkin.choiceHistory.aff_catkin_01_box =
+      'reinforce_box';
+    expect(looksLikeSave(missingPrerequisite)).toBe(true);
   });
 
   it('装备 UID 必须全局唯一，nextUid 必须大于已存在编号', () => {

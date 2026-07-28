@@ -13,6 +13,8 @@
 import { SAVE_VERSION, parseSave, type SaveData } from './schema';
 import { ENHANCE_MAX, ENHANCE_PER_LEVEL } from '@/data/constants';
 import { createEquipmentDungeonState } from '@/core/equipmentDungeon';
+import { createAffectionState } from '@/core/affection';
+import { AFFECTION_RULES } from '@/data/affectionRules';
 
 /** 迁移函数接收上一版本的存档（结构未知，故用宽类型），返回下一版本 */
 export type Migration = (save: Record<string, unknown>) => Record<string, unknown>;
@@ -111,6 +113,27 @@ export const migrations: Record<number, Migration> = {
         ...encounters,
         characters: {},
       },
+    };
+  },
+  8: (save) => {
+    if (save.version === 9) return { ...save };
+    if (
+      typeof save.lastActiveAt !== 'number' ||
+      !Number.isFinite(save.lastActiveAt) ||
+      save.lastActiveAt < 0
+    ) {
+      throw new MigrationError(8, 'lastActiveAt 缺失或格式错误');
+    }
+    const settings = asObject(save.settings, 8, 'settings');
+    return {
+      ...save,
+      version: 9,
+      settings: {
+        ...settings,
+        // 合法 v8 没有该字段；忽略伪造字段，统一采用产品默认值。
+        haptics: true,
+      },
+      affection: createAffectionState(save.lastActiveAt, AFFECTION_RULES),
     };
   },
 };

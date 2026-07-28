@@ -678,6 +678,13 @@ onUnmounted(() => {
   opacity: 0.9;
 }
 
+.offer-card.quality-prismatic::before {
+  background: var(--q-prismatic-gradient);
+  background-size: 240% 100%;
+  opacity: 0.95;
+  animation: shop-prismatic-cycle 3.8s linear infinite;
+}
+
 .offer-card.quality-fine {
   --tile-glow: rgb(79 190 120 / 22%);
 }
@@ -696,6 +703,10 @@ onUnmounted(() => {
 
 .offer-card.quality-mythic {
   --tile-glow: rgb(255 107 122 / 26%);
+}
+
+.offer-card.quality-prismatic {
+  --tile-glow: rgb(199 91 219 / 28%);
 }
 
 .offer-card.quality-divine {
@@ -721,6 +732,17 @@ onUnmounted(() => {
 .offer-card.quality-mythic {
   border-color: #e8a4b4;
   background: linear-gradient(145deg, #fffafa, #fff0f3);
+}
+
+.offer-card.quality-prismatic {
+  border-color: #d8a7e7;
+  background: linear-gradient(145deg, #fffaff, #eef8ff 54%, #fff3fa);
+}
+
+@keyframes shop-prismatic-cycle {
+  to {
+    background-position: 240% 0;
+  }
 }
 
 .offer-card.sold {
@@ -1100,6 +1122,7 @@ onUnmounted(() => {
   }
 
   .offer-card,
+  .offer-card.quality-prismatic::before,
   .offer-spark,
   .scene-petal,
   .buy-button,

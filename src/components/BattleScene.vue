@@ -1419,6 +1419,10 @@ onUnmounted(() => {
   --loot-color: var(--q-mythic);
 }
 
+.drop-prismatic {
+  --loot-color: var(--q-prismatic);
+}
+
 .drop-divine {
   --loot-color: var(--q-divine);
 }

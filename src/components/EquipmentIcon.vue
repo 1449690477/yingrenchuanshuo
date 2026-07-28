@@ -127,6 +127,49 @@ const iconLabel = computed(() =>
   background: linear-gradient(145deg, #fff8fa, #ffe6ea);
 }
 
+.quality-prismatic {
+  --quality: var(--q-prismatic);
+  background:
+    radial-gradient(circle at 28% 20%, rgb(255 255 255 / 98%), transparent 40%),
+    linear-gradient(145deg, #fffaff, #eef8ff 52%, #fff2f8);
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 84%),
+    0 5px 14px rgb(197 94 220 / 24%),
+    0 0 12px rgb(86 191 244 / 20%),
+    0 0 9px var(--forge-glow);
+}
+
+.quality-prismatic::before {
+  position: absolute;
+  z-index: 5;
+  inset: -1px;
+  padding: 2px;
+  pointer-events: none;
+  content: '';
+  background: conic-gradient(
+    from 12deg,
+    #ff6b9d,
+    #ffc058,
+    #f5df68,
+    #54d6a2,
+    #55b9f3,
+    #8d7cf0,
+    #dd69df,
+    #ff6b9d
+  );
+  border-radius: inherit;
+  filter: hue-rotate(0deg);
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  animation: prismatic-border-cycle 3.2s linear infinite;
+}
+
 .quality-divine {
   --quality: var(--q-divine);
   background: linear-gradient(145deg, #fffef2, #fff4c8);
@@ -255,6 +298,7 @@ img {
 .quality-epic .shine,
 .quality-legendary .shine,
 .quality-mythic .shine,
+.quality-prismatic .shine,
 .quality-divine .shine {
   animation: quality-shine 3.8s ease-in-out infinite;
 }
@@ -288,6 +332,12 @@ img {
   82%,
   100% {
     left: 130%;
+  }
+}
+
+@keyframes prismatic-border-cycle {
+  to {
+    filter: hue-rotate(360deg);
   }
 }
 
@@ -329,7 +379,8 @@ img {
   .shine,
   .forge-frame,
   .forge-mark,
-  .forge-overlay {
+  .forge-overlay,
+  .quality-prismatic::before {
     animation: none !important;
   }
 

@@ -89,6 +89,17 @@ function v7Save(): Record<string, unknown> {
   return { ...current, version: 7, encounters: legacyEncounters };
 }
 
+function v8Save(): Record<string, unknown> {
+  const current = createSave('v8 少女', 'shaman', 31, 1_800_000_000_000);
+  const { affection: _removedAffection, ...legacy } = current;
+  const { haptics: _removedHaptics, ...legacySettings } = legacy.settings;
+  return {
+    ...legacy,
+    version: 8,
+    settings: legacySettings,
+  };
+}
+
 describe('save migrations', () => {
   it('v0 依次迁移到当前版本且不丢旧数据', () => {
     const migrated = migrate(v0Save());
@@ -241,6 +252,53 @@ describe('save migrations', () => {
     ]);
     expect(migrated.player.name).toBe('v7 少女');
   });
+
+  it('v8 → v9 新增四角色好感、保底、剧情记录与触觉开关', () => {
+    const raw = v8Save();
+    const migrated = migrate(raw);
+
+    expect(migrated.version).toBe(SAVE_VERSION);
+    expect(migrated.settings.haptics).toBe(true);
+    expect(Object.keys(migrated.affection.characters).sort()).toEqual([
+      'catkin',
+      'shaman',
+      'swordsman',
+      'witch',
+    ]);
+    expect(migrated.affection.characters.shaman).toMatchObject({
+      points: 0,
+      mood: 'calm',
+      dayKey: '2027-01-15',
+      interactionsToday: 0,
+      totalInteractions: 0,
+      gearPity: 0,
+      discoveredGearIds: [],
+      completedStoryIds: [],
+      choiceHistory: {},
+    });
+    expect(migrated.player.name).toBe('v8 少女');
+  });
+
+  it('v8 → v9 使用旧档时间初始化业务日，并忽略伪造的新版好感字段', () => {
+    const raw = v8Save();
+    raw.affection = {
+      characters: {
+        witch: { points: 99_999 },
+      },
+    };
+    const settings = raw.settings as Record<string, unknown>;
+    settings.haptics = false;
+
+    const once = migrations[8]!(raw);
+    const twice = migrations[8]!(once);
+    expect(twice).toEqual(once);
+    expect(
+      ((once.affection as { characters: { witch: { points: number } } }).characters.witch)
+        .points,
+    ).toBe(0);
+    expect((once.settings as { haptics: boolean }).haptics).toBe(true);
+  });
+
   it('当前版本不迁移，只做严格结构校验', () => {
     const current = createSave('当前档', 'shaman', 3, 1_800_000_000_000);
     expect(migrate(current as unknown as Record<string, unknown>)).toEqual(current);

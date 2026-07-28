@@ -112,8 +112,8 @@ describe('区域 1–2 内容完整性', () => {
     expect(ALL_CHAPTERS).toHaveLength(10);
     expect(Object.keys(STAGES)).toHaveLength(60);
     expect(Object.keys(MONSTERS)).toHaveLength(49);
-    // 区域/珍品商店 83 件（含喵喵专属两件套）+ 定向装备副本 80 件。
-    expect(Object.keys(EQUIPMENT)).toHaveLength(163);
+    // 区域/珍品商店 83 件（含喵喵专属两件套）+ 定向副本 80 件 + 心虹 40 件。
+    expect(Object.keys(EQUIPMENT)).toHaveLength(203);
     expect(Object.keys(LOOT_TABLES)).toHaveLength(30);
   });
 

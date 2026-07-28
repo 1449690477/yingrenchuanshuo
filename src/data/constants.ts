@@ -180,6 +180,34 @@ export const ITEM_POW = 1.35;
 /** 量纲调整。想整体增强/削弱装备就改这个数。 */
 export const ITEM_SCALE = 0.1;
 
+/**
+ * 全局品质顺序（由低到高）。
+ *
+ * 心虹珍藏是好感专属的稀有收藏品质，强于神话但仍不越过最终追求「圣器」。
+ * 所有排序、筛选与最高品质判断都应复用这张表。
+ */
+export const QUALITY_ORDER = [
+  'common',
+  'fine',
+  'rare',
+  'epic',
+  'legendary',
+  'mythic',
+  'prismatic',
+  'divine',
+] as const satisfies readonly Quality[];
+
+export const QUALITY_RANK: Readonly<Record<Quality, number>> = {
+  common: 0,
+  fine: 1,
+  rare: 2,
+  epic: 3,
+  legendary: 4,
+  mythic: 5,
+  prismatic: 6,
+  divine: 7,
+};
+
 /** 品质系数 */
 export const QUALITY_MUL: Record<Quality, number> = {
   common: 1.0,
@@ -188,6 +216,7 @@ export const QUALITY_MUL: Record<Quality, number> = {
   epic: 3.6,
   legendary: 5.8,
   mythic: 9.2,
+  prismatic: 11.8,
   divine: 15.0,
 };
 
@@ -199,6 +228,7 @@ export const QUALITY_AFFIX_COUNT: Record<Quality, number> = {
   epic: 3,
   legendary: 4,
   mythic: 5,
+  prismatic: 6,
   divine: 6,
 };
 
@@ -247,6 +277,7 @@ export const QUALITY_PCT_SCALE: Record<Quality, number> = {
   epic: 1.6,
   legendary: 2.4,
   mythic: 3.4,
+  prismatic: 4.0,
   divine: 4.6,
 };
 
@@ -392,6 +423,7 @@ export const QUALITY_LABELS: Record<Quality, string> = {
   epic: '史诗',
   legendary: '传说',
   mythic: '神话',
+  prismatic: '心虹珍藏',
   divine: '圣器',
 };
 

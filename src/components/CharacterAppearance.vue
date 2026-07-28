@@ -584,6 +584,10 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
   filter: drop-shadow(0 2px 7px rgb(202 57 93 / 52%)) drop-shadow(0 0 5px rgb(255 213 127 / 62%));
 }
 
+.q-prismatic {
+  filter: drop-shadow(0 2px 7px rgb(214 87 189 / 45%)) drop-shadow(0 0 5px rgb(82 188 242 / 56%));
+}
+
 .equip-layer.forge-gleam {
   filter: drop-shadow(0 0 4px rgb(126 215 255 / 58%));
 }

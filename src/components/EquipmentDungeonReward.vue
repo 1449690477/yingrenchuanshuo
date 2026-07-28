@@ -26,7 +26,7 @@ const rewards = computed(() =>
  * 如果每一件都金光四射，真正稀有的那件反而没了分量 ——
  * 稀缺感是靠对比撑起来的，不是靠特效堆出来的。
  */
-const PRIZE_QUALITIES = new Set<Quality>(['legendary', 'mythic', 'divine']);
+const PRIZE_QUALITIES = new Set<Quality>(['legendary', 'mythic', 'prismatic', 'divine']);
 function isPrize(quality: Quality): boolean {
   return PRIZE_QUALITIES.has(quality);
 }
@@ -172,6 +172,13 @@ header small,
 
 .quality-mythic {
   --reward-color: var(--q-mythic);
+}
+
+.quality-prismatic {
+  --reward-color: var(--q-prismatic);
+  background:
+    radial-gradient(circle at 8% 20%, rgb(255 169 214 / 20%), transparent 34%),
+    linear-gradient(120deg, rgb(255 255 255 / 96%), rgb(238 249 255 / 92%), rgb(255 242 250 / 94%));
 }
 
 .quality-divine {

@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref, watch } from 'vue';
-import { Rng } from '@/core/rng';
 import { abbr } from '@/core/format';
 import type { ClassId, EquipmentInstance, EquipSlot } from '@/core/types';
 import { CLASS_INFO, SLOT_LABELS } from '@/data/constants';
@@ -29,6 +28,7 @@ const emit = defineEmits<{
   selectSlot: [slot: EquipSlot];
   equipBest: [];
   switchClass: [];
+  previewInteract: [kind: 'greet' | 'pose' | 'celebrate'];
 }>();
 
 const leftSlots: readonly EquipSlot[] = ['weapon', 'necklace', 'bracelet', 'ring'];
@@ -38,33 +38,33 @@ const actionSequence = ref(0);
 const activeSkill = ref<VisualSkill | null>(null);
 const showBasicEffect = ref(false);
 const reactionText = ref('');
-const interactionCount = ref(0);
-const lastInteraction = ref<'greet' | 'pose' | 'celebrate'>('greet');
+const lastPreview = ref<'greet' | 'pose' | 'celebrate'>('greet');
 let previewTimer = 0;
 
-const seedByClass: Record<ClassId, number> = {
-  swordsman: 0x51a7c0de,
-  witch: 0x7a11ce55,
-  shaman: 0x5a4a0a11,
-  catkin: 0xca7c1a55,
-};
-let interactionRng = new Rng(seedByClass[props.classId]);
-
-const reactions: Record<ClassId, readonly string[]> = {
-  swordsman: ['要一起练剑吗？', '花瓣落在肩上啦。', '装备很合身！', '今天也会保护你。'],
-  witch: ['魔力正在发芽～', '要摸摸这颗星星吗？', '火花不会烫手的。', '新衣服有加魔力哦！'],
-  shaman: [
-    '小灵火在向你问好。',
-    '听，铃铛响了一下。',
-    '今天的气息很温柔。',
-    '守护灵也喜欢这套衣服。',
-  ],
-  catkin: [
-    '喵呜！今天也要一起冒险！',
-    '尾巴才没有偷偷摇起来呢。',
-    '要摸摸肉球吗？只给你一下哦。',
-    '闻到了……是宝箱的味道！',
-  ],
+const previewLines: Record<
+  ClassId,
+  Readonly<Record<'greet' | 'pose' | 'celebrate', string>>
+> = {
+  swordsman: {
+    greet: '准备好了吗？动作预览随时可以开始。',
+    pose: '这套装备的活动范围也确认过了。',
+    celebrate: '胜利姿势——先提前练习一次。',
+  },
+  witch: {
+    greet: '魔力检查完毕，要看哪一种动作？',
+    pose: '星光会配合衣摆一起转动哦。',
+    celebrate: '胜利烟花，先小小地试放一下～',
+  },
+  shaman: {
+    greet: '灵火已经就位，可以开始预览。',
+    pose: '铃音与衣饰的动作很合拍。',
+    celebrate: '愿这份胜利的喜悦被好好记住。',
+  },
+  catkin: {
+    greet: '搭档，动作预览准备好啦！',
+    pose: '这套装备很灵活，看我转一圈。',
+    celebrate: '胜利！先练一次帅气的击掌姿势。',
+  },
 };
 
 const skills = computed(() => visualSkillsFor(props.classId));
@@ -89,7 +89,6 @@ const forgeStageLabel = computed(
       sakura: '樱华锻造',
     })[appearance.value.forgeStage],
 );
-const interactionBond = computed(() => Math.min(100, interactionCount.value * 20));
 const effectUrl = computed(() => {
   if (activeSkill.value) return `${import.meta.env.BASE_URL}${activeSkill.value.effectAsset}`;
   if (showBasicEffect.value) {
@@ -131,19 +130,18 @@ function previewSkill(skill: VisualSkill): void {
   play(skill.characterAction, skill);
 }
 
-function interact(kind: 'greet' | 'pose' | 'celebrate' = 'greet'): void {
+function previewInteraction(kind: 'greet' | 'pose' | 'celebrate' = 'greet'): void {
   clearTimeout(previewTimer);
-  lastInteraction.value = kind;
-  interactionCount.value += 1;
+  lastPreview.value = kind;
   const themeLines = boutiqueTheme.value?.interactionLines ?? [];
-  const themed = themeLines.length > 0 && (kind !== 'greet' || interactionCount.value % 2 === 0);
-  reactionText.value = themed
-    ? themeLines[kind === 'greet' ? 0 : kind === 'pose' ? 1 : 2]!
-    : interactionRng.pick(reactions[props.classId]);
+  reactionText.value =
+    themeLines[kind === 'greet' ? 0 : kind === 'pose' ? 1 : 2] ??
+    previewLines[props.classId][kind];
   action.value = kind === 'greet' ? 'react' : kind === 'pose' ? 'cast' : 'victory';
   activeSkill.value = null;
   showBasicEffect.value = false;
   actionSequence.value += 1;
+  emit('previewInteract', kind);
   previewTimer = window.setTimeout(() => {
     action.value = 'idle';
     reactionText.value = '';
@@ -153,15 +151,13 @@ function interact(kind: 'greet' | 'pose' | 'celebrate' = 'greet'): void {
 
 watch(
   () => props.classId,
-  (classId) => {
+  () => {
     clearTimeout(previewTimer);
-    interactionRng = new Rng(seedByClass[classId]);
     action.value = 'idle';
     activeSkill.value = null;
     showBasicEffect.value = false;
     reactionText.value = '';
-    interactionCount.value = 0;
-    lastInteraction.value = 'greet';
+    lastPreview.value = 'greet';
     actionSequence.value += 1;
   },
 );
@@ -221,8 +217,8 @@ onUnmounted(() => clearTimeout(previewTimer));
 
       <button
         class="character-stage"
-        :aria-label="`触摸${name}互动；${appearance.ariaLabel}`"
-        @click="interact('greet')"
+        :aria-label="`预览${name}的问候动作，不增加心意；${appearance.ariaLabel}`"
+        @click="previewInteraction('greet')"
       >
         <span class="stage-backdrop" aria-hidden="true" />
         <CharacterAppearance
@@ -236,7 +232,7 @@ onUnmounted(() => clearTimeout(previewTimer));
         <span v-if="reactionText" class="reaction-bubble" aria-live="polite">
           {{ reactionText }}
         </span>
-        <span v-else class="touch-hint">轻触互动</span>
+        <span v-else class="touch-hint">轻触预览动作</span>
 
         <span
           v-if="effectUrl"
@@ -279,18 +275,21 @@ onUnmounted(() => clearTimeout(previewTimer));
     </div>
 
     <div class="interaction-panel">
-      <span class="bond-copy">
-        <small>本次互动默契</small>
-        <span class="bond-track"><i :style="{ width: `${interactionBond}%` }" /></span>
+      <span class="preview-copy">
+        <strong>动作试演</strong>
+        <small>不增加心意</small>
       </span>
-      <button :class="{ active: lastInteraction === 'greet' }" @click="interact('greet')">
-        问候
+      <button :class="{ active: lastPreview === 'greet' }" @click="previewInteraction('greet')">
+        问候动作
       </button>
-      <button :class="{ active: lastInteraction === 'pose' }" @click="interact('pose')">
+      <button :class="{ active: lastPreview === 'pose' }" @click="previewInteraction('pose')">
         {{ boutiqueTheme ? boutiqueTheme.interactionName : '展示' }}
       </button>
-      <button :class="{ active: lastInteraction === 'celebrate' }" @click="interact('celebrate')">
-        庆祝
+      <button
+        :class="{ active: lastPreview === 'celebrate' }"
+        @click="previewInteraction('celebrate')"
+      >
+        胜利动作
       </button>
     </div>
 
@@ -699,32 +698,22 @@ onUnmounted(() => clearTimeout(previewTimer));
   border-color: #ffc5da;
 }
 
-.bond-copy {
+.preview-copy {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
   padding-right: 3px;
 }
 
-.bond-copy small {
+.preview-copy strong {
+  font-size: 8px;
+  color: var(--text-mid);
+}
+
+.preview-copy small {
   font-size: 7px;
   color: var(--text-dim);
-}
-
-.bond-track {
-  height: 5px;
-  overflow: hidden;
-  background: #e8edf4;
-  border-radius: 999px;
-}
-
-.bond-track i {
-  display: block;
-  height: 100%;
-  background: linear-gradient(90deg, #ff8cb6, #f7c86d);
-  border-radius: inherit;
-  transition: width 0.24s ease;
 }
 
 .action-strip {
