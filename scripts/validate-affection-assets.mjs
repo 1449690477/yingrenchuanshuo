@@ -53,6 +53,21 @@ const EQUIPMENT = {
   ],
 };
 
+const GIFTS = [
+  'gift_swordsman_sakura_roast_tea',
+  'gift_swordsman_guard_care_case',
+  'gift_swordsman_morning_training_cloth',
+  'gift_witch_deviant_star_ink',
+  'gift_witch_blank_starmap_notebook',
+  'gift_witch_meteor_candy_jar',
+  'gift_shaman_blank_wish_album',
+  'gift_shaman_moonwhite_rest_tea',
+  'gift_shaman_clear_lantern_cover',
+  'gift_catkin_modular_field_case',
+  'gift_catkin_dual_repair_lamp',
+  'gift_catkin_victory_candy_pack',
+];
+
 const SCENES = [
   'swordsman-training-dawn',
   'swordsman-rain-gate',
@@ -60,24 +75,36 @@ const SCENES = [
   'swordsman-paired-trial-sunset',
   'swordsman-lantern-dayoff',
   'swordsman-homecoming-sunrise',
+  'swordsman-gift-tea-dawn',
+  'swordsman-rain-market-tasting',
+  'swordsman-reciprocal-gift-sunset',
   'witch-atelier-spark',
   'witch-observatory-night',
   'witch-secret-festival',
   'witch-atelier-afterglow',
   'witch-star-skiff-night',
   'witch-observatory-dawn',
+  'witch-gift-safety-atelier',
+  'witch-secret-library-night',
+  'witch-reciprocal-star-dawn',
   'shaman-shrine-morning',
   'shaman-firefly-lake',
   'shaman-bell-corridor-rain',
   'shaman-quiet-tea-afternoon',
   'shaman-storm-lantern-path',
   'shaman-first-snow-garden',
+  'shaman-blank-gift-paper-morning',
+  'shaman-moontea-rest-evening',
+  'shaman-return-charm-night',
   'catkin-box-base',
   'catkin-workbench-evening',
   'catkin-rooftop-moon',
   'catkin-base-expansion-day',
   'catkin-rainy-workshop-night',
   'catkin-sunrise-departure-platform',
+  'catkin-gift-inspection-workshop',
+  'catkin-sentimental-shelf-rain',
+  'catkin-shared-expedition-locker-sunrise',
 ];
 
 const CGS = [
@@ -89,28 +116,38 @@ const CGS = [
   'witch-shared-constellation',
   'shaman-paired-lantern-charm',
   'catkin-partner-badges',
+  'swordsman-two-way-gift-ribbons',
+  'witch-reciprocal-star-ink',
+  'shaman-open-knot-keepsakes',
+  'catkin-two-way-supply-tags',
 ];
 
-const iconFiles = Object.entries(EQUIPMENT).flatMap(([classId, slugs]) =>
-  slugs.map(
-    (slug) => `public/assets/equipment/affection/${classId}/${slug}.png`,
-  ),
+const equipmentIconFiles = Object.entries(EQUIPMENT).flatMap(([classId, slugs]) =>
+  slugs.map((slug) => `public/assets/equipment/affection/${classId}/${slug}.png`),
 );
+const giftIconFiles = GIFTS.map((id) => `public/assets/affection/gifts/${id}.png`);
 const sceneFiles = SCENES.map((slug) => `public/assets/affection/scenes/${slug}.webp`);
 const cgFiles = CGS.map((slug) => `public/assets/affection/cg/${slug}.webp`);
 
 function assertManifest() {
-  const allFiles = [...iconFiles, ...sceneFiles, ...cgFiles];
-  if (iconFiles.length !== 40) {
-    throw new Error(`心虹装备图标清单应为 40 项，当前为 ${iconFiles.length}`);
+  const allFiles = [
+    ...equipmentIconFiles,
+    ...giftIconFiles,
+    ...sceneFiles,
+    ...cgFiles,
+  ];
+  const expectedCounts = [
+    [equipmentIconFiles.length, 40, '心虹装备图标'],
+    [giftIconFiles.length, 12, '角色礼物图标'],
+    [sceneFiles.length, 36, '好感剧情场景'],
+    [cgFiles.length, 12, '好感高潮 CG'],
+  ];
+  for (const [actual, expected, label] of expectedCounts) {
+    if (actual !== expected) {
+      throw new Error(`${label}清单应为 ${expected} 项，当前为 ${actual}`);
+    }
   }
-  if (sceneFiles.length !== 24) {
-    throw new Error(`好感剧情场景清单应为 24 项，当前为 ${sceneFiles.length}`);
-  }
-  if (cgFiles.length !== 8) {
-    throw new Error(`好感高潮 CG 清单应为 8 项，当前为 ${cgFiles.length}`);
-  }
-  if (new Set(allFiles).size !== 72) {
+  if (new Set(allFiles).size !== 100) {
     throw new Error('好感度美术清单存在重复运行时路径');
   }
 }
@@ -133,10 +170,16 @@ async function filesUnder(directory) {
 async function assertExactRuntimeFiles() {
   const roots = [
     'public/assets/equipment/affection',
+    'public/assets/affection/gifts',
     'public/assets/affection/scenes',
     'public/assets/affection/cg',
   ];
-  const expected = new Set([...iconFiles, ...sceneFiles, ...cgFiles]);
+  const expected = new Set([
+    ...equipmentIconFiles,
+    ...giftIconFiles,
+    ...sceneFiles,
+    ...cgFiles,
+  ]);
   const actual = (await Promise.all(roots.map(filesUnder))).flat();
   const actualSet = new Set(actual);
   const missing = [...expected].filter((file) => !actualSet.has(file));
@@ -144,7 +187,7 @@ async function assertExactRuntimeFiles() {
   if (missing.length > 0 || unexpected.length > 0) {
     throw new Error(
       [
-        '好感度运行时美术目录必须严格匹配 40 图标 + 24 场景 + 8 CG 清单。',
+        '好感度运行时美术目录必须严格匹配 40 装备图标 + 12 礼物图标 + 36 场景 + 12 CG。',
         `缺失：${missing.join('、') || '无'}`,
         `多余：${unexpected.join('、') || '无'}`,
       ].join('\n'),
@@ -213,10 +256,10 @@ async function validateIcon(file) {
   }
 
   if (visiblePixels < 256 * 256 * 0.01) {
-    throw new Error(`${file} 可见主体不足，只有 ${visiblePixels} 个有效像素`);
+    throw new Error(`${file} 可见主体不足，只剩 ${visiblePixels} 个有效像素`);
   }
   if (visiblePixels > 256 * 256 * 0.9) {
-    throw new Error(`${file} 可见主体异常占满画布，疑似没有正确抠图`);
+    throw new Error(`${file} 主体异常占满画布，疑似没有正确抠图`);
   }
   if (minX <= 0 || minY <= 0 || maxX >= info.width - 1 || maxY >= info.height - 1) {
     throw new Error(
@@ -251,7 +294,9 @@ async function validateStoryImage(file) {
 
 assertManifest();
 await assertExactRuntimeFiles();
-for (const file of iconFiles) await validateIcon(file);
+for (const file of [...equipmentIconFiles, ...giftIconFiles]) await validateIcon(file);
 for (const file of [...sceneFiles, ...cgFiles]) await validateStoryImage(file);
 
-console.log('好感度美术审计通过：40 张 RGBA 图标 + 24 张 3:2 场景 + 8 张 3:2 物件 CG。');
+console.log(
+  '好感度美术审计通过：40 张装备 RGBA 图标 + 12 张礼物 RGBA 图标 + 36 张 3:2 场景 + 12 张 3:2 CG。',
+);

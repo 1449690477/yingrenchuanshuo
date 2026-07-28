@@ -3,11 +3,13 @@ import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createInstance } from '@/core/equipment';
 import { Rng } from '@/core/rng';
+import type { ClassId } from '@/core/types';
 import { requireAffectionCharacter } from '@/data/affection';
 import {
   AFFECTION_EQUIPMENT,
   requireAffectionEquipment,
 } from '@/data/affectionEquipment';
+import { requireAffectionGift } from '@/data/affectionGifts';
 import { requireEquipment } from '@/data/equipment';
 import { createSave } from '@/save/schema';
 import { clearSave, loadSave } from '@/save/storage';
@@ -16,7 +18,18 @@ import { usePlayerStore } from '../player';
 import { useSettingsStore } from '../settings';
 
 const NOW = Date.parse('2026-07-28T10:00:00+08:00');
+const BEFORE_DAILY_RESET = Date.parse('2026-07-28T03:59:00+08:00');
+const AFTER_DAILY_RESET = Date.parse('2026-07-28T04:01:00+08:00');
 const jsonClone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
+
+function unlockAffectionGifts(save: ReturnType<typeof createSave>, classId: ClassId): void {
+  const progress = save.affection.characters[classId];
+  for (const story of requireAffectionCharacter(classId).stories.slice(0, 6)) {
+    progress.completedStoryIds.push(story.id);
+    progress.choiceHistory[story.id] = story.choices[0]!.id;
+  }
+  progress.points = 1_400;
+}
 
 beforeEach(async () => {
   vi.setSystemTime(NOW);
@@ -222,6 +235,162 @@ describe('affection store transaction', () => {
     }
   });
 
+  it('礼物消耗现有掉落材料，并与普通互动共享次数、心虹保底和持久化', async () => {
+    const game = useGameStore();
+    const save = createSave('礼物事务', 'witch', 20260731, NOW);
+    unlockAffectionGifts(save, 'witch');
+    const gift = requireAffectionGift('witch', 'gift_witch_deviant_star_ink');
+    save.bag.items[gift.cost.itemId] = 2;
+    save.affection.characters.witch.gearPity = 15;
+    const beforeUid = save.nextUid;
+    game.loadFrom(save);
+
+    const result = game.giveAffectionGift('witch', gift.id, NOW);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.gainedPoints).toBe(18);
+    expect(result.instance).not.toBeNull();
+    expect(game.save!.bag.items[gift.cost.itemId]).toBe(1);
+    expect(game.save!.affection.characters.witch).toMatchObject({
+      points: 1_418,
+      interactionsToday: 1,
+      totalInteractions: 1,
+      gearPity: 0,
+      mood: gift.mood,
+    });
+    expect(game.save!.nextUid).toBe(beforeUid + 1);
+    expect(game.save!.bag.equipment).toContainEqual(result.instance);
+
+    await game.persist();
+    const loaded = await loadSave();
+    expect(loaded?.bag.items[gift.cost.itemId]).toBe(1);
+    expect(loaded?.affection.characters.witch.points).toBe(1_418);
+    expect(loaded?.bag.equipment).toContainEqual(result.instance);
+  });
+
+  it('合心礼物支持一次消耗四份材料，并在恰好用完时移除背包零值键', () => {
+    const game = useGameStore();
+    const save = createSave('多材料礼物', 'catkin', 20260732, NOW);
+    unlockAffectionGifts(save, 'catkin');
+    const gift = requireAffectionGift('catkin', 'gift_catkin_victory_candy_pack');
+    expect(gift.cost.count).toBe(4);
+    save.bag.items[gift.cost.itemId] = gift.cost.count;
+    game.loadFrom(save);
+
+    const result = game.giveAffectionGift('catkin', gift.id, NOW);
+
+    expect(result).toMatchObject({ ok: true, gainedPoints: 10 });
+    expect(game.save!.bag.items).not.toHaveProperty(gift.cost.itemId);
+    expect(game.save!.affection.characters.catkin).toMatchObject({
+      interactionsToday: 1,
+      totalInteractions: 1,
+    });
+  });
+
+  it('礼物未解锁、材料不足和共享日限均不污染材料、保底或 UID', () => {
+    const game = useGameStore();
+    const gift = requireAffectionGift('catkin', 'gift_catkin_modular_field_case');
+
+    const lockedSave = createSave('礼物锁定', 'catkin', 20260731, NOW);
+    lockedSave.bag.items[gift.cost.itemId] = 3;
+    game.loadFrom(lockedSave);
+    const lockedBefore = jsonClone(game.save);
+    expect(game.giveAffectionGift('catkin', gift.id, NOW)).toEqual({
+      ok: false,
+      reason: 'gift-locked',
+    });
+    expect(game.save).toEqual(lockedBefore);
+
+    const missingSave = createSave('礼物缺料', 'catkin', 20260731, NOW);
+    unlockAffectionGifts(missingSave, 'catkin');
+    missingSave.affection.characters.catkin.gearPity = 9;
+    game.loadFrom(missingSave);
+    const missingBefore = jsonClone(game.save);
+    expect(game.giveAffectionGift('catkin', gift.id, NOW)).toMatchObject({
+      ok: false,
+      reason: 'missing-material',
+    });
+    expect(game.save).toEqual(missingBefore);
+
+    const limitedSave = createSave('礼物日限', 'catkin', 20260731, NOW);
+    unlockAffectionGifts(limitedSave, 'catkin');
+    limitedSave.bag.items[gift.cost.itemId] = 3;
+    limitedSave.affection.characters.catkin.interactionsToday = 4;
+    limitedSave.affection.characters.catkin.totalInteractions = 4;
+    game.loadFrom(limitedSave);
+    const limitedBefore = jsonClone(game.save);
+    expect(game.giveAffectionGift('catkin', gift.id, NOW)).toMatchObject({
+      ok: false,
+      reason: 'daily-limit',
+    });
+    expect(game.save).toEqual(limitedBefore);
+  });
+
+  it('跨 04:00 后缺料失败仍持久化日切，且不推进保底、UID 或材料', async () => {
+    vi.setSystemTime(BEFORE_DAILY_RESET);
+    const game = useGameStore();
+    const save = createSave('礼物跨日缺料', 'catkin', 20260733, BEFORE_DAILY_RESET);
+    unlockAffectionGifts(save, 'catkin');
+    const gift = requireAffectionGift('catkin', 'gift_catkin_modular_field_case');
+    const progress = save.affection.characters.catkin;
+    progress.interactionsToday = 4;
+    progress.totalInteractions = 12;
+    progress.gearPity = 9;
+    const beforeUid = save.nextUid;
+    game.loadFrom(save);
+
+    const result = game.giveAffectionGift('catkin', gift.id, AFTER_DAILY_RESET);
+
+    expect(result).toMatchObject({ ok: false, reason: 'missing-material' });
+    expect(game.save!.affection.characters.catkin).toMatchObject({
+      dayKey: '2026-07-28',
+      interactionsToday: 0,
+      totalInteractions: 12,
+      gearPity: 9,
+    });
+    expect(game.save!.nextUid).toBe(beforeUid);
+    expect(game.save!.bag.items).not.toHaveProperty(gift.cost.itemId);
+
+    await vi.waitFor(async () => {
+      const loaded = await loadSave();
+      expect(loaded?.affection.characters.catkin).toMatchObject({
+        dayKey: '2026-07-28',
+        interactionsToday: 0,
+        totalInteractions: 12,
+        gearPity: 9,
+      });
+      expect(loaded?.nextUid).toBe(beforeUid);
+      expect(loaded?.bag.items).not.toHaveProperty(gift.cost.itemId);
+    });
+  });
+
+  it('礼物触发的心虹奖励配置损坏时，材料、好感、保底、图鉴和 UID 一起回滚', () => {
+    const game = useGameStore();
+    const save = createSave('礼物心虹回滚', 'catkin', 20260731, NOW);
+    unlockAffectionGifts(save, 'catkin');
+    const gift = requireAffectionGift('catkin', 'gift_catkin_modular_field_case');
+    save.bag.items[gift.cost.itemId] = 2;
+    save.affection.characters.catkin.gearPity = 15;
+    game.loadFrom(save);
+
+    const rewardId = 'eq_affection_catkin_heartbeat-cat-ear-bow';
+    const original = requireAffectionEquipment(rewardId);
+    const registry = AFFECTION_EQUIPMENT as Record<string, typeof original | undefined>;
+    const before = jsonClone(game.save);
+
+    delete registry[rewardId];
+    try {
+      expect(() => game.giveAffectionGift('catkin', gift.id, NOW)).toThrow(
+        `[配置错误] 心虹好感装备不存在：${rewardId}`,
+      );
+      expect(game.save).toEqual(before);
+      expect(game.lootLog).toEqual([]);
+    } finally {
+      registry[rewardId] = original;
+    }
+  });
+
   it('剧情选择只结算一次，成功结果和选择记忆写入持久化存档', async () => {
     const game = useGameStore();
     game.loadFrom(createSave('剧情记忆', 'shaman', 20260801, NOW));
@@ -250,20 +419,20 @@ describe('affection store transaction', () => {
     expect(loaded?.affection.characters.shaman.choiceHistory[story.id]).toBe(choice.id);
   });
 
-  it('第二批三幕按 520/900/1400 心意线性开放，每幕等额结算且第六幕不可重复领奖', () => {
+  it('三批九幕按门槛线性开放，第四幕后等额结算且第九幕不可重复领奖', () => {
     const game = useGameStore();
     game.loadFrom(createSave('六幕剧情', 'swordsman', 20260803, NOW));
     const stories = requireAffectionCharacter('swordsman').stories;
 
-    const blockedSave = createSave('缺少第五幕', 'swordsman', 20260804, NOW);
+    const blockedSave = createSave('缺少第八幕', 'swordsman', 20260804, NOW);
     const blockedProgress = blockedSave.affection.characters.swordsman;
-    blockedProgress.points = 1_400;
-    for (const earlierStory of stories.slice(0, 4)) {
+    blockedProgress.points = 2_600;
+    for (const earlierStory of stories.slice(0, 7)) {
       blockedProgress.completedStoryIds.push(earlierStory.id);
       blockedProgress.choiceHistory[earlierStory.id] = earlierStory.choices[0]!.id;
     }
     game.loadFrom(blockedSave);
-    const finalStory = stories[5]!;
+    const finalStory = stories[8]!;
     const beforeLockedAttempt = jsonClone(blockedProgress);
     expect(
       game.completeAffectionStoryChoice(
@@ -290,7 +459,7 @@ describe('affection store transaction', () => {
 
     const progress = game.save!.affection.characters.swordsman;
     expect(progress.completedStoryIds).toEqual(stories.map((story) => story.id));
-    expect(progress.points).toBe(1_460);
+    expect(progress.points).toBe(2_660);
     const before = jsonClone(progress);
     expect(
       game.completeAffectionStoryChoice(
@@ -308,10 +477,17 @@ describe('affection store transaction', () => {
       ok: false,
       reason: 'no-save',
     });
+    expect(game.giveAffectionGift('witch', 'gift_missing')).toEqual({
+      ok: false,
+      reason: 'no-save',
+    });
 
     game.loadFrom(createSave('配置错误', 'witch', 20260802, NOW));
     expect(() => game.interactWithCharacter('witch', 'missing', NOW)).toThrow(
       '[配置错误] witch 的好感互动不存在：missing',
+    );
+    expect(() => game.giveAffectionGift('witch', 'gift_missing', NOW)).toThrow(
+      '[配置错误] witch 的好感礼物不存在：gift_missing',
     );
   });
 });

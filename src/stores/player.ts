@@ -9,6 +9,7 @@ import { defineStore } from 'pinia';
 import type { ClassId } from '@/core/types';
 import {
   useGameStore,
+  type AffectionGiftActionResult,
   type AffectionInteractionActionResult,
   type AffectionStoryChoiceActionResult,
   type ClassSwitchResult,
@@ -48,6 +49,14 @@ export const usePlayerStore = defineStore('player', () => {
     return game.interactWithCharacter(classId, interactionId, now);
   }
 
+  function giveAffectionGift(
+    classId: ClassId,
+    giftId: string,
+    now?: number,
+  ): AffectionGiftActionResult {
+    return game.giveAffectionGift(classId, giftId, now);
+  }
+
   function completeAffectionStoryChoice(
     classId: ClassId,
     storyId: string,
@@ -72,6 +81,7 @@ export const usePlayerStore = defineStore('player', () => {
     create,
     switchClass,
     interactWithCharacter,
+    giveAffectionGift,
     completeAffectionStoryChoice,
   };
 });

@@ -20,6 +20,11 @@ import {
   affectionEquipmentForClass,
   requireAffectionEquipment,
 } from '@/data/affectionEquipment';
+import {
+  affectionGiftsForClass,
+  requireAffectionGift,
+} from '@/data/affectionGifts';
+import { itemName } from '@/data/items';
 import { visualSkillsFor } from '@/data/skills';
 import EquipDetail from '@/components/EquipDetail.vue';
 import CharacterShowcase from '@/components/CharacterShowcase.vue';
@@ -28,6 +33,7 @@ import ClassSwitchModal from '@/components/ClassSwitchModal.vue';
 import EnhancePanel from '@/components/EnhancePanel.vue';
 import SkillIcon from '@/components/SkillIcon.vue';
 import AffectionPanel from '@/components/affection/AffectionPanel.vue';
+import AffectionGiftShelf from '@/components/affection/AffectionGiftShelf.vue';
 import AffectionStoryModal from '@/components/affection/AffectionStoryModal.vue';
 import AffectionEquipmentGallery from '@/components/affection/AffectionEquipmentGallery.vue';
 import { triggerHaptic } from '@/ui/haptics';
@@ -40,7 +46,12 @@ const feedback = ref('');
 const classSwitchOpen = ref(false);
 const classSwitchBusy = ref(false);
 const interactionBusyId = ref<string | null>(null);
+const giftBusyId = ref<string | null>(null);
 const affectionFeedback = ref<{
+  tone: 'success' | 'notice' | 'reward';
+  text: string;
+} | null>(null);
+const giftFeedback = ref<{
   tone: 'success' | 'notice' | 'reward';
   text: string;
 } | null>(null);
@@ -52,6 +63,8 @@ const selectedAffectionEquipmentId = ref<string | null>(null);
 const galleryRef = ref<HTMLElement | null>(null);
 let feedbackTimer = 0;
 let affectionFeedbackTimer = 0;
+let giftFeedbackTimer = 0;
+const GIFT_BUSY_MIN_MS = 420;
 
 const equipped = computed(() => inventory.equipped);
 const visualSkills = computed(() => (player.player ? visualSkillsFor(player.player.classId) : []));
@@ -74,6 +87,18 @@ const affectionStoryViews = computed(() => {
     story,
     unlocked: isAffectionStoryUnlocked(progress, story),
     completed: progress.completedStoryIds.includes(story.id),
+  }));
+});
+const affectionGiftViews = computed(() => {
+  const classId = player.player?.classId;
+  const progress = affectionProgress.value;
+  const items = inventory.bag?.items;
+  if (!classId || !progress || !items) return [];
+  return affectionGiftsForClass(classId).map((gift) => ({
+    gift,
+    costName: itemName(gift.cost.itemId),
+    ownedCount: items[gift.cost.itemId] ?? 0,
+    unlocked: progress.completedStoryIds.includes(gift.requiredStoryId),
   }));
 });
 const activeStory = computed(() => {
@@ -152,6 +177,17 @@ function announceAffection(
   }, tone === 'reward' ? 5_200 : 4_000);
 }
 
+function announceGift(
+  text: string,
+  tone: 'success' | 'notice' | 'reward' = 'success',
+): void {
+  giftFeedback.value = { text, tone };
+  clearTimeout(giftFeedbackTimer);
+  giftFeedbackTimer = window.setTimeout(() => {
+    giftFeedback.value = null;
+  }, tone === 'reward' ? 5_200 : 4_000);
+}
+
 function prefersReducedMotion(): boolean {
   return Boolean(
     settings.settings?.reduceMotion ||
@@ -217,6 +253,56 @@ async function interactWithCharacter(interactionId: string): Promise<void> {
     announceAffection(response);
   } finally {
     interactionBusyId.value = null;
+  }
+}
+
+async function giveAffectionGift(giftId: string): Promise<void> {
+  const classId = player.player?.classId;
+  const gift = classId ? requireAffectionGift(classId, giftId) : null;
+  if (!classId || !gift || giftBusyId.value || interactionBusyId.value) return;
+
+  const busyStartedAt = Date.now();
+  giftBusyId.value = giftId;
+  try {
+    const result = await player.giveAffectionGift(classId, giftId);
+    if (!result.ok) {
+      const message =
+        result.reason === 'daily-limit'
+          ? '今天的有效互动已经完成，明早 04:00 再来准备礼物吧。'
+          : result.reason === 'missing-material'
+            ? `${itemName(gift.cost.itemId)}不足，需要 ${gift.cost.count} 个。`
+            : result.reason === 'gift-locked'
+              ? '先完成第六幕，她才会把真实偏好认真告诉你。'
+              : '当前存档还未准备好，请返回首页重新进入角色。';
+      announceGift(message, 'notice');
+      return;
+    }
+
+    vibrate(gift.mood);
+    const line = gift.responseLines[(result.totalInteractions - 1) % gift.responseLines.length];
+    const response = `“${line}” ${gift.name}让她增加了 ${result.gainedPoints} 心意`;
+    if (result.gearReward) {
+      const reward = requireAffectionEquipment(result.gearReward.defId);
+      vibrate('prismatic-drop');
+      selectedAffectionEquipmentId.value = reward.definition.id;
+      galleryOpen.value = true;
+      announceGift(
+        `${response} ✦ 心虹珍藏「${reward.definition.name}」回应了这份心意，已自动锁定。`,
+        'reward',
+      );
+      await nextTick();
+      galleryRef.value?.scrollIntoView({
+        behavior: prefersReducedMotion() ? 'auto' : 'smooth',
+      });
+      return;
+    }
+    announceGift(response);
+  } finally {
+    const remainingBusyMs = GIFT_BUSY_MIN_MS - (Date.now() - busyStartedAt);
+    if (remainingBusyMs > 0) {
+      await new Promise<void>((resolve) => window.setTimeout(resolve, remainingBusyMs));
+    }
+    giftBusyId.value = null;
   }
 }
 
@@ -308,6 +394,7 @@ async function switchClass(target: Parameters<typeof player.switchClass>[0]): Pr
 onUnmounted(() => {
   clearTimeout(feedbackTimer);
   clearTimeout(affectionFeedbackTimer);
+  clearTimeout(giftFeedbackTimer);
 });
 </script>
 
@@ -341,11 +428,26 @@ onUnmounted(() => {
       :interactions-remaining="player.affectionInteractionsRemaining"
       :stories="affectionStoryViews"
       :busy-interaction-id="interactionBusyId"
-      :disabled="storyBusy"
+      :disabled="storyBusy || Boolean(giftBusyId)"
       :feedback="affectionFeedback"
       @interact="interactWithCharacter"
       @open-story="openStory"
       @open-equipment="toggleGallery"
+    />
+
+    <AffectionGiftShelf
+      v-if="affectionCharacter && affectionGiftViews.length > 0"
+      class="row-in"
+      style="--row-delay: 35ms"
+      :character-name="affectionCharacter.name"
+      :gifts="affectionGiftViews"
+      :interactions-remaining="player.affectionInteractionsRemaining"
+      :accent="affectionCharacter.accent"
+      :glow="affectionCharacter.glow"
+      :busy-gift-id="giftBusyId"
+      :disabled="storyBusy || Boolean(interactionBusyId)"
+      :feedback="giftFeedback"
+      @give="giveAffectionGift"
     />
 
     <Transition name="gallery-reveal">

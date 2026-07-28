@@ -28,7 +28,9 @@ import {
   affectionTierAt,
   applyAffectionCombatBonus,
   completeAffectionStory,
+  performAffectionGift,
   performAffectionInteraction,
+  type AffectionGiftResult,
   type AffectionInteractionResult,
   type AffectionStoryResult,
 } from '@/core/affection';
@@ -149,6 +151,7 @@ import {
   eligibleAffectionEquipmentIds,
   requireAffectionEquipment,
 } from '@/data/affectionEquipment';
+import { requireAffectionGift } from '@/data/affectionGifts';
 import { getEquipmentDungeonStage, type EquipmentDungeonStage } from '@/data/equipmentDungeons';
 
 import { createSave, type SaveData } from '@/save/schema';
@@ -277,6 +280,13 @@ export type AffectionInteractionActionResult =
   | { ok: false; reason: 'no-save' | 'interaction-locked' }
   | Extract<AffectionInteractionResult, { ok: false }>
   | (Extract<AffectionInteractionResult, { ok: true }> & {
+      instance: EquipmentInstance | null;
+    });
+
+export type AffectionGiftActionResult =
+  | { ok: false; reason: 'no-save' | 'gift-locked' }
+  | Extract<AffectionGiftResult, { ok: false }>
+  | (Extract<AffectionGiftResult, { ok: true }> & {
       instance: EquipmentInstance | null;
     });
 
@@ -1517,6 +1527,71 @@ export const useGameStore = defineStore('game', () => {
     return { ...result, instance };
   }
 
+  function giveAffectionGift(
+    classId: ClassId,
+    giftId: string,
+    now = Date.now(),
+  ): AffectionGiftActionResult {
+    if (!save.value) return { ok: false, reason: 'no-save' };
+    const gift = requireAffectionGift(classId, giftId);
+    const s = save.value;
+    const progress = s.affection.characters[classId];
+    if (!progress.completedStoryIds.includes(gift.requiredStoryId)) {
+      return { ok: false, reason: 'gift-locked' };
+    }
+
+    const pointsAfterGift = Math.min(
+      AFFECTION_RULES.maxPoints,
+      progress.points + gift.points,
+    );
+    const gearPoolIds = eligibleAffectionEquipmentIds(
+      classId,
+      pointsAfterGift,
+      s.player.level,
+    );
+    const result = performAffectionGift(
+      s.affection,
+      s.bag.items,
+      classId,
+      gift,
+      gearPoolIds,
+      s.seed,
+      now,
+      AFFECTION_RULES,
+    );
+
+    if (!result.ok) {
+      // 即使材料不足，跨日刷新后的次数也应持久化；礼物纯函数保证物品不变。
+      s.affection = result.state;
+      s.bag.items = result.items;
+      void persist();
+      return result;
+    }
+
+    let instance: EquipmentInstance | null = null;
+    let rewardDefinition: EquipmentDef | null = null;
+    if (result.gearReward) {
+      // 所有可能抛错的配置读取与实例构造都先在局部完成。任何错误都不会扣礼物、
+      // 推进保底、点亮图鉴或消耗 UID。
+      const definition = requireAffectionEquipment(result.gearReward.defId).definition;
+      rewardDefinition = definition;
+      instance = createInstance(definition, new Rng(result.gearReward.rewardSeed), `e${s.nextUid}`);
+      instance.locked = true;
+    }
+
+    s.affection = result.state;
+    s.bag.items = result.items;
+    if (instance && rewardDefinition) {
+      s.nextUid += 1;
+      s.bag.equipment.push(instance);
+      pushLog(rewardDefinition.id, rewardDefinition.name, 1, rewardDefinition.quality, true);
+      enforceBagCapacity();
+    }
+
+    void persist();
+    return { ...result, instance };
+  }
+
   function completeAffectionStoryChoice(
     classId: ClassId,
     storyId: string,
@@ -2001,6 +2076,7 @@ export const useGameStore = defineStore('game', () => {
     refreshEquipmentDungeon,
     runEquipmentDungeon,
     interactWithCharacter,
+    giveAffectionGift,
     completeAffectionStoryChoice,
     equip,
     unequip,

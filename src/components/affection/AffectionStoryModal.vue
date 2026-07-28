@@ -694,7 +694,7 @@ onUnmounted(() => {
 
 .memory-echo {
   position: absolute;
-  top: 10px;
+  top: 116px;
   left: 10px;
   min-height: 36px;
   display: flex;
@@ -714,9 +714,9 @@ onUnmounted(() => {
 
 .stage-tools {
   position: absolute;
-  top: 10px;
-  right: 10px;
-  z-index: 2;
+  top: 74px;
+  left: 10px;
+  z-index: 4;
   display: flex;
   gap: 6px;
 }
@@ -1074,6 +1074,15 @@ onUnmounted(() => {
 
   .portrait-slot {
     inset: 8% 3% 24% 24%;
+  }
+
+  .stage-tools {
+    gap: 4px;
+  }
+
+  .tool-chip {
+    padding-right: 7px;
+    padding-left: 7px;
   }
 
   .dialogue-area {

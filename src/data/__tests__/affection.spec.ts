@@ -11,13 +11,13 @@ import {
 } from '../affection';
 
 describe('affection content', () => {
-  it('四位成年角色各有 6 幕剧情、每幕 3 个等价回答和 6 种互动', () => {
-    expect(AFFECTION_STORIES).toHaveLength(24);
+  it('四位成年角色各有 9 幕剧情、每幕 3 个等价回答和 6 种互动', () => {
+    expect(AFFECTION_STORIES).toHaveLength(36);
 
     for (const classId of CLASS_IDS) {
       const character = AFFECTION_CHARACTERS[classId];
       expect(character.adult).toBe(true);
-      expect(character.stories).toHaveLength(6);
+      expect(character.stories).toHaveLength(9);
       expect(character.interactions).toHaveLength(6);
       expect(new Set(character.interactions.map((entry) => entry.id)).size).toBe(6);
       expect(new Set(character.interactions.map((entry) => entry.points))).toEqual(new Set([10]));
@@ -34,10 +34,10 @@ describe('affection content', () => {
       });
 
       expect(character.stories.map((story) => story.unlockPoints)).toEqual([
-        0, 80, 240, 520, 900, 1_400,
+        0, 80, 240, 520, 900, 1_400, 1_700, 2_100, 2_600,
       ]);
       expect(character.stories.slice(3).map((story) => story.completionPoints)).toEqual([
-        60, 60, 60,
+        60, 60, 60, 60, 60, 60,
       ]);
     }
   });
@@ -58,7 +58,9 @@ describe('affection content', () => {
       ['aff_catkin_06_departure', '下一次也并肩出发', 'catkin-sunrise-departure-platform.webp'],
     ] as const;
 
-    const secondBatch = AFFECTION_STORIES.filter((story) => story.episode >= 4);
+    const secondBatch = AFFECTION_STORIES.filter(
+      (story) => story.episode >= 4 && story.episode <= 6,
+    );
     expect(
       secondBatch.map((story) => [
         story.id,
@@ -73,6 +75,40 @@ describe('affection content', () => {
       'assets/affection/cg/witch-shared-constellation.webp',
       'assets/affection/cg/shaman-paired-lantern-charm.webp',
       'assets/affection/cg/catkin-partner-badges.webp',
+    ]);
+  });
+
+  it('第三批十二幕围绕收礼、表达偏好与平等回礼，并绑定独立素材', () => {
+    const expected = [
+      ['aff_swordsman_07_gift', '礼物不写进军需单', 'swordsman-gift-tea-dawn.webp'],
+      ['aff_swordsman_08_preference', '喜欢可以说得更具体', 'swordsman-rain-market-tasting.webp'],
+      ['aff_swordsman_09_reciprocal', '回礼不是还债', 'swordsman-reciprocal-gift-sunset.webp'],
+      ['aff_witch_07_gift', '先让礼物通过安全咒', 'witch-gift-safety-atelier.webp'],
+      ['aff_witch_08_secret', '秘密也有赠送日期', 'witch-secret-library-night.webp'],
+      ['aff_witch_09_reciprocal', '偏航也会抵达彼此', 'witch-reciprocal-star-dawn.webp'],
+      ['aff_shaman_07_gift', '空白也可以被珍惜', 'shaman-blank-gift-paper-morning.webp'],
+      ['aff_shaman_08_rest', '今晚由你先被照顾', 'shaman-moontea-rest-evening.webp'],
+      ['aff_shaman_09_reciprocal', '想送给你的，是归处', 'shaman-return-charm-night.webp'],
+      ['aff_catkin_07_gift', '礼物要先过搭档验收', 'catkin-gift-inspection-workshop.webp'],
+      ['aff_catkin_08_sentimental', '喜欢不是物资编号', 'catkin-sentimental-shelf-rain.webp'],
+      ['aff_catkin_09_reciprocal', '下一站也有你的收纳格', 'catkin-shared-expedition-locker-sunrise.webp'],
+    ] as const;
+
+    const thirdBatch = AFFECTION_STORIES.filter((story) => story.episode >= 7);
+    expect(
+      thirdBatch.map((story) => [
+        story.id,
+        story.title,
+        story.backgroundAsset.split('/').at(-1),
+      ]),
+    ).toEqual(expected);
+    expect(
+      thirdBatch.filter((story) => story.episode === 9).map((story) => story.cgAsset),
+    ).toEqual([
+      'assets/affection/cg/swordsman-two-way-gift-ribbons.webp',
+      'assets/affection/cg/witch-reciprocal-star-ink.webp',
+      'assets/affection/cg/shaman-open-knot-keepsakes.webp',
+      'assets/affection/cg/catkin-two-way-supply-tags.webp',
     ]);
   });
 
@@ -138,6 +174,28 @@ describe('affection content', () => {
     }
   });
 
+  it('第三批每幕回响一个完整来源章节的三种历史选择', () => {
+    for (const classId of CLASS_IDS) {
+      const stories = AFFECTION_CHARACTERS[classId].stories;
+      const byId = new Map(stories.map((story) => [story.id, story]));
+      for (const story of stories.slice(6)) {
+        const callbacks = story.memoryCallbacks ?? [];
+        expect(callbacks).toHaveLength(3);
+        expect(new Set(callbacks.map((entry) => entry.fromStoryId)).size).toBe(1);
+        const sourceId = callbacks[0]!.fromStoryId;
+        const source = byId.get(sourceId);
+        expect(source).toBeDefined();
+        expect(source!.episode).toBeLessThan(story.episode);
+        expect(new Set(callbacks.map((entry) => entry.choiceId))).toEqual(
+          new Set(source!.choices.map((choice) => choice.id)),
+        );
+
+        const history = { [sourceId]: source!.choices[0]!.id };
+        expect(affectionMemoryDialogue(story, history)).toHaveLength(1);
+      }
+    }
+  });
+
   it('所有选择奖励等额且不包含惩罚字段，喵喵始终采用成年平等搭档表达', () => {
     for (const story of AFFECTION_STORIES) {
       expect(story.completionPoints).toBeGreaterThan(0);
@@ -163,17 +221,17 @@ describe('affection content', () => {
         expect(story.cgAsset).toMatch(/^assets\/affection\/cg\/[a-z0-9-]+\.webp$/);
       }
     }
-    expect(scenePaths.size).toBe(24);
-    expect(AFFECTION_STORIES.filter((story) => story.cgAsset)).toHaveLength(8);
+    expect(scenePaths.size).toBe(36);
+    expect(AFFECTION_STORIES.filter((story) => story.cgAsset)).toHaveLength(12);
   });
 
-  it('两批二十四张场景与八张高潮插画均真实存在且保持 3:2 横图', async () => {
+  it('三批三十六张场景与十二张高潮插画均真实存在且保持 3:2 横图', async () => {
     const assets = new Set<string>();
     for (const story of AFFECTION_STORIES) {
       assets.add(story.backgroundAsset);
       if (story.cgAsset) assets.add(story.cgAsset);
     }
-    expect(assets.size).toBe(32);
+    expect(assets.size).toBe(48);
 
     for (const asset of assets) {
       const assetPath = resolve('public', asset);

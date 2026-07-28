@@ -1,10 +1,11 @@
 # 好感度「心虹珍藏」美术复现手册
 
-本文件记录首批好感度美术的可复现生产规格。运行时清单固定为：
+本文件记录好感度美术的可复现生产规格。第三批完成后的运行时清单固定为：
 
 - 4 个职业 × 10 张独立装备图标，共 40 张透明 PNG。
-- 4 个职业 × 3 张无人场景，共 12 张 WebP。
-- 4 个职业 × 1 张纯物件高潮 CG，共 4 张 WebP。
+- 4 个职业 × 3 张偏好礼物图标，共 12 张透明 PNG。
+- 4 个职业 × 9 张无人场景，共 36 张 WebP。
+- 4 个职业 × 3 张纯物件高潮 CG，共 12 张 WebP。
 
 生成时使用内置 `image_gen`，每件不同素材单独调用一次。不要把多件装备画进同一张图，也不要用代码绘图、SVG 占位图或其它装备的换色版本代替。
 
@@ -251,3 +252,68 @@ hands, faces, readable text, letters, numbers, logos, watermarks, UI, frame or s
 四张联系表均按“第 4 幕 / 第 5 幕 / 第 6 幕 / 高潮 CG”排列。自动审计负责
 格式、尺寸和精确清单；联系表负责确认无人、无伪文字、无肢体、无幼态宠物语义，
 以及中心偏右的实时换装角色叠放区没有被关键物件堵住。
+
+## 8. 第三批：平等互赠（第 7～9 幕）
+
+第三批主题是“收礼不等于欠债 → 明确表达偏好 → 平等回礼”。场景继续使用严格
+3:2 横图，每张独立调用 ImageGen。为避免剧情弹窗出现视觉黑带，提示词额外要求：
+
+```text
+full-bleed exact 3:2 landscape; keep center-right calm for the live character layer;
+keep the whole bottom third illuminated and textured;
+no black bars, no vignette, no dark or black bottom fade, no empty black foreground;
+no people, hands, silhouettes, readable text, UI, frame or split panel
+```
+
+母版位于 `art-source/affection/<scenes|cg>/round3/`，由
+`node scripts/build-affection-round3-assets.mjs` 生成 960×640 WebP 与五张联系表。
+
+### 8.1 第 7～9 幕场景与物件 CG
+
+| 角色 | 第 7 幕 | 第 8 幕 | 第 9 幕 | 第 9 幕物件 CG |
+|---|---|---|---|---|
+| 剑姬 | `swordsman-gift-tea-dawn`：晨光茶室、两杯与礼物罐 | `swordsman-rain-market-tasting`：雨市试味亭、三种低糖点心 | `swordsman-reciprocal-gift-sunset`：夕照居所、两份独立礼布 | `swordsman-two-way-gift-ribbons`：两份礼布、焙茶罐与三色地图书签 |
+| 魔女 | `witch-gift-safety-atelier`：礼物安全检测台 | `witch-secret-library-night`：无字空白手札与夜间藏书室 | `witch-reciprocal-star-dawn`：黎明星墨工房与两瓶独立星墨 | `witch-reciprocal-star-ink`：两瓶偏航星墨的对等静物 |
+| 灵巫 | `shaman-blank-gift-paper-morning`：无字双页愿纸作间 | `shaman-moontea-rest-evening`：全部值夜灯熄灭的双席茶廊 | `shaman-return-charm-night`：敞门归灯亭与可解护符 | `shaman-open-knot-keepsakes`：两枚完整、可自由解开的护符 |
+| 喵喵 | `catkin-gift-inspection-workshop`：成年冒险队检修工坊 | `catkin-sentimental-shelf-rain`：雨夜私人纪念收纳墙 | `catkin-shared-expedition-locker-sunrise`：左右私人格与中央共享格 | `catkin-two-way-supply-tags`：两枚补给标签、两条开放织带与两枚铜扣 |
+
+所有 CG 均只画物件，不出现玩家或角色固定外形。礼布、标签和护符保持“两份独立、
+可以取回”的构图，不使用戒指盒、婚礼或所有权符号。
+
+### 8.2 十二件偏好礼物图标
+
+每个礼物图标独立生成在纯 `#00ff00` 绿幕上，禁止背景投影、文字和 UI。绿幕母版：
+
+```text
+art-source/affection/gifts/round3/<giftId>-chroma.png
+```
+
+运行：
+
+```powershell
+node scripts/build-affection-round3-gifts.mjs
+```
+
+脚本调用 imagegen skill 的 `remove_chroma_key.py`，使用 border 自动取色、soft matte、
+12/220 阈值和 despill，再以 `sharp` 保持比例放进 224×224 主体区，四边各留 16px
+透明边距，输出 256×256 RGBA PNG。
+
+| 角色 | 偏爱（+18） | 喜欢（+14） | 合心（+10） |
+|---|---|---|---|
+| 剑姬 | `gift_swordsman_sakura_roast_tea`：樱叶焙茶罐与两杯 | `gift_swordsman_guard_care_case`：打开的护手养护匣 | `gift_swordsman_morning_training_cloth`：晨蓝练剑巾与小收纳袋 |
+| 魔女 | `gift_witch_deviant_star_ink`：偏航星晶墨 | `gift_witch_blank_starmap_notebook`：无锁、无字星图手札 | `gift_witch_meteor_candy_jar`：无标签流星软糖罐 |
+| 灵巫 | `gift_shaman_blank_wish_album`：无字双页愿纸册 | `gift_shaman_moonwhite_rest_tea`：月白茶壶与两杯 | `gift_shaman_clear_lantern_cover`：透明清月花灯罩 |
+| 喵喵 | `gift_catkin_modular_field_case`：模块化远征收纳匣 | `gift_catkin_dual_repair_lamp`：两侧独立控制的维修灯 | `gift_catkin_victory_candy_pack`：两袋可独立开启的胜利软糖 |
+
+喵喵礼物不得带项圈、宠物箱、宠物零食、动物脸或主人语义；所有标签片保持无字。
+
+### 8.3 第三批 QA
+
+- 总联系表：`art-source/qa/affection-round3-contact-sheet.png`
+- 四职业场景联系表：`art-source/qa/affection-round3-<class>-contact-sheet.png`
+- 礼物联系表：`art-source/qa/affection-round3-gifts-contact-sheet.png`
+- 自动审计：`node scripts/validate-affection-assets.mjs`
+
+审计后的精确运行时清单为 40 装备图标 + 12 礼物图标 + 36 场景 + 12 CG，共
+100 个文件。脚本负责格式、尺寸、透明边距、残绿、比例与清单；联系表和两档浏览器
+截图负责审美、伪文字、构图、弹窗黑带和移动端可用性。

@@ -427,6 +427,163 @@ const SWORDSMAN_STORIES: readonly AffectionStoryDefinition[] = [
       },
     ],
   },
+  {
+    id: 'aff_swordsman_07_gift',
+    classId: 'swordsman',
+    episode: 7,
+    title: '礼物不写进军需单',
+    episodeLabel: '第七幕 · 樱叶茶礼',
+    unlockPoints: 1_700,
+    requiredStoryIds: ['aff_swordsman_06_homecoming'],
+    completionPoints: 60,
+    backgroundAsset: 'assets/affection/scenes/swordsman-gift-tea-dawn.webp',
+    memoryCallbacks: [
+      ...rememberedChoices('aff_swordsman_05_dayoff', '剑姬', [
+        ['share_quiet_tea', '你曾陪我安静喝茶，所以这份茶礼不需要热闹的答谢。'],
+        ['choose_snack', '你记得我不喜欢太甜；更重要的是，你仍愿意问我今天想选什么。'],
+        ['one_safety_check', '你允许我只确认一次安全；这次我也只确认一次礼物是否安全，然后安心收下。'],
+      ]),
+    ],
+    openingDialogue: [
+      { text: '晨光落进小茶室，一只未拆的樱叶茶罐放在两只空杯之间，军需簿却被合在一旁。' },
+      { speaker: '剑姬', text: '我第一反应是把它登记，再想办法回赠同等价值的物资。' },
+      { speaker: '剑姬', text: '可你说这是礼物。那我想先学会，不把心意换算成欠款。' },
+    ],
+    choices: [
+      {
+        id: 'gift_without_debt',
+        label: '“它不是军需，也不需要用战果偿还。”',
+        mood: 'moved',
+        responseDialogue: [
+          { speaker: '剑姬', text: '那我只说谢谢，不列补给清单。' },
+          { text: '她把军需簿推远，亲自为相邻的两只杯子添上热茶。' },
+        ],
+      },
+      {
+        id: 'open_at_own_pace',
+        label: '“你可以现在拆，也可以等想独处时再看。”',
+        mood: 'calm',
+        responseDialogue: [
+          { speaker: '剑姬', text: '选择收礼的时机，也属于收到礼物的人。谢谢你留出这个位置。' },
+          { text: '她没有急着拆封，只先把属于你的杯子放到身旁。' },
+        ],
+      },
+      {
+        id: 'next_gift_by_request',
+        label: '“下次想要什么，可以直接告诉我；我也会告诉你。”',
+        mood: 'shy',
+        responseDialogue: [
+          { speaker: '剑姬', text: '不必靠猜测证明在意……好。那下一次，由我先开口。' },
+          { text: '她认真记住约定，却没有再把它写进任何值勤表。' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'aff_swordsman_08_preference',
+    classId: 'swordsman',
+    episode: 8,
+    title: '喜欢可以说得更具体',
+    episodeLabel: '第八幕 · 雨市试味',
+    unlockPoints: 2_100,
+    requiredStoryIds: ['aff_swordsman_07_gift'],
+    completionPoints: 60,
+    backgroundAsset: 'assets/affection/scenes/swordsman-rain-market-tasting.webp',
+    memoryCallbacks: [
+      ...rememberedChoices('aff_swordsman_07_gift', '剑姬', [
+        ['gift_without_debt', '今天不谈价格和战果，只谈各自真正喜欢的味道。'],
+        ['open_at_own_pace', '你把选择时机留给我，所以这一次我想主动告诉你答案。'],
+        ['next_gift_by_request', '我们约好不让对方一直猜；今天轮到我先开口。'],
+      ]),
+    ],
+    openingDialogue: [
+      { text: '细雨落在有顶小市集外，试味桌上摆着三份不同甜度的茶点。' },
+      { speaker: '剑姬', text: '以前有人问我喜欢什么，我总回答“都可以”。那其实只是在省略自己。' },
+      { speaker: '剑姬', text: '今天我想认真选，也想知道你的口味。' },
+    ],
+    choices: [
+      {
+        id: 'ask_today_preference',
+        label: '“我记得你偏爱低糖，但今天仍由你重新选择。”',
+        mood: 'moved',
+        responseDialogue: [
+          { speaker: '剑姬', text: '被记住，却不被过去的答案困住……这样的体贴很温柔。' },
+          { text: '她选了带淡淡樱叶香的一份，也把另一只小碟推到你面前。' },
+        ],
+      },
+      {
+        id: 'taste_separately',
+        label: '“我们各选一份；想交换试味时，再先问对方。”',
+        mood: 'bright',
+        responseDialogue: [
+          { speaker: '剑姬', text: '各自保留选择，也能主动分享。很像我们现在的并肩。' },
+          { text: '她认真比较三份茶点，最后笑着问你愿不愿意交换一小块。' },
+        ],
+      },
+      {
+        id: 'allow_changed_mind',
+        label: '“喜好会变。改口不算辜负礼物，只是更诚实地认识彼此。”',
+        mood: 'shy',
+        responseDialogue: [
+          { speaker: '剑姬', text: '那我以后不再用“都可以”挡住你，也不挡住自己。' },
+          { text: '雨声轻落，她第一次自然地说出自己还想再尝哪一种。' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'aff_swordsman_09_reciprocal',
+    classId: 'swordsman',
+    episode: 9,
+    title: '回礼不是还债',
+    episodeLabel: '第九幕 · 双向心意',
+    unlockPoints: 2_600,
+    requiredStoryIds: ['aff_swordsman_08_preference'],
+    completionPoints: 60,
+    backgroundAsset: 'assets/affection/scenes/swordsman-reciprocal-gift-sunset.webp',
+    cgAsset: 'assets/affection/cg/swordsman-two-way-gift-ribbons.webp',
+    memoryCallbacks: [
+      ...rememberedChoices('aff_swordsman_06_homecoming', '剑姬', [
+        ['choose_each_day', '你说归来时不必先交战报，所以今天也不必先报告礼物价值。'],
+        ['share_future_map', '归来结由我们一起系好，这次回礼也该由两个人一起定义。'],
+        ['stand_as_equals', '你说归处可以共同创造；这件回礼正想成为那段路的书签。'],
+      ]),
+    ],
+    openingDialogue: [
+      { text: '晚霞落在木桌上，她准备了一枚由旧胜利绶带编成的地图书签，旁边放着你送的茶罐。' },
+      { speaker: '剑姬', text: '这不是偿还那份茶礼。我只是看见它时，第一时间想把它送给你。' },
+      { speaker: '剑姬', text: '若你愿意收下，也请允许我不计算两件礼物是否等价。' },
+    ],
+    choices: [
+      {
+        id: 'receive_without_balance',
+        label: '“我愿意收下。我们不说两清，只说谢谢。”',
+        mood: 'moved',
+        responseDialogue: [
+          { speaker: '剑姬', text: '好。不是结清，是心意从一个人走向另一个人。' },
+          { text: '两份礼物在桌上并排展开，缎带没有绑住任何一件物品。' },
+        ],
+      },
+      {
+        id: 'tell_each_reason',
+        label: '“不比较价格；我们各自说说为什么想送它。”',
+        mood: 'bright',
+        responseDialogue: [
+          { speaker: '剑姬', text: '我选它，是因为每次展开地图时，我都希望你在下一条路上。' },
+          { text: '她听完你的理由，把两段独立缎带轻轻摆成并肩方向。' },
+        ],
+      },
+      {
+        id: 'leave_future_ribbon',
+        label: '“留一条不打结的丝带，给以后改变心意与礼物的我们。”',
+        mood: 'shy',
+        responseDialogue: [
+          { speaker: '剑姬', text: '空白不是犹豫，是把未来也当作平等的选择。' },
+          { text: '她将未打结的丝带放在两份礼物之间，晚樱落在柔软留白上。' },
+        ],
+      },
+    ],
+  },
 ] as const;
 
 const WITCH_STORIES: readonly AffectionStoryDefinition[] = [
@@ -761,6 +918,163 @@ const WITCH_STORIES: readonly AffectionStoryDefinition[] = [
       },
     ],
   },
+  {
+    id: 'aff_witch_07_gift',
+    classId: 'witch',
+    episode: 7,
+    title: '先让礼物通过安全咒',
+    episodeLabel: '第七幕 · 偏航墨水',
+    unlockPoints: 1_700,
+    requiredStoryIds: ['aff_witch_06_constellation'],
+    completionPoints: 60,
+    backgroundAsset: 'assets/affection/scenes/witch-gift-safety-atelier.webp',
+    memoryCallbacks: [
+      ...rememberedChoices('aff_witch_04_miscalculation', '魔女', [
+        ['keep_unique_shape', '你不会因为形状不标准就否定它，所以我愿意认真检查这瓶奇怪星墨。'],
+        ['review_without_blame', '我们检查的是风险，不是在审问送礼的人。你一直分得很清楚。'],
+        ['treasure_accident', '你连意外形成的星晶都愿意珍藏，这瓶偏航墨大概会很合你的眼光。'],
+      ]),
+    ],
+    openingDialogue: [
+      { text: '安全光环围住一瓶尚未开封的偏航星墨，检测台被转到两张座位中间。' },
+      { speaker: '魔女', text: '礼物很迷人。但越迷人的实验材料，越应该先确认边界和风险。' },
+      { speaker: '魔女', text: '所以今天由我们共同决定：检查、保留密封，或者退回。' },
+    ],
+    choices: [
+      {
+        id: 'inspect_together',
+        label: '“由你主持检测；我只操作你明确交给我的部分。”',
+        mood: 'bright',
+        responseDialogue: [
+          { speaker: '魔女', text: '优秀的共犯从来不是乱碰东西，而是知道什么时候该递工具。' },
+          { text: '她把检测台转到中央，与你逐项确认星墨保持稳定。' },
+        ],
+      },
+      {
+        id: 'keep_sealed',
+        label: '“先保持密封。等你想研究时，它仍然是你的礼物。”',
+        mood: 'moved',
+        responseDialogue: [
+          { speaker: '魔女', text: '你不把好奇心当通行证……这条我很喜欢。' },
+          { text: '她为墨瓶罩上柔光玻璃罩，把开启日期留成空白。' },
+        ],
+      },
+      {
+        id: 'decline_is_allowed',
+        label: '“若不合适就退回，不需要编一个照顾我面子的理由。”',
+        mood: 'shy',
+        responseDialogue: [
+          { speaker: '魔女', text: '连拒收权都包装进礼物里了。你比很多魔法契约聪明。' },
+          { text: '确认安全后，她才弯起眼睛，把星墨郑重移到自己的实验区。' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'aff_witch_08_secret',
+    classId: 'witch',
+    episode: 8,
+    title: '秘密也有赠送日期',
+    episodeLabel: '第八幕 · 未拆星页',
+    unlockPoints: 2_100,
+    requiredStoryIds: ['aff_witch_07_gift'],
+    completionPoints: 60,
+    backgroundAsset: 'assets/affection/scenes/witch-secret-library-night.webp',
+    memoryCallbacks: [
+      ...rememberedChoices('aff_witch_05_nightflight', '魔女', [
+        ['ask_before_pause', '你答应念暂停咒前先确认，所以翻开秘密前当然也会先问。'],
+        ['shared_pause_signal', '我们的暂停信号双向有效；这页星图的开启规则也由两个人确认。'],
+        ['pause_for_stars', '那晚我们没有记录星河，所以今晚这页空白也不需要立刻填满。'],
+      ]),
+    ],
+    openingDialogue: [
+      { text: '深夜观星藏书室里，一页封在透明星袋中的空白手札放在两张相邻座位之间。' },
+      { speaker: '魔女', text: '我想把一项尚未公开的研究送给你，但不是让你立刻证明值得信任。' },
+      { speaker: '魔女', text: '开启日期由我说明，是否收下以及何时阅读，仍由你决定。' },
+    ],
+    choices: [
+      {
+        id: 'ask_opening_rule',
+        label: '“先告诉我开启边界；内容可以等你准备好再解释。”',
+        mood: 'moved',
+        responseDialogue: [
+          { speaker: '魔女', text: '问规则，不追问答案。你总能把好奇和尊重同时留下。' },
+          { text: '她只说明安全边界，没有被迫透露星页中的任何秘密。' },
+        ],
+      },
+      {
+        id: 'guard_unopened',
+        label: '“我愿意替你保管未拆的这一页，直到你主动说可以。”',
+        mood: 'shy',
+        responseDialogue: [
+          { speaker: '魔女', text: '把秘密交给你，竟然不需要立刻失去它……感觉很新鲜。' },
+          { text: '她为星袋留下只有自己能解除的柔光封印。' },
+        ],
+      },
+      {
+        id: 'share_blank_page',
+        label: '“我也放一张空白页在旁边；想分享什么，由我们各自决定。”',
+        mood: 'bright',
+        responseDialogue: [
+          { speaker: '魔女', text: '两份秘密都拥有自己的门，却愿意把门开向同一张桌子。' },
+          { text: '两页空白手札并排放好，没有任何一页被擅自翻开。' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'aff_witch_09_reciprocal',
+    classId: 'witch',
+    episode: 9,
+    title: '偏航也会抵达彼此',
+    episodeLabel: '第九幕 · 双瓶星墨',
+    unlockPoints: 2_600,
+    requiredStoryIds: ['aff_witch_08_secret'],
+    completionPoints: 60,
+    backgroundAsset: 'assets/affection/scenes/witch-reciprocal-star-dawn.webp',
+    cgAsset: 'assets/affection/cg/witch-reciprocal-star-ink.webp',
+    memoryCallbacks: [
+      ...rememberedChoices('aff_witch_06_constellation', '魔女', [
+        ['two_home_stars', '两颗归航星各自发光；这两瓶星墨也不需要混成同一种颜色。'],
+        ['open_route', '我们的星路可以持续更新，回礼当然也允许边走边改。'],
+        ['shared_blank', '你为未来保留空白，所以我把第二瓶尚未命名的星墨留给你。'],
+      ]),
+    ],
+    openingDialogue: [
+      { text: '黎明实验台上，两瓶颜色不同的星墨停在独立黄铜底座，光轨在中间相遇又各自延伸。' },
+      { speaker: '魔女', text: '一瓶是你送来的偏航星墨，另一瓶是我重新调出的回礼。' },
+      { speaker: '魔女', text: '它们不用变成同一种颜色，也能在同一张星图上找到彼此。' },
+    ],
+    choices: [
+      {
+        id: 'two_independent_colors',
+        label: '“保留两种颜色，让每条轨迹都能看见对方。”',
+        mood: 'moved',
+        responseDialogue: [
+          { speaker: '魔女', text: '不互相覆盖，却能共同完成一幅星图。很像我们。' },
+          { text: '两束独立星墨越过玻璃，在中央留下不相吞没的交汇光点。' },
+        ],
+      },
+      {
+        id: 'rewrite_coordinates',
+        label: '“坐标可以改写；想偏航时，我们先告诉彼此。”',
+        mood: 'bright',
+        responseDialogue: [
+          { speaker: '魔女', text: '长期实验最重要的不是永不变化，而是诚实报告新的方向。' },
+          { text: '她把两只可移动底座推到中间，邀请你共同调整下一段星轨。' },
+        ],
+      },
+      {
+        id: 'opt_in_experiment',
+        label: '“每次共同实验都重新确认，秘密与陪伴都不视为默认权限。”',
+        mood: 'shy',
+        responseDialogue: [
+          { speaker: '魔女', text: '批准。看来你很适合当一位长期、但随时可以说暂停的共犯。' },
+          { text: '她轻轻碰响自己的墨瓶，另一瓶随即亮起温柔回应。' },
+        ],
+      },
+    ],
+  },
 ] as const;
 
 const SHAMAN_STORIES: readonly AffectionStoryDefinition[] = [
@@ -1087,6 +1401,163 @@ const SHAMAN_STORIES: readonly AffectionStoryDefinition[] = [
         responseDialogue: [
           { speaker: '灵巫', text: '好。心意不是一次写完的符咒，而是长久的共同练习。' },
           { text: '她把空白灯面朝向你，与你一起放入第一簇归灯火。' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'aff_shaman_07_gift',
+    classId: 'shaman',
+    episode: 7,
+    title: '空白也可以被珍惜',
+    episodeLabel: '第七幕 · 无字礼纸',
+    unlockPoints: 1_700,
+    requiredStoryIds: ['aff_shaman_06_firstsnow'],
+    completionPoints: 60,
+    backgroundAsset: 'assets/affection/scenes/shaman-blank-gift-paper-morning.webp',
+    memoryCallbacks: [
+      ...rememberedChoices('aff_shaman_03_wish', '灵巫', [
+        ['wish_for_her', '你曾让我先写自己的愿望，所以这本空白纸册没有替我决定内容。'],
+        ['guard_each_other', '守护是一个圆；礼物也该让赠与和接受都保留选择。'],
+        ['share_tomorrow', '那张愿纸的一半仍被好好保管，新的纸页便从空白开始吧。'],
+      ]),
+    ],
+    openingDialogue: [
+      { text: '清晨纸作间里，一册无字愿纸放在两盏小灯之间，旁边只有可以随时取下的花夹。' },
+      { speaker: '灵巫', text: '很多人送愿纸时，已经替收礼的人写好了应该许下什么。' },
+      { speaker: '灵巫', text: '而这一本什么都没有。它让我觉得，沉默也被当成了完整的答案。' },
+    ],
+    choices: [
+      {
+        id: 'blank_is_complete',
+        label: '“不写也可以。空白本身就是你拥有的选择。”',
+        mood: 'moved',
+        responseDialogue: [
+          { speaker: '灵巫', text: '谢谢你没有把安静当作等待填补的缺口。' },
+          { text: '她轻轻翻过第一页，没有落笔，却把纸册珍重地留在身边。' },
+        ],
+      },
+      {
+        id: 'removable_flower',
+        label: '“花夹可以取下；装饰也不该替你固定愿望。”',
+        mood: 'bright',
+        responseDialogue: [
+          { speaker: '灵巫', text: '可以留下，也可以改变。这样的花，比永不凋谢更温柔。' },
+          { text: '她将花夹换到另一页，也把选择位置的权利稳稳留在自己手中。' },
+        ],
+      },
+      {
+        id: 'ask_where_to_keep',
+        label: '“它放在哪里由你决定；我不会用礼物换取查看的权利。”',
+        mood: 'shy',
+        responseDialogue: [
+          { speaker: '灵巫', text: '被赠予，并不等于被要求公开。你总能听见没有说出口的边界。' },
+          { text: '她把纸册收进自己的抽屉，只将一枚无字书签留在茶席上。' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'aff_shaman_08_rest',
+    classId: 'shaman',
+    episode: 8,
+    title: '今晚由你先被照顾',
+    episodeLabel: '第八幕 · 月茶歇灯',
+    unlockPoints: 2_100,
+    requiredStoryIds: ['aff_shaman_07_gift'],
+    completionPoints: 60,
+    backgroundAsset: 'assets/affection/scenes/shaman-moontea-rest-evening.webp',
+    memoryCallbacks: [
+      ...rememberedChoices('aff_shaman_05_storm', '灵巫', [
+        ['carry_lantern_together', '暴雨里我们共同举灯；今晚也共同决定什么时候把灯熄下。'],
+        ['rest_under_eaves', '你提醒我暂停不会让道路消失，所以这次我愿意先坐下。'],
+        ['take_guard_turn', '那晚守护回到我身边；今晚我想让照顾也真正轮换。'],
+      ]),
+    ],
+    openingDialogue: [
+      { text: '月色落在有顶茶廊，一盏值夜灯已经熄下，两杯月白茶在相邻坐垫前冒着热气。' },
+      { speaker: '灵巫', text: '我总会先问别人需要什么，却很少练习回答自己的需要。' },
+      { speaker: '灵巫', text: '今晚我想先休息。若你愿意，可以陪我把这件小事认真做完。' },
+    ],
+    choices: [
+      {
+        id: 'brew_side_by_side',
+        label: '“茶由我们一起泡；照顾不必由一个人包办。”',
+        mood: 'bright',
+        responseDialogue: [
+          { speaker: '灵巫', text: '不是替我完成，而是与我一起完成。这样很好。' },
+          { text: '她分出茶叶，你添上热水，两杯茶在同一阵香气里慢慢安静。' },
+        ],
+      },
+      {
+        id: 'quiet_counts',
+        label: '“不想说话也可以。安静陪伴同样算完整的回应。”',
+        mood: 'moved',
+        responseDialogue: [
+          { speaker: '灵巫', text: '那今晚，我把沉默和疲倦都放心交给这张茶席。' },
+          { text: '她靠回自己的坐垫，月灯没有催促任何一句话出现。' },
+        ],
+      },
+      {
+        id: 'care_in_turns',
+        label: '“今晚我提醒你休息；下次累的人也可以是我。”',
+        mood: 'shy',
+        responseDialogue: [
+          { speaker: '灵巫', text: '照顾若能轮流，就不会把任何人永远固定成守护者。' },
+          { text: '她认真答应，也替你把第二杯茶推到最顺手的位置。' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'aff_shaman_09_reciprocal',
+    classId: 'shaman',
+    episode: 9,
+    title: '想送给你的，是归处',
+    episodeLabel: '第九幕 · 松结回礼',
+    unlockPoints: 2_600,
+    requiredStoryIds: ['aff_shaman_08_rest'],
+    completionPoints: 60,
+    backgroundAsset: 'assets/affection/scenes/shaman-return-charm-night.webp',
+    cgAsset: 'assets/affection/cg/shaman-open-knot-keepsakes.webp',
+    memoryCallbacks: [
+      ...rememberedChoices('aff_shaman_06_firstsnow', '灵巫', [
+        ['write_each_names', '两盏灯各有自己的名字，这两枚护符也各自完整。'],
+        ['write_open_door', '门可以欢迎归来，也允许脚步继续向前；护符不会变成束缚。'],
+        ['leave_space', '你为未来留下空白，所以我特意没有把这枚松结系死。'],
+      ]),
+    ],
+    openingDialogue: [
+      { text: '月夜归灯亭里，两枚无字护符由一条可以随时解开的松结相连，远处小径通向敞开的门。' },
+      { speaker: '灵巫', text: '我想送你一件回礼。它不召回、不追踪，也不会替你决定方向。' },
+      { speaker: '灵巫', text: '它只在你想起归处时亮起；是否佩带，始终由你决定。' },
+    ],
+    choices: [
+      {
+        id: 'use_when_wanted',
+        label: '“我愿意收下；需要时佩带，不需要时也会妥善珍藏。”',
+        mood: 'moved',
+        responseDialogue: [
+          { speaker: '灵巫', text: '被珍惜不等于必须时刻使用。谢谢你也尊重礼物的休息。' },
+          { text: '两枚护符各自亮起，又在不被触碰时安静归于柔光。' },
+        ],
+      },
+      {
+        id: 'hang_side_by_side',
+        label: '“让它们并排挂在归灯亭，各自照亮来去的方向。”',
+        mood: 'bright',
+        responseDialogue: [
+          { speaker: '灵巫', text: '不把谁带回谁身边，只让彼此知道门仍然开着。' },
+          { text: '两枚护符被分别挂好，灯光在中间形成温柔而开放的通路。' },
+        ],
+      },
+      {
+        id: 'keep_knot_open',
+        label: '“保留这个松结；关系长久，也仍能重新确认与调整。”',
+        mood: 'shy',
+        responseDialogue: [
+          { speaker: '灵巫', text: '愿望不是系得越紧越真。能被重新选择，才会一直有温度。' },
+          { text: '她没有收紧丝绳，只与你共同确认两端都能自由解开。' },
         ],
       },
     ],
@@ -1420,6 +1891,163 @@ const CATKIN_STORIES: readonly AffectionStoryDefinition[] = [
         responseDialogue: [
           { speaker: '喵喵', text: '这才是最厉害的搭档：各自看世界，也总能认出集合信号。' },
           { text: '她与你碰了碰徽章，清脆声响与进站铃一同响起。' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'aff_catkin_07_gift',
+    classId: 'catkin',
+    episode: 7,
+    title: '礼物要先过搭档验收',
+    episodeLabel: '第七幕 · 远征收纳匣',
+    unlockPoints: 1_700,
+    requiredStoryIds: ['aff_catkin_06_departure'],
+    completionPoints: 60,
+    backgroundAsset: 'assets/affection/scenes/catkin-gift-inspection-workshop.webp',
+    memoryCallbacks: [
+      ...rememberedChoices('aff_catkin_04_expansion', '喵喵', [
+        ['equal_door_rights', '两把钥匙权限平等，所以礼物验收当然也不是单方面突袭。'],
+        ['respect_work_zones', '你一直尊重独立工作区，这只收纳匣也不会擅自合并私人空间。'],
+        ['renegotiate_rules', '据点规则可以重谈，礼物的用途和权限当然也随时能改。'],
+      ]),
+    ],
+    openingDialogue: [
+      { text: '白昼工坊里，一只珊瑚粉与湖蓝模块化远征匣停在检测台上，所有标签牌都保持空白。' },
+      { speaker: '喵喵', text: '防水、可拆、抗冲击。外观分先拿高分，权限设计还需要搭档验收。' },
+      { speaker: '喵喵', text: '先说明：收到礼物的人拥有最终分类权，也有不共享内容的权利。' },
+    ],
+    choices: [
+      {
+        id: 'owner_sets_labels',
+        label: '“标签由你填写；送礼的人不替你定义里面该放什么。”',
+        mood: 'moved',
+        responseDialogue: [
+          { speaker: '喵喵', text: '准确！空白标签不是漏做，是最高级的权限设计。' },
+          { text: '她把标签片逐一收好，只在自己选中的位置装上一枚蓝色识别扣。' },
+        ],
+      },
+      {
+        id: 'inspection_invite',
+        label: '“拆解检查由你主持；需要协助时再向我发出搭档邀请。”',
+        mood: 'bright',
+        responseDialogue: [
+          { speaker: '喵喵', text: '不抢工具、不突然接管。副队长专业等级提升。' },
+          { text: '她打开检测灯，主动把其中一项耐压测试分配给你。' },
+        ],
+      },
+      {
+        id: 'privacy_compartments',
+        label: '“共享工具格与私人收纳格分开，谁都不默认拥有查看权。”',
+        mood: 'shy',
+        responseDialogue: [
+          { speaker: '喵喵', text: '搭档可以共享任务，不代表要上交全部私人物资。批准。' },
+          { text: '她装好两种不同锁扣，又把共享格的双控开关放在正中央。' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'aff_catkin_08_sentimental',
+    classId: 'catkin',
+    episode: 8,
+    title: '喜欢不是物资编号',
+    episodeLabel: '第八幕 · 私藏展示格',
+    unlockPoints: 2_100,
+    requiredStoryIds: ['aff_catkin_07_gift'],
+    completionPoints: 60,
+    backgroundAsset: 'assets/affection/scenes/catkin-sentimental-shelf-rain.webp',
+    memoryCallbacks: [
+      ...rememberedChoices('aff_catkin_05_rainwatch', '喵喵', [
+        ['two_work_desks', '雨夜我们共同收工，所以今天这次展示也不算额外值班。'],
+        ['quiet_corner', '你尊重我的独处角落，私藏展示格也可以只打开我想分享的部分。'],
+        ['rain_window_seat', '那场雨里我们安静同坐；现在我也能安静告诉你某些物品为什么重要。'],
+      ]),
+    ],
+    openingDialogue: [
+      { text: '雨夜工坊的一面收纳墙打开小半，旧票片、空白徽章与被修补过的纸箱角整齐放在独立格中。' },
+      { speaker: '喵喵', text: '它们没有战斗数值，也不属于任务必需品。按物资标准，应该早就清理。' },
+      { speaker: '喵喵', text: '可我喜欢。今天只展示我主动打开的这些，其他格仍然保密。' },
+    ],
+    choices: [
+      {
+        id: 'ask_before_view',
+        label: '“我只看你主动打开的格子；想关上时不用解释。”',
+        mood: 'moved',
+        responseDialogue: [
+          { speaker: '喵喵', text: '收到。参观权限按实时意愿生效，不自动续期。' },
+          { text: '她放松地打开第二个小格，又保留其余遮板原样不动。' },
+        ],
+      },
+      {
+        id: 'no_inventory_report',
+        label: '“喜欢不需要提交用途报告，也不必证明值得保留。”',
+        mood: 'shy',
+        responseDialogue: [
+          { speaker: '喵喵', text: '副队长批准一批“没有用途但就是舍不得”的最高级物资。' },
+          { text: '她把旧徽章摆得更正了一点，语气得意，动作却格外轻。' },
+        ],
+      },
+      {
+        id: 'shared_memory_slot',
+        label: '“若你愿意，我们可以留一个共同纪念格；各自私藏仍归各自。”',
+        mood: 'bright',
+        responseDialogue: [
+          { speaker: '喵喵', text: '中央共享格成立，但新增物品必须双人确认。' },
+          { text: '她打开最中间的空格，与你约定第一件纪念物以后共同选择。' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'aff_catkin_09_reciprocal',
+    classId: 'catkin',
+    episode: 9,
+    title: '下一站也有你的收纳格',
+    episodeLabel: '第九幕 · 双格远征柜',
+    unlockPoints: 2_600,
+    requiredStoryIds: ['aff_catkin_08_sentimental'],
+    completionPoints: 60,
+    backgroundAsset: 'assets/affection/scenes/catkin-shared-expedition-locker-sunrise.webp',
+    cgAsset: 'assets/affection/cg/catkin-two-way-supply-tags.webp',
+    memoryCallbacks: [
+      ...rememberedChoices('aff_catkin_06_departure', '喵喵', [
+        ['renew_by_choice', '每次出发都重新确认同行，所以远征柜权限也不会默认永久续订。'],
+        ['equal_captains', '并列领航员各有个人收纳格，中央共享格则一起审核。'],
+        ['keep_own_dreams', '我们允许各自探索；两枚标签只负责帮助我们重新会合。'],
+      ]),
+    ],
+    openingDialogue: [
+      { text: '朝阳照进远征整备室，两只独立储物格分列左右，中央是一只需要双控开启的共享格。' },
+      { speaker: '喵喵', text: '这是我准备的回礼：一枚属于你的远征标签，以及一格不会被我擅自整理的空间。' },
+      { speaker: '喵喵', text: '别误会，不是把你固定在据点。它只是表示——下一次集合仍然有你的位置。' },
+    ],
+    choices: [
+      {
+        id: 'two_plus_shared',
+        label: '“保留两个私人格，再留一个由双方确认的共享格。”',
+        mood: 'bright',
+        responseDialogue: [
+          { speaker: '喵喵', text: '完美结构！并肩不等于合并库存，这才叫成熟搭档。' },
+          { text: '她分别检查两边锁扣，最后与你同时点亮中央共享格。' },
+        ],
+      },
+      {
+        id: 'renew_access',
+        label: '“每次远征前重新确认权限，任何一方都能调整或收回。”',
+        mood: 'moved',
+        responseDialogue: [
+          { speaker: '喵喵', text: '长期搭档也要尊重今天的答案。权限协议正式通过。' },
+          { text: '两枚空白标签各自亮起，没有任何一枚覆盖另一枚的控制信号。' },
+        ],
+      },
+      {
+        id: 'signal_for_meeting',
+        label: '“各自探索也没关系；想会合时，用这枚标签发集合信号。”',
+        mood: 'shy',
+        responseDialogue: [
+          { speaker: '喵喵', text: '那我大概会经常测试信号……只是为了确认设备稳定。' },
+          { text: '她让两枚标签轻轻相触，珊瑚与湖蓝光点同时跳亮。' },
         ],
       },
     ],

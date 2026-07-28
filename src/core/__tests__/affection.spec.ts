@@ -9,6 +9,7 @@ import {
   applyAffectionCombatBonus,
   completeAffectionStory,
   createAffectionState,
+  performAffectionGift,
   performAffectionInteraction,
   refreshAffectionDay,
   type AffectionRules,
@@ -18,6 +19,12 @@ import {
 const beforeReset = Date.parse('2026-07-28T03:59:59+08:00');
 const afterReset = Date.parse('2026-07-28T04:00:00+08:00');
 const chat = { id: 'chat', points: 10, mood: 'bright' as const };
+const favoriteGift = {
+  id: 'gift_witch_star_ink',
+  points: 18,
+  mood: 'playful' as const,
+  cost: { itemId: 'crystal_altar', count: 1 },
+};
 const gearPool = ['eq_heart_a', 'eq_heart_b', 'eq_heart_c'];
 
 describe('affection state', () => {
@@ -175,6 +182,152 @@ describe('affection rewards', () => {
     );
     expect(duplicate.ok).toBe(true);
     if (duplicate.ok) expect(duplicate.gearReward?.newlyDiscovered).toBe(false);
+  });
+});
+
+describe('affection gifts', () => {
+  it('成功送礼原子扣除材料，并与普通互动共享次数、保底和种子序号', () => {
+    const state = createAffectionState(afterReset, AFFECTION_RULES);
+    const items = { crystal_altar: 2, petal_sakura: 9 };
+    const result = performAffectionGift(
+      state,
+      items,
+      'witch',
+      favoriteGift,
+      gearPool,
+      20260728,
+      afterReset,
+      AFFECTION_RULES,
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.gainedPoints).toBe(18);
+    expect(result.totalInteractions).toBe(1);
+    expect(result.state.characters.witch).toMatchObject({
+      points: 18,
+      interactionsToday: 1,
+      totalInteractions: 1,
+      mood: 'playful',
+    });
+    expect(result.items).toEqual({ crystal_altar: 1, petal_sakura: 9 });
+    expect(items).toEqual({ crystal_altar: 2, petal_sakura: 9 });
+    expect(state.characters.witch.points).toBe(0);
+
+    const asInteraction = performAffectionInteraction(
+      state,
+      'witch',
+      favoriteGift,
+      gearPool,
+      20260728,
+      afterReset,
+      AFFECTION_RULES,
+    );
+    expect(asInteraction.ok).toBe(true);
+    if (asInteraction.ok) {
+      expect(result.gearReward).toEqual(asInteraction.gearReward);
+      expect(result.state).toEqual(asInteraction.state);
+    }
+  });
+
+  it('材料不足不消耗次数或保底，数量刚好时移除零值键', () => {
+    const state = createAffectionState(afterReset, AFFECTION_RULES);
+    state.characters.shaman.gearPity = 7;
+    const missing = performAffectionGift(
+      state,
+      {},
+      'shaman',
+      favoriteGift,
+      gearPool,
+      9,
+      afterReset,
+      AFFECTION_RULES,
+    );
+    expect(missing).toMatchObject({
+      ok: false,
+      reason: 'missing-material',
+      items: {},
+    });
+    expect(missing.state.characters.shaman).toMatchObject({
+      interactionsToday: 0,
+      totalInteractions: 0,
+      gearPity: 7,
+    });
+
+    const exact = performAffectionGift(
+      state,
+      { crystal_altar: 1 },
+      'shaman',
+      favoriteGift,
+      gearPool,
+      9,
+      afterReset,
+      AFFECTION_RULES,
+    );
+    expect(exact.ok).toBe(true);
+    if (exact.ok) expect(exact.items).toEqual({});
+  });
+
+  it('共享日限优先于材料检查，跨日失败也会交回刷新后的状态', () => {
+    const state = createAffectionState(beforeReset, AFFECTION_RULES);
+    state.characters.catkin.interactionsToday = AFFECTION_RULES.dailyInteractionLimit;
+    state.characters.catkin.totalInteractions = AFFECTION_RULES.dailyInteractionLimit;
+
+    const blocked = performAffectionGift(
+      state,
+      {},
+      'catkin',
+      favoriteGift,
+      gearPool,
+      17,
+      beforeReset,
+      AFFECTION_RULES,
+    );
+    expect(blocked).toMatchObject({ ok: false, reason: 'daily-limit' });
+
+    const refreshedMissing = performAffectionGift(
+      state,
+      {},
+      'catkin',
+      favoriteGift,
+      gearPool,
+      17,
+      afterReset,
+      AFFECTION_RULES,
+    );
+    expect(refreshedMissing).toMatchObject({ ok: false, reason: 'missing-material' });
+    expect(refreshedMissing.state.characters.catkin).toMatchObject({
+      dayKey: '2026-07-28',
+      interactionsToday: 0,
+    });
+  });
+
+  it('拒绝非法礼物材料配置和被污染的背包数量', () => {
+    const state = createAffectionState(afterReset, AFFECTION_RULES);
+    expect(() =>
+      performAffectionGift(
+        state,
+        { crystal_altar: 1 },
+        'witch',
+        { ...favoriteGift, cost: { itemId: '', count: 1 } },
+        gearPool,
+        1,
+        afterReset,
+        AFFECTION_RULES,
+      ),
+    ).toThrow('材料 ID 不能为空');
+    expect(() =>
+      performAffectionGift(
+        state,
+        { crystal_altar: -1 },
+        'witch',
+        favoriteGift,
+        gearPool,
+        1,
+        afterReset,
+        AFFECTION_RULES,
+      ),
+    ).toThrow('背包数量必须是非负整数');
   });
 });
 

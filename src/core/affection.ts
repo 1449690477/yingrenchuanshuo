@@ -52,6 +52,13 @@ export interface AffectionInteractionSpec {
   mood: AffectionMood;
 }
 
+export interface AffectionGiftSpec extends AffectionInteractionSpec {
+  cost: {
+    itemId: string;
+    count: number;
+  };
+}
+
 export interface AffectionStoryChoiceSpec {
   id: string;
   mood: AffectionMood;
@@ -84,6 +91,22 @@ export type AffectionInteractionResult =
   | {
       ok: true;
       state: AffectionState;
+      gainedPoints: number;
+      totalInteractions: number;
+      gearReward: AffectionGearReward | null;
+    };
+
+export type AffectionGiftResult =
+  | {
+      ok: false;
+      reason: 'daily-limit' | 'missing-material';
+      state: AffectionState;
+      items: Record<string, number>;
+    }
+  | {
+      ok: true;
+      state: AffectionState;
+      items: Record<string, number>;
       gainedPoints: number;
       totalInteractions: number;
       gearReward: AffectionGearReward | null;
@@ -259,6 +282,74 @@ export function performAffectionInteraction(
   };
 }
 
+/**
+ * 用背包材料准备并送出一份礼物。
+ *
+ * 礼物和普通陪伴共享每日次数、互动序号与心虹保底。材料只在完整结算成功后
+ * 从克隆背包中扣除；调用方可以先构造可能掉落的装备实例，再一次性提交状态。
+ */
+export function performAffectionGift(
+  state: AffectionState,
+  items: Readonly<Record<string, number>>,
+  classId: ClassId,
+  gift: AffectionGiftSpec,
+  gearPoolIds: readonly string[],
+  saveSeed: number,
+  now: number,
+  rules: AffectionRules,
+): AffectionGiftResult {
+  assertGift(gift);
+  const refreshed = refreshAffectionDay(state, now, rules);
+  const nextItems = { ...items };
+  const progress = refreshed.characters[classId];
+
+  if (progress.interactionsToday >= rules.dailyInteractionLimit) {
+    return {
+      ok: false,
+      reason: 'daily-limit',
+      state: refreshed,
+      items: nextItems,
+    };
+  }
+
+  const owned = nextItems[gift.cost.itemId] ?? 0;
+  if (!Number.isInteger(owned) || owned < 0) {
+    throw new Error(
+      `[好感礼物] ${gift.cost.itemId} 的背包数量必须是非负整数，收到 ${owned}`,
+    );
+  }
+  if (owned < gift.cost.count) {
+    return {
+      ok: false,
+      reason: 'missing-material',
+      state: refreshed,
+      items: nextItems,
+    };
+  }
+
+  const interactionResult = performAffectionInteraction(
+    refreshed,
+    classId,
+    gift,
+    gearPoolIds,
+    saveSeed,
+    now,
+    rules,
+  );
+  if (!interactionResult.ok) {
+    throw new Error('[好感礼物] 已通过日限检查的礼物结算不应再次被日限拒绝');
+  }
+
+  const remaining = owned - gift.cost.count;
+  if (remaining === 0) delete nextItems[gift.cost.itemId];
+  else nextItems[gift.cost.itemId] = remaining;
+
+  return {
+    ...interactionResult,
+    items: nextItems,
+  };
+}
+
 export function isAffectionStoryUnlocked(
   progress: AffectionCharacterProgress,
   story: AffectionStorySpec,
@@ -328,6 +419,16 @@ function createCharacterProgress(dayKey: string): AffectionCharacterProgress {
     completedStoryIds: [],
     choiceHistory: {},
   };
+}
+
+function assertGift(gift: AffectionGiftSpec): void {
+  assertInteraction(gift);
+  if (!gift.cost.itemId.trim()) {
+    throw new Error('[好感礼物] 材料 ID 不能为空');
+  }
+  if (!Number.isInteger(gift.cost.count) || gift.cost.count < 1) {
+    throw new Error(`[好感礼物] 材料数量必须是正整数，收到 ${gift.cost.count}`);
+  }
 }
 
 function requireProgress(state: AffectionState, classId: ClassId): AffectionCharacterProgress {

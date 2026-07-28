@@ -216,10 +216,10 @@ describe('save schema', () => {
     expect(looksLikeSave(missingPrerequisite)).toBe(true);
   });
 
-  it('v9 接受完整六幕好感记忆，拒绝跳过第五幕伪造第六幕', () => {
-    const complete = createSave('六幕回忆', 'witch', 9, 1_800_000_000_000);
+  it('v9 无需迁移即可接受完整九幕记忆，并拒绝跳过第八幕伪造第九幕', () => {
+    const complete = createSave('九幕回忆', 'witch', 9, 1_800_000_000_000);
     const progress = complete.affection.characters.witch;
-    progress.points = 1_460;
+    progress.points = 2_660;
     progress.completedStoryIds.push(
       'aff_witch_01_star',
       'aff_witch_02_observatory',
@@ -227,6 +227,9 @@ describe('save schema', () => {
       'aff_witch_04_miscalculation',
       'aff_witch_05_nightflight',
       'aff_witch_06_constellation',
+      'aff_witch_07_gift',
+      'aff_witch_08_secret',
+      'aff_witch_09_reciprocal',
     );
     Object.assign(progress.choiceHistory, {
       aff_witch_01_star: 'name_star',
@@ -235,12 +238,15 @@ describe('save schema', () => {
       aff_witch_04_miscalculation: 'review_without_blame',
       aff_witch_05_nightflight: 'shared_pause_signal',
       aff_witch_06_constellation: 'shared_blank',
+      aff_witch_07_gift: 'inspect_together',
+      aff_witch_08_secret: 'guard_unopened',
+      aff_witch_09_reciprocal: 'two_independent_colors',
     });
     expect(looksLikeSave(complete)).toBe(true);
 
     const skipped = structuredClone(complete);
-    skipped.affection.characters.witch.completedStoryIds.splice(4, 1);
-    delete skipped.affection.characters.witch.choiceHistory.aff_witch_05_nightflight;
+    skipped.affection.characters.witch.completedStoryIds.splice(7, 1);
+    delete skipped.affection.characters.witch.choiceHistory.aff_witch_08_secret;
     expect(looksLikeSave(skipped)).toBe(false);
   });
 
