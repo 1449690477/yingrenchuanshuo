@@ -60,10 +60,7 @@ import {
   type PermilleRoll,
   type EnhanceGainGrade,
 } from '@/core/equipment';
-import {
-  applyEquipmentSetStats,
-  resolveEquipmentSetBonuses,
-} from '@/core/equipmentSets';
+import { applyEquipmentSetStats, resolveEquipmentSetBonuses } from '@/core/equipmentSets';
 import {
   equipmentDungeonAttemptsRemaining,
   refreshEquipmentDungeonDay,
@@ -75,10 +72,17 @@ import { decomposeGold } from '@/core/economy';
 import {
   advanceEncounterState,
   createEncounterState,
+  encounterChoicesForChapters,
+  encounterJournalCharacters,
+  encounterPresentation,
   encounterRewardSeed,
   rememberEncounterStoryChoice,
+  replayDialogueForEncounter,
   resolveEncounterChoice,
   resolveStoryEncounter,
+  type EncounterChoice,
+  type EncounterLine,
+  type EncounterPresentation,
   type ResourceBundle,
 } from '@/core/encounters';
 import { rollLoot } from '@/core/loot';
@@ -108,7 +112,12 @@ import {
 import { getEquipment, requireEquipment } from '@/data/equipment';
 import { requireMonster } from '@/data/monsters';
 import { requireLootTable } from '@/data/lootTables';
-import { ENCOUNTER_TIMING, encounterIdsForProgress, requireEncounter } from '@/data/encounters';
+import {
+  ENCOUNTERS,
+  ENCOUNTER_TIMING,
+  encounterIdsForProgress,
+  requireEncounter,
+} from '@/data/encounters';
 import { requireItem } from '@/data/items';
 import {
   FIRST_STAGE_ID,
@@ -120,10 +129,7 @@ import {
 import { requireChapter, requireRegionOfChapter } from '@/data/regions';
 import { requireShopOffer } from '@/data/shop';
 import { battleRhythmSkills } from '@/data/skills';
-import {
-  getEquipmentDungeonStage,
-  type EquipmentDungeonStage,
-} from '@/data/equipmentDungeons';
+import { getEquipmentDungeonStage, type EquipmentDungeonStage } from '@/data/equipmentDungeons';
 
 import { createSave, type SaveData } from '@/save/schema';
 import { clearSave, loadSave, saveSave } from '@/save/storage';
@@ -205,6 +211,9 @@ export type EncounterResolveResult =
 export type EncounterStoryChoiceActionResult =
   | { ok: true }
   | { ok: false; reason: 'not-found' | 'not-story' | 'invalid-choice' | 'already-chosen' };
+export interface PendingEncounterView extends EncounterPresentation {
+  choices: [EncounterChoice, EncounterChoice];
+}
 
 export type ClassSwitchResult =
   | { ok: false; reason: 'no-save' | 'same-class' }
@@ -355,6 +364,9 @@ export const useGameStore = defineStore('game', () => {
   const staminaMax = computed(() => staminaMaxForLevel(player.value?.level ?? 1));
   const pendingEncounters = computed(() => save.value?.encounters.pending ?? []);
   const encounterState = computed(() => save.value?.encounters ?? createEncounterState());
+  const encounterJournal = computed(() =>
+    encounterJournalCharacters(Object.values(ENCOUNTERS), encounterState.value),
+  );
   const unlockedEncounterChapterIds = computed(
     () =>
       new Set(
@@ -364,9 +376,7 @@ export const useGameStore = defineStore('game', () => {
       ),
   );
   const equipmentDungeonRemaining = computed(() =>
-    save.value
-      ? equipmentDungeonAttemptsRemaining(save.value.equipmentDungeon, Date.now())
-      : 0,
+    save.value ? equipmentDungeonAttemptsRemaining(save.value.equipmentDungeon, Date.now()) : 0,
   );
 
   /** 当前关卡是否已通关 */
@@ -415,8 +425,7 @@ export const useGameStore = defineStore('game', () => {
       lootTable: requireLootTable(stage.lootTableId),
       maxKillsPerSec: stage.maxKillsPerSec,
       skillMultiplier:
-        averageSkillMultiplier(p.level) +
-        equipmentSetResolution.value.skillMultiplierBonus,
+        averageSkillMultiplier(p.level) + equipmentSetResolution.value.skillMultiplierBonus,
     };
   }
 
@@ -975,6 +984,21 @@ export const useGameStore = defineStore('game', () => {
     return chapter.tutorial;
   }
 
+  function pendingEncounterView(uid: string): PendingEncounterView | null {
+    if (!save.value) return null;
+    const entry = save.value.encounters.pending.find((candidate) => candidate.uid === uid);
+    if (!entry) return null;
+    const definition = requireEncounter(entry.encounterId);
+    return {
+      ...encounterPresentation(definition, save.value.encounters, save.value.seed, entry.uid),
+      choices: encounterChoicesForChapters(definition, unlockedEncounterChapterIds.value),
+    };
+  }
+
+  function replayEncounterStory(encounterId: string): EncounterLine[] {
+    if (!save.value) return [];
+    return replayDialogueForEncounter(requireEncounter(encounterId), save.value.encounters);
+  }
   function rememberPendingEncounterChoice(
     uid: string,
     choiceId: string,
@@ -1000,7 +1024,8 @@ export const useGameStore = defineStore('game', () => {
     if (index < 0) return { ok: false, reason: 'not-found' };
     const entry = save.value.encounters.pending[index]!;
     const encounter = requireEncounter(entry.encounterId);
-    const choice = encounter.choices.find((candidate) => candidate.id === choiceId);
+    const choices = encounterChoicesForChapters(encounter, unlockedEncounterChapterIds.value);
+    const choice = choices.find((candidate) => candidate.id === choiceId);
     if (!choice) return { ok: false, reason: 'not-found' };
     const rewardRng = new Rng(encounterRewardSeed(save.value.seed, entry.uid, choice.id));
     const wallet = { gold: save.value.player.gold, items: save.value.bag.items };
@@ -1042,10 +1067,7 @@ export const useGameStore = defineStore('game', () => {
     if (next.dayKey !== previousDayKey) void persist();
   }
 
-  function runEquipmentDungeon(
-    stageId: string,
-    now = Date.now(),
-  ): EquipmentDungeonRunResult {
+  function runEquipmentDungeon(stageId: string, now = Date.now()): EquipmentDungeonRunResult {
     if (!save.value) return { ok: false, reason: 'no-save' };
     const stage = getEquipmentDungeonStage(stageId);
     if (!stage) return { ok: false, reason: 'unknown-stage' };
@@ -1059,8 +1081,7 @@ export const useGameStore = defineStore('game', () => {
       player: makePlayer(s.player.name, s.player.level, finalStats.value),
       classId: s.player.classId,
       playerSkillMultiplier:
-        averageSkillMultiplier(s.player.level) +
-        equipmentSetResolution.value.skillMultiplierBonus,
+        averageSkillMultiplier(s.player.level) + equipmentSetResolution.value.skillMultiplierBonus,
       rngState: rng.getState(),
       now,
     });
@@ -1657,6 +1678,7 @@ export const useGameStore = defineStore('game', () => {
     kps,
     pendingEncounters,
     encounterState,
+    encounterJournal,
     equipmentDungeonRemaining,
     // 动作
     init,
@@ -1673,6 +1695,8 @@ export const useGameStore = defineStore('game', () => {
     advanceStage,
     isStageUnlocked,
     takeTutorial,
+    pendingEncounterView,
+    replayEncounterStory,
     rememberPendingEncounterChoice,
     resolvePendingEncounter,
     refreshEquipmentDungeon,

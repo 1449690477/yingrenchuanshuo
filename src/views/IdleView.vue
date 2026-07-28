@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { ChevronDown, Sparkles } from '@lucide/vue';
+import { BookOpen, ChevronDown, Sparkles } from '@lucide/vue';
 import { abbr } from '@/core/format';
 import { battleVitalsAtProgress } from '@/core/battleVisual';
 import { aggregateLootEntries, type LootDisplayCategory } from '@/core/lootGrouping';
@@ -17,12 +17,14 @@ import BattleScene from '@/components/BattleScene.vue';
 import EquipmentIcon from '@/components/EquipmentIcon.vue';
 import ItemIcon from '@/components/ItemIcon.vue';
 import EncounterPanel from '@/components/EncounterPanel.vue';
+import EncounterJournalPanel from '@/components/EncounterJournalPanel.vue';
 
 const player = usePlayerStore();
 const inventory = useInventoryStore();
 const stage = useStageStore();
 const showStages = ref(false);
 const showEncounters = ref(false);
+const showEncounterJournal = ref(false);
 const collapsedLoot = ref<Record<LootDisplayCategory, boolean>>({
   equipment: false,
   material: false,
@@ -211,6 +213,17 @@ const cpWarn = computed(() => {
       <i>查看 ›</i>
     </button>
 
+    <button
+      v-if="stage.encounterJournal.length > 0"
+      type="button"
+      class="encounter-entry journal-entry"
+      @click="showEncounterJournal = true"
+    >
+      <span class="encounter-icon"><BookOpen :size="17" aria-hidden="true" /></span>
+      <span><strong>旅途手札</strong><small>重温同行者与你说过的话</small></span>
+      <b class="num">{{ stage.encounterJournal.length }}</b>
+      <i>打开 ›</i>
+    </button>
     <section class="loot card">
       <div class="loot-head">
         <span>
@@ -291,6 +304,9 @@ const cpWarn = computed(() => {
 
     <Transition name="modal-pop">
       <EncounterPanel v-if="showEncounters" @close="showEncounters = false" />
+    </Transition>
+    <Transition name="modal-pop">
+      <EncounterJournalPanel v-if="showEncounterJournal" @close="showEncounterJournal = false" />
     </Transition>
   </div>
 </template>
@@ -686,7 +702,7 @@ const cpWarn = computed(() => {
   grid-template-columns: auto 1fr auto auto;
   align-items: center;
   gap: 8px;
-  min-height: 46px;
+  min-height: 48px;
   padding: 7px 10px;
   text-align: left;
   color: var(--text-mid);
@@ -712,11 +728,11 @@ const cpWarn = computed(() => {
   flex-direction: column;
 }
 .encounter-entry strong {
-  font-size: 11px;
+  font-size: 0.875rem;
   color: var(--text);
 }
 .encounter-entry small {
-  font-size: 8px;
+  font-size: 0.75rem;
   color: var(--text-dim);
 }
 .encounter-entry b {
@@ -730,11 +746,22 @@ const cpWarn = computed(() => {
   border-radius: 999px;
 }
 .encounter-entry i {
-  font-size: 9px;
+  font-size: 0.75rem;
   font-style: normal;
   color: var(--blue-deep);
 }
 
+.journal-entry {
+  background: linear-gradient(100deg, #f4fbff, #fff5fa);
+  border-color: #dcecf7;
+}
+.journal-entry .encounter-icon {
+  color: var(--blue-deep);
+  background: #fff;
+}
+.journal-entry b {
+  background: linear-gradient(135deg, var(--blue), var(--pink));
+}
 .loot {
   position: relative;
   flex: 1;

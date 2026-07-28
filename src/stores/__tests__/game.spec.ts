@@ -408,6 +408,71 @@ describe('encounter transaction', () => {
     expect(game.save?.encounters.characters.char_akane).toBeUndefined();
   });
 
+  it('Store 对同一日常返回稳定展示，并按历史最高章节统一显示和结算档位', () => {
+    const game = useGameStore();
+    const save = createSave('动态日常测试', 'witch', 2026, Date.now());
+    save.progress.clearedStageIds = [...ORDERED_STAGE_IDS];
+    save.encounters.characters.char_akane = {
+      bond: 3,
+      completedEncounterIds: [
+        'enc_r1_petalsmith',
+        'enc_r1_petalsmith_doubt',
+        'enc_r1_petalsmith_first_blade',
+      ],
+      choiceHistory: {
+        enc_r1_petalsmith: 'lasting_grip',
+        enc_r1_petalsmith_doubt: 'own_way',
+        enc_r1_petalsmith_first_blade: 'name_it',
+      },
+    };
+    save.encounters.pending.push({
+      uid: 'enc_daily_store',
+      encounterId: 'enc_r1_petalsmith_daily',
+      regionId: 'r1',
+      storyChoiceId: 'soft',
+    });
+    save.bag.items = { petal_sakura: 99, grass_soft: 99 };
+    game.loadFrom(save);
+
+    const firstView = game.pendingEncounterView('enc_daily_store');
+    expect(game.pendingEncounterView('enc_daily_store')).toEqual(firstView);
+    expect(firstView?.variantId).toBeDefined();
+    expect(firstView?.choices[0].costs?.items).toEqual({
+      crystal_altar: 1,
+      jelly_cotton: 2,
+    });
+    const before = JSON.parse(JSON.stringify(game.save));
+    expect(game.resolvePendingEncounter('enc_daily_store', 'materials')).toEqual({
+      ok: false,
+      reason: 'insufficient-resource',
+    });
+    expect(game.save).toEqual(before);
+
+    game.save!.bag.items = { crystal_altar: 1, jelly_cotton: 2 };
+    const resolution = game.resolvePendingEncounter('enc_daily_store', 'materials');
+    expect(resolution.ok).toBe(true);
+    expect(game.save?.encounters.characters.char_akane?.bond).toBe(3);
+    expect(game.save?.encounters.pending).toHaveLength(0);
+  });
+
+  it('手札摘要和剧情回顾只读，不改变存档或随机状态', () => {
+    const game = useGameStore();
+    const save = createSave('旅途手札测试', 'witch', 303, Date.now());
+    save.encounters.characters.char_akane = {
+      bond: 1,
+      completedEncounterIds: ['enc_r1_petalsmith'],
+      choiceHistory: { enc_r1_petalsmith: 'lasting_grip' },
+    };
+    game.loadFrom(save);
+    const before = JSON.parse(JSON.stringify(game.save));
+
+    expect(game.encounterJournal).toHaveLength(1);
+    expect(game.encounterJournal[0]?.completedEpisodes[0]?.answerLabel).toContain('握得更久');
+    expect(game.replayEncounterStory('enc_r1_petalsmith').at(-1)?.text).toContain('草图');
+    expect(game.save).toEqual(before);
+    expect(game.save?.rngState).toBe(303);
+    expect(SAVE_VERSION).toBe(8);
+  });
   it('在线首通会在旧关结算结束后进入下一关，并保留新关的初始演出状态', async () => {
     const game = useGameStore();
     const createdAt = Date.now() + 60_000;
@@ -1138,12 +1203,7 @@ describe('equipment dungeon transaction', () => {
 
     expect(game.equipmentSetResolution.sets[0]).toMatchObject({
       equippedPieces: 8,
-activeBonuses: [
-        { pieces: 2 },
-        { pieces: 4 },
-        { pieces: 6 },
-        { pieces: 8 },
-      ],
+      activeBonuses: [{ pieces: 2 }, { pieces: 4 }, { pieces: 6 }, { pieces: 8 }],
     });
     expect(game.equipmentSetResolution.skillMultiplierBonus).toBe(0.05);
     expect(game.equipmentSetResolution.statPercent).toMatchObject({
