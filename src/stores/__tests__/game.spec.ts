@@ -2,13 +2,15 @@ import 'fake-indexeddb/auto';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { battleMonsterIdAt } from '@/core/battleVisual';
+import { combatEfficiency } from '@/core/combat';
 import { decomposeGold } from '@/core/economy';
 import { createInstance } from '@/core/equipment';
-import { expToNext } from '@/core/progression';
+import { averageSkillMultiplier, expToNext, makeMonster, makePlayer } from '@/core/progression';
 import { CLASS_IDS, type EquipmentInstance } from '@/core/types';
 import { Rng } from '@/core/rng';
 import { ENHANCE_MAX, ENHANCE_MATERIAL_IDS, SLOT_ORDER } from '@/data/constants';
 import { requireEquipment } from '@/data/equipment';
+import { requireMonster } from '@/data/monsters';
 import { SHOP_OFFERS } from '@/data/shop';
 import { battleRhythmSkills } from '@/data/skills';
 import { ORDERED_STAGE_IDS, STAGES, nextStageId, totalMonsterCount } from '@/data/stages';
@@ -55,9 +57,22 @@ describe('game store persistence', () => {
     game.loadFrom(createSave('领域测试', 'witch', 7, Date.now()));
 
     expect(usePlayerStore().player?.name).toBe('领域测试');
+    expect(usePlayerStore().playerSkillMultiplier).toBe(game.playerSkillMultiplier);
     expect(useInventoryStore().bag?.equipment).toEqual([]);
     expect(useStageStore().current.id).toBe(game.currentStage.id);
     await game.persist();
+  });
+
+  it('战力低于推荐值 60% 仍持续挂机，只由承伤效率软性降速', () => {
+    const game = useGameStore();
+    const save = createSave('低战挂机测试', 'witch', 701, Date.now());
+    save.progress.currentStageId = 'stage_2-5_6';
+    game.loadFrom(save);
+
+    expect(game.cpRatio).toBeLessThan(0.6);
+    expect(game.canIdle).toBe(true);
+    expect(game.battleEfficiency).toBeGreaterThan(0);
+    expect(game.kps).toBeGreaterThan(0);
   });
 
   it('离线击杀会推进通关、累计统计并发放首通奖励', async () => {
@@ -85,8 +100,13 @@ describe('game store persistence', () => {
     const save = createSave('精英玄铁测试', 'swordsman', 13, Date.now() - 120_000);
     save.player.level = 120;
     save.progress.currentStageId = eliteStageId;
-    const weapon = createInstance(requireEquipment('eq_r1_weapon_common'), new Rng(14), 'elite-e1');
-    weapon.affixes = [{ key: 'atk', value: 1_000_000 }];
+    const weapon = createInstance(
+      requireEquipment('eq_r1_weapon_common'),
+      new Rng(14),
+      'elite-e1',
+      save.player.classId,
+    );
+    weapon.affixes = [{ key: 'atk', value: 1_000_000, tier: 3 }];
     save.equipped.weapon = weapon;
     save.nextUid = 2;
 
@@ -110,6 +130,7 @@ describe('shared-progress class switching', () => {
       requireEquipment('eq_shop_berry-cream_weapon_witch'),
       new Rng(302),
       'switch-witch-weapon',
+      save.player.classId,
     );
     exclusiveWeapon.enhance = 2;
     exclusiveWeapon.enhanceGainPermille[0] = 80;
@@ -120,6 +141,7 @@ describe('shared-progress class switching', () => {
       requireEquipment('eq_r1_body_rare'),
       new Rng(303),
       'switch-universal-body',
+      save.player.classId,
     );
     save.equipped.weapon = exclusiveWeapon;
     save.equipped.body = universalBody;
@@ -164,7 +186,12 @@ describe('shared-progress class switching', () => {
     const game = useGameStore();
     const save = classSwitchSave();
     save.bag.equipment.push(
-      createInstance(requireEquipment('eq_r1_ring_fine'), new Rng(304), 'switch-ring'),
+      createInstance(
+        requireEquipment('eq_r1_ring_fine'),
+        new Rng(304),
+        'switch-ring',
+        save.player.classId,
+      ),
     );
     game.loadFrom(save);
     await game.persist();
@@ -196,12 +223,14 @@ describe('shared-progress class switching', () => {
         requireEquipment('eq_r1_ring_common'),
         new Rng(index + 400),
         `switch-bag-${index}`,
+        save.player.classId,
       ),
     );
     save.equipped.weapon = createInstance(
       requireEquipment('eq_shop_berry-cream_weapon_witch'),
       new Rng(701),
       'switch-full-bag-weapon',
+      save.player.classId,
     );
     game.loadFrom(save);
     await game.persist();
@@ -364,8 +393,13 @@ describe('shared-progress class switching', () => {
     const save = createSave('技能解锁测试', 'swordsman', 317, Date.now() + 60_000);
     save.player.level = 3;
     save.player.exp = expToNext(3) - 1;
-    const weapon = createInstance(requireEquipment('eq_r1_weapon_common'), new Rng(19), 'e-unlock');
-    weapon.affixes = [{ key: 'atk', value: 1_000_000 }];
+    const weapon = createInstance(
+      requireEquipment('eq_r1_weapon_common'),
+      new Rng(19),
+      'e-unlock',
+      save.player.classId,
+    );
+    weapon.affixes = [{ key: 'atk', value: 1_000_000, tier: 3 }];
     save.equipped.weapon = weapon;
     save.nextUid = 2;
     game.loadFrom(save);
@@ -616,7 +650,7 @@ describe('encounter transaction', () => {
     expect(game.replayEncounterStory('enc_r1_petalsmith').at(-1)?.text).toContain('草图');
     expect(game.save).toEqual(before);
     expect(game.save?.rngState).toBe(303);
-    expect(SAVE_VERSION).toBe(9);
+    expect(SAVE_VERSION).toBe(10);
   });
   it('在线首通会在旧关结算结束后进入下一关，并保留新关的初始演出状态', async () => {
     const game = useGameStore();
@@ -714,8 +748,13 @@ describe('encounter transaction', () => {
     const lastStage = STAGES[lastStageId]!;
     const save = createSave('末关测试', 'swordsman', 29, Date.now() - 120_000);
     save.player.level = 120;
-    const weapon = createInstance(requireEquipment('eq_r1_weapon_common'), new Rng(31), 'e-final');
-    weapon.affixes = [{ key: 'atk', value: 1_000_000 }];
+    const weapon = createInstance(
+      requireEquipment('eq_r1_weapon_common'),
+      new Rng(31),
+      'e-final',
+      save.player.classId,
+    );
+    weapon.affixes = [{ key: 'atk', value: 1_000_000, tier: 3 }];
     save.equipped.weapon = weapon;
     save.nextUid = 2;
     save.progress.currentStageId = lastStageId;
@@ -809,7 +848,7 @@ describe('equipment decisions', () => {
     const save = createSave('装备测试', 'swordsman', 8, Date.now());
     save.player.level = 2;
     const definition = requireEquipment('eq_r1_weapon_common');
-    const item = createInstance(definition, new Rng(1), 'e1');
+    const item = createInstance(definition, new Rng(1), 'e1', save.player.classId);
     save.bag.equipment.push(item);
     game.loadFrom(save);
 
@@ -825,7 +864,7 @@ describe('equipment decisions', () => {
     const game = useGameStore();
     const save = createSave('等级测试', 'swordsman', 9, Date.now());
     const definition = requireEquipment('eq_r2_weapon_epic');
-    const item = createInstance(definition, new Rng(2), 'e2');
+    const item = createInstance(definition, new Rng(2), 'e2', save.player.classId);
     save.bag.equipment.push(item);
     game.loadFrom(save);
 
@@ -840,7 +879,7 @@ describe('equipment decisions', () => {
     const save = createSave('职业测试', 'swordsman', 10, Date.now());
     save.player.level = 20;
     const witchWeapon = requireEquipment('eq_shop_berry-cream_weapon_witch');
-    const item = createInstance(witchWeapon, new Rng(3), 'e3');
+    const item = createInstance(witchWeapon, new Rng(3), 'e3', save.player.classId);
     save.bag.equipment.push(item);
     game.loadFrom(save);
 
@@ -855,9 +894,9 @@ describe('equipment decisions', () => {
     const save = createSave('分解测试', 'swordsman', 12, Date.now());
     const blueDef = requireEquipment('eq_r1_weapon_rare');
     const purpleDef = requireEquipment('eq_r2_weapon_epic');
-    const blue = createInstance(blueDef, new Rng(4), 'blue');
-    const purple = createInstance(purpleDef, new Rng(5), 'purple');
-    const locked = createInstance(purpleDef, new Rng(6), 'locked');
+    const blue = createInstance(blueDef, new Rng(4), 'blue', save.player.classId);
+    const purple = createInstance(purpleDef, new Rng(5), 'purple', save.player.classId);
+    const locked = createInstance(purpleDef, new Rng(6), 'locked', save.player.classId);
     blue.locked = false;
     purple.locked = false;
     locked.locked = true;
@@ -890,6 +929,7 @@ function enhancedInstance(
     ),
     enhanceLuck: {},
     affixes: [],
+    reforgeResonance: 0,
     locked: false,
     ...overrides,
   };
@@ -1217,17 +1257,16 @@ describe('equipment dungeon transaction', () => {
     save.player.level = 90;
     if (powerful) {
       const weapon = createInstance(
-        requireEquipment('eq_r1_weapon_rare'),
+        requireEquipment('eq_dungeon_crimson_weapon_witch'),
         new Rng(20260729),
         'dungeon-power',
+        save.player.classId,
       );
       weapon.affixes = [
-        { key: 'atk', value: 10_000_000 },
-        { key: 'def', value: 1_000_000 },
-        { key: 'hp', value: 10_000_000 },
-        { key: 'acc', value: 100_000 },
-        { key: 'eva', value: 1_000 },
-        { key: 'spd', value: 2 },
+        { key: 'wit_power', value: 10_000_000, tier: 3 },
+        { key: 'def', value: 1_000_000, tier: 3 },
+        { key: 'hp', value: 10_000_000, tier: 3 },
+        { key: 'acc', value: 100_000, tier: 3 },
       ];
       save.equipped.weapon = weapon;
     }
@@ -1252,8 +1291,11 @@ describe('equipment dungeon transaction', () => {
       enhance: 0,
       locked: true,
     });
-    // 装备副本只固定一条职业词条，剩余蓝装词条和胚子必须继续随机。
+    // 蓝色装备两槽中，一条定向词条保存在定义里，实例仍生成一条可复现随机词条。
     expect(result.instances[0]?.affixes).toHaveLength(1);
+    expect(result.instances[0]?.affixes.every((affix) => affix.tier >= 1 && affix.tier <= 5)).toBe(
+      true,
+    );
     expect(game.save?.equipmentDungeon).toMatchObject({
       clearsToday: 1,
       totalClears: 1,
@@ -1352,6 +1394,7 @@ describe('equipment dungeon transaction', () => {
         requireEquipment(ids[index]!),
         new Rng(80_000 + index),
         `set-${index}`,
+        save.player.classId,
       );
     });
     game.loadFrom(save);
@@ -1361,12 +1404,33 @@ describe('equipment dungeon transaction', () => {
       activeBonuses: [{ pieces: 2 }, { pieces: 4 }, { pieces: 6 }, { pieces: 8 }],
     });
     expect(game.equipmentSetResolution.skillMultiplierBonus).toBe(0.05);
+    const expectedSkillMultiplier = averageSkillMultiplier(save.player.level) + 0.05;
+    expect(game.playerSkillMultiplier).toBeCloseTo(expectedSkillMultiplier, 10);
+    expect(usePlayerStore().playerSkillMultiplier).toBeCloseTo(expectedSkillMultiplier, 10);
     expect(game.equipmentSetResolution.statPercent).toMatchObject({
       atk: 0.04,
       def: 0.06,
       hp: 0.08,
     });
     expect(game.finalStats.critRate).toBeGreaterThanOrEqual(10);
+
+    const firstMonsterId = game.currentStage.waves[0]?.monsters[0]?.id;
+    if (!firstMonsterId) throw new Error('[测试配置错误] 当前关卡缺少代表怪');
+    const modeledPlayer = makePlayer(
+      game.player!.name,
+      game.player!.level,
+      game.finalStats,
+      game.playerCombatElement,
+      game.equipCombatBonuses,
+    );
+    expect(game.battleEfficiency).toBeCloseTo(
+      combatEfficiency(
+        modeledPlayer,
+        makeMonster(requireMonster(firstMonsterId)),
+        expectedSkillMultiplier,
+      ),
+      10,
+    );
   });
 });
 

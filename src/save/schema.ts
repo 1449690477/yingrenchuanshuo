@@ -11,35 +11,44 @@
 
 import { z } from 'zod';
 import { createEncounterState, type EncounterState } from '@/core/encounters';
-import {
-  createEquipmentDungeonState,
-  type EquipmentDungeonState,
-} from '@/core/equipmentDungeon';
+import { createEquipmentDungeonState, type EquipmentDungeonState } from '@/core/equipmentDungeon';
 import { createAffectionState, type AffectionState } from '@/core/affection';
-import { CLASS_IDS, type ClassId, type EquipmentInstance, type EquipSlot, type Quality } from '@/core/types';
+import { isRolledAffixValue } from '@/core/equipment';
+import { isProfessionAffixSlot, promoteAffix } from '@/core/reforge';
 import {
+  CLASS_IDS,
+  type AffixKey,
+  type ClassId,
+  type EquipmentInstance,
+  type EquipSlot,
+  type Quality,
+} from '@/core/types';
+import {
+  AFFIX_POOL,
   CLASS_BASE_STATS,
   ENHANCE_GAIN_TIERS,
   ENHANCE_MAX,
   EQUIPMENT_BASE_ROLL_MAX,
   EQUIPMENT_BASE_ROLL_MIN,
   LUCK_FULL,
+  isAffixGenerationActive,
+  isAffixSettlementActive,
+  PROFESSION_AFFIX_POOLS,
+  QUALITY_AFFIX_COUNT,
   QUALITY_ORDER,
   STAMINA_BASE_MAX,
 } from '@/data/constants';
 import { ENCOUNTERS } from '@/data/encounters';
 import { FIRST_STAGE_ID } from '@/data/stages';
 import { EQUIPMENT_DUNGEON_RULES } from '@/data/equipmentDungeonRules';
-import {
-  EQUIPMENT_DUNGEON_STAGES,
-  EQUIPMENT_DUNGEON_STAGE_LIST,
-} from '@/data/equipmentDungeons';
+import { EQUIPMENT_DUNGEON_STAGES, EQUIPMENT_DUNGEON_STAGE_LIST } from '@/data/equipmentDungeons';
 import { AFFECTION_CHARACTERS } from '@/data/affection';
 import { affectionEquipmentIdsForClass } from '@/data/affectionEquipment';
 import { AFFECTION_RULES } from '@/data/affectionRules';
+import { getEquipment } from '@/data/equipment';
 
 /** 当前存档版本。加字段就 +1。 */
-export const SAVE_VERSION = 9;
+export const SAVE_VERSION = 10;
 
 export const SAVE_KEY = 'main';
 
@@ -197,7 +206,13 @@ const classIdSchema = z.enum(CLASS_IDS);
 const qualitySchema = z.enum(QUALITY_ORDER);
 const affectionMoodSchema = z.enum(['calm', 'bright', 'shy', 'moved', 'playful']);
 const elementSchema = z.enum(['fire', 'ice', 'thunder', 'none']);
-const affixKeySchema = z.enum([
+/**
+ * 已接入真实结算的随机词条持久化白名单。
+ *
+ * 依赖后续战斗状态机的专属词条不会提前加入：这样存档校验与实际可生成池保持一致，
+ * 避免把尚未生效的展示字段写进玩家存档。
+ */
+const persistedAffixKeys = [
   'atk',
   'def',
   'hp',
@@ -210,15 +225,37 @@ const affixKeySchema = z.enum([
   'elemDmg',
   'lifesteal',
   'skillMul',
+  'swd_guard',
+  'swd_heavy',
+  'wit_power',
+  'wit_elem',
+  'sha_vitality',
+  'sha_drain',
+  'sha_ward',
+  'cat_swift',
+  'cat_nimble',
+] as const satisfies readonly AffixKey[];
+const affixKeySchema = z.enum(persistedAffixKeys);
+const generalAffixKeys = new Set<AffixKey>(AFFIX_POOL.map((entry) => entry.key));
+const professionAffixKeys = new Set<AffixKey>(
+  Object.values(PROFESSION_AFFIX_POOLS)
+    .flat()
+    .map((entry) => entry.key),
+);
+const affixTierSchema = z.union([
+  z.literal(1),
+  z.literal(2),
+  z.literal(3),
+  z.literal(4),
+  z.literal(5),
 ]);
+const affixChangeOperationSchema = z.enum(['reforge', 'temper', 'inscribe', 'resonate']);
 
 const finiteNumber = z.number().finite();
 const nonNegativeNumber = finiteNumber.nonnegative();
 const nonNegativeInteger = z.number().int().nonnegative();
 const timestamp = nonNegativeInteger;
-const equipmentDungeonStageIds = new Set(
-  EQUIPMENT_DUNGEON_STAGE_LIST.map((stage) => stage.id),
-);
+const equipmentDungeonStageIds = new Set(EQUIPMENT_DUNGEON_STAGE_LIST.map((stage) => stage.id));
 const equipmentDungeonStageIdSchema = z
   .string()
   .refine((stageId) => equipmentDungeonStageIds.has(stageId), '装备副本关卡不存在');
@@ -228,6 +265,35 @@ const affixSchema = z
     key: affixKeySchema,
     value: finiteNumber,
     element: elementSchema.optional(),
+    tier: affixTierSchema,
+  })
+  .strict()
+  .superRefine((affix, ctx) => {
+    const requiresElement = affix.key === 'elemDmg' || affix.key === 'wit_elem';
+    if (
+      requiresElement &&
+      !['fire', 'ice', 'thunder'].includes(affix.element ?? '')
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['element'],
+        message: '属性伤害类词条必须绑定 fire、ice 或 thunder',
+      });
+    }
+    if (!requiresElement && affix.element !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['element'],
+        message: '非属性伤害词条不能携带元素',
+      });
+    }
+  });
+
+const pendingAffixChangeSchema = z
+  .object({
+    operation: affixChangeOperationSchema,
+    affixIndex: nonNegativeInteger,
+    candidate: affixSchema,
   })
   .strict();
 
@@ -254,6 +320,8 @@ const equipmentInstanceSchema = z
     enhanceGainPermille: enhanceGainSchema,
     enhanceLuck: z.record(enhanceLuckKeySchema, z.number().int().min(1).max(LUCK_FULL)),
     affixes: z.array(affixSchema),
+    reforgeResonance: z.number().int().min(0).max(20),
+    pendingAffixChange: pendingAffixChangeSchema.optional(),
     locked: z.boolean(),
   })
   .strict()
@@ -264,6 +332,186 @@ const equipmentInstanceSchema = z
           code: 'custom',
           path: ['enhanceGainPermille', index],
           message: `已强化到 +${instance.enhance}，前 ${instance.enhance} 格增幅必须存在`,
+        });
+      }
+    }
+    const definition = getEquipment(instance.defId);
+    if (!definition) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['defId'],
+        message: `装备定义不存在：${instance.defId}`,
+      });
+      return;
+    }
+
+    const fixedAffixes = definition.fixedAffixes ?? [];
+    const remainingCapacity = QUALITY_AFFIX_COUNT[definition.quality] - fixedAffixes.length;
+    if (remainingCapacity < 0) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['defId'],
+        message: `装备定义 ${definition.id} 的固定词条超过品质容量`,
+      });
+      return;
+    }
+    if (definition.fixedTemplate && instance.affixes.length > 0) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['affixes'],
+        message: '完整固定模板不能保存随机词条',
+      });
+    }
+    if (instance.affixes.length > remainingCapacity) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['affixes'],
+        message: `随机词条超过 ${definition.quality} 品质剩余容量 ${remainingCapacity}`,
+      });
+    }
+
+    const fixedKeys = new Set<AffixKey>();
+    for (const fixedAffix of fixedAffixes) {
+      if (fixedKeys.has(fixedAffix.key)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['defId'],
+          message: `装备定义 ${definition.id} 的固定词条键重复：${fixedAffix.key}`,
+        });
+      }
+      fixedKeys.add(fixedAffix.key);
+    }
+
+    const randomKeys = new Set<AffixKey>();
+    for (const [index, affix] of instance.affixes.entries()) {
+      if (fixedKeys.has(affix.key) || randomKeys.has(affix.key)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['affixes', index, 'key'],
+          message: `随机词条键与现有词条重复：${affix.key}`,
+        });
+      }
+      randomKeys.add(affix.key);
+    }
+
+    const pending = instance.pendingAffixChange;
+    if (pending && pending.affixIndex >= instance.affixes.length) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['pendingAffixChange', 'affixIndex'],
+        message: '待处理词条索引必须指向装备现有随机词条',
+      });
+      return;
+    }
+    if (!pending) return;
+
+    const target = instance.affixes[pending.affixIndex]!;
+    const candidate = pending.candidate;
+    const occupiedAfterReplace = new Set<AffixKey>([
+      ...fixedKeys,
+      ...instance.affixes
+        .filter((_, index) => index !== pending.affixIndex)
+        .map((affix) => affix.key),
+    ]);
+    if (occupiedAfterReplace.has(candidate.key)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['pendingAffixChange', 'candidate', 'key'],
+        message: `洗练候选与其他随机或固定词条重复：${candidate.key}`,
+      });
+    }
+
+    if (
+      (pending.operation === 'temper' || pending.operation === 'resonate') &&
+      !isAffixSettlementActive(target.key)
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['pendingAffixChange', 'candidate', 'key'],
+        message: `${pending.operation === 'temper' ? '淬炼' : '同调'}不能继续养成延后结算词条`,
+      });
+    }
+
+    if (!isAffixGenerationActive(candidate.key)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['pendingAffixChange', 'candidate', 'key'],
+        message: `待处理候选词条尚未开放生成：${candidate.key}`,
+      });
+    }
+
+    if (pending.operation === 'reforge') {
+      const professionSlot = isProfessionAffixSlot(
+        definition.quality,
+        instance.affixes.length,
+        pending.affixIndex,
+      );
+      const expectedPool = professionSlot ? professionAffixKeys : generalAffixKeys;
+      if (!expectedPool.has(candidate.key)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['pendingAffixChange', 'candidate', 'key'],
+          message: `重铸候选不属于目标${professionSlot ? '职业' : '通用'}词条槽`,
+        });
+      }
+    }
+    if (pending.operation === 'inscribe' && !professionAffixKeys.has(candidate.key)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['pendingAffixChange', 'candidate', 'key'],
+        message: '铭刻候选必须属于职业专属词条池',
+      });
+    }
+
+    if (
+      (pending.operation === 'reforge' || pending.operation === 'inscribe') &&
+      candidate.key === target.key
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['pendingAffixChange', 'candidate', 'key'],
+        message: `${pending.operation === 'reforge' ? '重铸' : '铭刻'}候选必须更换词条类型`,
+      });
+    }
+    if (
+      pending.operation !== 'resonate' &&
+      !isRolledAffixValue(candidate.key, definition.level, candidate.tier, candidate.value)
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['pendingAffixChange', 'candidate', 'value'],
+        message: '随机洗练候选数值不符合装备等级、品阶、浮动范围或小数精度',
+      });
+    }
+    if (
+      pending.operation === 'temper' &&
+      (candidate.key !== target.key || candidate.element !== target.element)
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['pendingAffixChange', 'candidate'],
+        message: '淬炼候选必须保持原词条类型与元素',
+      });
+    }
+    if (
+      pending.operation === 'resonate' &&
+      (candidate.key !== target.key ||
+        candidate.element !== target.element ||
+        candidate.tier !== target.tier + 1)
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['pendingAffixChange', 'candidate'],
+        message: '同调候选必须保持类型与元素，并且品阶恰好提升一级',
+      });
+    }
+    if (pending.operation === 'resonate' && target.tier < 5) {
+      const expected = promoteAffix(target);
+      if (candidate.value !== expected.value) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['pendingAffixChange', 'candidate', 'value'],
+          message: `同调候选数值必须精确提升为 ${expected.value}`,
         });
       }
     }
@@ -287,11 +535,7 @@ const affectionCharacterProgressSchema = z
     points: nonNegativeInteger.max(AFFECTION_RULES.maxPoints),
     mood: affectionMoodSchema,
     dayKey: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    interactionsToday: z
-      .number()
-      .int()
-      .min(0)
-      .max(AFFECTION_RULES.dailyInteractionLimit),
+    interactionsToday: z.number().int().min(0).max(AFFECTION_RULES.dailyInteractionLimit),
     totalInteractions: nonNegativeInteger,
     gearPity: z
       .number()
@@ -402,11 +646,7 @@ export const saveDataSchema = z
     equipmentDungeon: z
       .object({
         dayKey: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-        clearsToday: z
-          .number()
-          .int()
-          .min(0)
-          .max(EQUIPMENT_DUNGEON_RULES.dailyClears),
+        clearsToday: z.number().int().min(0).max(EQUIPMENT_DUNGEON_RULES.dailyClears),
         totalClears: nonNegativeInteger,
         records: z.record(
           equipmentDungeonStageIdSchema,

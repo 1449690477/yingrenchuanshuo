@@ -14,11 +14,7 @@ export const CLASS_IDS = ['swordsman', 'witch', 'shaman', 'catkin'] as const;
 export type ClassId = (typeof CLASS_IDS)[number];
 
 /** 精品商店换装系列。稳定 ID 会写入装备定义，新增时只能追加。 */
-export type BoutiqueThemeId =
-  | 'berry-cream'
-  | 'moon-sugar'
-  | 'rose-night'
-  | 'cardboard-cat';
+export type BoutiqueThemeId = 'berry-cream' | 'moon-sugar' | 'rose-night' | 'cardboard-cat';
 
 /** 属性克制三角：炎 → 冰 → 雷 → 炎 */
 export type Element = 'fire' | 'ice' | 'thunder' | 'none';
@@ -59,6 +55,16 @@ export interface Stats {
   spd: number;
 }
 
+/** 装备提供的独立战斗修正；百分比字段均使用“百分点”语义。 */
+export interface CombatBonuses {
+  /** 伤害减免，10 表示最终伤害额外乘 0.9。 */
+  damageReduction: number;
+  /** 吸血，10 表示按实际造成伤害回复 10%。 */
+  lifesteal: number;
+  /** 三系属性伤害，10 表示对应属性的克制系数额外 +0.1。 */
+  elementDamage: Record<Exclude<Element, 'none'>, number>;
+}
+
 /** 参战单位 */
 export interface Combatant {
   name: string;
@@ -67,9 +73,13 @@ export interface Combatant {
   stats: Stats;
   /** 当前生命，战斗过程中变化 */
   currentHp: number;
+  /** 装备等来源提供的独立战斗修正；未填写表示全部为 0。 */
+  combatBonuses?: CombatBonuses;
 }
 
 // ─────────────────────────── 词条 ───────────────────────────
+
+export type AffixTier = 1 | 2 | 3 | 4 | 5;
 
 export type AffixKey =
   | 'atk'
@@ -83,13 +93,43 @@ export type AffixKey =
   | 'dmgReduce'
   | 'elemDmg'
   | 'lifesteal'
-  | 'skillMul';
+  | 'skillMul'
+  | 'swd_guard'
+  | 'swd_heavy'
+  | 'wit_power'
+  | 'wit_elem'
+  | 'sha_vitality'
+  | 'sha_drain'
+  | 'sha_ward'
+  | 'cat_swift'
+  | 'cat_nimble';
 
-export interface Affix {
+/** 静态装备模板上的固定词条；不进入洗练，因此品阶仅用于可选展示。 */
+export interface FixedAffix {
   key: AffixKey;
   value: number;
   /** elemDmg 专用：加成哪一系 */
   element?: Element;
+  tier?: AffixTier;
+}
+
+/** 装备实例上的随机词条；品阶是实例数据的一部分，洗练时不可缺失。 */
+export interface Affix extends FixedAffix {
+  tier: AffixTier;
+}
+
+export type AffixChangeOperation = 'reforge' | 'temper' | 'inscribe' | 'resonate';
+
+/**
+ * 已扣除材料、等待玩家决定的洗练候选。
+ *
+ * 原词条在玩家点击“采用”之前不改写；候选必须进入存档，否则刷新页面会把
+ * 已支付的结果吞掉，违背“先展示，再采用或保留”的产品红线。
+ */
+export interface PendingAffixChange {
+  operation: AffixChangeOperation;
+  affixIndex: number;
+  candidate: Affix;
 }
 
 // ─────────────────────────── 装备 ───────────────────────────
@@ -114,8 +154,13 @@ export interface EquipmentDef {
   classId?: ClassId;
   /** 精品换装系列，用于统一人物光环、攻击换肤和互动。 */
   boutiqueTheme?: BoutiqueThemeId;
-  /** 固定词条，套装件常用 */
-  fixedAffixes?: Affix[];
+  /** 固定词条，套装件常用；不参与实例洗练。 */
+  fixedAffixes?: FixedAffix[];
+  /**
+   * 完整固定模板。为 true 时不生成随机词条，且 fixedAffixes 必须写满品质容量。
+   * 未填写时即便带有部分固定词条，剩余槽位仍正常随机。
+   */
+  fixedTemplate?: boolean;
   /** 金色装备的专属效果描述 */
   uniqueEffect?: string;
 }
@@ -138,6 +183,10 @@ export interface EquipmentInstance {
   enhanceLuck: Record<string, number>;
   /** 随机词条，数量由品质决定 */
   affixes: Affix[];
+  /** 洗练共鸣值，满 20 后下一次随机洗练必定出现 T4 或 T5。 */
+  reforgeResonance: number;
+  /** 已支付且尚未选择“采用 / 保留”的候选；刷新页面后仍必须存在。 */
+  pendingAffixChange?: PendingAffixChange;
   /** 是否锁定（防止被一键分解） */
   locked: boolean;
 }

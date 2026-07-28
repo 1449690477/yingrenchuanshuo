@@ -8,7 +8,9 @@ import {
   QUALITY_MUL,
   QUALITY_ORDER,
   QUALITY_PCT_SCALE,
+  QUALITY_PROFESSION_AFFIX_COUNT,
   QUALITY_RANK,
+  PROFESSION_AFFIX_POOLS,
 } from '../constants';
 
 const prismaticRing: EquipmentDef = {
@@ -47,6 +49,12 @@ describe('心虹珍藏品质', () => {
     const stats = baseEquipStats(prismaticRing);
     expect(stats.critRate).toBe(8);
     expect(stats.critDmg).toBe(24);
-    expect(rollAffixes(prismaticRing, new Rng(20260728))).toHaveLength(6);
+    // 神话以上职业槽已由 2 降为 1（见 constants.ts 说明），棱彩同步
+    expect(QUALITY_PROFESSION_AFFIX_COUNT.prismatic).toBe(1);
+    const affixes = rollAffixes(prismaticRing, new Rng(20260728), 'witch');
+    const witchKeys = new Set(PROFESSION_AFFIX_POOLS.witch.map((entry) => entry.key));
+    expect(affixes).toHaveLength(6);
+    expect(affixes.slice(0, 5).every((affix) => !witchKeys.has(affix.key))).toBe(true);
+    expect(affixes.slice(5).every((affix) => witchKeys.has(affix.key))).toBe(true);
   });
 });

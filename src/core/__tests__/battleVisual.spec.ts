@@ -5,7 +5,7 @@ import {
   battleVitalsAtProgress,
   flattenBattleMonsterIds,
 } from '../battleVisual';
-import { estimateIncomingDps, timeToKill } from '../combat';
+import { combatPressure } from '../combat';
 import { makeMonster, makePlayer } from '../progression';
 import type { Combatant, Stage, Stats, Wave } from '../types';
 
@@ -154,7 +154,7 @@ describe('battleVitalsAtProgress', () => {
     const start = battleVitalsAtProgress(player, monster, 0);
     const middle = battleVitalsAtProgress(player, monster, 0.5);
     const end = battleVitalsAtProgress(player, monster, 1);
-    const fullFightIncoming = estimateIncomingDps(player, monster) * timeToKill(player, monster);
+    const fullFightIncoming = combatPressure(player, monster).damagePerFight;
 
     expect(start).toEqual({
       player: { currentHp: player.stats.hp, maxHp: player.stats.hp },
@@ -164,6 +164,28 @@ describe('battleVitalsAtProgress', () => {
     expect(middle.player.currentHp).toBeLessThan(start.player.currentHp);
     expect(end.monster.currentHp).toBe(0);
     expect(end.player.currentHp).toBe(Math.max(0, Math.ceil(player.stats.hp - fullFightIncoming)));
+  });
+
+  it('八件套技能共鸣缩短真实 TTK 后，血条复用同一倍率并显示更少承伤', () => {
+    const player = visualPlayer();
+    const monster = makePlayer(
+      '套装回归目标',
+      30,
+      stats({ atk: 800, def: 0, hp: 12_000, eva: 0, critRate: 0, spd: 1 }),
+    );
+    const baseMultiplier = 1;
+    const eightPieceSkillBonus = 0.18;
+
+    const withoutSet = battleVitalsAtProgress(player, monster, 1, baseMultiplier);
+    const withSet = battleVitalsAtProgress(
+      player,
+      monster,
+      1,
+      baseMultiplier + eightPieceSkillBonus,
+    );
+
+    expect(withSet.player.currentHp).toBeGreaterThan(withoutSet.player.currentHp);
+    expect(withSet.monster).toEqual(withoutSet.monster);
   });
 
   it('遭遇推进时玩家生命单调不增且始终位于合法范围', () => {

@@ -1,4 +1,4 @@
-import { estimateIncomingDps, timeToKill } from './combat';
+import { combatPressure } from './combat';
 import type { Combatant, Stage } from './types';
 
 type BattleVisualStage = Pick<Stage, 'id' | 'waves'>;
@@ -134,9 +134,8 @@ export function battleVitalsAtProgress(
    */
   const playerMaxHp = Math.max(1, Math.floor(player.stats.hp));
   const monsterMaxHp = Math.max(1, Math.floor(monster.stats.hp));
-  const encounterSeconds = timeToKill(player, monster, playerSkillMultiplier);
-  const incomingDamage =
-    progress === 0 ? 0 : estimateIncomingDps(player, monster) * encounterSeconds * progress;
+  const pressure = combatPressure(player, monster, playerSkillMultiplier);
+  const incomingDamage = progress === 0 ? 0 : pressure.damagePerFight * progress;
   const playerCurrentHp = Number.isFinite(incomingDamage)
     ? Math.min(playerMaxHp, Math.max(0, Math.ceil(playerMaxHp - incomingDamage)))
     : 0;

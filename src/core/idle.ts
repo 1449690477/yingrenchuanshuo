@@ -8,7 +8,7 @@
 
 import type { ClassId, Combatant, IdleYield, LootResult, LootTable } from './types';
 import type { Rng } from './rng';
-import { estimateDps } from './combat';
+import { combatEfficiency, estimateDps } from './combat';
 import { expectedLoot, rollLoot, type PityCounters } from './loot';
 import {
   DEFAULT_MAX_KILLS_PER_SEC,
@@ -22,7 +22,7 @@ export interface IdleContext {
   /** 用于过滤职业专属掉落；含专属条目的表结算时不可缺省。 */
   classId?: ClassId;
   player: Combatant;
-  /** 关卡的代表性怪物（取该关平均水平的小怪） */
+  /** 关卡的代表性怪物（当前由 store 取第一波第一只怪） */
   monster: Combatant;
   /** 单只怪给的经验 */
   expPerKill: number;
@@ -47,8 +47,14 @@ export function killsPerSecond(ctx: IdleContext): number {
   if (dps <= 0 || ctx.monster.stats.hp <= 0) return 0;
 
   const raw = dps / ctx.monster.stats.hp;
+  const efficiency = idleCombatEfficiency(ctx);
   const cap = ctx.maxKillsPerSec ?? DEFAULT_MAX_KILLS_PER_SEC;
-  return Math.min(raw, cap);
+  return Math.min(raw * efficiency, cap);
+}
+
+/** 当前挂机上下文的承伤效率；供结算与 UI 读取同一个纯函数结果。 */
+export function idleCombatEfficiency(ctx: IdleContext): number {
+  return combatEfficiency(ctx.player, ctx.monster, ctx.skillMultiplier ?? 1.0);
 }
 
 /**

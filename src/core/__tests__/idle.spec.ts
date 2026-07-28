@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   accumulateIdle,
+  idleCombatEfficiency,
   killsPerSecond,
   recoverStamina,
   settleIdle,
@@ -19,6 +20,18 @@ const lootTable: LootTable = {
   entries: [{ itemId: 'stone', weight: 1, minCount: 1, maxCount: 1 }],
 };
 
+function monForIdle(level: number) {
+  return makeMonster({
+    id: `m-${level}`,
+    name: '测试怪',
+    level,
+    type: 'normal',
+    element: 'none',
+    lootTableId: 'loot_idle',
+    sprite: '',
+  });
+}
+
 function ctx(overrides: Partial<IdleContext> = {}): IdleContext {
   const player = makePlayer('剑姬', 30, {
     atk: 2000,
@@ -30,15 +43,7 @@ function ctx(overrides: Partial<IdleContext> = {}): IdleContext {
     critDmg: 50,
     spd: 1.0,
   });
-  const monster = makeMonster({
-    id: 'm',
-    name: '测试怪',
-    level: 30,
-    type: 'normal',
-    element: 'none',
-    lootTableId: 'loot_idle',
-    sprite: '',
-  });
+  const monster = monForIdle(30);
   return { player, monster, expPerKill: 100, goldPerKill: 50, lootTable, ...overrides };
 }
 
@@ -60,6 +65,28 @@ describe('killsPerSecond', () => {
     const strong = ctx();
     strong.player.stats.atk = weak.player.stats.atk * 3;
     expect(killsPerSecond(strong)).toBeGreaterThan(killsPerSecond(weak));
+  });
+
+  it('同等输出下防御和生命通过承伤效率提高真实击杀产出', () => {
+    const fragile = ctx();
+    fragile.player.stats.hp = 200;
+    fragile.player.stats.def = 0;
+    const sturdy = ctx();
+    sturdy.player.stats.hp = 2_000;
+    sturdy.player.stats.def = 1_000;
+
+    expect(idleCombatEfficiency(sturdy)).toBeGreaterThan(idleCombatEfficiency(fragile));
+    expect(killsPerSecond(sturdy)).toBeGreaterThan(killsPerSecond(fragile));
+  });
+
+  it('越级承伤只软性降速，效率与击杀速度都保持正数', () => {
+    const pressured = ctx({ monster: monForIdle(120) });
+    pressured.player.stats.hp = 20;
+    pressured.player.stats.def = 0;
+
+    expect(idleCombatEfficiency(pressured)).toBeGreaterThan(0);
+    expect(idleCombatEfficiency(pressured)).toBeLessThan(0.3);
+    expect(killsPerSecond(pressured)).toBeGreaterThan(0);
   });
 });
 
@@ -92,9 +119,10 @@ describe('掉落结算模式（roll vs expected）', () => {
   it('roll 模式下少量击杀也能掉出东西', () => {
     const c = ctx();
     const rng = new Rng(2026);
+    const durationForTwoKills = 2 / killsPerSecond(c);
     let got = 0;
     for (let i = 0; i < 40; i++) {
-      const y = settleIdle(c, 5, { mode: 'roll', rng });
+      const y = settleIdle(c, durationForTwoKills, { mode: 'roll', rng });
       got += y.loot.reduce((s, d) => s + d.count, 0);
     }
     expect(got).toBeGreaterThan(0);

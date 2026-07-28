@@ -1,7 +1,53 @@
 import { describe, expect, it } from 'vitest';
 import { reactive } from 'vue';
-import { ENHANCE_MAX } from '@/data/constants';
+import { affixValueRange } from '@/core/equipment';
+import { promoteAffix } from '@/core/reforge';
+import type { AffixKey, AffixTier, EquipmentInstance } from '@/core/types';
+import { ENHANCE_MAX, QUALITY_AFFIX_COUNT } from '@/data/constants';
+import { EQUIPMENT, requireEquipment } from '@/data/equipment';
 import { SAVE_VERSION, SaveValidationError, createSave, looksLikeSave, parseSave } from '../schema';
+import { importFromJson } from '../storage';
+
+function testEquipment(
+  defId: string,
+  affixes: EquipmentInstance['affixes'],
+  pendingAffixChange?: EquipmentInstance['pendingAffixChange'],
+): EquipmentInstance {
+  return {
+    uid: 'e1',
+    defId,
+    enhance: 0,
+    baseRollPermille: 1000,
+    enhanceGainPermille: Array<number>(ENHANCE_MAX).fill(0),
+    enhanceLuck: {},
+    affixes,
+    reforgeResonance: 0,
+    ...(pendingAffixChange ? { pendingAffixChange } : {}),
+    locked: false,
+  };
+}
+
+function saveWithEquipment(instance: EquipmentInstance) {
+  const save = createSave('词条审计少女', 'witch', 77, 1_800_000_000_000);
+  save.nextUid = 2;
+  save.bag.equipment.push(instance);
+  return save;
+}
+
+function rolledAffix(
+  defId: string,
+  key: AffixKey,
+  tier: AffixTier,
+  element?: EquipmentInstance['affixes'][number]['element'],
+): EquipmentInstance['affixes'][number] {
+  const range = affixValueRange(key, requireEquipment(defId).level, tier);
+  return {
+    key,
+    tier,
+    value: range.min,
+    ...(element ? { element } : {}),
+  };
+}
 
 describe('save schema', () => {
   it('新建存档符合当前完整结构', () => {
@@ -60,12 +106,13 @@ describe('save schema', () => {
     const invalidEnhance = createSave('小樱', 'swordsman', 1, 1);
     invalidEnhance.bag.equipment.push({
       uid: 'e1',
-      defId: 'eq_test',
+      defId: 'eq_r1_ring_common',
       enhance: 16,
       baseRollPermille: 1000,
       enhanceGainPermille: Array<number>(ENHANCE_MAX).fill(80),
       enhanceLuck: {},
       affixes: [],
+      reforgeResonance: 0,
       locked: false,
     });
     expect(looksLikeSave(invalidEnhance)).toBe(false);
@@ -76,12 +123,13 @@ describe('save schema', () => {
       const save = createSave('小樱', 'witch', 2, 1);
       save.bag.equipment.push({
         uid: 'e1',
-        defId: 'eq_test',
+        defId: 'eq_r1_ring_common',
         enhance: 1,
         baseRollPermille: 1000,
         enhanceGainPermille: [80, ...Array<number>(ENHANCE_MAX - 1).fill(0)],
         enhanceLuck: { '2': 17 },
         affixes: [],
+        reforgeResonance: 0,
         locked: false,
       });
       return save;
@@ -106,6 +154,457 @@ describe('save schema', () => {
     const zeroLuckBucket = make();
     zeroLuckBucket.bag.equipment[0]!.enhanceLuck['2'] = 0;
     expect(looksLikeSave(zeroLuckBucket)).toBe(false);
+  });
+
+  it('v10 可严格持久化随机词条品阶、共鸣值和待决洗练候选', () => {
+    const save = createSave('洗练少女', 'witch', 10, 1_800_000_000_000);
+    save.nextUid = 2;
+    save.bag.equipment.push({
+      uid: 'e1',
+      defId: 'eq_r1_ring_common',
+      enhance: 0,
+      baseRollPermille: 1000,
+      enhanceGainPermille: Array<number>(ENHANCE_MAX).fill(0),
+      enhanceLuck: {},
+      affixes: [{ key: 'critRate', value: 1.8, tier: 3 }],
+      reforgeResonance: 12,
+      pendingAffixChange: {
+        operation: 'temper',
+        affixIndex: 0,
+        candidate: rolledAffix('eq_r1_ring_common', 'critRate', 4),
+      },
+      locked: false,
+    });
+
+    const parsed = parseSave(save);
+    expect(parsed.bag.equipment[0]?.pendingAffixChange).toEqual({
+      operation: 'temper',
+      affixIndex: 0,
+      candidate: rolledAffix('eq_r1_ring_common', 'critRate', 4),
+    });
+    expect(parsed.bag.equipment[0]?.reforgeResonance).toBe(12);
+  });
+
+  it('v10 可持久化已接入结算的职业词条，并约束元素亲和必须绑定系别', () => {
+    const save = createSave('专属词条少女', 'witch', 13, 1_800_000_000_000);
+    save.nextUid = 2;
+    save.bag.equipment.push({
+      uid: 'e1',
+      defId: 'eq_r2_ring_epic',
+      enhance: 0,
+      baseRollPermille: 1000,
+      enhanceGainPermille: Array<number>(ENHANCE_MAX).fill(0),
+      enhanceLuck: {},
+      affixes: [
+        { key: 'wit_power', value: 12.4, tier: 3 },
+        { key: 'critRate', value: 2.6, tier: 4 },
+      ],
+      reforgeResonance: 0,
+      pendingAffixChange: {
+        operation: 'inscribe',
+        affixIndex: 1,
+        candidate: rolledAffix('eq_r2_ring_epic', 'wit_elem', 5, 'thunder'),
+      },
+      locked: false,
+    });
+
+    expect(parseSave(save).bag.equipment[0]?.affixes.map((affix) => affix.key)).toEqual([
+      'wit_power',
+      'critRate',
+    ]);
+
+    delete save.bag.equipment[0]!.pendingAffixChange!.candidate.element;
+    expect(looksLikeSave(save)).toBe(false);
+  });
+
+  it('v10 拒绝缺失或越界品阶，以及非整数或越界共鸣值', () => {
+    const make = () => {
+      const save = createSave('洗练少女', 'witch', 11, 1_800_000_000_000);
+      save.nextUid = 2;
+      save.bag.equipment.push({
+        uid: 'e1',
+        defId: 'eq_r1_ring_common',
+        enhance: 0,
+        baseRollPermille: 1000,
+        enhanceGainPermille: Array<number>(ENHANCE_MAX).fill(0),
+        enhanceLuck: {},
+        affixes: [{ key: 'atk', value: 1, tier: 1 }],
+        reforgeResonance: 0,
+        locked: false,
+      });
+      return save;
+    };
+
+    const missingTier = make();
+    delete (
+      missingTier.bag.equipment[0]!.affixes[0] as Partial<
+        (typeof missingTier.bag.equipment)[number]['affixes'][number]
+      >
+    ).tier;
+    expect(looksLikeSave(missingTier)).toBe(false);
+
+    for (const tier of [0, 6, 2.5]) {
+      const invalidTier = make();
+      invalidTier.bag.equipment[0]!.affixes[0]!.tier = tier as 1;
+      expect(looksLikeSave(invalidTier)).toBe(false);
+    }
+    for (const resonance of [-1, 21, 1.5]) {
+      const invalidResonance = make();
+      invalidResonance.bag.equipment[0]!.reforgeResonance = resonance;
+      expect(looksLikeSave(invalidResonance)).toBe(false);
+    }
+
+    const missingResonance = make();
+    delete (
+      missingResonance.bag.equipment[0] as Partial<(typeof missingResonance.bag.equipment)[number]>
+    ).reforgeResonance;
+    expect(looksLikeSave(missingResonance)).toBe(false);
+  });
+
+  it('v10 待决候选必须严格且索引指向现有随机词条', () => {
+    const make = () => {
+      const target = { key: 'elemDmg', value: 5, element: 'fire', tier: 3 } as const;
+      const save = createSave('洗练少女', 'witch', 12, 1_800_000_000_000);
+      save.nextUid = 2;
+      save.bag.equipment.push({
+        uid: 'e1',
+        defId: 'eq_r1_ring_common',
+        enhance: 0,
+        baseRollPermille: 1000,
+        enhanceGainPermille: Array<number>(ENHANCE_MAX).fill(0),
+        enhanceLuck: {},
+        affixes: [target],
+        reforgeResonance: 20,
+        pendingAffixChange: {
+          operation: 'resonate',
+          affixIndex: 0,
+          candidate: promoteAffix(target),
+        },
+        locked: false,
+      });
+      return save;
+    };
+
+    const badIndex = make();
+    badIndex.bag.equipment[0]!.pendingAffixChange!.affixIndex = 1;
+    expect(looksLikeSave(badIndex)).toBe(false);
+
+    const badOperation = make();
+    (
+      badOperation.bag.equipment[0]!.pendingAffixChange as unknown as {
+        operation: string;
+      }
+    ).operation = 'reroll';
+    expect(looksLikeSave(badOperation)).toBe(false);
+
+    const extraCandidateField = make();
+    (
+      extraCandidateField.bag.equipment[0]!.pendingAffixChange!.candidate as unknown as Record<
+        string,
+        unknown
+      >
+    ).forged = true;
+    expect(looksLikeSave(extraCandidateField)).toBe(false);
+
+    const missingElement = make();
+    delete missingElement.bag.equipment[0]!.pendingAffixChange!.candidate.element;
+    expect(looksLikeSave(missingElement)).toBe(false);
+  });
+
+  it('v10 按真实装备品质与固定词条计算随机槽位上限，旧白装可保持零词条', () => {
+    const legacyBlank = saveWithEquipment(testEquipment('eq_r1_ring_common', []));
+    expect(looksLikeSave(legacyBlank)).toBe(true);
+    expect(legacyBlank.bag.equipment[0]!.affixes).toEqual([]);
+
+    const commonOverflow = saveWithEquipment(
+      testEquipment('eq_r1_ring_common', [
+        { key: 'atk', value: 2, tier: 2 },
+        { key: 'def', value: 2, tier: 2 },
+      ]),
+    );
+    expect(() => parseSave(commonOverflow)).toThrow(/随机词条超过 common 品质剩余容量 1/);
+
+    const partialFixedDef = requireEquipment('eq_dungeon_violet_ring_1');
+    const remaining =
+      QUALITY_AFFIX_COUNT[partialFixedDef.quality] - (partialFixedDef.fixedAffixes?.length ?? 0);
+    expect(remaining).toBe(2);
+    const withinRemaining = saveWithEquipment(
+      testEquipment(partialFixedDef.id, [
+        { key: 'atk', value: 10, tier: 2 },
+        { key: 'def', value: 8, tier: 3 },
+      ]),
+    );
+    expect(looksLikeSave(withinRemaining)).toBe(true);
+
+    withinRemaining.bag.equipment[0]!.affixes.push({ key: 'hp', value: 80, tier: 4 });
+    expect(looksLikeSave(withinRemaining)).toBe(false);
+  });
+
+  it('v10 拒绝未知装备、重复词条、与固定词条冲突及固定模板随机词条', () => {
+    const unknownDefinition = saveWithEquipment(testEquipment('eq_deleted', []));
+    expect(() => parseSave(unknownDefinition)).toThrow(/装备定义不存在/);
+
+    const duplicateRandom = saveWithEquipment(
+      testEquipment('eq_r2_ring_epic', [
+        { key: 'atk', value: 10, tier: 2 },
+        { key: 'atk', value: 12, tier: 3 },
+      ]),
+    );
+    expect(() => parseSave(duplicateRandom)).toThrow(/随机词条键与现有词条重复：atk/);
+
+    const fixedCollision = saveWithEquipment(
+      testEquipment('eq_dungeon_violet_ring_1', [{ key: 'critDmg', value: 8, tier: 2 }]),
+    );
+    expect(() => parseSave(fixedCollision)).toThrow(/随机词条键与现有词条重复：critDmg/);
+
+    const fixedTemplate = Object.values(EQUIPMENT).find((definition) => definition.fixedTemplate);
+    if (!fixedTemplate) throw new Error('[测试配置错误] 缺少完整固定模板装备');
+    const forbiddenRandom = saveWithEquipment(
+      testEquipment(fixedTemplate.id, [{ key: 'lifesteal', value: 1.2, tier: 2 }]),
+    );
+    expect(() => parseSave(forbiddenRandom)).toThrow(/完整固定模板不能保存随机词条/);
+  });
+
+  it('v10 重铸候选必须换类型，且采用后不能与其他随机或固定词条重复', () => {
+    const affixes: EquipmentInstance['affixes'] = [
+      { key: 'atk', value: 10, tier: 2 },
+      { key: 'elemDmg', value: 6, element: 'fire', tier: 3 },
+      { key: 'critRate', value: 2, tier: 1 },
+    ];
+    const valid = saveWithEquipment(
+      testEquipment('eq_r2_ring_epic', structuredClone(affixes), {
+        operation: 'reforge',
+        affixIndex: 0,
+        candidate: rolledAffix('eq_r2_ring_epic', 'def', 4),
+      }),
+    );
+    expect(looksLikeSave(valid)).toBe(true);
+
+    const unchangedKey = structuredClone(valid);
+    unchangedKey.bag.equipment[0]!.pendingAffixChange!.candidate = {
+      key: 'atk',
+      value: 13,
+      tier: 4,
+    };
+    expect(looksLikeSave(unchangedKey)).toBe(false);
+
+    const duplicateOther = structuredClone(valid);
+    duplicateOther.bag.equipment[0]!.pendingAffixChange!.candidate = {
+      key: 'critRate',
+      value: 3,
+      tier: 4,
+    };
+    expect(looksLikeSave(duplicateOther)).toBe(false);
+
+    const duplicateFixed = saveWithEquipment(
+      testEquipment('eq_dungeon_violet_ring_1', [{ key: 'atk', value: 10, tier: 2 }], {
+        operation: 'reforge',
+        affixIndex: 0,
+        candidate: { key: 'critDmg', value: 12, tier: 4 },
+      }),
+    );
+    expect(looksLikeSave(duplicateFixed)).toBe(false);
+  });
+
+  it('v10 淬炼保持类型与元素，同调还必须恰好提升一级', () => {
+    const affixes: EquipmentInstance['affixes'] = [
+      { key: 'elemDmg', value: 6, element: 'fire', tier: 3 },
+    ];
+    const validTemper = saveWithEquipment(
+      testEquipment('eq_r2_ring_epic', structuredClone(affixes), {
+        operation: 'temper',
+        affixIndex: 0,
+        candidate: rolledAffix('eq_r2_ring_epic', 'elemDmg', 5, 'fire'),
+      }),
+    );
+    expect(looksLikeSave(validTemper)).toBe(true);
+
+    const changedTemperElement = structuredClone(validTemper);
+    changedTemperElement.bag.equipment[0]!.pendingAffixChange!.candidate.element = 'ice';
+    expect(looksLikeSave(changedTemperElement)).toBe(false);
+
+    const changedTemperKey = structuredClone(validTemper);
+    changedTemperKey.bag.equipment[0]!.pendingAffixChange!.candidate = {
+      key: 'def',
+      value: 9,
+      tier: 5,
+    };
+    expect(looksLikeSave(changedTemperKey)).toBe(false);
+
+    const resonateTarget = structuredClone(affixes[0]!);
+    const validResonate = saveWithEquipment(
+      testEquipment('eq_r2_ring_epic', [resonateTarget], {
+        operation: 'resonate',
+        affixIndex: 0,
+        candidate: promoteAffix(resonateTarget),
+      }),
+    );
+    expect(looksLikeSave(validResonate)).toBe(true);
+
+    const skippedTier = structuredClone(validResonate);
+    skippedTier.bag.equipment[0]!.pendingAffixChange!.candidate.tier = 5;
+    expect(looksLikeSave(skippedTier)).toBe(false);
+
+    const changedResonateElement = structuredClone(validResonate);
+    changedResonateElement.bag.equipment[0]!.pendingAffixChange!.candidate.element = 'thunder';
+    expect(looksLikeSave(changedResonateElement)).toBe(false);
+  });
+
+  it('v10 铭刻校验采用后的唯一性，但不按当前职业拒绝切换前留下的候选', () => {
+    const switchedClassCandidate = saveWithEquipment(
+      testEquipment(
+        'eq_r2_ring_epic',
+        [
+          { key: 'atk', value: 10, tier: 2 },
+          { key: 'critRate', value: 2, tier: 2 },
+        ],
+        {
+          operation: 'inscribe',
+          affixIndex: 0,
+          candidate: rolledAffix('eq_r2_ring_epic', 'swd_guard', 3),
+        },
+      ),
+    );
+    expect(switchedClassCandidate.player.classId).toBe('witch');
+    expect(looksLikeSave(switchedClassCandidate)).toBe(true);
+
+    const unchangedType = structuredClone(switchedClassCandidate);
+    unchangedType.bag.equipment[0]!.pendingAffixChange!.candidate = {
+      key: 'atk',
+      value: 12,
+      tier: 3,
+    };
+    expect(looksLikeSave(unchangedType)).toBe(false);
+
+    switchedClassCandidate.bag.equipment[0]!.pendingAffixChange!.candidate = {
+      key: 'critRate',
+      value: 3,
+      tier: 3,
+    };
+    expect(looksLikeSave(switchedClassCandidate)).toBe(false);
+  });
+
+  it('导入档保留既有 skillMul，但拒绝任何延后词条候选及继续淬炼或同调', () => {
+    const legacy = saveWithEquipment(
+      testEquipment('eq_r1_ring_common', [{ key: 'skillMul', value: 2.5, tier: 3 }]),
+    );
+    expect(importFromJson(JSON.stringify(legacy)).bag.equipment[0]!.affixes[0]!.key).toBe(
+      'skillMul',
+    );
+
+    const deferredCandidate = saveWithEquipment(
+      testEquipment('eq_r1_ring_common', [{ key: 'atk', value: 4, tier: 3 }], {
+        operation: 'reforge',
+        affixIndex: 0,
+        candidate: rolledAffix('eq_r1_ring_common', 'skillMul', 3),
+      }),
+    );
+    expect(() => importFromJson(JSON.stringify(deferredCandidate))).toThrow(/尚未开放生成/);
+
+    const legacyTarget = { key: 'skillMul', value: 2.5, tier: 3 } as const;
+    const temper = saveWithEquipment(
+      testEquipment('eq_r1_ring_common', [legacyTarget], {
+        operation: 'temper',
+        affixIndex: 0,
+        candidate: rolledAffix('eq_r1_ring_common', 'skillMul', 4),
+      }),
+    );
+    const resonate = saveWithEquipment(
+      testEquipment('eq_r1_ring_common', [legacyTarget], {
+        operation: 'resonate',
+        affixIndex: 0,
+        candidate: promoteAffix(legacyTarget),
+      }),
+    );
+    expect(() => importFromJson(JSON.stringify(temper))).toThrow(/不能继续养成延后结算词条/);
+    expect(() => importFromJson(JSON.stringify(resonate))).toThrow(/不能继续养成延后结算词条/);
+  });
+
+  it('导入档严格校验重铸目标槽与铭刻职业池，同时兼容切职前职业候选', () => {
+    const professionIntoGeneral = saveWithEquipment(
+      testEquipment('eq_r1_ring_common', [{ key: 'atk', value: 4, tier: 3 }], {
+        operation: 'reforge',
+        affixIndex: 0,
+        candidate: rolledAffix('eq_r1_ring_common', 'swd_guard', 3),
+      }),
+    );
+    expect(() => importFromJson(JSON.stringify(professionIntoGeneral))).toThrow(
+      /不属于目标通用词条槽/,
+    );
+
+    const generalIntoProfession = saveWithEquipment(
+      testEquipment(
+        'eq_r2_ring_epic',
+        [
+          { key: 'atk', value: 10, tier: 2 },
+          { key: 'critRate', value: 2, tier: 2 },
+          { key: 'wit_power', value: 12, tier: 3 },
+        ],
+        {
+          operation: 'reforge',
+          affixIndex: 2,
+          candidate: rolledAffix('eq_r2_ring_epic', 'def', 3),
+        },
+      ),
+    );
+    expect(() => importFromJson(JSON.stringify(generalIntoProfession))).toThrow(
+      /不属于目标职业词条槽/,
+    );
+
+    const generalInscribe = saveWithEquipment(
+      testEquipment('eq_r1_ring_common', [{ key: 'atk', value: 4, tier: 3 }], {
+        operation: 'inscribe',
+        affixIndex: 0,
+        candidate: rolledAffix('eq_r1_ring_common', 'def', 3),
+      }),
+    );
+    expect(() => importFromJson(JSON.stringify(generalInscribe))).toThrow(
+      /铭刻候选必须属于职业专属词条池/,
+    );
+  });
+
+  it('导入档拒绝随机候选越界或偷带额外小数，并精确复算同调数值', () => {
+    const validRandom = saveWithEquipment(
+      testEquipment('eq_r1_ring_common', [{ key: 'atk', value: 4, tier: 3 }], {
+        operation: 'reforge',
+        affixIndex: 0,
+        candidate: rolledAffix('eq_r1_ring_common', 'def', 3),
+      }),
+    );
+    expect(importFromJson(JSON.stringify(validRandom)).bag.equipment).toHaveLength(1);
+
+    const outsideRange = structuredClone(validRandom);
+    outsideRange.bag.equipment[0]!.pendingAffixChange!.candidate.value -= 0.1;
+    expect(() => importFromJson(JSON.stringify(outsideRange))).toThrow(/浮动范围或小数精度/);
+
+    const extraPrecision = structuredClone(validRandom);
+    extraPrecision.bag.equipment[0]!.pendingAffixChange!.candidate.value += 0.01;
+    expect(() => importFromJson(JSON.stringify(extraPrecision))).toThrow(/浮动范围或小数精度/);
+
+    const target = { key: 'critRate', value: 2, tier: 3 } as const;
+    const validResonate = saveWithEquipment(
+      testEquipment('eq_r1_ring_common', [target], {
+        operation: 'resonate',
+        affixIndex: 0,
+        candidate: promoteAffix(target),
+      }),
+    );
+    expect(importFromJson(JSON.stringify(validResonate)).bag.equipment).toHaveLength(1);
+
+    validResonate.bag.equipment[0]!.pendingAffixChange!.candidate.value += 0.1;
+    expect(() => importFromJson(JSON.stringify(validResonate))).toThrow(/同调候选数值必须精确提升/);
+  });
+
+  it('导入档拒绝普通词条伪装元素前缀，元素只属于真实属性伤害词条', () => {
+    const forged = saveWithEquipment(
+      testEquipment('eq_r1_ring_common', [
+        { key: 'atk', value: 4, tier: 3, element: 'fire' },
+      ]),
+    );
+
+    expect(() => importFromJson(JSON.stringify(forged))).toThrow(
+      /非属性伤害词条不能携带元素/,
+    );
   });
 
   it('v8 角色进度拒绝负关系值、重复完成记录和空回答', () => {
@@ -179,9 +678,7 @@ describe('save schema', () => {
 
   it('v9 好感完成剧情必须有对应回答，图鉴与剧情记录不能重复', () => {
     const missingChoice = createSave('小樱', 'swordsman', 9, 1_800_000_000_000);
-    missingChoice.affection.characters.swordsman.completedStoryIds.push(
-      'aff_swordsman_01_dawn',
-    );
+    missingChoice.affection.characters.swordsman.completedStoryIds.push('aff_swordsman_01_dawn');
     expect(looksLikeSave(missingChoice)).toBe(false);
 
     const duplicateGear = createSave('小樱', 'catkin', 9, 1_800_000_000_000);
@@ -201,16 +698,12 @@ describe('save schema', () => {
 
     const missingPrerequisite = createSave('小樱', 'catkin', 9, 1_800_000_000_000);
     missingPrerequisite.affection.characters.catkin.points = 300;
-    missingPrerequisite.affection.characters.catkin.completedStoryIds.push(
-      'aff_catkin_02_glove',
-    );
+    missingPrerequisite.affection.characters.catkin.completedStoryIds.push('aff_catkin_02_glove');
     missingPrerequisite.affection.characters.catkin.choiceHistory.aff_catkin_02_glove =
       'glove_highfive';
     expect(looksLikeSave(missingPrerequisite)).toBe(false);
 
-    missingPrerequisite.affection.characters.catkin.completedStoryIds.unshift(
-      'aff_catkin_01_box',
-    );
+    missingPrerequisite.affection.characters.catkin.completedStoryIds.unshift('aff_catkin_01_box');
     missingPrerequisite.affection.characters.catkin.choiceHistory.aff_catkin_01_box =
       'reinforce_box';
     expect(looksLikeSave(missingPrerequisite)).toBe(true);
@@ -254,12 +747,13 @@ describe('save schema', () => {
     const save = createSave('小樱', 'witch', 3, 1);
     const instance = {
       uid: 'e1',
-      defId: 'eq_test',
+      defId: 'eq_r1_ring_common',
       enhance: 0,
       baseRollPermille: 1000,
       enhanceGainPermille: Array<number>(ENHANCE_MAX).fill(0),
       enhanceLuck: {},
       affixes: [],
+      reforgeResonance: 0,
       locked: false,
     };
     save.nextUid = 2;

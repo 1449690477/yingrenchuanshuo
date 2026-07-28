@@ -1,5 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { canSustain, estimateDps, estimateIncomingDps, simulateFight, timeToKill } from '../combat';
+import {
+  canSustain,
+  combatEfficiency,
+  combatPressure,
+  estimateDps,
+  estimateIncomingDps,
+  estimateLifestealPerSecond,
+  simulateFight,
+  timeToKill,
+} from '../combat';
 import { makeMonster, makePlayer } from '../progression';
 import { Rng } from '../rng';
 import type { Combatant, Stats } from '../types';
@@ -65,6 +74,47 @@ describe('simulateFight', () => {
     const rFast = simulateFight(fast, mon(40), new Rng(9), { maxSeconds: 10 });
     expect(rFast.damageDealt).toBeGreaterThan(rSlow.damageDealt);
   });
+
+  it('吸血只按目标剩余生命内的实际伤害回复，不把过量伤害算进去', () => {
+    const player = makePlayer(
+      'p',
+      20,
+      s({ atk: 50_000, hp: 1_000, acc: 99_999, critRate: 0 }),
+      'none',
+      {
+        damageReduction: 0,
+        lifesteal: 100,
+        elementDamage: { fire: 0, ice: 0, thunder: 0 },
+      },
+    );
+    player.currentHp = 100;
+    const target = makePlayer('m', 20, s({ hp: 100, def: 0, eva: 0, atk: 0 }));
+
+    const result = simulateFight(player, target, new Rng(91));
+    expect(result.win).toBe(true);
+    expect(result.damageDealt).toBe(100);
+    expect(player.currentHp).toBe(200);
+    expect(target.currentHp).toBe(0);
+  });
+
+  it('吸血回复不能超过当前最大生命', () => {
+    const player = makePlayer(
+      'p',
+      20,
+      s({ atk: 50_000, hp: 1_000, acc: 99_999, critRate: 0 }),
+      'none',
+      {
+        damageReduction: 0,
+        lifesteal: 100,
+        elementDamage: { fire: 0, ice: 0, thunder: 0 },
+      },
+    );
+    player.currentHp = 950;
+    const target = makePlayer('m', 20, s({ hp: 100, def: 0, eva: 0, atk: 0 }));
+
+    simulateFight(player, target, new Rng(92));
+    expect(player.currentHp).toBe(1_000);
+  });
 });
 
 describe('estimateDps / timeToKill', () => {
@@ -112,6 +162,93 @@ describe('canSustain', () => {
   it('打不动的怪一定挂不住', () => {
     const p = makePlayer('p', 10, s({ atk: 0 }));
     expect(canSustain(p, mon(10))).toBe(false);
+  });
+
+  it('期望吸血会抵消期望承伤，从不可持续变为可持续', () => {
+    const monster = makePlayer(
+      'm',
+      1,
+      s({ atk: 50, hp: 1_000, def: 0, acc: 99_999, eva: 0, critRate: 0 }),
+    );
+    const plain = makePlayer(
+      'p',
+      1,
+      s({ atk: 100, hp: 100, def: 0, acc: 99_999, eva: 0, critRate: 0 }),
+    );
+    const draining = makePlayer(
+      'p',
+      1,
+      s({ atk: 100, hp: 100, def: 0, acc: 99_999, eva: 0, critRate: 0 }),
+      'none',
+      {
+        damageReduction: 0,
+        lifesteal: 50,
+        elementDamage: { fire: 0, ice: 0, thunder: 0 },
+      },
+    );
+
+    expect(canSustain(plain, monster)).toBe(false);
+    expect(estimateLifestealPerSecond(draining, monster)).toBeCloseTo(
+      estimateDps(draining, monster) * 0.5,
+      8,
+    );
+    expect(canSustain(draining, monster)).toBe(true);
+  });
+});
+
+describe('combatPressure / combatEfficiency', () => {
+  it('承伤 25% 以内效率保持 100%，超过后严格按 1/(1+超额) 衰减', () => {
+    const player = makePlayer('p', 20, s({ atk: 2_000, hp: 2_000, def: 100 }));
+    const monster = mon(20);
+    const pressure = combatPressure(player, monster);
+
+    const expected =
+      pressure.damageRatio <= 0.25 ? 1 : 1 / (1 + pressure.damageRatio - 0.25);
+    expect(pressure.efficiency).toBeCloseTo(expected, 10);
+    expect(combatEfficiency(player, monster)).toBeCloseTo(expected, 10);
+  });
+
+  it('同等输出下，生命、防御、减伤和吸血都会真实提高挂机效率', () => {
+    const monster = makePlayer(
+      'm',
+      20,
+      s({ atk: 1_000, hp: 12_000, def: 100, acc: 99_999, eva: 0, critRate: 0 }),
+    );
+    const baseStats = s({
+      atk: 1_200,
+      hp: 1_000,
+      def: 0,
+      acc: 99_999,
+      eva: 0,
+      critRate: 0,
+    });
+    const plain = makePlayer('plain', 20, baseStats);
+    const healthy = makePlayer('healthy', 20, { ...baseStats, hp: 2_000 });
+    const armored = makePlayer('armored', 20, { ...baseStats, def: 1_000 });
+    const reduced = makePlayer('reduced', 20, baseStats, 'none', {
+      damageReduction: 30,
+      lifesteal: 0,
+      elementDamage: { fire: 0, ice: 0, thunder: 0 },
+    });
+    const draining = makePlayer('draining', 20, baseStats, 'none', {
+      damageReduction: 0,
+      lifesteal: 20,
+      elementDamage: { fire: 0, ice: 0, thunder: 0 },
+    });
+    const baseline = combatEfficiency(plain, monster);
+
+    expect(combatEfficiency(healthy, monster)).toBeGreaterThan(baseline);
+    expect(combatEfficiency(armored, monster)).toBeGreaterThan(baseline);
+    expect(combatEfficiency(reduced, monster)).toBeGreaterThan(baseline);
+    expect(combatEfficiency(draining, monster)).toBeGreaterThan(baseline);
+  });
+
+  it('极端越级时效率明显下降但仍大于 0，不制造死亡或产出归零硬墙', () => {
+    const fragile = makePlayer('p', 1, s({ atk: 50, hp: 10, def: 0 }));
+    const efficiency = combatEfficiency(fragile, mon(120));
+
+    expect(efficiency).toBeGreaterThan(0);
+    expect(efficiency).toBeLessThan(0.3);
   });
 });
 

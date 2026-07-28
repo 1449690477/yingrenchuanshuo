@@ -11,10 +11,21 @@
  */
 
 import { SAVE_VERSION, parseSave, type SaveData } from './schema';
-import { ENHANCE_MAX, ENHANCE_PER_LEVEL } from '@/data/constants';
+import {
+  AFFIX_POOL,
+  AFFIX_TIERS,
+  ENHANCE_GAIN_TIERS,
+  ENHANCE_MAX,
+  ENHANCE_PER_LEVEL,
+  EQUIPMENT_BASE_ROLL_MAX,
+  EQUIPMENT_BASE_ROLL_MIN,
+  LUCK_FULL,
+} from '@/data/constants';
 import { createEquipmentDungeonState } from '@/core/equipmentDungeon';
 import { createAffectionState } from '@/core/affection';
 import { AFFECTION_RULES } from '@/data/affectionRules';
+import { getEquipment } from '@/data/equipment';
+import type { AffixTier, Element } from '@/core/types';
 
 /** 迁移函数接收上一版本的存档（结构未知，故用宽类型），返回下一版本 */
 export type Migration = (save: Record<string, unknown>) => Record<string, unknown>;
@@ -136,6 +147,31 @@ export const migrations: Record<number, Migration> = {
       affection: createAffectionState(save.lastActiveAt, AFFECTION_RULES),
     };
   },
+  9: (save) => {
+    if (save.version === 10) return { ...save };
+    const bag = asObject(save.bag, 9, 'bag');
+    if (!Array.isArray(bag.equipment)) {
+      throw new MigrationError(9, 'bag.equipment 缺失或格式错误');
+    }
+    const equipped = asObject(save.equipped, 9, 'equipped');
+
+    return {
+      ...save,
+      version: 10,
+      bag: {
+        ...bag,
+        equipment: bag.equipment.map((instance, index) =>
+          migrateV9EquipmentInstance(instance, `bag.equipment.${index}`),
+        ),
+      },
+      equipped: Object.fromEntries(
+        Object.entries(equipped).map(([slot, instance]) => [
+          slot,
+          instance === null ? null : migrateV9EquipmentInstance(instance, `equipped.${slot}`),
+        ]),
+      ),
+    };
+  },
 };
 
 export class SaveTooNewError extends Error {
@@ -208,4 +244,225 @@ function migrateEquipmentInstance(value: unknown, path: string): Record<string, 
     ),
     enhanceLuck: {},
   };
+}
+
+const V9_EQUIPMENT_KEYS = new Set([
+  'uid',
+  'defId',
+  'enhance',
+  'baseRollPermille',
+  'enhanceGainPermille',
+  'enhanceLuck',
+  'affixes',
+  'locked',
+  // v9 严格结构中不存在；迁移仍需明确忽略导入档伪造的新版本字段。
+  'reforgeResonance',
+  'pendingAffixChange',
+]);
+const V9_AFFIX_KEYS = new Set(['key', 'value', 'element', 'tier']);
+const LEGACY_DAMAGE_ELEMENTS = ['fire', 'ice', 'thunder'] as const;
+const LEGACY_AFFIX_ELEMENTS = new Set<Element>([...LEGACY_DAMAGE_ELEMENTS, 'none']);
+
+function migrateV9EquipmentInstance(value: unknown, path: string): Record<string, unknown> {
+  const instance = asObject(value, 9, path);
+  assertOnlyKeys(instance, V9_EQUIPMENT_KEYS, 9, path);
+
+  const uid = instance.uid;
+  if (typeof uid !== 'string' || uid.length === 0) {
+    throw new MigrationError(9, `${path}.uid 缺失或格式错误`);
+  }
+  const defId = instance.defId;
+  if (typeof defId !== 'string' || defId.length === 0) {
+    throw new MigrationError(9, `${path}.defId 缺失或格式错误`);
+  }
+  const definition = getEquipment(defId);
+  if (!definition) {
+    throw new MigrationError(9, `${path}.defId 对应装备定义不存在：${defId}`);
+  }
+  if (!Number.isFinite(definition.level) || definition.level <= 0) {
+    throw new MigrationError(9, `${path}.defId 对应装备等级不合法：${defId}`);
+  }
+
+  assertV9EnhancementFields(instance, path);
+  if (typeof instance.locked !== 'boolean') {
+    throw new MigrationError(9, `${path}.locked 缺失或格式错误`);
+  }
+  if (!Array.isArray(instance.affixes)) {
+    throw new MigrationError(9, `${path}.affixes 缺失或格式错误`);
+  }
+
+  const migrated: Record<string, unknown> = {
+    ...instance,
+    affixes: instance.affixes.map((affix, index) =>
+      migrateV9Affix(affix, uid, index, definition.level, `${path}.affixes.${index}`),
+    ),
+    // 共鸣和待决候选都是 v10 新语义，绝不能信任旧档注入值。
+    reforgeResonance: 0,
+  };
+  delete migrated.pendingAffixChange;
+  return migrated;
+}
+
+function assertV9EnhancementFields(instance: Record<string, unknown>, path: string): void {
+  const enhance = instance.enhance;
+  if (!Number.isInteger(enhance) || (enhance as number) < 0 || (enhance as number) > ENHANCE_MAX) {
+    throw new MigrationError(9, `${path}.enhance 必须在 0~${ENHANCE_MAX}`);
+  }
+
+  const baseRollPermille = instance.baseRollPermille;
+  if (
+    !Number.isInteger(baseRollPermille) ||
+    (baseRollPermille as number) < EQUIPMENT_BASE_ROLL_MIN ||
+    (baseRollPermille as number) > EQUIPMENT_BASE_ROLL_MAX
+  ) {
+    throw new MigrationError(
+      9,
+      `${path}.baseRollPermille 必须在 ${EQUIPMENT_BASE_ROLL_MIN}~${EQUIPMENT_BASE_ROLL_MAX}`,
+    );
+  }
+
+  const gains = instance.enhanceGainPermille;
+  if (!Array.isArray(gains) || gains.length !== ENHANCE_MAX) {
+    throw new MigrationError(9, `${path}.enhanceGainPermille 必须有 ${ENHANCE_MAX} 格`);
+  }
+  for (const [index, gain] of gains.entries()) {
+    const valid =
+      Number.isInteger(gain) &&
+      (gain === 0 ||
+        ENHANCE_GAIN_TIERS.some(
+          (tier) => (gain as number) >= tier.min && (gain as number) <= tier.max,
+        ));
+    if (!valid || (index < (enhance as number) && gain === 0)) {
+      throw new MigrationError(9, `${path}.enhanceGainPermille.${index} 格式错误`);
+    }
+  }
+
+  const luck = asObject(instance.enhanceLuck, 9, `${path}.enhanceLuck`);
+  for (const [target, amount] of Object.entries(luck)) {
+    if (
+      !/^(?:[1-9]|1[0-5])$/.test(target) ||
+      !Number.isInteger(amount) ||
+      (amount as number) < 1 ||
+      (amount as number) > LUCK_FULL
+    ) {
+      throw new MigrationError(9, `${path}.enhanceLuck.${target} 格式错误`);
+    }
+  }
+}
+
+function migrateV9Affix(
+  value: unknown,
+  uid: string,
+  affixIndex: number,
+  equipmentLevel: number,
+  path: string,
+): Record<string, unknown> {
+  const affix = asObject(value, 9, path);
+  assertOnlyKeys(affix, V9_AFFIX_KEYS, 9, path);
+
+  const key = affix.key;
+  if (typeof key !== 'string') {
+    throw new MigrationError(9, `${path}.key 缺失或格式错误`);
+  }
+  const poolEntry = AFFIX_POOL.find((entry) => entry.key === key);
+  if (!poolEntry) {
+    throw new MigrationError(9, `${path}.key 不存在于词条池：${key}`);
+  }
+  const affixValue = affix.value;
+  if (typeof affixValue !== 'number' || !Number.isFinite(affixValue)) {
+    throw new MigrationError(9, `${path}.value 必须是有限数字`);
+  }
+
+  const migrated: Record<string, unknown> = {
+    key,
+    value: affixValue,
+    tier: inferLegacyAffixTier(
+      affixValue,
+      equipmentLevel,
+      poolEntry.min,
+      poolEntry.max,
+      poolEntry.scalesWithLevel,
+      path,
+    ),
+  };
+
+  if (key === 'elemDmg') {
+    migrated.element = isLegacyDamageElement(affix.element)
+      ? affix.element
+      : stableLegacyDamageElement(uid, affixIndex);
+  } else if (affix.element !== undefined) {
+    if (typeof affix.element !== 'string' || !LEGACY_AFFIX_ELEMENTS.has(affix.element as Element)) {
+      throw new MigrationError(9, `${path}.element 格式错误`);
+    }
+    // v9 曾允许任意词条携带 element；非属性伤害词条从未消费该字段。
+    // v10 收紧为语义结构，迁移时删除这个无效展示字段，不改变任何战斗数值。
+  }
+
+  return migrated;
+}
+
+function inferLegacyAffixTier(
+  value: number,
+  equipmentLevel: number,
+  min: number,
+  max: number,
+  scalesWithLevel: boolean,
+  path: string,
+): AffixTier {
+  const midpoint = (min + max) / 2;
+  const baseline = midpoint * (scalesWithLevel ? equipmentLevel ** 1.3 : 1);
+  if (!Number.isFinite(baseline) || baseline <= 0) {
+    throw new MigrationError(9, `${path} 无法计算合法词条基准值`);
+  }
+  const ratio = value / baseline;
+  const firstTier = AFFIX_TIERS[0];
+  if (!firstTier) {
+    throw new MigrationError(9, '词条品阶配置为空');
+  }
+
+  let nearest = firstTier;
+  let nearestDistance = Math.abs(ratio - firstTier.multiplier);
+  for (const tier of AFFIX_TIERS.slice(1)) {
+    const distance = Math.abs(ratio - tier.multiplier);
+    // 精确落在中点时保留较低品阶，规则固定后迁移结果不受遍历实现影响。
+    if (distance < nearestDistance) {
+      nearest = tier;
+      nearestDistance = distance;
+    }
+  }
+  return nearest.tier;
+}
+
+function stableLegacyDamageElement(
+  uid: string,
+  affixIndex: number,
+): (typeof LEGACY_DAMAGE_ELEMENTS)[number] {
+  let hash = 0x811c9dc5;
+  const source = `${uid}:${affixIndex}`;
+  for (let index = 0; index < source.length; index++) {
+    hash ^= source.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  const element = LEGACY_DAMAGE_ELEMENTS[(hash >>> 0) % LEGACY_DAMAGE_ELEMENTS.length];
+  if (!element) throw new MigrationError(9, '属性伤害元素映射配置为空');
+  return element;
+}
+
+function isLegacyDamageElement(value: unknown): value is (typeof LEGACY_DAMAGE_ELEMENTS)[number] {
+  return (
+    typeof value === 'string' &&
+    LEGACY_DAMAGE_ELEMENTS.includes(value as (typeof LEGACY_DAMAGE_ELEMENTS)[number])
+  );
+}
+
+function assertOnlyKeys(
+  object: Record<string, unknown>,
+  allowed: ReadonlySet<string>,
+  fromVersion: number,
+  path: string,
+): void {
+  const unknownKey = Object.keys(object).find((key) => !allowed.has(key));
+  if (unknownKey) {
+    throw new MigrationError(fromVersion, `${path}.${unknownKey} 是未知字段`);
+  }
 }

@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { baseEquipStats, instanceStats } from '@/core/equipment';
-import { ENHANCE_MAX, ENHANCE_PER_LEVEL } from '@/data/constants';
+import type { EquipmentInstance } from '@/core/types';
+import { AFFIX_POOL, ENHANCE_MAX, ENHANCE_PER_LEVEL } from '@/data/constants';
 import { requireEquipment } from '@/data/equipment';
 import { createSave, SAVE_VERSION, SaveValidationError } from '../schema';
-import { migrate, migrations, SaveTooNewError } from '../migrations';
+import { migrate, MigrationError, migrations, SaveTooNewError } from '../migrations';
 
 function v0Save(): Record<string, unknown> {
   const current = createSave('旧档少女', 'witch', 42, 1_800_000_000_000);
@@ -97,6 +98,83 @@ function v8Save(): Record<string, unknown> {
     ...legacy,
     version: 8,
     settings: legacySettings,
+  };
+}
+
+function legacyAffixValue(
+  key: (typeof AFFIX_POOL)[number]['key'],
+  level: number,
+  multiplier: number,
+): number {
+  const entry = AFFIX_POOL.find((candidate) => candidate.key === key);
+  if (!entry) throw new Error(`测试词条不存在：${key}`);
+  const baseline = ((entry.min + entry.max) / 2) * (entry.scalesWithLevel ? level ** 1.3 : 1);
+  return baseline * multiplier;
+}
+
+function v9Equipment(
+  uid: string,
+  defId: string,
+  affixes: Record<string, unknown>[],
+): Record<string, unknown> {
+  return {
+    uid,
+    defId,
+    enhance: 0,
+    baseRollPermille: 1000,
+    enhanceGainPermille: Array<number>(ENHANCE_MAX).fill(0),
+    enhanceLuck: {},
+    affixes,
+    locked: false,
+  };
+}
+
+function v9Save(): Record<string, unknown> {
+  const current = createSave('v9 少女', 'witch', 32, 1_800_000_000_000);
+  const ringDef = requireEquipment('eq_dungeon_crimson_shoes_1');
+  const weaponDef = requireEquipment('eq_r2_weapon_epic');
+  const ring = v9Equipment('e1', ringDef.id, [
+    {
+      key: 'atk',
+      value: legacyAffixValue('atk', ringDef.level, 0.7),
+      // v9 schema 曾允许这个无效字段；v10 应删除，不能显示成“攻击力·炎”。
+      element: 'fire',
+      // v9 不存在该字段；迁移必须按 value 反推，不能信任注入品阶。
+      tier: 5,
+    },
+    { key: 'def', value: legacyAffixValue('def', ringDef.level, 0.92) },
+    { key: 'critRate', value: legacyAffixValue('critRate', ringDef.level, 1) },
+    { key: 'skillMul', value: legacyAffixValue('skillMul', ringDef.level, 1.25) },
+  ]);
+  ring.reforgeResonance = 19;
+  ring.pendingAffixChange = {
+    operation: 'reforge',
+    affixIndex: 0,
+    candidate: { key: 'hp', value: 999_999, tier: 5 },
+  };
+
+  return {
+    ...current,
+    version: 9,
+    nextUid: 4,
+    bag: {
+      ...current.bag,
+      equipment: [
+        ring,
+        // 旧白装没有随机词条；迁移只能补元数据，不能补发新词条。
+        v9Equipment('e2', 'eq_r1_shoes_common', []),
+      ],
+    },
+    equipped: {
+      ...current.equipped,
+      weapon: v9Equipment('e3', weaponDef.id, [
+        {
+          key: 'elemDmg',
+          value: legacyAffixValue('elemDmg', weaponDef.level, 1.6),
+          element: 'none',
+        },
+      ]),
+    },
   };
 }
 
@@ -293,10 +371,84 @@ describe('save migrations', () => {
     const twice = migrations[8]!(once);
     expect(twice).toEqual(once);
     expect(
-      ((once.affection as { characters: { witch: { points: number } } }).characters.witch)
-        .points,
+      (once.affection as { characters: { witch: { points: number } } }).characters.witch.points,
     ).toBe(0);
     expect((once.settings as { haptics: boolean }).haptics).toBe(true);
+  });
+
+  it('v9 → v10 遍历背包与穿戴装备反推五档品阶，value 与战力结果保持不变', () => {
+    const raw = v9Save();
+    const rawBag = (raw.bag as { equipment: Record<string, unknown>[] }).equipment;
+    const ringDef = requireEquipment(rawBag[0]!.defId as string);
+    const beforeStats = instanceStats(ringDef, rawBag[0] as unknown as EquipmentInstance);
+    const beforeValues = (rawBag[0]!.affixes as { value: number }[]).map((affix) => affix.value);
+    const rngState = raw.rngState;
+
+    const migrated = migrate(raw);
+    const migratedRing = migrated.bag.equipment[0]!;
+    const migratedWeapon = migrated.equipped.weapon!;
+
+    expect(migrated.version).toBe(SAVE_VERSION);
+    // 品阶只是按最近系数贴的标签；下一行的 value 与再下一行的战力才是不变量。
+    // AFFIX_TIERS 系数重标定后标签整体上移一档，属预期。
+    expect(migratedRing.affixes.map((affix) => affix.tier)).toEqual([2, 3, 4, 4]);
+    expect(migratedRing.affixes[0]?.element).toBeUndefined();
+    expect(migratedRing.affixes[3]?.key).toBe('skillMul');
+    expect(migratedRing.affixes.map((affix) => affix.value)).toEqual(beforeValues);
+    expect(instanceStats(ringDef, migratedRing)).toEqual(beforeStats);
+    expect(migratedRing.reforgeResonance).toBe(0);
+    expect(migratedRing.pendingAffixChange).toBeUndefined();
+    expect(migrated.bag.equipment[1]).toMatchObject({
+      uid: 'e2',
+      affixes: [],
+      reforgeResonance: 0,
+    });
+    expect(migratedWeapon.reforgeResonance).toBe(0);
+    expect(migratedWeapon.affixes[0]?.tier).toBe(5);
+    expect(['fire', 'ice', 'thunder']).toContain(migratedWeapon.affixes[0]?.element);
+    expect(migrated.rngState).toBe(rngState);
+  });
+
+  it('v9 → v10 的旧属性元素映射只由 uid 与词条索引决定，重复迁移稳定', () => {
+    const first = migrate(v9Save());
+    const second = migrate(v9Save());
+
+    expect(first.equipped.weapon?.affixes[0]?.element).toBe(
+      second.equipped.weapon?.affixes[0]?.element,
+    );
+    expect(first.rngState).toBe(32);
+    expect(second.rngState).toBe(32);
+  });
+
+  it('v9 → v10 迁移函数幂等，并忽略伪造的 tier、共鸣和待决候选', () => {
+    const once = migrations[9]!(v9Save());
+    const twice = migrations[9]!(once);
+    const ring = (once.bag as { equipment: Record<string, unknown>[] }).equipment[0]!;
+    const affixes = ring.affixes as { tier: number }[];
+
+    expect(twice).toEqual(once);
+    expect(affixes[0]?.tier).toBe(2);
+    expect(ring.reforgeResonance).toBe(0);
+    expect(ring.pendingAffixChange).toBeUndefined();
+  });
+
+  it('v9 → v10 遇到未知装备、未知词条或坏装备结构时明确报 MigrationError(9)', () => {
+    const unknownDefinition = v9Save();
+    (unknownDefinition.bag as { equipment: Record<string, unknown>[] }).equipment[0]!.defId =
+      'eq_deleted';
+    expect(() => migrate(unknownDefinition)).toThrow(MigrationError);
+    expect(() => migrate(unknownDefinition)).toThrow(/v9 存档迁移到 v10/);
+
+    const unknownAffix = v9Save();
+    const unknownAffixes = (
+      unknownAffix.bag as { equipment: { affixes: Record<string, unknown>[] }[] }
+    ).equipment[0]!.affixes;
+    unknownAffixes[0]!.key = 'deletedAffix';
+    expect(() => migrate(unknownAffix)).toThrow(MigrationError);
+
+    const malformed = v9Save();
+    (malformed.bag as { equipment: Record<string, unknown>[] }).equipment[0]!.affixes = null;
+    expect(() => migrate(malformed)).toThrow(MigrationError);
   });
 
   it('当前版本不迁移，只做严格结构校验', () => {

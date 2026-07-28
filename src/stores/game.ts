@@ -11,6 +11,7 @@ import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 
 import type {
+  AffixChangeOperation,
   ClassId,
   EquipSlot,
   EquipmentDef,
@@ -67,12 +68,20 @@ import {
   createFixedInstance,
   createInstance,
   hasFullyFixedAffixes,
-  instanceStats,
+  instanceStatsForClass,
   rollEnhanceGainPermille,
+  totalEquipCombatBonuses,
   totalEquipStats,
+  zeroCombatBonuses,
   type PermilleRoll,
   type EnhanceGainGrade,
 } from '@/core/equipment';
+import { dominantAffixElement } from '@/core/combatBonuses';
+import {
+  planAffixChange,
+  resolvePendingAffixChange,
+  type PlanAffixChangeResult,
+} from '@/core/reforge';
 import { applyEquipmentSetStats, resolveEquipmentSetBonuses } from '@/core/equipmentSets';
 import {
   equipmentDungeonAttemptsRemaining,
@@ -113,7 +122,13 @@ import {
   type RhythmState,
   type RhythmSkillSpec,
 } from '@/core/battleRhythm';
-import { accumulateIdle, killsPerSecond, recoverStamina, settleOffline } from '@/core/idle';
+import {
+  accumulateIdle,
+  idleCombatEfficiency,
+  killsPerSecond,
+  recoverStamina,
+  settleOffline,
+} from '@/core/idle';
 import { trimBag } from '@/core/bag';
 import type { IdleContext } from '@/core/idle';
 
@@ -153,6 +168,10 @@ import {
 } from '@/data/affectionEquipment';
 import { requireAffectionGift } from '@/data/affectionGifts';
 import { getEquipmentDungeonStage, type EquipmentDungeonStage } from '@/data/equipmentDungeons';
+import {
+  REFORGE_UNLOCK_LEVEL,
+  requireRegionReforgeMaterials,
+} from '@/data/reforgeRules';
 
 import { createSave, type SaveData } from '@/save/schema';
 import { clearSave, loadSave, saveSave } from '@/save/storage';
@@ -182,6 +201,7 @@ export type ShopPurchaseResult =
 
 export type EnhanceBlockReason =
   | 'not-found'
+  | 'pending-affix-result'
   | 'max-level'
   | 'protection-not-allowed'
   | 'insufficient-gold'
@@ -215,7 +235,10 @@ export type EnhanceEquipmentResult =
     };
 
 export type EnhanceBatchActionResult =
-  | { ok: false; reason: 'not-found' | 'no-equipped' | 'invalid-target' }
+  | {
+      ok: false;
+      reason: 'not-found' | 'no-equipped' | 'invalid-target' | 'pending-affix-result';
+    }
   | {
       ok: true;
       strategy: EnhanceBatchStrategy;
@@ -224,6 +247,29 @@ export type EnhanceBatchActionResult =
       blocked: EnhanceBatchBlockedEvent[];
       stopReason: EnhanceBatchStopReason;
       instances: EquipmentInstance[];
+      cpDelta: number;
+    };
+
+export type DecomposeResult =
+  | { count: number; gold: number; reason?: never; blockedUids?: never }
+  | {
+      count: 0;
+      gold: 0;
+      reason: 'pending-affix-result';
+      blockedUids: string[];
+    };
+
+export type AffixChangeActionResult =
+  | { ok: false; reason: 'no-save' | 'not-found' | 'level-locked' }
+  | PlanAffixChangeResult;
+
+export type ResolveAffixChangeActionResult =
+  | { ok: false; reason: 'no-save' | 'not-found' | 'no-pending-result' }
+  | {
+      ok: true;
+      adopted: boolean;
+      previous: EquipmentInstance['affixes'][number];
+      candidate: EquipmentInstance['affixes'][number];
       cpDelta: number;
     };
 
@@ -376,7 +422,30 @@ export const useGameStore = defineStore('game', () => {
     return totalEquipStats(
       SLOT_ORDER.map((s) => save.value!.equipped[s]),
       getEquipment,
+      save.value.player.classId,
     );
+  });
+
+  /** 不进入八项 Stats 的装备战斗词条，统一从当前穿戴聚合。 */
+  const equipCombatBonuses = computed(() => {
+    if (!save.value) return zeroCombatBonuses();
+    return totalEquipCombatBonuses(
+      SLOT_ORDER.map((slot) => save.value?.equipped[slot] ?? null),
+      getEquipment,
+      save.value.player.classId,
+    );
+  });
+
+  /**
+   * 武器若显式带属性则优先；否则由属性伤害词条中加成最高的一系附魔。
+   * 这样 elemDmg 在当前无技能属性系统的阶段也会进入真实挂机与副本结算。
+   */
+  const playerCombatElement = computed(() => {
+    const weapon = save.value?.equipped.weapon;
+    const weaponElement = weapon ? getEquipment(weapon.defId)?.element : undefined;
+    return weaponElement && weaponElement !== 'none'
+      ? weaponElement
+      : dominantAffixElement(equipCombatBonuses.value);
   });
 
   const equipmentSetResolution = computed(() =>
@@ -385,6 +454,21 @@ export const useGameStore = defineStore('game', () => {
       getEquipment,
     ),
   );
+
+  /**
+   * 当前玩家唯一的最终技能倍率入口。
+   *
+   * 挂机、装备副本与战斗血条必须读取同一个值，避免套装共鸣只进入收益、
+   * 却没有进入玩家正在看的承伤投影。
+   */
+  const playerSkillMultiplier = computed(() => {
+    const currentPlayer = player.value;
+    if (!currentPlayer) return 1;
+    return (
+      averageSkillMultiplier(currentPlayer.level) +
+      equipmentSetResolution.value.skillMultiplierBonus
+    );
+  });
 
   const affectionState = computed(() => save.value?.affection ?? null);
   const affectionProgress = computed(() => {
@@ -477,11 +561,11 @@ export const useGameStore = defineStore('game', () => {
   /** 击杀动画期间固定显示倒下的旧目标，动画结束后再切到下一只。 */
   const battleTargetId = computed(() => battlePulse.value?.targetId ?? nextBattleTargetId.value);
 
-  /** 战力是否够打当前关卡。低于 60% 禁止挂机，避免白耗时间 */
+  /** 推荐战力只做参考；真实产出由承伤效率软调节，不再形成停止挂机的硬墙。 */
   const cpRatio = computed(() =>
     currentStage.value.recommendCP > 0 ? cp.value / currentStage.value.recommendCP : 1,
   );
-  const canIdle = computed(() => cpRatio.value >= 0.6);
+  const canIdle = computed(() => save.value !== null);
 
   /** 挂机上下文，供 core 使用 */
   function buildIdleContext(): IdleContext | null {
@@ -497,20 +581,29 @@ export const useGameStore = defineStore('game', () => {
 
     return {
       classId: p.classId,
-      player: makePlayer(p.name, p.level, finalStats.value),
+      player: makePlayer(
+        p.name,
+        p.level,
+        finalStats.value,
+        playerCombatElement.value,
+        equipCombatBonuses.value,
+      ),
       monster,
       expPerKill: monsterExp(monDef.level, monDef.type, monDef.expMul ?? 1),
       goldPerKill: monsterGold(monDef.level, monDef.type),
       lootTable: requireLootTable(stage.lootTableId),
       maxKillsPerSec: stage.maxKillsPerSec,
-      skillMultiplier:
-        averageSkillMultiplier(p.level) + equipmentSetResolution.value.skillMultiplierBonus,
+      skillMultiplier: playerSkillMultiplier.value,
     };
   }
 
   const kps = computed(() => {
     const ctx = buildIdleContext();
     return ctx ? killsPerSecond(ctx) : 0;
+  });
+  const battleEfficiency = computed(() => {
+    const ctx = buildIdleContext();
+    return ctx ? idleCombatEfficiency(ctx) : 0;
   });
 
   // ─────────── 生命周期 ───────────
@@ -907,7 +1000,7 @@ export const useGameStore = defineStore('game', () => {
         battleVisualCursor.value = visualAdvance.nextCursor;
       }
     } else {
-      // 战力不足时不能把等待时间攒着，切回低级图后一次性领取。
+      // 无有效存档时不能把等待时间攒着，避免恢复后一次性领取旧上下文收益。
       idleCarrySec = 0;
       battleProgress.value = 0;
       publishRhythmRunning(false);
@@ -950,24 +1043,15 @@ export const useGameStore = defineStore('game', () => {
   }
 
   /**
-   * 装备自身战力，算不出来时返回 0。
+   * 装备自身的基础属性战力。
    *
-   * ⚠ 必须容错。instanceStats 会校验「胚子倍率」等后加的字段，
-   * 老存档里更早产出的装备没有这些字段，直接调用会抛
-   * 「装备胚子倍率必须是 1000~1200 的整数，收到 undefined」。
-   * 一件坏数据就能让整个背包裁剪中断（异常被载入流程的 try/catch 吞掉），
-   * 表现就是「自动分解完全不生效、背包继续涨到上万件」。
-   *
-   * 返回 0 意味着这类残缺装备排在最末，会被优先清理掉 —— 正是我们想要的。
+   * 存档在进入 store 前已经完成迁移和严格校验；此处若再吞掉缺定义或坏实例，
+   * 只会把主流程错误伪装成“低战力垃圾装备”。配置不一致必须直接暴露。
    */
-  function safeItemCp(inst: EquipmentInstance): number {
-    const def = getEquipment(inst.defId);
-    if (!def) return 0;
-    try {
-      return combatPower(instanceStats(def, inst));
-    } catch {
-      return 0;
-    }
+  function itemCp(inst: EquipmentInstance): number {
+    if (!save.value) throw new Error('[背包裁剪错误] 没有可用存档');
+    const def = requireEquipment(inst.defId);
+    return combatPower(instanceStatsForClass(def, inst, save.value.player.classId));
   }
 
   /**
@@ -985,21 +1069,15 @@ export const useGameStore = defineStore('game', () => {
       // 用装备自身战力，而不是 equipmentContributionCp。
       // 后者要跟当前穿戴做换装差值，每次都遍历 8 个槽位重算全身属性；
       // 裁剪只需要「谁更垃圾」的相对排序，自身战力足够且便宜得多。
-      valueOf: (inst) => safeItemCp(inst),
-      slotOf: (inst) => getEquipment(inst.defId)?.slot,
-      qualityOf: (inst) => getEquipment(inst.defId)?.quality,
+      valueOf: (inst) => itemCp(inst),
+      slotOf: (inst) => requireEquipment(inst.defId).slot,
+      qualityOf: (inst) => requireEquipment(inst.defId).quality,
     });
     if (removed.length === 0) return 0;
 
     let gold = 0;
     for (const inst of removed) {
-      const def = getEquipment(inst.defId);
-      if (!def) continue;
-      try {
-        gold += decomposeGold(def, inst);
-      } catch {
-        // 老存档的残缺装备算不出价格，按 0 处理，但仍然要清掉
-      }
+      gold += decomposeGold(requireEquipment(inst.defId), inst);
     }
     s.bag.equipment = kept;
     s.player.gold += gold;
@@ -1018,7 +1096,7 @@ export const useGameStore = defineStore('game', () => {
         const uid = `e${s.nextUid}`;
         const inst = hasFullyFixedAffixes(eqDef)
           ? createFixedInstance(eqDef, uid, true)
-          : createInstance(eqDef, rng.derive(s.nextUid), uid);
+          : createInstance(eqDef, rng.derive(s.nextUid), uid, s.player.classId);
         s.nextUid++;
         s.bag.equipment.push(inst);
       }
@@ -1271,10 +1349,15 @@ export const useGameStore = defineStore('game', () => {
       stage,
       state: s.equipmentDungeon,
       pity: s.progress.pity,
-      player: makePlayer(s.player.name, s.player.level, finalStats.value),
+      player: makePlayer(
+        s.player.name,
+        s.player.level,
+        finalStats.value,
+        playerCombatElement.value,
+        equipCombatBonuses.value,
+      ),
       classId: s.player.classId,
-      playerSkillMultiplier:
-        averageSkillMultiplier(s.player.level) + equipmentSetResolution.value.skillMultiplierBonus,
+      playerSkillMultiplier: playerSkillMultiplier.value,
       rngState: rng.getState(),
       now,
     });
@@ -1313,7 +1396,7 @@ export const useGameStore = defineStore('game', () => {
         const uid = `e${nextUid}`;
         const instance = hasFullyFixedAffixes(definition)
           ? createFixedInstance(definition, uid, true)
-          : createInstance(definition, instanceRng.derive(nextUid), uid);
+          : createInstance(definition, instanceRng.derive(nextUid), uid, s.player.classId);
         // 首通奖励是图鉴启动资产，必须锁定，不能被满背包安全裁剪静默分解。
         if (planned.firstClear) instance.locked = true;
         instances.push(instance);
@@ -1446,7 +1529,7 @@ export const useGameStore = defineStore('game', () => {
     const base = baseStatsFor(classId, level);
     const setResolution = resolveEquipmentSetBonuses(equipped, getEquipment);
     const combined = applyEquipmentSetStats(
-      addStats(base, totalEquipStats(equipped, getEquipment)),
+      addStats(base, totalEquipStats(equipped, getEquipment, classId)),
       setResolution,
     );
     combined.critRate = Math.min(CRIT_RATE_CAP, combined.critRate);
@@ -1511,7 +1594,12 @@ export const useGameStore = defineStore('game', () => {
       // 否则坏配置会留下“保底已消费、图鉴已点亮、装备却没进包”的半事务。
       const definition = requireAffectionEquipment(result.gearReward.defId).definition;
       rewardDefinition = definition;
-      instance = createInstance(definition, new Rng(result.gearReward.rewardSeed), `e${s.nextUid}`);
+      instance = createInstance(
+        definition,
+        new Rng(result.gearReward.rewardSeed),
+        `e${s.nextUid}`,
+        classId,
+      );
       instance.locked = true;
     }
 
@@ -1575,7 +1663,12 @@ export const useGameStore = defineStore('game', () => {
       // 推进保底、点亮图鉴或消耗 UID。
       const definition = requireAffectionEquipment(result.gearReward.defId).definition;
       rewardDefinition = definition;
-      instance = createInstance(definition, new Rng(result.gearReward.rewardSeed), `e${s.nextUid}`);
+      instance = createInstance(
+        definition,
+        new Rng(result.gearReward.rewardSeed),
+        `e${s.nextUid}`,
+        classId,
+      );
       instance.locked = true;
     }
 
@@ -1648,11 +1741,84 @@ export const useGameStore = defineStore('game', () => {
     return null;
   }
 
+  /**
+   * 开始洗练：纯逻辑层先在克隆钱包/RNG/装备上生成完整候选，
+   * 成功后才一次性扣材料并写入可持久化 pending；原词条此时绝不覆盖。
+   */
+  function startAffixChange(
+    uid: string,
+    operation: AffixChangeOperation,
+    lockedIndices: readonly number[] = [],
+    targetIndex?: number,
+  ): AffixChangeActionResult {
+    if (!save.value) return { ok: false, reason: 'no-save' };
+    const located = findOwnedEquipment(uid);
+    if (!located) return { ok: false, reason: 'not-found' };
+    if (save.value.player.level < REFORGE_UNLOCK_LEVEL) {
+      return { ok: false, reason: 'level-locked' };
+    }
+
+    const definition = requireEquipment(located.instance.defId);
+    const regionId = requireRegionOfChapter(currentStage.value.chapterId).id;
+    const result = planAffixChange({
+      instance: located.instance,
+      definition,
+      operation,
+      classId: save.value.player.classId,
+      lockedIndices,
+      ...(targetIndex === undefined ? {} : { targetIndex }),
+      regionMaterials: requireRegionReforgeMaterials(regionId),
+      wallet: {
+        gold: save.value.player.gold,
+        items: save.value.bag.items,
+      },
+      rngState: rng.getState(),
+    });
+    if (!result.ok) return result;
+
+    // 从这里开始只做不会抛错的同步赋值，形成一次原子提交。
+    save.value.player.gold = result.wallet.gold;
+    save.value.bag.items = result.wallet.items;
+    rng.setState(result.nextRngState);
+    commitAffixState(located.instance, result.instance);
+    void persist();
+    return result;
+  }
+
+  /** 玩家确认候选后采用或保留；费用已在生成候选时扣除，这里不再收费。 */
+  function resolveAffixChange(
+    uid: string,
+    decision: 'adopt' | 'keep',
+  ): ResolveAffixChangeActionResult {
+    if (!save.value) return { ok: false, reason: 'no-save' };
+    const located = findOwnedEquipment(uid);
+    if (!located) return { ok: false, reason: 'not-found' };
+    if (!located.instance.pendingAffixChange) {
+      return { ok: false, reason: 'no-pending-result' };
+    }
+
+    const beforeCp = cp.value;
+    const result = resolvePendingAffixChange(located.instance, decision);
+    commitAffixState(located.instance, result.instance);
+    if (result.adopted) noteCpDelta(beforeCp);
+    void persist();
+    return {
+      ok: true,
+      adopted: result.adopted,
+      previous: result.previous,
+      candidate: result.candidate,
+      cpDelta: cp.value - beforeCp,
+    };
+  }
+
   /** 强化报价只接收装备 UID 与保护选择，费用和成功率全部从可信配置重算。 */
   function quoteEnhance(uid: string, useProtection: boolean): EnhanceQuote {
     if (!save.value) return { ok: false, reason: 'not-found' };
     const located = findOwnedEquipment(uid);
     if (!located) return { ok: false, reason: 'not-found' };
+    if (located.instance.pendingAffixChange) {
+      return { ok: false, reason: 'pending-affix-result' };
+    }
     if (located.instance.enhance >= ENHANCE_MAX) return { ok: false, reason: 'max-level' };
 
     const targetLevel = located.instance.enhance + 1;
@@ -1790,6 +1956,9 @@ export const useGameStore = defineStore('game', () => {
     }
     const located = findOwnedEquipment(uid);
     if (!located) return { ok: false, reason: 'not-found' };
+    if (located.instance.pendingAffixChange) {
+      return { ok: false, reason: 'pending-affix-result' };
+    }
 
     const definition = requireEquipment(located.instance.defId);
     const batch = enhanceBatch({
@@ -1845,6 +2014,9 @@ export const useGameStore = defineStore('game', () => {
 
     const slots = SLOT_ORDER.filter((slot) => save.value!.equipped[slot] !== null);
     if (slots.length === 0) return { ok: false, reason: 'no-equipped' };
+    if (slots.some((slot) => save.value!.equipped[slot]!.pendingAffixChange)) {
+      return { ok: false, reason: 'pending-affix-result' };
+    }
     const candidates = slots.map((slot, order) => {
       const instance = save.value!.equipped[slot]!;
       return {
@@ -1897,10 +2069,21 @@ export const useGameStore = defineStore('game', () => {
    * 批量分解 1.5 万件时是 O(n²)，直接把页面卡死。
    * 现在改成一次 Set 查表 + 一次 filter 重建数组。
    */
-  function decompose(uids: string[]): { count: number; gold: number } {
+  function decompose(uids: string[]): DecomposeResult {
     if (!save.value) return { count: 0, gold: 0 };
     const s = save.value;
     const targets = new Set(uids);
+    const blockedUids = s.bag.equipment
+      .filter((inst) => targets.has(inst.uid) && Boolean(inst.pendingAffixChange))
+      .map((inst) => inst.uid);
+    if (blockedUids.length > 0) {
+      return {
+        count: 0,
+        gold: 0,
+        reason: 'pending-affix-result',
+        blockedUids,
+      };
+    }
     let gold = 0;
     let count = 0;
 
@@ -2032,6 +2215,9 @@ export const useGameStore = defineStore('game', () => {
     player,
     finalStats,
     equipStats,
+    equipCombatBonuses,
+    playerCombatElement,
+    playerSkillMultiplier,
     equipmentSetResolution,
     affectionState,
     affectionProgress,
@@ -2040,6 +2226,7 @@ export const useGameStore = defineStore('game', () => {
     affectionInteractionsRemaining,
     cp,
     cpRatio,
+    battleEfficiency,
     canIdle,
     currentStage,
     currentCleared,
@@ -2089,6 +2276,8 @@ export const useGameStore = defineStore('game', () => {
     equipmentCandidateCp,
     equipmentCpDelta,
     equipmentContributionCp,
+    startAffixChange,
+    resolveAffixChange,
     quoteEnhance,
     enhanceEquipment,
     autoEnhanceEquipment,
@@ -2103,7 +2292,29 @@ function cloneEquipmentInstance(instance: EquipmentInstance): EquipmentInstance 
     enhanceGainPermille: [...instance.enhanceGainPermille],
     enhanceLuck: { ...instance.enhanceLuck },
     affixes: instance.affixes.map((affix) => ({ ...affix })),
+    ...(instance.pendingAffixChange
+      ? {
+          pendingAffixChange: {
+            ...instance.pendingAffixChange,
+            candidate: { ...instance.pendingAffixChange.candidate },
+          },
+        }
+      : {}),
   };
+}
+
+/** 保留 Vue 正在展示的实例引用，只提交洗练会改变的三个字段。 */
+function commitAffixState(target: EquipmentInstance, source: EquipmentInstance): void {
+  target.affixes = source.affixes.map((affix) => ({ ...affix }));
+  target.reforgeResonance = source.reforgeResonance;
+  if (source.pendingAffixChange) {
+    target.pendingAffixChange = {
+      ...source.pendingAffixChange,
+      candidate: { ...source.pendingAffixChange.candidate },
+    };
+  } else {
+    delete target.pendingAffixChange;
+  }
 }
 
 function debitMaterial(items: Record<string, number>, itemId: string, count: number): void {

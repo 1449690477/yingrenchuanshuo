@@ -9,6 +9,7 @@
 
 import type {
   AffixKey,
+  AffixTier,
   ClassId,
   Element,
   EquipSlot,
@@ -43,6 +44,15 @@ export const MIN_DAMAGE_RATIO = 0.05;
 export const ELEM_ADVANTAGE = 1.25;
 export const ELEM_DISADVANTAGE = 0.85;
 export const ELEM_NEUTRAL = 1.0;
+
+/**
+ * 一场战斗承伤不超过最大生命 25% 时，不扣挂机效率。
+ * 超额承伤使用 1 / (1 + excess) 软衰减，禁止做死亡或产出归零的硬墙。
+ */
+export const IDLE_FREE_DAMAGE_RATIO = 0.25;
+
+/** 效率低于 30% 时只提示换图，不停止挂机。 */
+export const IDLE_SUSTAIN_HINT_EFFICIENCY = 0.3;
 
 /**
  * 战力权重。
@@ -157,13 +167,25 @@ export const CLASS_GROWTH: Record<ClassId, Pick<Stats, 'atk' | 'def' | 'hp'>> = 
  * 与 spd 相乘后的单体 DPS 相对值，对应 docs/13 第四节的平衡目标：
  *   剑姬 1.00 × 1.0 = 100%
  *   魔女 1.06 × 0.9 =  95%
- *   灵巫 0.78 × 1.1 =  86%
+ *   灵巫 0.86 × 1.1 =  95%
  *   喵喵 0.76 × 1.25 = 95%（再由高暴击与技能多段形成上限）
+ *
+ * ⚠ 灵巫从 0.78 上调到 0.86，是承伤效率模型（docs/45）上线后的必要修正。
+ *
+ * 旧模型里挂机产出只看 DPS，灵巫的低攻击由「高血续航」在设定上补偿，
+ * 但那份补偿在结算里根本不存在，所以 0.78 尚可接受。
+ * 承伤模型上线后情况反转：产出 = 击杀速度 × 承伤效率 η，
+ * 而 η = 1/(1 + 每场承伤/生命)，**每场承伤又正比于 TTK**。
+ * 灵巫攻击低 → TTK 长 → 挨打次数多 → η 反而是四职业最低，
+ * 等于同一个弱点被罚了两次，Lv10 实测偏离 −29.7%（门槛 ±20%）。
+ *
+ * 治本方案是给灵巫一条真正走 η 的职业减伤（对应它的「续航」定位），
+ * 但那需要新的职业级战斗机制；在那之前先用攻击系数把偏离拉回带内。
  */
 export const CLASS_ATK_MUL: Record<ClassId, number> = {
   swordsman: 1.0,
   witch: 1.06,
-  shaman: 0.78,
+  shaman: 0.86,
   catkin: 0.76,
 };
 
@@ -222,7 +244,7 @@ export const QUALITY_MUL: Record<Quality, number> = {
 
 /** 品质对应的随机词条数量 */
 export const QUALITY_AFFIX_COUNT: Record<Quality, number> = {
-  common: 0,
+  common: 1,
   fine: 1,
   rare: 2,
   epic: 3,
@@ -231,6 +253,54 @@ export const QUALITY_AFFIX_COUNT: Record<Quality, number> = {
   prismatic: 6,
   divine: 6,
 };
+
+/**
+ * 史诗以上装备固定留给当前职业专属池的槽位数。
+ *
+ * ⚠ 神话以上曾经是 2 个槽，实测把四职业 TTK 偏离顶到 39%。
+ * 原因是每个职业当前只有 2 条**可结算**的专属词条
+ * （其余依赖 M3-4 技能执行器等，尚未开放），
+ * 两个槽等于强制两条都出，八件装备叠出十六条同类词条 ——
+ * 喵喵的攻速是乘算的，直接把它推离其他职业 18%。
+ *
+ * 在每职业可用专属词条补到 3 条以上之前，神话以上维持 1 个槽。
+ * 补齐后再考虑恢复 2 槽，并重跑 npm run sim 验收。
+ */
+export const QUALITY_PROFESSION_AFFIX_COUNT: Readonly<Record<Quality, number>> = {
+  common: 0,
+  fine: 0,
+  rare: 0,
+  epic: 1,
+  legendary: 1,
+  mythic: 1,
+  prismatic: 1,
+  divine: 1,
+};
+
+/** 随机词条五档品阶；权重总和固定为 100，系数决定该档相对基准值。 */
+export interface AffixTierConfig {
+  tier: AffixTier;
+  name: string;
+  weight: number;
+  multiplier: number;
+}
+
+export const AFFIX_TIERS: readonly AffixTierConfig[] = [
+  { tier: 1, name: '粗糙', weight: 40, multiplier: 0.62 },
+  { tier: 2, name: '普通', weight: 27, multiplier: 0.76 },
+  { tier: 3, name: '优良', weight: 18, multiplier: 0.88 },
+  { tier: 4, name: '卓越', weight: 11, multiplier: 1.1 },
+  { tier: 5, name: '极品', weight: 4, multiplier: 1.54 },
+];
+
+/** 品阶确定后仅保留 ±3% 微浮动，让品阶而不是小数点承担辨识度。 */
+export const AFFIX_VALUE_VARIANCE = 0.03;
+
+/** 属性伤害词条只会绑定三种可攻击属性；无属性不能成为词条目标。 */
+export const AFFIX_ELEMENT_OPTIONS = ['fire', 'ice', 'thunder'] as const satisfies readonly Exclude<
+  Element,
+  'none'
+>[];
 
 /**
  * 部位「数值型」属性权重。这些属性乘以装备基准值（随等级 L^1.35 增长）。
@@ -300,6 +370,66 @@ export interface AffixPoolEntry {
   label: string;
 }
 
+export type AffixRuntimeRule =
+  | {
+      generation: 'active';
+      settlement: 'active';
+    }
+  | {
+      generation: 'deferred';
+      settlement: 'deferred';
+      milestone: 'M3-4';
+      notice: string;
+    };
+
+const ACTIVE_AFFIX_RUNTIME = {
+  generation: 'active',
+  settlement: 'active',
+} as const satisfies AffixRuntimeRule;
+
+/**
+ * 词条发布状态的唯一配置源。
+ *
+ * generation 控制新掉落、重铸候选；settlement 控制淬炼、同调等继续投入。
+ * 延后词条仍保留在类型与数值池中，专门用于严格读取、迁移和展示旧存档。
+ */
+export const AFFIX_RUNTIME_RULES = {
+  atk: ACTIVE_AFFIX_RUNTIME,
+  def: ACTIVE_AFFIX_RUNTIME,
+  hp: ACTIVE_AFFIX_RUNTIME,
+  acc: ACTIVE_AFFIX_RUNTIME,
+  eva: ACTIVE_AFFIX_RUNTIME,
+  critRate: ACTIVE_AFFIX_RUNTIME,
+  critDmg: ACTIVE_AFFIX_RUNTIME,
+  spd: ACTIVE_AFFIX_RUNTIME,
+  dmgReduce: ACTIVE_AFFIX_RUNTIME,
+  elemDmg: ACTIVE_AFFIX_RUNTIME,
+  lifesteal: ACTIVE_AFFIX_RUNTIME,
+  skillMul: {
+    generation: 'deferred',
+    settlement: 'deferred',
+    milestone: 'M3-4',
+    notice: '待 M3-4 技能结算',
+  },
+  swd_guard: ACTIVE_AFFIX_RUNTIME,
+  swd_heavy: ACTIVE_AFFIX_RUNTIME,
+  wit_power: ACTIVE_AFFIX_RUNTIME,
+  wit_elem: ACTIVE_AFFIX_RUNTIME,
+  sha_vitality: ACTIVE_AFFIX_RUNTIME,
+  sha_drain: ACTIVE_AFFIX_RUNTIME,
+  sha_ward: ACTIVE_AFFIX_RUNTIME,
+  cat_swift: ACTIVE_AFFIX_RUNTIME,
+  cat_nimble: ACTIVE_AFFIX_RUNTIME,
+} as const satisfies Readonly<Record<AffixKey, AffixRuntimeRule>>;
+
+export function isAffixGenerationActive(key: AffixKey): boolean {
+  return AFFIX_RUNTIME_RULES[key].generation === 'active';
+}
+
+export function isAffixSettlementActive(key: AffixKey): boolean {
+  return AFFIX_RUNTIME_RULES[key].settlement === 'active';
+}
+
 export const AFFIX_POOL: AffixPoolEntry[] = [
   {
     key: 'atk',
@@ -307,7 +437,7 @@ export const AFFIX_POOL: AffixPoolEntry[] = [
     max: 0.8,
     weight: 20,
     scalesWithLevel: true,
-    decimals: 0,
+    decimals: 1,
     label: '攻击力',
   },
   {
@@ -316,10 +446,10 @@ export const AFFIX_POOL: AffixPoolEntry[] = [
     max: 0.6,
     weight: 20,
     scalesWithLevel: true,
-    decimals: 0,
+    decimals: 1,
     label: '防御力',
   },
-  { key: 'hp', min: 4, max: 8, weight: 20, scalesWithLevel: true, decimals: 0, label: '生命值' },
+  { key: 'hp', min: 4, max: 8, weight: 20, scalesWithLevel: true, decimals: 1, label: '生命值' },
   {
     key: 'critRate',
     min: 0.5,
@@ -338,8 +468,8 @@ export const AFFIX_POOL: AffixPoolEntry[] = [
     decimals: 1,
     label: '暴击伤害',
   },
-  { key: 'acc', min: 0.5, max: 1.2, weight: 8, scalesWithLevel: true, decimals: 0, label: '命中' },
-  { key: 'eva', min: 0.4, max: 1.0, weight: 8, scalesWithLevel: true, decimals: 0, label: '闪避' },
+  { key: 'acc', min: 0.5, max: 1.2, weight: 8, scalesWithLevel: true, decimals: 1, label: '命中' },
+  { key: 'eva', min: 0.4, max: 1.0, weight: 8, scalesWithLevel: true, decimals: 1, label: '闪避' },
   {
     key: 'spd',
     min: 0.01,
@@ -387,6 +517,104 @@ export const AFFIX_POOL: AffixPoolEntry[] = [
   },
 ];
 
+/**
+ * 已有结算管线可以真实生效的职业专属词条。
+ *
+ * 池按职业显式分开，生成装备时必须由调用方传入当前职业，不能静默选一个默认职业。
+ * 数值沿用通用池公式：基准值 × L^1.3（若成长）× 品阶系数 × ±3%。
+ */
+export const PROFESSION_AFFIX_POOLS: Readonly<Record<ClassId, readonly AffixPoolEntry[]>> = {
+  swordsman: [
+    {
+      key: 'swd_guard',
+      min: 0.59,
+      max: 0.59,
+      weight: 30,
+      scalesWithLevel: true,
+      decimals: 1,
+      label: '守势',
+    },
+    {
+      key: 'swd_heavy',
+      min: 9.1,
+      max: 9.1,
+      weight: 25,
+      scalesWithLevel: false,
+      decimals: 1,
+      label: '重压',
+    },
+  ],
+  witch: [
+    {
+      key: 'wit_power',
+      min: 0.78,
+      max: 0.78,
+      weight: 30,
+      scalesWithLevel: true,
+      decimals: 1,
+      label: '灵能',
+    },
+    {
+      key: 'wit_elem',
+      min: 8.5,
+      max: 8.5,
+      weight: 25,
+      scalesWithLevel: false,
+      decimals: 1,
+      label: '元素亲和',
+    },
+  ],
+  shaman: [
+    {
+      key: 'sha_vitality',
+      min: 7.8,
+      max: 7.8,
+      weight: 30,
+      scalesWithLevel: true,
+      decimals: 1,
+      label: '回响',
+    },
+    {
+      key: 'sha_drain',
+      min: 1.6,
+      max: 1.6,
+      weight: 25,
+      scalesWithLevel: false,
+      decimals: 1,
+      label: '灵契',
+    },
+    {
+      key: 'sha_ward',
+      min: 2,
+      max: 2,
+      weight: 25,
+      scalesWithLevel: false,
+      decimals: 1,
+      label: '庇佑',
+    },
+  ],
+  catkin: [
+    {
+      key: 'cat_swift',
+      min: 0.039,
+      max: 0.039,
+      weight: 30,
+      scalesWithLevel: false,
+      decimals: 3,
+      label: '疾风',
+    },
+    {
+      key: 'cat_nimble',
+      min: 0.91,
+      max: 0.91,
+      weight: 25,
+      scalesWithLevel: true,
+      decimals: 1,
+      label: '灵巧',
+    },
+  ],
+};
+
 /** 词条中文名，UI 显示用 */
 export const AFFIX_LABELS: Record<AffixKey, string> = {
   atk: '攻击力',
@@ -401,6 +629,15 @@ export const AFFIX_LABELS: Record<AffixKey, string> = {
   elemDmg: '属性伤害',
   lifesteal: '吸血',
   skillMul: '技能倍率',
+  swd_guard: '守势',
+  swd_heavy: '重压',
+  wit_power: '灵能',
+  wit_elem: '元素亲和',
+  sha_vitality: '回响',
+  sha_drain: '灵契',
+  sha_ward: '庇佑',
+  cat_swift: '疾风',
+  cat_nimble: '灵巧',
 };
 
 /** 属性中文名 */

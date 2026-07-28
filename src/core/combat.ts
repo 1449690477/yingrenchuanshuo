@@ -12,6 +12,10 @@
 import type { Combatant, CombatResult } from './types';
 import type { Rng } from './rng';
 import { calcDamage, expectedDamage } from './formula';
+import {
+  IDLE_FREE_DAMAGE_RATIO,
+  IDLE_SUSTAIN_HINT_EFFICIENCY,
+} from '@/data/constants';
 
 /** 单场战斗的时间上限（秒），防止打不动时死循环 */
 const MAX_FIGHT_SECONDS = 300;
@@ -65,16 +69,14 @@ export function simulateFight(
     if (playerCd <= 0) {
       playerCd += playerInterval;
       const r = calcDamage(player, monster, pMul, rng);
-      monster.currentHp -= r.damage;
-      damageDealt += r.damage;
+      damageDealt += applyDamageAndLifesteal(player, monster, r.damage);
       if (monster.currentHp <= 0) break;
     }
 
     if (monsterCd <= 0) {
       monsterCd += monsterInterval;
       const r = calcDamage(monster, player, mMul, rng);
-      player.currentHp -= r.damage;
-      damageTaken += r.damage;
+      damageTaken += applyDamageAndLifesteal(monster, player, r.damage);
     }
   }
 
@@ -119,17 +121,109 @@ export function estimateIncomingDps(
   return expectedDamage(monster, player, skillMultiplier) * monster.stats.spd;
 }
 
-/**
- * 挂机可持续性判断。
- *
- * 玩家在一场战斗中承受的伤害如果超过血量上限的 SAFE_RATIO，
- * 就认为这张图挂不住（会死，需要吃药或者换图）。
- */
-const SAFE_RATIO = 0.6;
+/** 玩家每秒期望吸血量；只按真实输出管线计算，不把吸血当作基础属性。 */
+export function estimateLifestealPerSecond(
+  player: Combatant,
+  monster: Combatant,
+  skillMultiplier = 1.0,
+): number {
+  const lifestealPoints = player.combatBonuses?.lifesteal ?? 0;
+  return estimateDps(player, monster, skillMultiplier) * (Math.max(0, lifestealPoints) / 100);
+}
 
+export interface CombatPressure {
+  /** 玩家对当前怪物的期望 DPS。 */
+  playerDps: number;
+  /** 不含吸血抵消时，怪物对玩家的期望 DPS。 */
+  incomingDps: number;
+  /** 玩家每秒从真实输出中获得的期望回复。 */
+  lifestealPerSecond: number;
+  /** 按纯输出击杀当前怪物所需秒数。 */
+  fightSeconds: number;
+  /** 一场战斗扣除吸血后承受的总伤害。 */
+  damagePerFight: number;
+  /** 一场净承伤占玩家最大生命的比例。 */
+  damageRatio: number;
+  /** 超过免费承伤区间的比例。 */
+  excessDamageRatio: number;
+  /** 承伤后的挂机效率，合法战斗中始终大于 0 且不超过 1。 */
+  efficiency: number;
+}
+
+/**
+ * 计算一场战斗给挂机带来的承伤压力。
+ *
+ * 这不是死亡模拟：超额承伤解释为战后恢复占用的时间，因此只让产出变慢。
+ * 防御、生命、伤害减免和吸血都会通过同一条真实伤害管线改变结果。
+ */
+export function combatPressure(
+  player: Combatant,
+  monster: Combatant,
+  skillMultiplier = 1.0,
+): CombatPressure {
+  const playerDps = estimateDps(player, monster, skillMultiplier);
+  const incomingDps = estimateIncomingDps(player, monster);
+  const lifestealPerSecond = estimateLifestealPerSecond(player, monster, skillMultiplier);
+  const fightSeconds =
+    playerDps > 0 && monster.stats.hp > 0 ? monster.stats.hp / playerDps : Infinity;
+  const netIncomingDps = Math.max(0, incomingDps - lifestealPerSecond);
+  const damagePerFight = Number.isFinite(fightSeconds)
+    ? netIncomingDps * fightSeconds
+    : Infinity;
+  const damageRatio =
+    player.stats.hp > 0 && Number.isFinite(damagePerFight)
+      ? damagePerFight / player.stats.hp
+      : Infinity;
+  const excessDamageRatio = Number.isFinite(damageRatio)
+    ? Math.max(0, damageRatio - IDLE_FREE_DAMAGE_RATIO)
+    : Infinity;
+  const efficiency = Number.isFinite(excessDamageRatio) ? 1 / (1 + excessDamageRatio) : 0;
+
+  return {
+    playerDps,
+    incomingDps,
+    lifestealPerSecond,
+    fightSeconds,
+    damagePerFight,
+    damageRatio,
+    excessDamageRatio,
+    efficiency,
+  };
+}
+
+/** 承伤软模型的挂机效率 η。 */
+export function combatEfficiency(
+  player: Combatant,
+  monster: Combatant,
+  skillMultiplier = 1.0,
+): number {
+  return combatPressure(player, monster, skillMultiplier).efficiency;
+}
+
+/**
+ * 是否低于“建议换图”的承伤提示线。
+ *
+ * 只用于提示，不得据此停止挂机；效率模型本身不会把合法战斗压到 0。
+ */
 export function canSustain(player: Combatant, monster: Combatant, skillMultiplier = 1.0): boolean {
-  const ttk = timeToKill(player, monster, skillMultiplier);
-  if (!Number.isFinite(ttk)) return false;
-  const incoming = estimateIncomingDps(player, monster) * ttk;
-  return incoming < player.stats.hp * SAFE_RATIO;
+  return combatEfficiency(player, monster, skillMultiplier) >= IDLE_SUSTAIN_HINT_EFFICIENCY;
+}
+
+/**
+ * 结算一次实际伤害与吸血。
+ *
+ * 吸血只按目标剩余生命内的非过量伤害计算；回复后生命不得超过最大生命。
+ */
+function applyDamageAndLifesteal(
+  attacker: Combatant,
+  defender: Combatant,
+  rolledDamage: number,
+): number {
+  const actualDamage = Math.min(Math.max(0, defender.currentHp), Math.max(0, rolledDamage));
+  defender.currentHp = Math.max(0, defender.currentHp - actualDamage);
+
+  const lifestealPoints = attacker.combatBonuses?.lifesteal ?? 0;
+  const healing = actualDamage * (Math.max(0, lifestealPoints) / 100);
+  attacker.currentHp = Math.min(attacker.stats.hp, attacker.currentHp + healing);
+  return actualDamage;
 }
