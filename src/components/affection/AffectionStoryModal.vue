@@ -250,7 +250,7 @@ onUnmounted(() => {
 
             <p v-if="hasMemoryEcho" class="memory-echo">
               <Sparkles :size="13" aria-hidden="true" />
-              她还记得你上一次的回答
+              她仍记得你们做过的选择
             </p>
 
             <button

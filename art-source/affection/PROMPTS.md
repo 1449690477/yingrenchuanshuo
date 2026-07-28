@@ -195,3 +195,59 @@ CG 仍然不得出现角色、脸、身体或手。用成对物件和构图表�
 - 喵喵：`art-source/qa/affection-catkin-assets.png`
 
 脚本验证规格，联系表验证审美与可用性；两者都通过才可接入游戏。
+
+## 7. 第二批剧情场景与高潮 CG（第 4～6 幕）
+
+第二批统一使用 3:2 横版、手绘二次元 Galgame 场景。每张图均单独调用
+ImageGen，母版保存在 `art-source/affection/<scenes|cg>/round2/`，再由
+`npm run assets:affection` 无拉伸转为 960×640 WebP。所有提示都附加以下完整约束：
+
+```text
+polished painterly 2D Japanese fantasy game background, cute premium mobile anime idle RPG,
+exact 3:2 landscape, soft cinematic light, rich but mobile-readable detail,
+keep center-right calm and open for a separately layered full-body current-outfit character
+and the bottom dialogue UI; key props stay on the left or perimeter;
+no people, humanoids, silhouettes, reflections shaped like people, crowds, animals, mascots,
+hands, faces, readable text, letters, numbers, logos, watermarks, UI, frame or split panel
+```
+
+### 7.1 第 4～6 幕无人场景
+
+| 角色 / 幕次 | 母版与运行时 slug | 完整主体提示 |
+|---|---|---|
+| 剑姬 4 | `swordsman-paired-trial-sunset` | 樱木作战室兼手札修复间，晨光、两把空椅、合拢的战术手札、茶杯、收纳整齐的剑架；表现训练后共同复盘，以及“把背后交给你”的信任。 |
+| 剑姬 5 | `swordsman-lantern-dayoff` | 月夜樱花露台，双人坐垫、低茶桌、剑架上的入鞘长剑、折好披风、远处灯火城镇；表现第一次不必值守的安静休息。 |
+| 剑姬 6 | `swordsman-homecoming-sunrise` | 朝阳中的樱木归来居所，两套餐点、修复手札与玫瑰蓝金编绳、并排披风、门边入鞘长剑；表现每次归来都有并肩座位。 |
+| 魔女 4 | `witch-atelier-afterglow` | 雨后星糖实验室，玻璃罐、柔光炉、无字器皿与散落星晶，失败实验已安全熄灭；表现“不完美也会发光”。 |
+| 魔女 5 | `witch-star-skiff-night` | 紫色云海上的星舟甲板，望远镜、两杯热可可、折叠毛毯、月牙与光点星座；表现把暂停咒语和副驾驶位置交给搭档。 |
+| 魔女 6 | `witch-observatory-dawn` | 云上圆形观星台的黎明，大型铜望远镜、两枚星盘、薰衣草披肩、逐渐熄灭的水晶灯；表现两人成为不会偏航的坐标。 |
+| 灵巫 4 | `shaman-quiet-tea-afternoon` | 通透草药温室与小神亭，双坐垫、热茶、无字药瓶、浅蓝与淡紫花朵；表现通灵后把沉默和恢复时间也分给搭档。 |
+| 灵巫 5 | `shaman-storm-lantern-path` | 夏雨中的有顶神社长廊，两盏暖灯、干燥长凳、折好披肩、两只茶杯；表现她第一次主动请求同行守护。 |
+| 灵巫 6 | `shaman-first-snow-garden` | 初雪清晨的药草庭院，茶亭、两杯热茶、成对花灯符、玻璃罩下的药草与通向朝阳的雪路；表现愿望里已有对方。 |
+| 喵喵 4 | `catkin-base-expansion-day` | 珊瑚纸板与蓝白装饰的双人据点厨房 / 工坊，普通面包、矩形隔热手套、齿轮、蝴蝶结和菱形键帽纹样；不出现动物脸、爪印或宠物屋语义。 |
+| 喵喵 5 | `catkin-rainy-workshop-night` | 雨夜机械工坊，铜制装置、彩色键帽、无字空白图纸、两杯热饮与小型飞艇模型；表现队长也可以说累。 |
+| 喵喵 6 | `catkin-sunrise-departure-platform` | 朝霞中的粉青空轨站，两只旅行包、空白珐琅搭档徽章、只含彩线和圆点的路线图、等待启程的小飞艇；表现下一次仍并肩出发。 |
+
+`catkin-base-expansion-day` 初稿误带卡通动物脸和爪形烘焙物，已做两次定向
+编辑：动物脸替换为花形齿轮，爪形面包与隔热手套替换为普通面包和菱纹矩形
+手套。最终母版不复用初稿。
+
+### 7.2 四张纯物件高潮 CG
+
+| 角色 | 母版与运行时 slug | 完整主体提示 |
+|---|---|---|
+| 剑姬 | `swordsman-homecoming-knot` | 朝阳木桌近景：修复的皮革手札由玫瑰、深蓝、金色编绳系住，旁边是剑镡与两杯热茶；编绳是左侧焦点，右侧留对白空间。 |
+| 魔女 | `witch-shared-constellation` | 薰衣草绒布近景：两枚黄铜紫晶星盘边缘相触，晶针投出由纯光点连接的共同星座；无文字与符文。 |
+| 灵巫 | `shaman-paired-lantern-charm` | 初雪茶席近景：琥珀与冰蓝两枚透明花灯符以梅色丝绳相连，两杯热茶与药花虚化在后景。 |
+| 喵喵 | `catkin-partner-badges` | 朝霞站台近景：珊瑚粉与湖蓝旅行包各挂一枚空白珐琅搭档徽章与黄铜键帽坠饰，图案只使用星、圆点和抽象角色识别纹样。 |
+
+### 7.3 第二批人工 QA 联系表
+
+- `art-source/qa/affection-round2-swordsman-contact-sheet.png`
+- `art-source/qa/affection-round2-witch-contact-sheet.png`
+- `art-source/qa/affection-round2-shaman-contact-sheet.png`
+- `art-source/qa/affection-round2-catkin-contact-sheet.png`
+
+四张联系表均按“第 4 幕 / 第 5 幕 / 第 6 幕 / 高潮 CG”排列。自动审计负责
+格式、尺寸和精确清单；联系表负责确认无人、无伪文字、无肢体、无幼态宠物语义，
+以及中心偏右的实时换装角色叠放区没有被关键物件堵住。

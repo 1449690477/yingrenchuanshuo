@@ -216,6 +216,34 @@ describe('save schema', () => {
     expect(looksLikeSave(missingPrerequisite)).toBe(true);
   });
 
+  it('v9 接受完整六幕好感记忆，拒绝跳过第五幕伪造第六幕', () => {
+    const complete = createSave('六幕回忆', 'witch', 9, 1_800_000_000_000);
+    const progress = complete.affection.characters.witch;
+    progress.points = 1_460;
+    progress.completedStoryIds.push(
+      'aff_witch_01_star',
+      'aff_witch_02_observatory',
+      'aff_witch_03_recipe',
+      'aff_witch_04_miscalculation',
+      'aff_witch_05_nightflight',
+      'aff_witch_06_constellation',
+    );
+    Object.assign(progress.choiceHistory, {
+      aff_witch_01_star: 'name_star',
+      aff_witch_02_observatory: 'came_for_you',
+      aff_witch_03_recipe: 'every_secret',
+      aff_witch_04_miscalculation: 'review_without_blame',
+      aff_witch_05_nightflight: 'shared_pause_signal',
+      aff_witch_06_constellation: 'shared_blank',
+    });
+    expect(looksLikeSave(complete)).toBe(true);
+
+    const skipped = structuredClone(complete);
+    skipped.affection.characters.witch.completedStoryIds.splice(4, 1);
+    delete skipped.affection.characters.witch.choiceHistory.aff_witch_05_nightflight;
+    expect(looksLikeSave(skipped)).toBe(false);
+  });
+
   it('装备 UID 必须全局唯一，nextUid 必须大于已存在编号', () => {
     const save = createSave('小樱', 'witch', 3, 1);
     const instance = {

@@ -57,15 +57,27 @@ const SCENES = [
   'swordsman-training-dawn',
   'swordsman-rain-gate',
   'swordsman-victory-night',
+  'swordsman-paired-trial-sunset',
+  'swordsman-lantern-dayoff',
+  'swordsman-homecoming-sunrise',
   'witch-atelier-spark',
   'witch-observatory-night',
   'witch-secret-festival',
+  'witch-atelier-afterglow',
+  'witch-star-skiff-night',
+  'witch-observatory-dawn',
   'shaman-shrine-morning',
   'shaman-firefly-lake',
   'shaman-bell-corridor-rain',
+  'shaman-quiet-tea-afternoon',
+  'shaman-storm-lantern-path',
+  'shaman-first-snow-garden',
   'catkin-box-base',
   'catkin-workbench-evening',
   'catkin-rooftop-moon',
+  'catkin-base-expansion-day',
+  'catkin-rainy-workshop-night',
+  'catkin-sunrise-departure-platform',
 ];
 
 const CGS = [
@@ -73,6 +85,10 @@ const CGS = [
   'witch-coordinate-crystal',
   'shaman-split-wish',
   'catkin-paw-highfive',
+  'swordsman-homecoming-knot',
+  'witch-shared-constellation',
+  'shaman-paired-lantern-charm',
+  'catkin-partner-badges',
 ];
 
 const iconFiles = Object.entries(EQUIPMENT).flatMap(([classId, slugs]) =>
@@ -88,13 +104,13 @@ function assertManifest() {
   if (iconFiles.length !== 40) {
     throw new Error(`心虹装备图标清单应为 40 项，当前为 ${iconFiles.length}`);
   }
-  if (sceneFiles.length !== 12) {
-    throw new Error(`好感剧情场景清单应为 12 项，当前为 ${sceneFiles.length}`);
+  if (sceneFiles.length !== 24) {
+    throw new Error(`好感剧情场景清单应为 24 项，当前为 ${sceneFiles.length}`);
   }
-  if (cgFiles.length !== 4) {
-    throw new Error(`好感高潮 CG 清单应为 4 项，当前为 ${cgFiles.length}`);
+  if (cgFiles.length !== 8) {
+    throw new Error(`好感高潮 CG 清单应为 8 项，当前为 ${cgFiles.length}`);
   }
-  if (new Set(allFiles).size !== 56) {
+  if (new Set(allFiles).size !== 72) {
     throw new Error('好感度美术清单存在重复运行时路径');
   }
 }
@@ -128,7 +144,7 @@ async function assertExactRuntimeFiles() {
   if (missing.length > 0 || unexpected.length > 0) {
     throw new Error(
       [
-        '好感度运行时美术目录必须严格匹配 40 图标 + 12 场景 + 4 CG 清单。',
+        '好感度运行时美术目录必须严格匹配 40 图标 + 24 场景 + 8 CG 清单。',
         `缺失：${missing.join('、') || '无'}`,
         `多余：${unexpected.join('、') || '无'}`,
       ].join('\n'),
@@ -238,4 +254,4 @@ await assertExactRuntimeFiles();
 for (const file of iconFiles) await validateIcon(file);
 for (const file of [...sceneFiles, ...cgFiles]) await validateStoryImage(file);
 
-console.log('好感度美术审计通过：40 张 RGBA 图标 + 12 张 3:2 场景 + 4 张 3:2 物件 CG。');
+console.log('好感度美术审计通过：40 张 RGBA 图标 + 24 张 3:2 场景 + 8 张 3:2 物件 CG。');

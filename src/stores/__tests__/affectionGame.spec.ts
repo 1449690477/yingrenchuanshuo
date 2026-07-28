@@ -250,6 +250,58 @@ describe('affection store transaction', () => {
     expect(loaded?.affection.characters.shaman.choiceHistory[story.id]).toBe(choice.id);
   });
 
+  it('第二批三幕按 520/900/1400 心意线性开放，每幕等额结算且第六幕不可重复领奖', () => {
+    const game = useGameStore();
+    game.loadFrom(createSave('六幕剧情', 'swordsman', 20260803, NOW));
+    const stories = requireAffectionCharacter('swordsman').stories;
+
+    const blockedSave = createSave('缺少第五幕', 'swordsman', 20260804, NOW);
+    const blockedProgress = blockedSave.affection.characters.swordsman;
+    blockedProgress.points = 1_400;
+    for (const earlierStory of stories.slice(0, 4)) {
+      blockedProgress.completedStoryIds.push(earlierStory.id);
+      blockedProgress.choiceHistory[earlierStory.id] = earlierStory.choices[0]!.id;
+    }
+    game.loadFrom(blockedSave);
+    const finalStory = stories[5]!;
+    const beforeLockedAttempt = jsonClone(blockedProgress);
+    expect(
+      game.completeAffectionStoryChoice(
+        'swordsman',
+        finalStory.id,
+        finalStory.choices[0]!.id,
+      ),
+    ).toEqual({ ok: false, reason: 'locked' });
+    expect(game.save!.affection.characters.swordsman).toEqual(beforeLockedAttempt);
+
+    game.loadFrom(createSave('六幕剧情', 'swordsman', 20260803, NOW));
+    for (const story of stories) {
+      game.save!.affection.characters.swordsman.points = story.unlockPoints;
+      const choice = story.choices[story.episode % story.choices.length]!;
+      const result = game.completeAffectionStoryChoice('swordsman', story.id, choice.id);
+
+      expect(result).toMatchObject({
+        ok: true,
+        gainedPoints: story.completionPoints,
+        mood: choice.mood,
+      });
+      if (story.episode >= 4) expect(story.completionPoints).toBe(60);
+    }
+
+    const progress = game.save!.affection.characters.swordsman;
+    expect(progress.completedStoryIds).toEqual(stories.map((story) => story.id));
+    expect(progress.points).toBe(1_460);
+    const before = jsonClone(progress);
+    expect(
+      game.completeAffectionStoryChoice(
+        'swordsman',
+        finalStory.id,
+        finalStory.choices[0]!.id,
+      ),
+    ).toEqual({ ok: false, reason: 'already-completed' });
+    expect(game.save!.affection.characters.swordsman).toEqual(before);
+  });
+
   it('未知互动是配置错误而不是静默失败，无存档则返回明确业务结果', () => {
     const game = useGameStore();
     expect(game.interactWithCharacter('witch', 'missing')).toEqual({

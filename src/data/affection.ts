@@ -81,6 +81,17 @@ const interaction = (
   ...(requiredStoryId ? { requiredStoryId } : {}),
 });
 
+const rememberedChoices = (
+  fromStoryId: string,
+  speaker: string,
+  entries: readonly (readonly [choiceId: string, text: string])[],
+): AffectionMemoryCallback[] =>
+  entries.map(([choiceId, text]) => ({
+    fromStoryId,
+    choiceId,
+    dialogue: [{ speaker, text }],
+  }));
+
 const SWORDSMAN_STORIES: readonly AffectionStoryDefinition[] = [
   {
     id: 'aff_swordsman_01_dawn',
@@ -235,6 +246,183 @@ const SWORDSMAN_STORIES: readonly AffectionStoryDefinition[] = [
         responseDialogue: [
           { text: '她耳尖微红，第一次没能立刻回话。' },
           { speaker: '剑姬', text: '这样的夸奖……比正面接一剑更让人没防备。' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'aff_swordsman_04_backguard',
+    classId: 'swordsman',
+    episode: 4,
+    title: '把背后交给你',
+    episodeLabel: '第四幕 · 并肩战术',
+    unlockPoints: 520,
+    requiredStoryIds: ['aff_swordsman_03_victory'],
+    completionPoints: 60,
+    backgroundAsset: 'assets/affection/scenes/swordsman-paired-trial-sunset.webp',
+    memoryCallbacks: [
+      ...rememberedChoices('aff_swordsman_01_dawn', '剑姬', [
+        ['watch_breath', '你最先看见的总是我有没有勉强自己。今晚也请你看着我。'],
+        ['wooden_sword', '晨练时你选择并肩而立，这次也请与我一起核对每个信号。'],
+        ['ask_guard', '那次你先问过才替我系护腕，所以我愿意把背后交给你。'],
+      ]),
+      ...rememberedChoices('aff_swordsman_03_victory', '剑姬', [
+        ['her_smile', '你看见过我卸下防备的样子，所以这份手札也不必对你藏着。'],
+        ['looking_for_me', '我每次收剑都会确认你的位置，正好可以把它定成安全信号。'],
+        ['remember_her', '你记住的是握剑的人，而这本手札要记住我们两个人的判断。'],
+      ]),
+    ],
+    openingDialogue: [
+      { text: '训练后的樱木作战室里，摊开的战术手札有几页被剑风划破。' },
+      { speaker: '剑姬', text: '旧手札只写了我如何挡在前面。现在看来，那不是完整的并肩。' },
+      { text: '她递来修补纸与缎带，空白页上留着信号、背后与共同撤退三个位置。' },
+    ],
+    choices: [
+      {
+        id: 'agree_safety_signal',
+        label: '“先约定一个只有我们懂的安全信号。”',
+        mood: 'moved',
+        responseDialogue: [
+          { speaker: '剑姬', text: '收到信号就互相确认，不许任何人独自逞强。' },
+          { text: '她在修好的页角画下两道并行剑纹，与你一起试过信号。' },
+        ],
+      },
+      {
+        id: 'rotate_backguard',
+        label: '“轮流守住背后，谁都不永远站在最前面。”',
+        mood: 'bright',
+        responseDialogue: [
+          { speaker: '剑姬', text: '把背后交给你，并不削弱我的剑。它让我们的视野完整。' },
+          { text: '她把背靠背阵形画进手札，也将你的名字写在与自己平齐的位置。' },
+        ],
+      },
+      {
+        id: 'retreat_together',
+        label: '“再写一条：形势不对时必须共同撤退。”',
+        mood: 'shy',
+        responseDialogue: [
+          { text: '她停笔片刻，认真把“共同”二字描得更深。' },
+          { speaker: '剑姬', text: '不是谁拖累谁，是为了下一次仍能并肩出发。约定。' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'aff_swordsman_05_dayoff',
+    classId: 'swordsman',
+    episode: 5,
+    title: '今夜不必守在最前面',
+    episodeLabel: '第五幕 · 灯下休息日',
+    unlockPoints: 900,
+    requiredStoryIds: ['aff_swordsman_04_backguard'],
+    completionPoints: 60,
+    backgroundAsset: 'assets/affection/scenes/swordsman-lantern-dayoff.webp',
+    memoryCallbacks: [
+      ...rememberedChoices('aff_swordsman_02_rain', '剑姬', [
+        ['ask_closer', '雨伞下你先问能否靠近；今晚我也想先问你愿不愿意一起坐下。'],
+        ['share_half', '你教会我保护可以平分，所以担忧也不该由一个人藏着。'],
+        ['hold_umbrella', '你替我握过伞柄，今晚能否也替我把茶盏放稳？'],
+      ]),
+      ...rememberedChoices('aff_swordsman_04_backguard', '剑姬', [
+        ['agree_safety_signal', '我们的安全信号今晚不用于出战，只用来提醒彼此好好休息。'],
+        ['rotate_backguard', '你说轮流守住背后，所以这次请让我放心坐在你身边。'],
+        ['retreat_together', '共同撤退也包括从忙碌里撤退。手札上写得很清楚。'],
+      ]),
+    ],
+    openingDialogue: [
+      { text: '灯笼暖光铺满廊下，她没有佩剑，只在两张相邻坐垫旁放了茶与点心。' },
+      { speaker: '剑姬', text: '今晚没有巡逻表。我却习惯站在最外侧，一时不知道怎样休息。' },
+      { speaker: '剑姬', text: '你愿意陪我练习一次什么都不守护的夜晚吗？' },
+    ],
+    choices: [
+      {
+        id: 'share_quiet_tea',
+        label: '“先坐下喝茶，沉默也算今晚的安排。”',
+        mood: 'moved',
+        responseDialogue: [
+          { text: '她终于从廊柱旁坐下，把佩剑习惯放置的位置留空。' },
+          { speaker: '剑姬', text: '原来不说话也不会错过什么。你在这里，夜色就很完整。' },
+        ],
+      },
+      {
+        id: 'choose_snack',
+        label: '“选一种点心吧，今晚只讨论喜欢什么。”',
+        mood: 'shy',
+        responseDialogue: [
+          { speaker: '剑姬', text: '这么简单的问题，竟比战术选择更难。' },
+          { text: '她把选中的点心分成两半，笑意在灯影里慢慢松开。' },
+        ],
+      },
+      {
+        id: 'one_safety_check',
+        label: '“若还是想确认安全，我们就轮流看一眼，然后继续休息。”',
+        mood: 'calm',
+        responseDialogue: [
+          { speaker: '剑姬', text: '不是禁止警觉，而是不让它把整晚都占满。这个办法很好。' },
+          { text: '她只确认一次庭院，回来后便把座位向你这边挪近。' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'aff_swordsman_06_homecoming',
+    classId: 'swordsman',
+    episode: 6,
+    title: '归来时，座位仍在这里',
+    episodeLabel: '第六幕 · 晨光归席',
+    unlockPoints: 1_400,
+    requiredStoryIds: ['aff_swordsman_05_dayoff'],
+    completionPoints: 60,
+    backgroundAsset: 'assets/affection/scenes/swordsman-homecoming-sunrise.webp',
+    cgAsset: 'assets/affection/cg/swordsman-homecoming-knot.webp',
+    memoryCallbacks: [
+      ...rememberedChoices('aff_swordsman_03_victory', '剑姬', [
+        ['her_smile', '你记得我卸下防备后的笑，所以今天我想坦然地笑给你看。'],
+        ['looking_for_me', '我收剑后寻找的人，此刻就在晨光里等我。'],
+        ['remember_her', '你记住握剑的人，我也早已记住接住我真心的人。'],
+      ]),
+      ...rememberedChoices('aff_swordsman_04_backguard', '剑姬', [
+        ['agree_safety_signal', '我们约好的安全信号仍在，往后的路更不必谁独自判断。'],
+        ['rotate_backguard', '背后可以轮流交给彼此，归来的方向也可以共同确认。'],
+        ['retreat_together', '手札写着共同撤退，所以每一次远征都要一起回来。'],
+      ]),
+      ...rememberedChoices('aff_swordsman_05_dayoff', '剑姬', [
+        ['share_quiet_tea', '灯下那段安静让我知道，归来后有人同坐就已经足够。'],
+        ['choose_snack', '我们分享过不谈战术的夜晚，所以今天也不必急着汇报战果。'],
+        ['one_safety_check', '你允许我只确认一次安全；现在我能安心走向为我留着的座位。'],
+      ]),
+    ],
+    openingDialogue: [
+      { text: '远征后的晨光穿过樱木窗格，作战室里那张相邻座位仍保持着离开前的样子。' },
+      { speaker: '剑姬', text: '我一路都记得：归来时，不必先证明自己赢得多漂亮。' },
+      { speaker: '剑姬', text: '只要还能回到这里，与你一起解开这枚归来结。' },
+    ],
+    choices: [
+      {
+        id: 'choose_each_day',
+        label: '“欢迎回来。先坐下，战报可以以后再说。”',
+        mood: 'moved',
+        responseDialogue: [
+          { speaker: '剑姬', text: '原来这四个字，比任何凯旋礼都更让我安心。' },
+          { text: '她坐到一直为她保留的位置，将归来结的一端交给你。' },
+        ],
+      },
+      {
+        id: 'share_future_map',
+        label: '“一起把归来结系好，再约定下一次共同撤退。”',
+        mood: 'bright',
+        responseDialogue: [
+          { speaker: '剑姬', text: '无论出发几次，都要把彼此带回这张座位旁。' },
+          { text: '两段缎带在你们手中合成一枚不束缚任何人的并肩结。' },
+        ],
+      },
+      {
+        id: 'stand_as_equals',
+        label: '“座位会留着，但我们也可以一起去创造新的归处。”',
+        mood: 'shy',
+        responseDialogue: [
+          { speaker: '剑姬', text: '归处不是让人停下的锁，而是让人敢继续向前的理由。' },
+          { text: '她与你并肩推开作战室的门，晨樱正落在下一段路上。' },
         ],
       },
     ],
@@ -396,6 +584,183 @@ const WITCH_STORIES: readonly AffectionStoryDefinition[] = [
       },
     ],
   },
+  {
+    id: 'aff_witch_04_miscalculation',
+    classId: 'witch',
+    episode: 4,
+    title: '不完美也会发光',
+    episodeLabel: '第四幕 · 误差星光',
+    unlockPoints: 520,
+    requiredStoryIds: ['aff_witch_03_recipe'],
+    completionPoints: 60,
+    backgroundAsset: 'assets/affection/scenes/witch-atelier-afterglow.webp',
+    memoryCallbacks: [
+      ...rememberedChoices('aff_witch_01_star', '魔女', [
+        ['ask_both', '偏航星还记得你会先问过我们两个，所以今晚它主动飞来邀请你。'],
+        ['hold_notes', '你替我按住过笔记，这次也来陪我把误差记录完整。'],
+        ['name_star', '你说星星只是想被记住；我把今晚的每一颗都记在你的名字旁边。'],
+      ]),
+      ...rememberedChoices('aff_witch_03_recipe', '魔女', [
+        ['wait_home', '你把回程坐标写成等我的地方，所以算错一步也不代表无法回来。'],
+        ['no_hiding', '你说不必把失控藏成玩笑，那我就承认：这次实验算错了。'],
+        ['every_secret', '你要参与每个秘密实验。很好，失败记录也算秘密实验的一部分。'],
+      ]),
+    ],
+    openingDialogue: [
+      { text: '夕照落进工坊，一枚算错刻度的星晶正忽明忽暗，桌边散着未完成的公式。' },
+      { speaker: '魔女', text: '它没有按预计变成完美球体，却还在发光。' },
+      { speaker: '魔女', text: '我知道失败记录也有价值，只是今天想听你陪我给它一个新结论。' },
+    ],
+    choices: [
+      {
+        id: 'keep_unique_shape',
+        label: '“保留它的形状吧，不完美也是这次实验独有的结果。”',
+        mood: 'moved',
+        responseDialogue: [
+          { speaker: '魔女', text: '独有，而不是残次品……这个分类比我的公式更准确。' },
+          { text: '歪斜星晶在她掌心亮起柔软余辉，像认真接受了自己的模样。' },
+        ],
+      },
+      {
+        id: 'review_without_blame',
+        label: '“一起复盘误差，但今天不急着把它修正。”',
+        mood: 'bright',
+        responseDialogue: [
+          { speaker: '魔女', text: '把求知欲留下，把责备拿走。不错的复盘原则。' },
+          { text: '你们并排补完记录，并在最后一栏共同画下一颗仍在发光的小星。' },
+        ],
+      },
+      {
+        id: 'treasure_accident',
+        label: '“如果你愿意，把它送给我；我喜欢这次意外。”',
+        mood: 'shy',
+        responseDialogue: [
+          { speaker: '魔女', text: '你这样说，会让天才魔女开始期待下一次小误差。' },
+          { text: '她为星晶系上细绳，郑重放进你伸出的掌心。' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'aff_witch_05_nightflight',
+    classId: 'witch',
+    episode: 5,
+    title: '把暂停咒语交给你',
+    episodeLabel: '第五幕 · 星舟夜航',
+    unlockPoints: 900,
+    requiredStoryIds: ['aff_witch_04_miscalculation'],
+    completionPoints: 60,
+    backgroundAsset: 'assets/affection/scenes/witch-star-skiff-night.webp',
+    memoryCallbacks: [
+      ...rememberedChoices('aff_witch_02_observatory', '魔女', [
+        ['sit_near', '你总会先问能否靠近。今晚我先回答：可以，坐到我身边。'],
+        ['soft_cushion', '观星台的软垫还在；星舟上也给你留了同样的位置。'],
+        ['came_for_you', '那晚你主要是来见我……现在这句话成了归航咒最稳定的坐标。'],
+      ]),
+      ...rememberedChoices('aff_witch_04_miscalculation', '魔女', [
+        ['keep_unique_shape', '那枚不规则星晶还在发光，它提醒我不必把每一步都算得完美。'],
+        ['review_without_blame', '你教我复盘时拿走责备，所以暂停也不会变成失败。'],
+        ['treasure_accident', '你喜欢那次意外；这次夜航偏离一点，也许会看见新的星河。'],
+      ]),
+    ],
+    openingDialogue: [
+      { text: '星舟划过夜空，她同时修正航线、记录星象，指尖的魔光越来越急。' },
+      { speaker: '魔女', text: '我给所有法术都写过停止条件，唯独没给自己准备暂停咒语。' },
+      { speaker: '魔女', text: '现在想把它交给你，但何时使用仍要由我们一起判断。' },
+    ],
+    choices: [
+      {
+        id: 'ask_before_pause',
+        label: '“我会先问你，再念暂停咒；决定权仍在你。”',
+        mood: 'calm',
+        responseDialogue: [
+          { text: '她把咒语写进你的航图，也在旁边标下注释：先确认。' },
+          { speaker: '魔女', text: '很好。关心不是擅自夺走控制权。' },
+        ],
+      },
+      {
+        id: 'shared_pause_signal',
+        label: '“我们设一个共同信号，谁太累都可以提出暂停。”',
+        mood: 'moved',
+        responseDialogue: [
+          { speaker: '魔女', text: '双向生效才公平。那我也有权提醒你休息。' },
+          { text: '两枚暂停符号同时落在星舟舵盘两侧，亮度完全相同。' },
+        ],
+      },
+      {
+        id: 'pause_for_stars',
+        label: '“现在就试一次。停下来看看星河，不做任何记录。”',
+        mood: 'shy',
+        responseDialogue: [
+          { speaker: '魔女', text: '命令已确认——暂停。原来星星不写进报告也不会消失。' },
+          { text: '星舟放慢速度，她与你靠在舷边，看无须计算的光从身旁流过。' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'aff_witch_06_constellation',
+    classId: 'witch',
+    episode: 6,
+    title: '不会偏航的坐标',
+    episodeLabel: '第六幕 · 共享星座',
+    unlockPoints: 1_400,
+    requiredStoryIds: ['aff_witch_05_nightflight'],
+    completionPoints: 60,
+    backgroundAsset: 'assets/affection/scenes/witch-observatory-dawn.webp',
+    cgAsset: 'assets/affection/cg/witch-shared-constellation.webp',
+    memoryCallbacks: [
+      ...rememberedChoices('aff_witch_03_recipe', '魔女', [
+        ['wait_home', '归航坐标仍是你等待的地方，而今天我们要一起写下出发方向。'],
+        ['no_hiding', '我不再把不安藏成玩笑，也不会把喜欢藏成谜题。'],
+        ['every_secret', '每个秘密实验都有你的位置，这张星图当然也不例外。'],
+      ]),
+      ...rememberedChoices('aff_witch_04_miscalculation', '魔女', [
+        ['keep_unique_shape', '那枚不完美星晶仍在发光，正适合成为共享星座的第一颗星。'],
+        ['review_without_blame', '我们一起记录过误差，今天也一起写下不会偏航的公式。'],
+        ['treasure_accident', '你愿意珍藏意外的光，所以这张星图也不必追求标准答案。'],
+      ]),
+      ...rememberedChoices('aff_witch_05_nightflight', '魔女', [
+        ['ask_before_pause', '你答应先确认再念暂停咒，所以这份坐标不会剥夺任何人的选择。'],
+        ['shared_pause_signal', '我们的暂停信号双向生效，共享坐标也该让两个人都能改写。'],
+        ['pause_for_stars', '夜航时我们停下来只看星河，才发现最清楚的坐标一直在身边。'],
+      ]),
+    ],
+    openingDialogue: [
+      { text: '晨光进入观星台，一张由两条独立星轨组成的共享星座悬在穹顶下。' },
+      { speaker: '魔女', text: '它不是让谁围着谁转，而是让两条航线都知道怎样找到对方。' },
+      { speaker: '魔女', text: '最后一个坐标，应该由我们共同写下。' },
+    ],
+    choices: [
+      {
+        id: 'two_home_stars',
+        label: '“画两颗各自发光、却能彼此找到的归航星。”',
+        mood: 'moved',
+        responseDialogue: [
+          { speaker: '魔女', text: '不会互相吞没，也永远知道对方在哪里。完美。' },
+          { text: '共享星座中亮起两颗归航星，各自映着另一条航线的微光。' },
+        ],
+      },
+      {
+        id: 'open_route',
+        label: '“先画一条没有终点的路线，以后边走边补。”',
+        mood: 'bright',
+        responseDialogue: [
+          { speaker: '魔女', text: '那这会是全世界唯一一幅持续更新的星座。' },
+          { text: '她与你同时落笔，星路朝尚未命名的远方延伸。' },
+        ],
+      },
+      {
+        id: 'shared_blank',
+        label: '“留一块空白，给以后改变主意的我们。”',
+        mood: 'shy',
+        responseDialogue: [
+          { speaker: '魔女', text: '誓约里也允许修改答案……你果然很适合和我研究一辈子。' },
+          { text: '她把空白处认真圈起，与你各留下一颗尚未连线的星点。' },
+        ],
+      },
+    ],
+  },
 ] as const;
 
 const SHAMAN_STORIES: readonly AffectionStoryDefinition[] = [
@@ -545,6 +910,183 @@ const SHAMAN_STORIES: readonly AffectionStoryDefinition[] = [
         responseDialogue: [
           { text: '她写下愿望，将纸折成两半。' },
           { speaker: '灵巫', text: '一半给神明，一半给你保管。这样明天就不会走丢。' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'aff_shaman_04_quiet',
+    classId: 'shaman',
+    episode: 4,
+    title: '把沉默也分给你',
+    episodeLabel: '第四幕 · 午后茶席',
+    unlockPoints: 520,
+    requiredStoryIds: ['aff_shaman_03_wish'],
+    completionPoints: 60,
+    backgroundAsset: 'assets/affection/scenes/shaman-quiet-tea-afternoon.webp',
+    memoryCallbacks: [
+      ...rememberedChoices('aff_shaman_01_bell', '灵巫', [
+        ['wait_silently', '你曾陪我等风铃回答，所以今天也愿意陪我慢慢喝完这壶茶吗？'],
+        ['leave_tea', '那杯没有打扰我的热茶，让我第一次期待与你共享闲暇。'],
+        ['ask_to_sit', '你总会先问能否留下；今天这个位置已经主动替你留好。'],
+      ]),
+      ...rememberedChoices('aff_shaman_03_wish', '灵巫', [
+        ['wish_for_her', '你让我先写自己的愿望，今天我想要的只是与你共享这段安静。'],
+        ['guard_each_other', '守护是一个圆，沉默也可以在我们之间平等流动。'],
+        ['share_tomorrow', '你预约过一小段明天；我把今天的茶席留成了两人份。'],
+      ]),
+    ],
+    openingDialogue: [
+      { text: '午后茶席被树影分成柔软的明暗，壶中热气缓慢升起，没有任何仪式等她主持。' },
+      { speaker: '灵巫', text: '我今天不想解释沉默，也不想急着寻找答案。' },
+      { speaker: '灵巫', text: '如果你愿意，可以陪我把这段安静分成两人份。' },
+    ],
+    choices: [
+      {
+        id: 'share_silence',
+        label: '“好。我们先喝茶，谁想说话时再开口。”',
+        mood: 'bright',
+        responseDialogue: [
+          { speaker: '灵巫', text: '谢谢你没有把安静误解成疏远。' },
+          { text: '她替两只茶杯添满热茶，杯沿在桌上保持着自在的距离。' },
+        ],
+      },
+      {
+        id: 'rest_as_equals',
+        label: '“我也有想安静的时候。今天不需要谁照顾谁。”',
+        mood: 'calm',
+        responseDialogue: [
+          { speaker: '灵巫', text: '平等地分享沉默，原来也能让人感到被理解。' },
+          { text: '风穿过庭院，茶香与安静同时停在两人之间。' },
+        ],
+      },
+      {
+        id: 'leave_choice_space',
+        label: '“若你想结束茶席，随时告诉我；留下也由你决定。”',
+        mood: 'shy',
+        responseDialogue: [
+          { speaker: '灵巫', text: '选择离开也不会伤害关系……这样的余地让我更愿意留下。' },
+          { text: '她轻轻点头，将下一盏茶也倒成了两人份。' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'aff_shaman_05_storm',
+    classId: 'shaman',
+    episode: 5,
+    title: '这次让我也被守护',
+    episodeLabel: '第五幕 · 暴雨灯路',
+    unlockPoints: 900,
+    requiredStoryIds: ['aff_shaman_04_quiet'],
+    completionPoints: 60,
+    backgroundAsset: 'assets/affection/scenes/shaman-storm-lantern-path.webp',
+    memoryCallbacks: [
+      ...rememberedChoices('aff_shaman_02_firefly', '灵巫', [
+        ['wait_until_safe', '你愿意等我放心才接过灵火，所以今晚我也愿意说出不安。'],
+        ['walk_together', '那次绕湖的路不再漫长；今夜也请陪我走过这一小段。'],
+        ['name_light', '归灯会带人回到想见的人身边，而它已经停在你这里。'],
+      ]),
+      ...rememberedChoices('aff_shaman_04_quiet', '灵巫', [
+        ['share_silence', '茶席上你愿意等我开口，所以这次我也能坦白说需要帮助。'],
+        ['rest_as_equals', '我们共享过不必互相照顾的安静；现在我愿意接受一次守护。'],
+        ['leave_choice_space', '你把留下或离开的选择交给我；暴雨里我选择与你并肩走。'],
+      ]),
+    ],
+    openingDialogue: [
+      { text: '暴雨压低山路灯笼，她护送最后一簇灵火归位后，脚步终于在石阶边停住。' },
+      { speaker: '灵巫', text: '我习惯替所有人举灯，可今晚确实有些走不动了。' },
+      { speaker: '灵巫', text: '这次……可以让我也被守护一段路吗？' },
+    ],
+    choices: [
+      {
+        id: 'carry_lantern_together',
+        label: '“把灯交给我，我们按你的速度一起走。”',
+        mood: 'moved',
+        responseDialogue: [
+          { speaker: '灵巫', text: '不是催我追上，而是愿意陪我放慢……谢谢。' },
+          { text: '你接过灯柄，她仍握着另一侧，暖光稳稳落在共同的路上。' },
+        ],
+      },
+      {
+        id: 'rest_under_eaves',
+        label: '“先到避雨处休息，路不会因为暂停而消失。”',
+        mood: 'calm',
+        responseDialogue: [
+          { speaker: '灵巫', text: '我总告诉别人可以休息，却忘了这句话也适用于自己。' },
+          { text: '你们在檐下并肩坐好，灯火隔着雨幕照亮前方石阶。' },
+        ],
+      },
+      {
+        id: 'take_guard_turn',
+        label: '“前半程你护送灵火，后半程换我守着你。”',
+        mood: 'shy',
+        responseDialogue: [
+          { speaker: '灵巫', text: '守护原来真的会回到自己身边。那就拜托你了，同行者。' },
+          { text: '她不再走在最前面，而是与你共享灯下同一片干燥位置。' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'aff_shaman_06_firstsnow',
+    classId: 'shaman',
+    episode: 6,
+    title: '愿望里已经有你',
+    episodeLabel: '第六幕 · 初雪愿灯',
+    unlockPoints: 1_400,
+    requiredStoryIds: ['aff_shaman_05_storm'],
+    completionPoints: 60,
+    backgroundAsset: 'assets/affection/scenes/shaman-first-snow-garden.webp',
+    cgAsset: 'assets/affection/cg/shaman-paired-lantern-charm.webp',
+    memoryCallbacks: [
+      ...rememberedChoices('aff_shaman_03_wish', '灵巫', [
+        ['wish_for_her', '你曾让我先写自己的愿望；现在我知道它是拥有可以回去的地方。'],
+        ['guard_each_other', '守护是一个圆，而我们已经站在圆的两端彼此照看。'],
+        ['share_tomorrow', '那张愿纸的一半仍在你那里，今天我们来补上明天。'],
+      ]),
+      ...rememberedChoices('aff_shaman_04_quiet', '灵巫', [
+        ['share_silence', '午后那杯安静的茶，让平凡日子也值得认真期待。'],
+        ['rest_as_equals', '茶席的安静不是空白，而是我们都可以自在呼吸的地方。'],
+        ['leave_choice_space', '你把停留的选择留给我；往后我也愿意尊重你的方向。'],
+      ]),
+      ...rememberedChoices('aff_shaman_05_storm', '灵巫', [
+        ['carry_lantern_together', '暴雨里你按我的速度举灯，所以初雪中也不必催促任何答案。'],
+        ['rest_under_eaves', '你提醒我暂停不会让道路消失，愿望也可以慢慢写。'],
+        ['take_guard_turn', '那晚守护回到我身边；今天我的愿望里自然也有你的位置。'],
+      ]),
+    ],
+    openingDialogue: [
+      { text: '初雪落在庭院，两盏成对愿灯映着未被踩乱的白色小径。' },
+      { speaker: '灵巫', text: '以前我的愿望总写给别人。现在再落笔，里面已经自然地有了你。' },
+      { speaker: '灵巫', text: '不是替你决定未来，只是邀请你一起点亮这对愿灯。' },
+    ],
+    choices: [
+      {
+        id: 'write_each_names',
+        label: '“各写自己的名字，让两盏灯自由选择相互照亮。”',
+        mood: 'moved',
+        responseDialogue: [
+          { speaker: '灵巫', text: '各自完整，又愿意把光分给对方。正是我想要的答案。' },
+          { text: '两枚灯形护符同时亮起，光线在空中温柔交汇。' },
+        ],
+      },
+      {
+        id: 'write_open_door',
+        label: '“写‘随时欢迎回来’，但谁都不必放弃自己的旅途。”',
+        mood: 'bright',
+        responseDialogue: [
+          { speaker: '灵巫', text: '门永远可以打开，脚步也永远可以向前。' },
+          { text: '她在灯面添上一条通往远方、又折返回来的细线。' },
+        ],
+      },
+      {
+        id: 'leave_space',
+        label: '“先留一面空白，以后的愿望由未来的我们补写。”',
+        mood: 'shy',
+        responseDialogue: [
+          { speaker: '灵巫', text: '好。心意不是一次写完的符咒，而是长久的共同练习。' },
+          { text: '她把空白灯面朝向你，与你一起放入第一簇归灯火。' },
         ],
       },
     ],
@@ -701,6 +1243,183 @@ const CATKIN_STORIES: readonly AffectionStoryDefinition[] = [
         responseDialogue: [
           { text: '她的尾巴一下扬起，又立刻压回身边。' },
           { speaker: '喵喵', text: '再说一次。刚才我在看月亮，没听清。' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'aff_catkin_04_expansion',
+    classId: 'catkin',
+    episode: 4,
+    title: '两把平等的钥匙',
+    episodeLabel: '第四幕 · 据点扩建',
+    unlockPoints: 520,
+    requiredStoryIds: ['aff_catkin_03_rooftop'],
+    completionPoints: 60,
+    backgroundAsset: 'assets/affection/scenes/catkin-base-expansion-day.webp',
+    memoryCallbacks: [
+      ...rememberedChoices('aff_catkin_01_box', '喵喵', [
+        ['knock_first', '你第一次进据点会认真敲门，所以新区域也可以放心给你平等钥匙。'],
+        ['warm_milk', '那杯莓奶换到的半个位置，早就扩建成副队长专席了。'],
+        ['reinforce_box', '你尊重我的据点规划，所以扩建规则也要听听你的专业意见。'],
+      ]),
+      ...rememberedChoices('aff_catkin_03_rooftop', '喵喵', [
+        ['wait_invite', '屋顶上你等我发出邀请，所以新据点的钥匙也由我正式交给你。'],
+        ['share_candy', '战利品糖能公平分，新据点的权限当然也能一人一半。'],
+        ['came_for_her', '你说那晚是来找我的……所以我想给你一把随时能来找我的钥匙。'],
+      ]),
+    ],
+    openingDialogue: [
+      { text: '白天的据点扩建刚结束，两把造型相同的钥匙并排放在新门前。' },
+      { speaker: '喵喵', text: '不是备用钥匙，也不是谁替谁保管。两把权限完全一样。' },
+      { speaker: '喵喵', text: '新区域的第一条使用规则，我们一起定。' },
+    ],
+    choices: [
+      {
+        id: 'equal_door_rights',
+        label: '“谁先回来谁开门，不需要向另一位申请。”',
+        mood: 'moved',
+        responseDialogue: [
+          { speaker: '喵喵', text: '通过！平等钥匙就该有平等的开门权。' },
+          { text: '她把其中一把推给你，自己拿起另一把同时试锁。' },
+        ],
+      },
+      {
+        id: 'respect_work_zones',
+        label: '“各自的工作区先敲门，共享区随时欢迎。”',
+        mood: 'shy',
+        responseDialogue: [
+          { speaker: '喵喵', text: '边界明确，集合方便。副队长提案非常专业！' },
+          { text: '她在平面图上圈出两个独立角落，也画出宽敞的共同桌面。' },
+        ],
+      },
+      {
+        id: 'renegotiate_rules',
+        label: '“若规则不合适，任何一方都能提出重谈。”',
+        mood: 'bright',
+        responseDialogue: [
+          { speaker: '喵喵', text: '批准。搭档协议当然要能升级，不能把谁困住。' },
+          { text: '她将两把钥匙再次并排放好，认真与你确认这项规则。' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'aff_catkin_05_rainwatch',
+    classId: 'catkin',
+    episode: 5,
+    title: '队长也可以说累',
+    episodeLabel: '第五幕 · 雨夜轮值',
+    unlockPoints: 900,
+    requiredStoryIds: ['aff_catkin_04_expansion'],
+    completionPoints: 60,
+    backgroundAsset: 'assets/affection/scenes/catkin-rainy-workshop-night.webp',
+    memoryCallbacks: [
+      ...rememberedChoices('aff_catkin_02_glove', '喵喵', [
+        ['ask_buckle', '你会先问过才碰装备，所以雨夜里我也能放心请你确认工具安全。'],
+        ['hold_light', '你替我照过灯却把修理权留给我，这才是优秀搭档的配合。'],
+        ['glove_highfive', '搭档集合暗号仍然有效，开工和收工都要击掌确认！'],
+      ]),
+      ...rememberedChoices('aff_catkin_04_expansion', '喵喵', [
+        ['equal_door_rights', '两把钥匙权限相同，所以累的时候也有同样的休息权。'],
+        ['respect_work_zones', '你替独立工作区保留边界，所以我可以放心说现在想安静一会儿。'],
+        ['renegotiate_rules', '规则可以重谈——那我现在正式提出：今晚暂停队长值班。'],
+      ]),
+    ],
+    openingDialogue: [
+      { text: '雨夜的工作间里，修理工具已经收好，她却还守着熄暗一半的台灯。' },
+      { speaker: '喵喵', text: '队长今天判断失误：明明很累，还安排了额外检修。' },
+      { speaker: '喵喵', text: '我不需要命令，只想听搭档提出一个平等的休息方案。' },
+    ],
+    choices: [
+      {
+        id: 'two_work_desks',
+        label: '“今晚一起收工，剩下的工作明天平分。”',
+        mood: 'moved',
+        responseDialogue: [
+          { speaker: '喵喵', text: '不是替我包办，是把明天也一起分担。批准。' },
+          { text: '她关掉剩下的台灯，与你一起确认工具都安全归位。' },
+        ],
+      },
+      {
+        id: 'quiet_corner',
+        label: '“你可以去安静角落休息，我在共享区处理自己的事。”',
+        mood: 'calm',
+        responseDialogue: [
+          { speaker: '喵喵', text: '不追问、不围观，也不把独处当成生气。优秀搭档。' },
+          { text: '她带着自己的钥匙走向安静角落，回头向你比了个安心手势。' },
+        ],
+      },
+      {
+        id: 'rain_window_seat',
+        label: '“去窗边听雨吧。想聊天就聊，不想说话也可以。”',
+        mood: 'shy',
+        responseDialogue: [
+          { speaker: '喵喵', text: '队长申请一份不需要活跃气氛的陪伴。' },
+          { text: '她与你各坐长椅一侧，雨声把工作间变成安静的休息站。' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'aff_catkin_06_departure',
+    classId: 'catkin',
+    episode: 6,
+    title: '下一次也并肩出发',
+    episodeLabel: '第六幕 · 晨光站台',
+    unlockPoints: 1_400,
+    requiredStoryIds: ['aff_catkin_05_rainwatch'],
+    completionPoints: 60,
+    backgroundAsset: 'assets/affection/scenes/catkin-sunrise-departure-platform.webp',
+    cgAsset: 'assets/affection/cg/catkin-partner-badges.webp',
+    memoryCallbacks: [
+      ...rememberedChoices('aff_catkin_03_rooftop', '喵喵', [
+        ['wait_invite', '你从不擅自靠近，而我现在会主动向你发出并肩邀请。'],
+        ['share_candy', '连战利品糖都公平分过，我们当然能平等决定更大的事情。'],
+        ['came_for_her', '你来找的是我；而我每次集合第一个想找的也是你。'],
+      ]),
+      ...rememberedChoices('aff_catkin_04_expansion', '喵喵', [
+        ['equal_door_rights', '两把钥匙权限平等，两枚启程徽章当然也属于平等搭档。'],
+        ['respect_work_zones', '独立工作区的边界一直有效，远行也不需要放弃自己的方向。'],
+        ['renegotiate_rules', '规则随时可以重谈，所以每一次出发都由现在的我们重新确认。'],
+      ]),
+      ...rememberedChoices('aff_catkin_05_rainwatch', '喵喵', [
+        ['two_work_desks', '雨夜我们共同收工，今天也要一起决定出发，而不是谁催促谁。'],
+        ['quiet_corner', '你尊重我独处休息，所以远行时我们也能保留各自的节奏。'],
+        ['rain_window_seat', '那场雨里我们可以安静同坐，这次也可以安静并肩等车。'],
+      ]),
+    ],
+    openingDialogue: [
+      { text: '晨光铺上启程站台，两枚搭档徽章放在并排的行囊之间，远处列车即将到站。' },
+      { speaker: '喵喵', text: '这次不是队长带副队长出发，是两位搭档共同选择下一站。' },
+      { speaker: '喵喵', text: '无论答案是哪条路线，我们都保留说累、暂停和改道的权利。' },
+    ],
+    choices: [
+      {
+        id: 'renew_by_choice',
+        label: '“每次出发都重新确认愿意同行，不把陪伴当成理所当然。”',
+        mood: 'moved',
+        responseDialogue: [
+          { speaker: '喵喵', text: '通过！下一次、下下次，也都要听见彼此亲口说愿意。' },
+          { text: '她拿起自己的徽章，与你同时别在各自行囊上。' },
+        ],
+      },
+      {
+        id: 'equal_captains',
+        label: '“路线一人提案、一起确认，任何时候都能改道。”',
+        mood: 'bright',
+        responseDialogue: [
+          { speaker: '喵喵', text: '并列领航员制度成立！第一站由我提案，你负责审核。' },
+          { text: '她将路线图放在两人中间，没有替你圈定任何终点。' },
+        ],
+      },
+      {
+        id: 'keep_own_dreams',
+        label: '“并肩出发，也允许各自探索，想会合时就用集合暗号。”',
+        mood: 'shy',
+        responseDialogue: [
+          { speaker: '喵喵', text: '这才是最厉害的搭档：各自看世界，也总能认出集合信号。' },
+          { text: '她与你碰了碰徽章，清脆声响与进站铃一同响起。' },
         ],
       },
     ],
