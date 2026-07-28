@@ -223,7 +223,11 @@ onUnmounted(() => {
             </button>
           </header>
 
-          <div class="story-stage" :class="[`mood-${activeMood}`, { response: selectedChoice }]">
+          <div
+            class="story-stage"
+            :class="[`mood-${activeMood}`, { response: selectedChoice }]"
+            @click="advanceDialogue"
+          >
             <img class="scene-art" :src="sceneUrl" alt="" aria-hidden="true" />
             <span class="scene-veil" aria-hidden="true" />
             <span class="scene-bloom" aria-hidden="true" />
@@ -248,7 +252,7 @@ onUnmounted(() => {
               </slot>
             </div>
 
-            <p v-if="hasMemoryEcho" class="memory-echo">
+            <p v-if="hasMemoryEcho" class="memory-echo" @click.stop>
               <Sparkles :size="13" aria-hidden="true" />
               她仍记得你们做过的选择
             </p>
@@ -257,7 +261,7 @@ onUnmounted(() => {
               v-if="!dialogueDone"
               type="button"
               class="skip-button"
-              @click="skipDialogue"
+              @click.stop="skipDialogue"
             >
               跳过对白
             </button>
@@ -383,22 +387,25 @@ onUnmounted(() => {
 }
 
 .story-dialog {
+  position: relative;
   width: min(100%, 390px);
-  max-height: calc(100dvh - var(--sat) - var(--sab) - 16px);
+  height: calc(100dvh - var(--sat) - var(--sab) - 20px);
+  max-height: 780px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background:
-    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--story-glow) 50%, transparent), transparent 35%),
-    linear-gradient(160deg, #fff, #fff8fb 58%, #eef7ff);
-  border: 1px solid rgb(255 255 255 / 82%);
+  background: #1c1a30;
+  border: 1px solid rgb(255 255 255 / 30%);
   border-radius: 24px 24px 18px 18px;
   box-shadow:
     0 28px 70px rgb(24 27 43 / 42%),
     0 0 32px color-mix(in srgb, var(--story-accent) 22%, transparent);
 }
 
+/* 顶栏悬浮在场景之上：半透明暗玻璃，沉浸感优先 */
 .story-head {
+  position: relative;
+  z-index: 6;
   min-height: 64px;
   flex: 0 0 auto;
   display: grid;
@@ -406,8 +413,10 @@ onUnmounted(() => {
   align-items: center;
   gap: 8px;
   padding: 8px 10px 8px 13px;
-  background: rgb(255 255 255 / 88%);
-  border-bottom: 1px solid var(--line);
+  background: linear-gradient(180deg, rgb(18 17 34 / 68%), rgb(18 17 34 / 34%));
+  border-bottom: 1px solid rgb(255 255 255 / 14%);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .episode-seal {
@@ -417,7 +426,7 @@ onUnmounted(() => {
   place-items: center;
   color: #fff;
   background: linear-gradient(145deg, var(--story-accent), #aa83dd);
-  border: 2px solid #fff;
+  border: 2px solid rgb(255 255 255 / 82%);
   border-radius: 14px;
   box-shadow: 0 4px 11px color-mix(in srgb, var(--story-accent) 32%, transparent);
 }
@@ -427,13 +436,14 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  text-shadow: 0 1px 4px rgb(12 12 24 / 55%);
 }
 
 .head-copy small {
   overflow: hidden;
   font-size: 8px;
   font-weight: 800;
-  color: var(--story-accent);
+  color: var(--story-glow);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -441,6 +451,7 @@ onUnmounted(() => {
 .head-copy strong {
   overflow: hidden;
   font-size: 15px;
+  color: #fff;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -450,19 +461,22 @@ onUnmounted(() => {
   height: 44px;
   display: grid;
   place-items: center;
-  color: var(--text-mid);
-  background: var(--panel-3);
-  border: 1px solid var(--line);
+  color: #fff;
+  background: rgb(24 22 42 / 46%);
+  border: 1px solid rgb(255 255 255 / 30%);
   border-radius: 50%;
+  backdrop-filter: blur(6px);
 }
 
+/* 场景铺满整个弹窗，对白区浮在它上面 —— 这是和白卡上下堆叠的根本区别 */
 .story-stage {
-  position: relative;
-  min-height: clamp(216px, 37dvh, 310px);
-  flex: 1 1 310px;
+  position: absolute;
+  z-index: 0;
+  inset: 0;
   overflow: hidden;
   isolation: isolate;
-  background: #eaf4ff;
+  background: #242038;
+  cursor: pointer;
 }
 
 .scene-art,
@@ -477,6 +491,7 @@ onUnmounted(() => {
 .scene-art {
   z-index: -4;
   object-fit: cover;
+  object-position: center 32%;
   transition:
     opacity 0.35s var(--ease-soft),
     transform 1.5s var(--ease-soft);
@@ -486,11 +501,12 @@ onUnmounted(() => {
   transform: scale(1.025);
 }
 
+/* 底部压暗加重：对白框浮在场景上时，文字必须在任何 CG 上都读得清 */
 .scene-veil {
   z-index: -3;
   background:
-    linear-gradient(0deg, rgb(26 31 48 / 43%), transparent 47%),
-    radial-gradient(circle at 65% 36%, transparent 26%, rgb(42 42 66 / 16%));
+    linear-gradient(0deg, rgb(13 14 27 / 84%), rgb(13 14 27 / 34%) 36%, transparent 58%),
+    radial-gradient(circle at 65% 30%, transparent 26%, rgb(42 42 66 / 16%));
 }
 
 .scene-bloom {
@@ -502,9 +518,10 @@ onUnmounted(() => {
   mix-blend-mode: screen;
 }
 
+/* 立绘锚在场景下半部、对白框正上方，像真正的 AVG 站位 */
 .portrait-slot {
   position: absolute;
-  inset: 4% 3% 0 31%;
+  inset: 10% 4% 26% 28%;
   display: grid;
   place-items: end center;
   pointer-events: none;
@@ -602,35 +619,36 @@ onUnmounted(() => {
   animation-delay: -2.4s;
 }
 
+/* 对白区浮在场景底部：不再是一张独立的白色大卡 */
 .dialogue-area {
   position: relative;
   z-index: 3;
   flex: 0 0 auto;
-  min-height: 154px;
-  max-height: min(45dvh, 380px);
+  min-height: 0;
+  max-height: 64%;
+  margin-top: auto;
   padding: 0 11px calc(11px + var(--sab));
   overflow-y: auto;
-  background: rgb(255 255 255 / 93%);
   overscroll-behavior: contain;
 }
 
 .dialogue-box {
   position: relative;
-  min-height: 132px;
-  padding: 27px 13px 23px;
-  margin-top: -10px;
-  color: #584653;
-  background:
-    linear-gradient(145deg, rgb(255 255 255 / 96%), rgb(255 246 251 / 96%)) padding-box,
-    linear-gradient(100deg, var(--story-accent), #ffd474, #83cdee) border-box;
-  border: 1px solid transparent;
-  border-radius: 17px;
-  box-shadow: 0 8px 23px rgb(46 48 70 / 15%);
+  min-height: 118px;
+  padding: 27px 15px 23px;
+  color: #fff;
+  background: linear-gradient(165deg, rgb(22 20 39 / 86%), rgb(35 27 53 / 82%));
+  border: 1px solid rgb(255 255 255 / 22%);
+  border-top: 2px solid color-mix(in srgb, var(--story-accent) 68%, white);
+  border-radius: 16px;
+  box-shadow: 0 14px 34px rgb(10 10 24 / 52%);
+  backdrop-filter: blur(13px) saturate(1.25);
+  -webkit-backdrop-filter: blur(13px) saturate(1.25);
   cursor: pointer;
 }
 
 .dialogue-box:focus-visible {
-  outline: 3px solid color-mix(in srgb, var(--story-accent) 34%, transparent);
+  outline: 3px solid color-mix(in srgb, var(--story-accent) 46%, transparent);
   outline-offset: 2px;
 }
 
@@ -646,24 +664,27 @@ onUnmounted(() => {
   font-weight: 900;
   color: #fff;
   background: linear-gradient(120deg, var(--story-accent), #a27fd7);
-  border: 2px solid #fff;
+  border: 2px solid rgb(255 255 255 / 88%);
   border-radius: 999px;
-  box-shadow: 0 4px 10px color-mix(in srgb, var(--story-accent) 25%, transparent);
+  box-shadow: 0 4px 10px color-mix(in srgb, var(--story-accent) 34%, transparent);
 }
 
 .nameplate.narration-label {
-  color: #755f72;
-  background: #fff4f8;
+  color: var(--story-glow);
+  background: rgb(38 32 58 / 88%);
+  border-color: rgb(255 255 255 / 30%);
 }
 
 .dialogue-box p {
   min-height: 48px;
-  font-size: 12px;
-  line-height: 1.8;
+  font-size: 13px;
+  line-height: 1.85;
+  color: rgb(255 255 255 / 96%);
+  text-shadow: 0 1px 3px rgb(10 10 22 / 60%);
 }
 
 .dialogue-box p.narration {
-  color: var(--text-mid);
+  color: rgb(255 255 255 / 74%);
   font-style: italic;
 }
 
@@ -688,20 +709,21 @@ onUnmounted(() => {
 .line-progress i {
   width: 5px;
   height: 3px;
-  background: var(--line);
+  background: rgb(255 255 255 / 26%);
   border-radius: 999px;
 }
 
 .line-progress i.active {
   width: 11px;
   background: var(--story-accent);
+  box-shadow: 0 0 6px var(--story-accent);
 }
 
 .continue-mark {
   position: absolute;
   right: 12px;
   bottom: 8px;
-  color: var(--story-accent);
+  color: rgb(255 255 255 / 85%);
   animation: continue-bob 0.9s ease-in-out infinite alternate;
 }
 
@@ -717,19 +739,21 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 2px;
   padding: 0 2px;
+  text-shadow: 0 1px 4px rgb(10 10 22 / 65%);
 }
 
 .choice-heading span {
   font-size: 12px;
   font-weight: 900;
-  color: #695064;
+  color: #fff;
 }
 
 .choice-heading small {
   font-size: 8px;
-  color: var(--text-dim);
+  color: rgb(255 255 255 / 66%);
 }
 
+/* 选项也是暗玻璃浮层：像 galgame 的选项卡，而不是表单列表 */
 .choice-button {
   min-height: 58px;
   display: grid;
@@ -737,15 +761,23 @@ onUnmounted(() => {
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
-  color: #675163;
+  color: rgb(255 255 255 / 94%);
   text-align: left;
-  background: linear-gradient(145deg, #fff, #fff8fb);
-  border: 1px solid color-mix(in srgb, var(--story-accent) 24%, var(--line));
+  background: linear-gradient(145deg, rgb(28 25 48 / 84%), rgb(42 33 63 / 80%));
+  border: 1px solid color-mix(in srgb, var(--story-accent) 38%, rgb(255 255 255 / 16%));
   border-radius: 14px;
-  box-shadow: 0 3px 9px rgb(77 65 87 / 7%);
+  box-shadow: 0 6px 16px rgb(10 10 24 / 38%);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   transition:
     transform var(--t-fast) var(--ease-spring),
-    border-color var(--t-fast) var(--ease-soft);
+    border-color var(--t-fast) var(--ease-soft),
+    box-shadow var(--t-fast) var(--ease-soft);
+}
+
+.choice-button:not(:disabled):hover {
+  border-color: color-mix(in srgb, var(--story-accent) 72%, white);
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--story-accent) 26%, rgb(10 10 24 / 40%));
 }
 
 .choice-button:not(:disabled):active {
@@ -760,9 +792,10 @@ onUnmounted(() => {
   place-items: center;
   font-size: 9px;
   font-weight: 900;
-  color: var(--story-accent);
-  background: color-mix(in srgb, var(--story-glow) 52%, white);
+  color: #fff;
+  background: linear-gradient(145deg, var(--story-accent), #aa83dd);
   border-radius: 9px;
+  box-shadow: 0 2px 7px color-mix(in srgb, var(--story-accent) 38%, transparent);
 }
 
 .choice-button > span:nth-child(2) {
@@ -771,7 +804,7 @@ onUnmounted(() => {
 }
 
 .choice-button svg {
-  color: var(--story-accent);
+  color: var(--story-glow);
 }
 
 .story-feedback {
@@ -782,10 +815,12 @@ onUnmounted(() => {
   margin-top: 9px;
   font-size: 9px;
   line-height: 1.55;
-  color: #337a64;
-  background: #eaf9f3;
-  border: 1px solid #c9eadc;
+  color: #a9e8d0;
+  background: rgb(20 52 44 / 84%);
+  border: 1px solid rgb(169 232 208 / 32%);
   border-radius: 12px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .finish-button {
@@ -869,8 +904,8 @@ onUnmounted(() => {
     padding-left: 5px;
   }
 
-  .story-stage {
-    min-height: clamp(190px, 32dvh, 250px);
+  .portrait-slot {
+    inset: 8% 3% 24% 24%;
   }
 
   .dialogue-area {
@@ -879,7 +914,7 @@ onUnmounted(() => {
   }
 
   .dialogue-box {
-    min-height: 120px;
+    min-height: 112px;
     padding-right: 10px;
     padding-left: 10px;
   }
