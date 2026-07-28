@@ -2,9 +2,13 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { BookOpen, ChevronLeft, Play, Sparkles, X } from '@lucide/vue';
 import { createFocusTrap, type FocusTrap } from 'focus-trap';
-import type { EncounterJournalCharacter, EncounterLine } from '@/core/encounters';
+import {
+  portraitCueAtLine,
+  type EncounterJournalCharacter,
+  type EncounterLine,
+} from '@/core/encounters';
 import { requireEncounter } from '@/data/encounters';
-import { REGIONS } from '@/data/regions';
+import { journalPortraitCue, requireEncounterPortraitAsset } from '@/data/encounterVisuals';
 import { useStageStore } from '@/stores/stage';
 
 const emit = defineEmits<{ close: [] }>();
@@ -12,6 +16,7 @@ const stage = useStageStore();
 
 const selectedCharacterId = ref<string | null>(stage.encounterJournal[0]?.characterId ?? null);
 const replayEncounterId = ref<string | null>(null);
+const replayTriggerEncounterId = ref<string | null>(null);
 const lineIndex = ref(0);
 const typedCount = ref(0);
 const sheetRef = ref<HTMLElement | null>(null);
@@ -39,13 +44,44 @@ const isLastLine = computed(
 const typedText = computed(() => (currentLine.value?.text ?? '').slice(0, typedCount.value));
 const isTyping = computed(() => typedCount.value < (currentLine.value?.text.length ?? 0));
 const replayDone = computed(() => isLastLine.value && !isTyping.value);
+const replayDialogueAriaLabel = computed(() => {
+  const line = currentLine.value;
+  if (!line) return '';
+  const speaker = line.speaker ? `${line.speaker}：` : '旁白：';
+  const instruction = isTyping.value
+    ? '按回车立即显示整句'
+    : replayDone.value
+      ? '本段回顾已读完'
+      : '按回车继续回顾';
+  return `${speaker}${line.text} ${instruction}`;
+});
+const replayIsClimax = computed(
+  () => Boolean(replayDefinition.value?.climaxAsset) && replayDone.value,
+);
 const replaySceneUrl = computed(() => {
   const definition = replayDefinition.value;
   if (!definition) return null;
-  const region = REGIONS.find((candidate) => candidate.id === definition.regionIds[0]);
-  const asset = definition.sceneAsset ?? region?.mapAsset;
-  return asset ? `${import.meta.env.BASE_URL}${asset}` : null;
+  const asset =
+    replayIsClimax.value && definition.climaxAsset ? definition.climaxAsset : definition.sceneAsset;
+  return `${import.meta.env.BASE_URL}${asset}`;
 });
+const replaySceneAlt = computed(() =>
+  replayIsClimax.value ? (replayDefinition.value?.climaxAlt ?? '') : '',
+);
+const replayPortraitCue = computed(() => {
+  const definition = replayDefinition.value;
+  if (!definition) return null;
+  return portraitCueAtLine(definition.initialPortrait, replayLines.value, lineIndex.value);
+});
+const replayPortraitUrl = computed(() => {
+  if (replayIsClimax.value || !replayPortraitCue.value) return null;
+  return `${import.meta.env.BASE_URL}${requireEncounterPortraitAsset(replayPortraitCue.value)}`;
+});
+
+function journalPortraitUrl(characterId: string): string {
+  const asset = requireEncounterPortraitAsset(journalPortraitCue(characterId));
+  return `${import.meta.env.BASE_URL}${asset}`;
+}
 
 const TYPE_SPEED_MS = 34;
 
@@ -92,18 +128,28 @@ async function skipReplay(): Promise<void> {
   completeLine();
 }
 
-function openReplay(encounterId: string): void {
+async function openReplay(encounterId: string): Promise<void> {
+  replayTriggerEncounterId.value = encounterId;
   replayEncounterId.value = encounterId;
   lineIndex.value = 0;
+  await nextTick();
+  closeButtonRef.value?.focus();
 }
 
-function closeReplay(): void {
+async function closeReplay(): Promise<void> {
+  const triggerEncounterId = replayTriggerEncounterId.value;
   replayEncounterId.value = null;
   lineIndex.value = 0;
+  await nextTick();
+  replayTriggerEncounterId.value = null;
+  if (!triggerEncounterId) return;
+  sheetRef.value
+    ?.querySelector<HTMLButtonElement>(`[data-replay-encounter-id="${triggerEncounterId}"]`)
+    ?.focus();
 }
 
 function closePanel(): void {
-  if (replayEncounterId.value) closeReplay();
+  if (replayEncounterId.value) void closeReplay();
   else if (dialogFocusTrap?.active) dialogFocusTrap.deactivate();
   else emit('close');
 }
@@ -180,16 +226,26 @@ onUnmounted(() => {
             :key="character.characterId"
             type="button"
             :class="{ active: selectedCharacter?.characterId === character.characterId }"
+            :aria-pressed="selectedCharacter?.characterId === character.characterId"
             @click="selectedCharacterId = character.characterId"
           >
-            <span aria-hidden="true">{{ character.glyph }}</span>
+            <img
+              class="tab-portrait"
+              :src="journalPortraitUrl(character.characterId)"
+              alt=""
+              aria-hidden="true"
+            />
             {{ character.characterName }}
           </button>
         </nav>
 
         <template v-if="selectedCharacter">
           <section class="character-card">
-            <span class="character-glyph" aria-hidden="true">{{ selectedCharacter.glyph }}</span>
+            <img
+              class="character-portrait"
+              :src="journalPortraitUrl(selectedCharacter.characterId)"
+              :alt="selectedCharacter.characterName"
+            />
             <span class="character-copy">
               <small>旅途中遇见</small>
               <strong>{{ selectedCharacter.characterName }}</strong>
@@ -205,6 +261,7 @@ onUnmounted(() => {
               :key="episode.encounterId"
               type="button"
               class="episode-card"
+              :data-replay-encounter-id="episode.encounterId"
               @click="openReplay(episode.encounterId)"
             >
               <span class="episode-index">{{ episode.episodeLabel }}</span>
@@ -226,9 +283,30 @@ onUnmounted(() => {
 
       <template v-else>
         <div class="replay-stage" :class="{ tappable: !replayDone }" @click="advanceReplay">
-          <img v-if="replaySceneUrl" :src="replaySceneUrl" alt="" aria-hidden="true" />
+          <Transition name="replay-scene">
+            <img
+              v-if="replaySceneUrl"
+              :key="replaySceneUrl"
+              class="replay-scene-art"
+              :src="replaySceneUrl"
+              :alt="replaySceneAlt"
+              :aria-hidden="replaySceneAlt ? undefined : 'true'"
+            />
+          </Transition>
           <span class="replay-veil" aria-hidden="true" />
-          <span class="replay-glyph" aria-hidden="true">{{ replayDefinition.glyph ?? '✦' }}</span>
+          <Transition name="replay-portrait" mode="out-in">
+            <img
+              v-if="replayPortraitUrl"
+              :key="replayPortraitUrl"
+              class="replay-portrait"
+              :src="replayPortraitUrl"
+              :alt="replayDefinition.speaker ?? '奇遇角色'"
+            />
+          </Transition>
+          <span v-if="replayIsClimax" class="replay-climax">
+            <Sparkles :size="13" aria-hidden="true" />
+            记忆定格
+          </span>
           <button v-if="!replayDone" type="button" class="replay-skip" @click.stop="skipReplay">
             跳过
           </button>
@@ -237,9 +315,9 @@ onUnmounted(() => {
         <div
           v-if="currentLine"
           class="replay-dialogue"
-          role="button"
-          tabindex="0"
-          :aria-label="isTyping ? '点击立即显示整句' : '点击继续回顾'"
+          :role="replayDone ? 'group' : 'button'"
+          :tabindex="replayDone ? -1 : 0"
+          :aria-label="replayDialogueAriaLabel"
           @click="advanceReplay"
           @keydown.enter.prevent="advanceReplay"
           @keydown.space.prevent="advanceReplay"
@@ -360,6 +438,14 @@ onUnmounted(() => {
   border-color: rgb(245 121 159 / 30%);
   box-shadow: 0 0.25rem 0.75rem rgb(245 121 159 / 12%);
 }
+.tab-portrait {
+  width: 1.75rem;
+  height: 2rem;
+  flex: none;
+  object-fit: contain;
+  object-position: bottom center;
+  filter: drop-shadow(0 0.2rem 0.25rem rgb(50 75 105 / 20%));
+}
 .character-card {
   position: relative;
   display: grid;
@@ -387,15 +473,14 @@ onUnmounted(() => {
   border-radius: 50%;
   pointer-events: none;
 }
-.character-glyph {
-  display: grid;
+.character-portrait {
   width: 4rem;
-  height: 4rem;
-  place-items: center;
-  font-size: 2rem;
-  background: radial-gradient(circle at 35% 30%, #fff, var(--pink-soft) 62%, var(--blue-soft));
+  height: 5rem;
+  object-fit: contain;
+  object-position: bottom center;
+  background: radial-gradient(circle at 50% 35%, #fff, var(--pink-soft) 58%, var(--blue-soft));
   border: 3px solid rgb(255 255 255 / 86%);
-  border-radius: 50%;
+  border-radius: 1rem;
   box-shadow: 0 0.4rem 1rem rgb(70 105 145 / 18%);
 }
 .character-copy {
@@ -522,7 +607,7 @@ onUnmounted(() => {
 .replay-stage.tappable {
   cursor: pointer;
 }
-.replay-stage > img {
+.replay-scene-art {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -531,30 +616,72 @@ onUnmounted(() => {
   object-position: center 40%;
   animation: memory-drift 18s ease-in-out infinite alternate;
 }
+.replay-scene-enter-active,
+.replay-scene-leave-active {
+  transition:
+    opacity 0.36s ease,
+    filter 0.36s ease;
+}
+.replay-scene-enter-from,
+.replay-scene-leave-to {
+  opacity: 0;
+  filter: blur(3px);
+}
 .replay-veil {
   position: absolute;
   inset: 0;
   background: linear-gradient(180deg, rgb(25 40 60 / 10%), rgb(25 40 60 / 42%));
 }
-.replay-glyph {
+.replay-portrait {
   position: absolute;
-  right: 1.25rem;
-  bottom: 1.25rem;
-  display: grid;
-  width: 5rem;
-  height: 5rem;
-  place-items: center;
-  font-size: 2.25rem;
-  background: radial-gradient(circle at 35% 30%, #fff, var(--pink-soft) 62%, var(--blue-soft));
-  border: 4px solid rgb(255 255 255 / 76%);
-  border-radius: 50%;
-  box-shadow: 0 0.5rem 1.5rem rgb(25 40 60 / 30%);
-  animation: memory-float 3.8s ease-in-out infinite;
+  right: 0.125rem;
+  bottom: -2rem;
+  width: min(46%, 10.25rem);
+  /* 与舞台高度联动，320px 窄屏不会沿用桌面高度把头顶推出裁切区。 */
+  height: calc(100% + 2rem);
+  object-fit: contain;
+  object-position: bottom center;
+  filter: drop-shadow(0 0.45rem 0.9rem rgb(25 40 60 / 36%));
+}
+.replay-portrait-enter-active,
+.replay-portrait-leave-active {
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease,
+    filter 0.2s ease;
+}
+.replay-portrait-enter-from {
+  opacity: 0;
+  transform: translateX(0.625rem) scale(0.98);
+  filter: blur(2px);
+}
+.replay-portrait-leave-to {
+  opacity: 0;
+  transform: translateX(-0.375rem) scale(1.01);
+  filter: blur(2px);
+}
+.replay-climax {
+  position: absolute;
+  top: 0.625rem;
+  left: 0.625rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.375rem 0.625rem;
+  font-size: 0.625rem;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: 0.08em;
+  background: linear-gradient(135deg, rgb(245 121 159 / 82%), rgb(94 157 218 / 82%));
+  border: 1px solid rgb(255 255 255 / 68%);
+  border-radius: 999px;
+  box-shadow: 0 0.375rem 1rem rgb(55 72 110 / 22%);
+  backdrop-filter: blur(7px);
 }
 .replay-skip {
   position: absolute;
   top: 0.625rem;
-  right: 0.625rem;
+  left: 0.625rem;
   min-width: 3.25rem;
   min-height: 2.75rem;
   color: #fff;
@@ -660,15 +787,6 @@ onUnmounted(() => {
     transform: scale(1.08) translateX(1%);
   }
 }
-@keyframes memory-float {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-0.4rem);
-  }
-}
 @keyframes memory-caret {
   0%,
   100% {
@@ -705,10 +823,15 @@ onUnmounted(() => {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .replay-stage > img,
-  .replay-glyph,
+  .replay-scene-art,
   .replay-caret {
     animation: none;
+  }
+  .replay-scene-enter-active,
+  .replay-scene-leave-active,
+  .replay-portrait-enter-active,
+  .replay-portrait-leave-active {
+    transition: none;
   }
 }
 </style>

@@ -23,14 +23,28 @@ export interface EncounterChoice {
   costs?: ResourceBundle;
   rewardPool?: EncounterRewardVariant[];
 }
+
+/**
+ * 一次 Galgame 立绘切换指令。
+ *
+ * characterId 与 portraitId 都是稳定配置键；资源路径由 data 层严格解析，
+ * core 不读取图片，也不依赖 UI。
+ */
+export interface EncounterPortraitCue {
+  characterId: string;
+  portraitId: string;
+}
+
 /**
  * 奇遇中的一句对话。
  *
  * speaker 为空表示旁白（居中、斜体），否则是角色说的话（带名牌）。
+ * portraitCue 未填写表示延续上一张；null 表示这一句让角色明确退场。
  */
 export interface EncounterLine {
   speaker?: string;
   text: string;
+  portraitCue?: EncounterPortraitCue | null;
 }
 
 export interface EncounterStoryChoice {
@@ -48,6 +62,10 @@ export interface EncounterDailyVariant {
   id: string;
   title: string;
   story: string;
+  /** 每个日常变体使用自己的横版场景，不能回退到区域地图。 */
+  sceneAsset: string;
+  /** 打开这一变体时首先登场的立绘；null 表示纯环境事件。 */
+  initialPortrait: EncounterPortraitCue | null;
   dialogue: EncounterLine[];
   relationshipDialogue: Partial<Record<EncounterRelationshipStage, EncounterLine[]>>;
 }
@@ -83,20 +101,20 @@ export interface EncounterDefinition {
   /** 按历史最高章节递进的援助选项，顺序必须从早到晚。 */
   supportTiers?: EncounterSupportTier[];
 
-  // ── 演出相关（全部可选，缺失时 UI 会优雅降级）──
+  // ── 演出相关：正式场景与开场立绘状态必须显式配置 ──
 
   /** 对话对象的名字，显示在名牌上 */
   speaker?: string;
-  /**
-   * 立绘资源路径。
-   * 还没出图时留空，UI 会用 glyph 渲染一个风格化的占位头像，
-   * 看起来是刻意设计而不是坏掉的图。
-   */
-  portraitAsset?: string;
-  /** 占位头像里的字形（emoji 或单字），portraitAsset 缺失时使用 */
+  /** 列表中的小图形标识；不再作为舞台缺图兜底。 */
   glyph?: string;
-  /** 场景背景图；缺省时用该区域的地图美术 */
-  sceneAsset?: string;
+  /** 正式 3:2 Galgame 场景；不允许回退到区域地图。 */
+  sceneAsset: string;
+  /** 打开事件时首先登场的立绘；普通纯环境奇遇显式填写 null。 */
+  initialPortrait: EncounterPortraitCue | null;
+  /** 第三幕回答播放完后显示的纯物件高潮 CG。 */
+  climaxAsset?: string;
+  /** 高潮 CG 承载叙事信息，必须提供给读屏的简短画面描述。 */
+  climaxAlt?: string;
   /**
    * 逐句对话。为空时 UI 退化为直接展示 story 一段话。
    * 玩家点击推进，读完才出选项 —— 这样奇遇才像「一段小剧情」而不是一个弹窗。
@@ -140,6 +158,8 @@ export interface EncounterPresentation {
   title: string;
   story: string;
   dialogue: EncounterLine[];
+  sceneAsset: string;
+  initialPortrait: EncounterPortraitCue | null;
   variantId?: string;
 }
 
@@ -174,10 +194,7 @@ export type StoryEncounterResolveResult =
   | {
       ok: false;
       reason:
-        | 'not-found'
-        | 'story-choice-required'
-        | 'invalid-story-choice'
-        | 'insufficient-resource';
+        'not-found' | 'story-choice-required' | 'invalid-story-choice' | 'insufficient-resource';
     };
 
 export function createEncounterState(): EncounterState {
@@ -252,6 +269,8 @@ export function encounterPresentation(
       title: definition.title,
       story: definition.story,
       dialogue: [...(definition.dialogue ?? [])],
+      sceneAsset: definition.sceneAsset,
+      initialPortrait: definition.initialPortrait,
     };
   }
   const variantSeed = encounterRewardSeed(saveSeed, pendingUid, `daily:${definition.id}`);
@@ -261,8 +280,25 @@ export function encounterPresentation(
     title: variant.title,
     story: variant.story,
     dialogue: [...(variant.relationshipDialogue[stage] ?? []), ...variant.dialogue],
+    sceneAsset: variant.sceneAsset,
+    initialPortrait: variant.initialPortrait,
     variantId: variant.id,
   };
+}
+
+/** 逐句回放立绘指令；未填写延续上一张，显式 null 才让角色退场。 */
+export function portraitCueAtLine(
+  initialPortrait: EncounterPortraitCue | null,
+  dialogue: readonly EncounterLine[],
+  lineIndex: number,
+): EncounterPortraitCue | null {
+  let cue = initialPortrait;
+  const lastIndex = Math.min(Math.max(-1, lineIndex), dialogue.length - 1);
+  for (let index = 0; index <= lastIndex; index++) {
+    const next = dialogue[index]?.portraitCue;
+    if (next !== undefined) cue = next;
+  }
+  return cue;
 }
 
 /** UI 与最终结算共用同一章节档位，避免显示和扣除分叉。 */

@@ -2,11 +2,21 @@ import {
   availableEncounterIds,
   type EncounterCharacterProgress,
   type EncounterDefinition,
+  type EncounterPortraitCue,
   type EncounterTiming,
 } from '@/core/encounters';
 
 /** 首次 60 秒便于试玩，之后约每 10 分钟一次。 */
 export const ENCOUNTER_TIMING: EncounterTiming = { firstSec: 60, intervalSec: 600, queueMax: 3 };
+
+const akanePortrait = (portraitId: string): EncounterPortraitCue => ({
+  characterId: 'char_akane',
+  portraitId,
+});
+const suiPortrait = (portraitId: string): EncounterPortraitCue => ({
+  characterId: 'char_sui',
+  portraitId,
+});
 
 const DEFINITIONS: EncounterDefinition[] = [
   {
@@ -17,8 +27,8 @@ const DEFINITIONS: EncounterDefinition[] = [
     story: '一位见习刀匠蹲在路旁，正为缺少柔韧的包刀材料发愁。',
     speaker: '见习刀匠·茜',
     glyph: '🔨',
-    // 花径与路牌，正是见习刀匠摆摊的地方
-    sceneAsset: 'assets/maps/chapter-1-2.webp',
+    sceneAsset: 'assets/encounters/scenes/akane/petalsmith-road.webp',
+    initialPortrait: akanePortrait('nervous-request'),
     storyArc: {
       characterId: 'char_akane',
       characterName: '见习刀匠·茜',
@@ -31,7 +41,11 @@ const DEFINITIONS: EncounterDefinition[] = [
           id: 'lasting_grip',
           label: '“柔软些，反而能握得更久。”',
           responseDialogue: [
-            { speaker: '见习刀匠·茜', text: '握得更久……原来你不是只看它够不够威风。' },
+            {
+              speaker: '见习刀匠·茜',
+              text: '握得更久……原来你不是只看它够不够威风。',
+              portraitCue: akanePortrait('lasting-grip'),
+            },
             { speaker: '见习刀匠·茜', text: '这句话，我想记在今天的草图旁边。' },
           ],
         },
@@ -39,7 +53,11 @@ const DEFINITIONS: EncounterDefinition[] = [
           id: 'prove_it',
           label: '“先做出来，再让师父评价。”',
           responseDialogue: [
-            { speaker: '见习刀匠·茜', text: '对哦，连成品都没有，怎么能先认输呢！' },
+            {
+              speaker: '见习刀匠·茜',
+              text: '对哦，连成品都没有，怎么能先认输呢！',
+              portraitCue: akanePortrait('prove-it'),
+            },
             { text: '她把皱巴巴的草图重新铺平，眼睛也亮了起来。' },
           ],
         },
@@ -75,8 +93,8 @@ const DEFINITIONS: EncounterDefinition[] = [
     regionIds: ['r1'],
     unlockChapterId: '1-3',
     title: '被退回的试作品',
-    // 温室工作台，退回的试作品摊了一桌
-    sceneAsset: 'assets/maps/chapter-1-3.webp',
+    sceneAsset: 'assets/encounters/scenes/akane/rejected-workbench.webp',
+    initialPortrait: akanePortrait('rejected-clutch'),
     story: '茜抱着被师父退回的刀柄，躲在花房后面不肯回工坊。',
     speaker: '见习刀匠·茜',
     glyph: '🔨',
@@ -92,7 +110,11 @@ const DEFINITIONS: EncounterDefinition[] = [
           id: 'ask_herself',
           label: '“先别管师父。你自己喜欢它吗？”',
           responseDialogue: [
-            { speaker: '见习刀匠·茜', text: '我……喜欢。握上去的时候，手心会觉得很安心。' },
+            {
+              speaker: '见习刀匠·茜',
+              text: '我……喜欢。握上去的时候，手心会觉得很安心。',
+              portraitCue: akanePortrait('ask-herself'),
+            },
             { speaker: '见习刀匠·茜', text: '原来这也可以成为继续做下去的理由。' },
           ],
         },
@@ -100,7 +122,11 @@ const DEFINITIONS: EncounterDefinition[] = [
           id: 'not_wrong',
           label: '“被否定，不等于做错了。”',
           responseDialogue: [
-            { speaker: '见习刀匠·茜', text: '师父只说它不像传统刀柄，却没说它真的不能用。' },
+            {
+              speaker: '见习刀匠·茜',
+              text: '师父只说它不像传统刀柄，却没说它真的不能用。',
+              portraitCue: akanePortrait('not-wrong'),
+            },
             { speaker: '见习刀匠·茜', text: '哼哼……我好像找到能反驳他的地方了。' },
           ],
         },
@@ -157,8 +183,10 @@ const DEFINITIONS: EncounterDefinition[] = [
     story: '结界前，茜正等待一个愿意替她试刀的人。',
     speaker: '见习刀匠·茜',
     glyph: '🗡️',
-    // 鸟居与法阵，交付第一把刀的仪式感
-    sceneAsset: 'assets/maps/chapter-1-5.webp',
+    sceneAsset: 'assets/encounters/scenes/akane/first-blade-gate.webp',
+    initialPortrait: akanePortrait('first-blade-present'),
+    climaxAsset: 'assets/encounters/cg/akane-first-blade.webp',
+    climaxAlt: '银白短刀“久握”与粉白包柄静静放在初次相遇的草图上。',
     storyArc: {
       characterId: 'char_akane',
       characterName: '见习刀匠·茜',
@@ -171,7 +199,11 @@ const DEFINITIONS: EncounterDefinition[] = [
           id: 'give_name',
           label: '“先给它起个名字吧。”',
           responseDialogue: [
-            { speaker: '见习刀匠·茜', text: '名字？我一直只敢叫它“试作第七号”……' },
+            {
+              speaker: '见习刀匠·茜',
+              text: '名字？我一直只敢叫它“试作第七号”……',
+              portraitCue: akanePortrait('give-name'),
+            },
             { speaker: '见习刀匠·茜', text: '那就叫“久握”。因为有人教我，能陪伴很久也很了不起。' },
           ],
         },
@@ -180,7 +212,11 @@ const DEFINITIONS: EncounterDefinition[] = [
           label: '“让我来试试它的手感。”',
           responseDialogue: [
             { text: '你接过刀。柔软的包柄稳稳贴合掌心，没有一丝滑动。' },
-            { speaker: '见习刀匠·茜', text: '你的表情已经告诉我答案了……成功了，对吧？' },
+            {
+              speaker: '见习刀匠·茜',
+              text: '你的表情已经告诉我答案了……成功了，对吧？',
+              portraitCue: akanePortrait('test-blade'),
+            },
           ],
         },
       ],
@@ -233,8 +269,8 @@ const DEFINITIONS: EncounterDefinition[] = [
     regionIds: ['r1', 'r2'],
     unlockChapterId: '1-5',
     title: '刀匠的例行试握',
-    // 镇子日常，例行试握就在门口
-    sceneAsset: 'assets/maps/r1.webp',
+    sceneAsset: 'assets/encounters/scenes/akane/daily-blind-grip.webp',
+    initialPortrait: akanePortrait('blind-grip-trust'),
     story: '茜又带着新的包柄样品来找她最信任的试握人。',
     speaker: '刀匠·茜',
     glyph: '🌸',
@@ -250,13 +286,23 @@ const DEFINITIONS: EncounterDefinition[] = [
           id: 'soft',
           label: '“这次更柔软了。”',
           responseDialogue: [
-            { speaker: '刀匠·茜', text: '你的手感还是这么准！我又少走一条弯路。' },
+            {
+              speaker: '刀匠·茜',
+              text: '你的手感还是这么准！我又少走一条弯路。',
+              portraitCue: akanePortrait('soft-response'),
+            },
           ],
         },
         {
           id: 'steady',
           label: '“握起来很稳。”',
-          responseDialogue: [{ speaker: '刀匠·茜', text: '嘿嘿，那我就敢把它交给真正的客人了。' }],
+          responseDialogue: [
+            {
+              speaker: '刀匠·茜',
+              text: '嘿嘿，那我就敢把它交给真正的客人了。',
+              portraitCue: akanePortrait('steady-response'),
+            },
+          ],
         },
       ],
     },
@@ -265,6 +311,8 @@ const DEFINITIONS: EncounterDefinition[] = [
         id: 'blind_grip',
         title: '闭眼试握的新作',
         story: '茜把两截新包柄藏到身后，等你只凭手感选出更好的一截。',
+        sceneAsset: 'assets/encounters/scenes/akane/daily-blind-grip.webp',
+        initialPortrait: akanePortrait('blind-grip-trust'),
         relationshipDialogue: {
           初遇: [{ speaker: '刀匠·茜', text: '那个……还愿意帮我试一次吗？' }],
           熟悉: [{ speaker: '刀匠·茜', text: '你上次说的手感，我一直记在草图边上。' }],
@@ -280,6 +328,8 @@ const DEFINITIONS: EncounterDefinition[] = [
         id: 'rain_wrap',
         title: '雨天也握得住',
         story: '一场小雨让茜发现新刀柄太滑，她抱着三卷缠带追上了你。',
+        sceneAsset: 'assets/encounters/scenes/akane/daily-rain-wrap.webp',
+        initialPortrait: akanePortrait('rain-wrap-trust'),
         relationshipDialogue: {
           初遇: [{ speaker: '刀匠·茜', text: '又、又见面了！这次不是坏掉，只是有点滑。' }],
           熟悉: [{ speaker: '刀匠·茜', text: '我照你的办法改软了，可雨天又冒出新问题。' }],
@@ -295,6 +345,8 @@ const DEFINITIONS: EncounterDefinition[] = [
         id: 'small_hands',
         title: '给小手客人的刀柄',
         story: '茜接到一份特别订单：为手掌很小的客人做一把不会累的练习刀。',
+        sceneAsset: 'assets/encounters/scenes/akane/daily-small-hands.webp',
+        initialPortrait: akanePortrait('small-hands-trust'),
         relationshipDialogue: {
           初遇: [{ speaker: '刀匠·茜', text: '你看起来很会替别人考虑……可以帮我想想吗？' }],
           熟悉: [{ speaker: '刀匠·茜', text: '你说过握得久比看起来威风更重要，我没有忘。' }],
@@ -442,8 +494,8 @@ const DEFINITIONS: EncounterDefinition[] = [
     story: '林间传来清脆铃声，一只小木灵想收回散落的木铃。',
     speaker: '木铃',
     glyph: '🔔',
-    // 神社与灯笼，木铃本就属于这里
-    sceneAsset: 'assets/maps/chapter-1-1.webp',
+    sceneAsset: 'assets/encounters/scenes/ordinary/r1-bell-path.webp',
+    initialPortrait: null,
     dialogue: [
       { text: '林间小径的树枝上，挂着一只没有风也在响的木铃。' },
       { speaker: '木铃', text: '叮铃——叮铃——' },
@@ -474,8 +526,8 @@ const DEFINITIONS: EncounterDefinition[] = [
     regionIds: ['r1'],
     unlockChapterId: '1-5',
     title: '微微发亮的裂隙',
-    // 水晶洞的微光，裂隙本身就在发亮
-    sceneAsset: 'assets/maps/chapter-1-4.webp',
+    sceneAsset: 'assets/encounters/scenes/ordinary/r1-barrier-glade.webp',
+    initialPortrait: null,
     story: '落樱结界裂开了一道细缝，温暖的光正一点点漏出来。',
     speaker: '结界裂隙',
     glyph: '✨',
@@ -511,8 +563,8 @@ const DEFINITIONS: EncounterDefinition[] = [
     story: '信使抱着包裹睡在草垛旁，醒来后发现捆包材料全散了。',
     speaker: '草原信使·穗',
     glyph: '💤',
-    // 风车草原，信使睡过站的地方
-    sceneAsset: 'assets/maps/chapter-2-1.webp',
+    sceneAsset: 'assets/encounters/scenes/sui/hayfield-wakeup.webp',
+    initialPortrait: suiPortrait('hay-sleep'),
     storyArc: {
       characterId: 'char_sui',
       characterName: '草原信使·穗',
@@ -525,7 +577,11 @@ const DEFINITIONS: EncounterDefinition[] = [
           id: 'take_breath',
           label: '“先喝口水，再想怎么补救。”',
           responseDialogue: [
-            { speaker: '草原信使·穗', text: '你居然没先骂我……那我、我只休息这一小口！' },
+            {
+              speaker: '草原信使·穗',
+              text: '你居然没先骂我……那我、我只休息这一小口！',
+              portraitCue: suiPortrait('take-breath'),
+            },
             { text: '她认真喝了一口水，终于把信袋背正。' },
           ],
         },
@@ -533,16 +589,20 @@ const DEFINITIONS: EncounterDefinition[] = [
           id: 'go_together',
           label: '“走吧，我陪你把这趟送完。”',
           responseDialogue: [
-            { speaker: '草原信使·穗', text: '真、真的？有人一起走，我肯定不会再睡着！' },
+            {
+              speaker: '草原信使·穗',
+              text: '真、真的？有人一起走，我肯定不会再睡着！',
+              portraitCue: suiPortrait('go-together'),
+            },
             { text: '她握紧肩带，第一次跑在了你的前面。' },
           ],
         },
       ],
     },
     dialogue: [
-      { text: '草垛上趴着一个背着信袋的少女，睡得正香。' },
+      { text: '草垛旁倚着一位背着信袋的年轻信使，睡得正香。' },
       { speaker: '草原信使·穗', text: '呼……嗯……再、再五分钟……' },
-      { text: '她的信袋上写着「加急」，落款日期是三天前。' },
+      { text: '她的信袋别着褪色的急件封蜡，寄出日期已经是三天前。' },
     ],
     choices: [
       {
@@ -569,8 +629,8 @@ const DEFINITIONS: EncounterDefinition[] = [
     regionIds: ['r2'],
     unlockChapterId: '2-3',
     title: '迟到了三天的旧信',
-    // 麦田与稻草人，旧信在这里压了三天
-    sceneAsset: 'assets/maps/chapter-2-2.webp',
+    sceneAsset: 'assets/encounters/scenes/sui/old-letter-door.webp',
+    initialPortrait: suiPortrait('old-letter-anxious'),
     story: '穗在蜂巢外踌躇不前，信袋里那封旧信仍没有送出去。',
     speaker: '草原信使·穗',
     glyph: '✉️',
@@ -586,7 +646,11 @@ const DEFINITIONS: EncounterDefinition[] = [
           id: 'apologize',
           label: '“亲手交出去，也亲口道歉。”',
           responseDialogue: [
-            { speaker: '草原信使·穗', text: '就算会被骂，也比让它永远躺在袋子里好。' },
+            {
+              speaker: '草原信使·穗',
+              text: '就算会被骂，也比让它永远躺在袋子里好。',
+              portraitCue: suiPortrait('apologize'),
+            },
             { speaker: '草原信使·穗', text: '你能……在门外等我一下吗？' },
           ],
         },
@@ -594,7 +658,11 @@ const DEFINITIONS: EncounterDefinition[] = [
           id: 'still_matters',
           label: '“迟到的信，也可能仍有人等。”',
           responseDialogue: [
-            { speaker: '草原信使·穗', text: '原来送信不是和时间赛跑，是把心意送到啊。' },
+            {
+              speaker: '草原信使·穗',
+              text: '原来送信不是和时间赛跑，是把心意送到啊。',
+              portraitCue: suiPortrait('still-matters'),
+            },
             { speaker: '草原信使·穗', text: '那我更不能把它丢掉。' },
           ],
         },
@@ -651,8 +719,10 @@ const DEFINITIONS: EncounterDefinition[] = [
     story: '祭坛风暴将道路吹得模糊，穗却第一次没有停下脚步。',
     speaker: '草原信使·穗',
     glyph: '📨',
-    // 黄昏营地，赶在天黑前送到
-    sceneAsset: 'assets/maps/chapter-2-4.webp',
+    sceneAsset: 'assets/encounters/scenes/sui/storm-delivery.webp',
+    initialPortrait: suiPortrait('storm-run-ready'),
+    climaxAsset: 'assets/encounters/cg/sui-return-letter.webp',
+    climaxAlt: '蓝边回信与磨亮的信使徽章并排压在旧地图和红色火漆旁。',
     storyArc: {
       characterId: 'char_sui',
       characterName: '草原信使·穗',
@@ -665,7 +735,11 @@ const DEFINITIONS: EncounterDefinition[] = [
           id: 'trust_her',
           label: '“这一次，我在终点等你。”',
           responseDialogue: [
-            { speaker: '草原信使·穗', text: '嗯！如果终点有人等，我就不会在半路停下。' },
+            {
+              speaker: '草原信使·穗',
+              text: '嗯！如果终点有人等，我就不会在半路停下。',
+              portraitCue: suiPortrait('trust-her'),
+            },
             { text: '她压低身体冲进草浪，没有再回头确认你是否跟上。' },
           ],
         },
@@ -673,7 +747,11 @@ const DEFINITIONS: EncounterDefinition[] = [
           id: 'run_beside',
           label: '“最后一段，我们并肩跑。”',
           responseDialogue: [
-            { speaker: '草原信使·穗', text: '这次可不是你带着我，是我带路！' },
+            {
+              speaker: '草原信使·穗',
+              text: '这次可不是你带着我，是我带路！',
+              portraitCue: suiPortrait('run-beside'),
+            },
             { text: '她迎着风笑起来，脚步清楚而坚定。' },
           ],
         },
@@ -729,8 +807,8 @@ const DEFINITIONS: EncounterDefinition[] = [
     regionIds: ['r1', 'r2'],
     unlockChapterId: '2-5',
     title: '准时路过的信使',
-    // 草原日常，信使准时路过
-    sceneAsset: 'assets/maps/r2.webp',
+    sceneAsset: 'assets/encounters/scenes/sui/daily-morning-route.webp',
+    initialPortrait: suiPortrait('morning-route-trust'),
     story: '穗准时从路口经过，还特意停下来和你打了声招呼。',
     speaker: '草原信使·穗',
     glyph: '🌾',
@@ -746,14 +824,22 @@ const DEFINITIONS: EncounterDefinition[] = [
           id: 'praise',
           label: '“今天也很准时。”',
           responseDialogue: [
-            { speaker: '草原信使·穗', text: '那当然！我现在还会提前一刻钟出门呢。' },
+            {
+              speaker: '草原信使·穗',
+              text: '那当然！我现在还会提前一刻钟出门呢。',
+              portraitCue: suiPortrait('praise-response'),
+            },
           ],
         },
         {
           id: 'rest',
           label: '“忙完记得好好休息。”',
           responseDialogue: [
-            { speaker: '草原信使·穗', text: '放心，我已经会分清休息和偷懒啦……大概！' },
+            {
+              speaker: '草原信使·穗',
+              text: '放心，我已经会分清休息和偷懒啦……大概！',
+              portraitCue: suiPortrait('rest-response'),
+            },
           ],
         },
       ],
@@ -763,6 +849,8 @@ const DEFINITIONS: EncounterDefinition[] = [
         id: 'morning_route',
         title: '比晨风更早一步',
         story: '晨雾还没散，穗已经带着整理整齐的信袋跑到了路口。',
+        sceneAsset: 'assets/encounters/scenes/sui/daily-morning-route.webp',
+        initialPortrait: suiPortrait('morning-route-trust'),
         relationshipDialogue: {
           初遇: [{ speaker: '草原信使·穗', text: '早、早上好！我今天真的没有睡过头。' }],
           熟悉: [{ speaker: '草原信使·穗', text: '你看，太阳才刚起来，我已经走完半段路啦。' }],
@@ -778,6 +866,8 @@ const DEFINITIONS: EncounterDefinition[] = [
         id: 'windy_knot',
         title: '大风天的绳结',
         story: '草原风把信袋吹得鼓鼓作响，穗却得意地展示起自己新学的绳结。',
+        sceneAsset: 'assets/encounters/scenes/sui/daily-windy-knot.webp',
+        initialPortrait: suiPortrait('windy-knot-trust'),
         relationshipDialogue: {
           初遇: [{ speaker: '草原信使·穗', text: '别担心！今天只有信袋乱，我本人没有迷路。' }],
           熟悉: [{ speaker: '草原信使·穗', text: '上次你帮我扎过以后，我偷偷练了好多遍。' }],
@@ -793,6 +883,8 @@ const DEFINITIONS: EncounterDefinition[] = [
         id: 'quiet_letter',
         title: '不催促的那封信',
         story: '今天的最后一封信没有写期限，穗反而比平时更加认真。',
+        sceneAsset: 'assets/encounters/scenes/sui/daily-quiet-letter.webp',
+        initialPortrait: suiPortrait('quiet-letter-trust'),
         relationshipDialogue: {
           初遇: [{ speaker: '草原信使·穗', text: '奇怪吧？不着急的信，我却一点也不想耽搁。' }],
           熟悉: [{ speaker: '草原信使·穗', text: '我现在明白了，准时不是因为别人催得凶。' }],
@@ -946,8 +1038,8 @@ const DEFINITIONS: EncounterDefinition[] = [
     story: '巡逻的蜂娘想泡一壶甜茶，却怎么也找不到合适的杯垫。',
     speaker: '蜜蜂娘·芃',
     glyph: '🍯',
-    // 蜂巢拱门与蜂蜜，蜂娘的下午茶
-    sceneAsset: 'assets/maps/chapter-2-3.webp',
+    sceneAsset: 'assets/encounters/scenes/ordinary/r2-honey-tea.webp',
+    initialPortrait: null,
     dialogue: [
       { text: '蜂巢外摆着一张小桌子，桌上是刚倒好的两杯蜜茶。' },
       { speaker: '蜜蜂娘·芃', text: '欸？你不是来抢蜜的吧？' },
@@ -978,8 +1070,8 @@ const DEFINITIONS: EncounterDefinition[] = [
     regionIds: ['r2'],
     unlockChapterId: '2-5',
     title: '草原祭坛的回声',
-    // 水晶祭坛，回声从这里荡开
-    sceneAsset: 'assets/maps/chapter-2-5.webp',
+    sceneAsset: 'assets/encounters/scenes/ordinary/r2-altar-echo.webp',
+    initialPortrait: null,
     story: '古老祭坛发出轻柔回声，似乎在等待一块失落的结晶。',
     speaker: '祭坛回声',
     glyph: '🌀',

@@ -6,6 +6,7 @@ import {
   canAfford,
   characterProgress,
   memoryDialogueForEncounter,
+  portraitCueAtLine,
   relationshipStage,
   type EncounterChoice,
   type EncounterStoryChoice,
@@ -13,7 +14,7 @@ import {
 } from '@/core/encounters';
 import { abbr } from '@/core/format';
 import { requireEncounter } from '@/data/encounters';
-import { REGIONS } from '@/data/regions';
+import { requireEncounterPortraitAsset } from '@/data/encounterVisuals';
 import { requireItem } from '@/data/items';
 import { useInventoryStore } from '@/stores/inventory';
 import { usePlayerStore } from '@/stores/player';
@@ -31,6 +32,8 @@ const lineIndex = ref(0);
 const typedCount = ref(0);
 const sheetRef = ref<HTMLElement | null>(null);
 const closeButtonRef = ref<HTMLButtonElement | null>(null);
+const dialogueRef = ref<HTMLElement | null>(null);
+const doneButtonRef = ref<HTMLButtonElement | null>(null);
 let typeTimer = 0;
 let dialogFocusTrap: FocusTrap | null = null;
 
@@ -65,6 +68,17 @@ const isLastLine = computed(
 const typedText = computed(() => (currentLine.value?.text ?? '').slice(0, typedCount.value));
 const isTyping = computed(() => typedCount.value < (currentLine.value?.text.length ?? 0));
 const dialogueDone = computed(() => isLastLine.value && !isTyping.value);
+const dialogueAriaLabel = computed(() => {
+  const line = currentLine.value;
+  if (!line) return '';
+  const speaker = line.speaker ? `${line.speaker}：` : '旁白：';
+  const instruction = isTyping.value
+    ? '按回车立即显示整句'
+    : dialogueDone.value
+      ? '本段对话已读完'
+      : '按回车继续对话';
+  return `${speaker}${line.text} ${instruction}`;
+});
 const relationship = computed(() => {
   const arc = storyArc.value;
   if (!arc) return null;
@@ -77,19 +91,30 @@ const wallet = computed(() => ({
   gold: player.player?.gold ?? 0,
   items: inventory.bag?.items ?? {},
 }));
-const regionOfEncounter = computed(() => {
-  const regionId = entry.value?.regionId;
-  return regionId ? (REGIONS.find((region) => region.id === regionId) ?? null) : null;
-});
+const isClimaxScene = computed(
+  () =>
+    Boolean(encounter.value?.climaxAsset) &&
+    Boolean(selectedStoryChoice.value) &&
+    dialogueDone.value,
+);
 const sceneUrl = computed(() => {
-  const asset = encounter.value?.sceneAsset ?? regionOfEncounter.value?.mapAsset;
+  const asset = isClimaxScene.value
+    ? encounter.value?.climaxAsset
+    : encounterView.value?.sceneAsset;
   return asset ? `${import.meta.env.BASE_URL}${asset}` : null;
 });
-const portraitUrl = computed(() =>
-  encounter.value?.portraitAsset
-    ? `${import.meta.env.BASE_URL}${encounter.value.portraitAsset}`
-    : null,
-);
+const sceneAlt = computed(() => (isClimaxScene.value ? (encounter.value?.climaxAlt ?? '') : ''));
+const activePortraitCue = computed(() => {
+  return portraitCueAtLine(
+    encounterView.value?.initialPortrait ?? null,
+    dialogue.value,
+    lineIndex.value,
+  );
+});
+const portraitUrl = computed(() => {
+  if (isClimaxScene.value || !activePortraitCue.value) return null;
+  return `${import.meta.env.BASE_URL}${requireEncounterPortraitAsset(activePortraitCue.value)}`;
+});
 
 const TYPE_SPEED_MS = 34;
 
@@ -198,12 +223,14 @@ function selectRelative(offset: number): void {
   feedback.value = null;
 }
 
-function showNextPending(): void {
+async function showNextPending(): Promise<void> {
   selectedUid.value = stage.pendingEncounters[0]?.uid ?? null;
   feedback.value = null;
+  await nextTick();
+  dialogueRef.value?.focus();
 }
 
-function chooseStory(choice: EncounterStoryChoice): void {
+async function chooseStory(choice: EncounterStoryChoice): Promise<void> {
   if (!entry.value) return;
   const result = stage.rememberEncounterChoice(entry.value.uid, choice.id);
   if (!result.ok) {
@@ -211,9 +238,11 @@ function chooseStory(choice: EncounterStoryChoice): void {
     return;
   }
   feedback.value = null;
+  await nextTick();
+  dialogueRef.value?.focus();
 }
 
-function choose(choice: EncounterChoice): void {
+async function choose(choice: EncounterChoice): Promise<void> {
   if (!entry.value) return;
   const result = stage.resolveEncounter(entry.value.uid, choice.id);
   if (!result.ok) {
@@ -225,7 +254,7 @@ function choose(choice: EncounterChoice): void {
             ? '先回应她，再决定是否伸出援手。'
             : result.reason === 'invalid-story-choice'
               ? '这段回答已与当前剧情配置不一致，请重新载入有效存档。'
-            : '这段奇遇已经结束了。',
+              : '这段奇遇已经结束了。',
       tone: 'notice',
     };
     return;
@@ -237,6 +266,8 @@ function choose(choice: EncounterChoice): void {
   };
   selectedUid.value = null;
   lineIndex.value = 0;
+  await nextTick();
+  doneButtonRef.value?.focus();
 }
 </script>
 
@@ -294,16 +325,28 @@ function choose(choice: EncounterChoice): void {
         </p>
         <!-- 场景舞台：背景 + 立绘 + 名牌 -->
         <div class="stage-view" :class="{ tappable: !dialogueDone }" @click="advanceDialogue">
-          <img v-if="sceneUrl" class="scene-art" :src="sceneUrl" alt="" aria-hidden="true" />
+          <Transition name="scene-swap">
+            <img
+              v-if="sceneUrl"
+              :key="sceneUrl"
+              class="scene-art"
+              :src="sceneUrl"
+              :alt="sceneAlt"
+              :aria-hidden="sceneAlt ? undefined : 'true'"
+            />
+          </Transition>
           <span class="scene-veil" aria-hidden="true" />
 
-          <div class="portrait" :class="{ 'is-art': !!portraitUrl }">
-            <img v-if="portraitUrl" :src="portraitUrl" :alt="encounter.speaker ?? '奇遇角色'" />
-            <span v-else class="portrait-glyph" aria-hidden="true">{{
-              encounter.glyph ?? '✦'
-            }}</span>
-          </div>
+          <Transition name="portrait-swap" mode="out-in">
+            <div v-if="portraitUrl" :key="portraitUrl" class="portrait is-art">
+              <img :src="portraitUrl" :alt="encounter.speaker ?? '奇遇角色'" />
+            </div>
+          </Transition>
 
+          <span v-if="isClimaxScene" class="climax-badge">
+            <Sparkles :size="13" aria-hidden="true" />
+            记忆定格
+          </span>
           <button v-if="!dialogueDone" type="button" class="skip" @click.stop="skipDialogue">
             跳过
           </button>
@@ -312,10 +355,11 @@ function choose(choice: EncounterChoice): void {
         <!-- 对话区：galgame 式单行打字机 -->
         <div
           v-if="hasDialogue && currentLine"
+          ref="dialogueRef"
           class="dialogue"
-          role="button"
-          tabindex="0"
-          :aria-label="isTyping ? '点击立即显示整句' : '点击继续对话'"
+          :role="dialogueDone ? 'group' : 'button'"
+          :tabindex="dialogueDone ? -1 : 0"
+          :aria-label="dialogueAriaLabel"
           @click="advanceDialogue"
           @keydown.enter.prevent="advanceDialogue"
           @keydown.space.prevent="advanceDialogue"
@@ -376,6 +420,7 @@ function choose(choice: EncounterChoice): void {
           <Sparkles :size="30" aria-hidden="true" />
           <p>{{ feedback?.text || '旅途恢复了平静。' }}</p>
           <button
+            ref="doneButtonRef"
             class="btn btn-pink"
             @click="stage.pendingEncounters.length > 0 ? showNextPending() : requestClose()"
           >
@@ -594,6 +639,19 @@ function choose(choice: EncounterChoice): void {
   animation: scene-drift 18s ease-in-out infinite alternate;
 }
 
+.scene-swap-enter-active,
+.scene-swap-leave-active {
+  transition:
+    opacity 0.36s ease,
+    filter 0.36s ease;
+}
+
+.scene-swap-enter-from,
+.scene-swap-leave-to {
+  opacity: 0;
+  filter: blur(3px);
+}
+
 @keyframes scene-drift {
   from {
     transform: scale(1.02) translateX(-1%);
@@ -617,24 +675,13 @@ function choose(choice: EncounterChoice): void {
 /* ── 立绘 ── */
 .portrait {
   position: absolute;
-  right: 14px;
-  bottom: 0;
-  width: 128px;
-  height: 178px;
+  right: 2px;
+  bottom: -32px;
+  width: min(46%, 164px);
+  /* 始终从舞台顶边开始，窄屏缩短舞台时也不会把头发裁掉。 */
+  height: calc(100% + 32px);
   display: grid;
   place-items: end center;
-  animation: portrait-enter 0.45s var(--ease-out-back, cubic-bezier(0.34, 1.56, 0.64, 1));
-}
-
-@keyframes portrait-enter {
-  from {
-    opacity: 0;
-    transform: translateX(26px) scale(0.94);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
 }
 
 .portrait.is-art img {
@@ -645,35 +692,48 @@ function choose(choice: EncounterChoice): void {
   filter: drop-shadow(0 6px 14px rgb(30 45 70 / 45%));
 }
 
-/* 还没出立绘时的风格化占位 */
-.portrait-glyph {
-  align-self: center;
-  width: 86px;
-  height: 86px;
-  display: grid;
-  place-items: center;
-  font-size: 40px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #fff, var(--pink-soft) 62%, var(--blue-soft));
-  box-shadow:
-    0 0 0 4px rgb(255 255 255 / 78%),
-    0 8px 22px rgb(60 90 130 / 40%);
-  animation: portrait-float 3.6s ease-in-out infinite;
+.portrait-swap-enter-active,
+.portrait-swap-leave-active {
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease,
+    filter 0.2s ease;
 }
 
-@keyframes portrait-float {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-7px);
-  }
+.portrait-swap-enter-from {
+  opacity: 0;
+  transform: translateX(10px) scale(0.98);
+  filter: blur(2px);
+}
+
+.portrait-swap-leave-to {
+  opacity: 0;
+  transform: translateX(-6px) scale(1.01);
+  filter: blur(2px);
+}
+
+.climax-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+  font-size: 10px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: 0.08em;
+  background: linear-gradient(135deg, rgb(245 121 159 / 82%), rgb(94 157 218 / 82%));
+  border: 1px solid rgb(255 255 255 / 68%);
+  border-radius: 999px;
+  box-shadow: 0 6px 18px rgb(55 72 110 / 22%);
+  backdrop-filter: blur(7px);
 }
 
 .skip {
   position: absolute;
-  right: 10px;
+  left: 10px;
   top: 10px;
   padding: 4px 12px;
   font-size: 10px;
@@ -875,10 +935,16 @@ function choose(choice: EncounterChoice): void {
 @media (prefers-reduced-motion: reduce) {
   .scene-art,
   .portrait,
-  .portrait-glyph,
   .tap-hint,
   .caret {
     animation: none;
+  }
+
+  .scene-swap-enter-active,
+  .scene-swap-leave-active,
+  .portrait-swap-enter-active,
+  .portrait-swap-leave-active {
+    transition: none;
   }
 }
 </style>

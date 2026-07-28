@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
+import sharp from 'sharp';
 import { ENCOUNTERS, encounterIdsForProgress } from '../encounters';
+import {
+  requireEncounterCharacterVisual,
+  requireEncounterPortraitAsset,
+} from '../encounterVisuals';
 import { ALL_CHAPTERS, requireRegionOfChapter } from '../regions';
 import { getItem } from '../items';
 
@@ -175,9 +180,20 @@ describe('奇遇章节开放配置', () => {
 });
 
 describe('奇遇专属场景', () => {
-  it('每个奇遇都配了自己的场景图', () => {
+  it('每个奇遇都配正式横景，角色线还有严格可解析的开场立绘', () => {
     for (const encounter of Object.values(ENCOUNTERS)) {
       expect(encounter.sceneAsset, `${encounter.id} 缺少 sceneAsset`).toBeTruthy();
+      expect(encounter.sceneAsset, encounter.id).toMatch(/^assets\/encounters\/scenes\//);
+      if (encounter.storyArc) {
+        expect(encounter.initialPortrait, encounter.id).not.toBeNull();
+        expect(encounter.initialPortrait?.characterId).toBe(encounter.storyArc.characterId);
+        expect(
+          requireEncounterPortraitAsset(encounter.initialPortrait!),
+          encounter.id,
+        ).toBeTruthy();
+      } else {
+        expect(encounter.initialPortrait, encounter.id).toBeNull();
+      }
     }
   });
 
@@ -186,11 +202,104 @@ describe('奇遇专属场景', () => {
     expect(new Set(assets).size).toBe(assets.length);
   });
 
-  it('引用的图确实存在，拼错路径会在这里挡下来', () => {
-    for (const encounter of Object.values(ENCOUNTERS)) {
-      const path = resolve(process.cwd(), 'public', encounter.sceneAsset!);
-      expect(existsSync(path), `${encounter.id} 的场景图不存在：${encounter.sceneAsset}`).toBe(
-        true,
+  it('主线、普通奇遇与六个日常变体一共引用 16 张真实场景', () => {
+    const assets = Object.values(ENCOUNTERS).flatMap((encounter) => [
+      encounter.sceneAsset,
+      ...(encounter.dailyVariants ?? []).map((variant) => variant.sceneAsset),
+    ]);
+    expect(new Set(assets).size).toBe(16);
+    expect(assets.every((asset) => asset.startsWith('assets/encounters/scenes/'))).toBe(true);
+  });
+
+  it('引用的图确实存在且是严格 3:2 横版 WebP', async () => {
+    const assets = new Set(
+      Object.values(ENCOUNTERS).flatMap((encounter) => [
+        encounter.sceneAsset,
+        ...(encounter.dailyVariants ?? []).map((variant) => variant.sceneAsset),
+      ]),
+    );
+    for (const asset of assets) {
+      const path = resolve(process.cwd(), 'public', asset);
+      expect(existsSync(path), `场景图不存在：${asset}`).toBe(true);
+      const metadata = await sharp(path).metadata();
+      expect(metadata.format, asset).toBe('webp');
+      expect((metadata.width ?? 0) * 2, asset).toBe((metadata.height ?? 0) * 3);
+      expect(metadata.width, asset).toBe(1536);
+      expect(metadata.height, asset).toBe(1024);
+    }
+  });
+
+  it('角色对白的每个立绘 cue 都属于说话角色，日常三景稳定且互不重复', () => {
+    expect(requireEncounterCharacterVisual('char_akane')).toMatchObject({
+      displayName: '刀匠·茜',
+      speakerAliases: ['见习刀匠·茜', '刀匠·茜'],
+    });
+    expect(requireEncounterCharacterVisual('char_sui')).toMatchObject({
+      displayName: '草原信使·穗',
+      speakerAliases: ['草原信使·穗'],
+    });
+
+    for (const encounter of Object.values(ENCOUNTERS).filter((entry) => entry.storyArc)) {
+      const characterId = encounter.storyArc!.characterId;
+      const visual = requireEncounterCharacterVisual(characterId);
+      expect(
+        visual.speakerAliases,
+        `${encounter.id}/顶层 speaker ${encounter.speaker ?? '未配置'}`,
+      ).toContain(encounter.speaker);
+      expect(
+        visual.speakerAliases,
+        `${encounter.id}/篇章称谓 ${encounter.storyArc!.characterName}`,
+      ).toContain(encounter.storyArc!.characterName);
+      expect(visual.speakerAliases, `${characterId}/展示名 ${visual.displayName}`).toContain(
+        visual.displayName,
+      );
+      const lines = [
+        ...(encounter.dialogue ?? []),
+        ...encounter.storyArc!.storyChoices.flatMap((choice) => choice.responseDialogue),
+        ...(encounter.storyArc!.memoryCallbacks ?? []).flatMap((callback) => callback.dialogue),
+        ...(encounter.dailyVariants ?? []).flatMap((variant) => [
+          ...variant.dialogue,
+          ...Object.values(variant.relationshipDialogue).flatMap((dialogue) => dialogue ?? []),
+        ]),
+      ];
+      for (const line of lines) {
+        if (line.portraitCue) {
+          expect(line.portraitCue.characterId, `${encounter.id}/${line.text}`).toBe(characterId);
+          expect(requireEncounterPortraitAsset(line.portraitCue)).toBeTruthy();
+        }
+        if (line.speaker) {
+          expect(visual.speakerAliases, `${encounter.id}/${line.speaker}`).toContain(line.speaker);
+        }
+      }
+
+      const variants = encounter.dailyVariants ?? [];
+      if (variants.length > 0) {
+        const scenes = variants.map((variant) => variant.sceneAsset);
+        expect(new Set(scenes).size, encounter.id).toBe(variants.length);
+        expect(
+          variants.every(
+            (variant) =>
+              variant.initialPortrait?.characterId === characterId &&
+              Boolean(requireEncounterPortraitAsset(variant.initialPortrait)),
+          ),
+          encounter.id,
+        ).toBe(true);
+      }
+    }
+  });
+
+  it('两条第三幕高潮 CG 都是正式运行时资源', () => {
+    const climaxAssets = Object.values(ENCOUNTERS).flatMap((encounter) =>
+      encounter.climaxAsset ? [encounter.climaxAsset] : [],
+    );
+    expect(climaxAssets).toHaveLength(2);
+    expect(new Set(climaxAssets).size).toBe(2);
+    for (const encounter of Object.values(ENCOUNTERS).filter((entry) => entry.climaxAsset)) {
+      const asset = encounter.climaxAsset!;
+      expect(asset).toMatch(/^assets\/encounters\/cg\//);
+      expect(existsSync(resolve(process.cwd(), 'public', asset)), asset).toBe(true);
+      expect(encounter.climaxAlt, `${encounter.id} 缺少高潮 CG 读屏描述`).toMatch(
+        /[\u4e00-\u9fff]/,
       );
     }
   });

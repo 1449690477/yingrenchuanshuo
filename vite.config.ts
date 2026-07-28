@@ -42,6 +42,7 @@ export default defineConfig({
           'assets/dungeons/equipment/**',
           'assets/monsters/equipment-dungeon/**',
           'assets/equipment/dungeon/**',
+          'assets/encounters/**',
         ],
         runtimeCaching: [
           {
@@ -67,6 +68,20 @@ export default defineConfig({
               cacheableResponse: { statuses: [0, 200] },
               expiration: {
                 maxEntries: 112,
+                maxAgeSeconds: 60 * 60 * 24 * 30,
+              },
+            },
+          },
+          {
+            urlPattern: ({ url }) => url.pathname.includes('/assets/encounters/'),
+            // 奇遇美术会在保持稳定剧情路径的同时持续重绘；先回缓存、后台刷新，
+            // 避免 CacheFirst 把同路径旧图钉住 30 天。
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'encounter-galgame-art-v1',
+              cacheableResponse: { statuses: [0, 200] },
+              expiration: {
+                maxEntries: 56,
                 maxAgeSeconds: 60 * 60 * 24 * 30,
               },
             },

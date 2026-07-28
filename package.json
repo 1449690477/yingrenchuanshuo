@@ -24,10 +24,12 @@
     "assets:equipment-dungeon:check": "node scripts/validate-equipment-dungeon-assets.mjs",
     "assets:affection": "node scripts/build-affection-round2-assets.mjs && node scripts/validate-affection-assets.mjs",
     "assets:affection:check": "node scripts/validate-affection-assets.mjs",
+    "assets:encounters:check": "node scripts/validate-encounter-assets.mjs",
     "qa:affection-save": "tsx scripts/create-affection-round2-qa-save.mts",
+    "qa:encounter-save": "tsx scripts/create-encounter-galgame-qa-save.mts",
     "balance:equipment-dungeon": "tsx scripts/equipment-dungeon-balance.mts",
     "typecheck": "vue-tsc --noEmit",
-    "verify": "npm run lint && npm run typecheck && npm run test",
+    "verify": "npm run lint && npm run typecheck && npm run test && npm run assets:encounters:check",
     "sim": "tsx scripts/simulate.ts"
   },
   "repository": {

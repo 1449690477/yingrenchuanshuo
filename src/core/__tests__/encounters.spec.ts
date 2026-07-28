@@ -7,6 +7,7 @@ import {
   encounterPresentation,
   encounterRewardSeed,
   memoryDialogueForEncounter,
+  portraitCueAtLine,
   replayDialogueForEncounter,
   relationshipStage,
   rememberEncounterStoryChoice,
@@ -258,6 +259,8 @@ describe('idle encounters', () => {
     const first = encounterPresentation(definition, state, 2026, 'enc_daily_1');
     expect(encounterPresentation(definition, state, 2026, 'enc_daily_1')).toEqual(first);
     expect(first.variantId).toBeDefined();
+    expect(first.sceneAsset).toMatch(/^assets\/encounters\/scenes\/akane\/daily-/);
+    expect(first.initialPortrait).toMatchObject({ characterId: 'char_akane' });
     const variants = new Set(
       Array.from(
         { length: 24 },
@@ -266,6 +269,20 @@ describe('idle encounters', () => {
       ),
     );
     expect(variants.size).toBeGreaterThan(1);
+  });
+
+  it('逐句立绘只在明确 cue 时切换，null 会让角色退场', () => {
+    const initial = { characterId: 'char_akane', portraitId: 'nervous-request' };
+    const changed = { characterId: 'char_akane', portraitId: 'lasting-grip' };
+    const lines = [
+      { text: '旁白沿用开场立绘。' },
+      { speaker: '见习刀匠·茜', text: '切换。', portraitCue: changed },
+      { text: '明确退场。', portraitCue: null },
+    ];
+    expect(portraitCueAtLine(initial, lines, 0)).toEqual(initial);
+    expect(portraitCueAtLine(initial, lines, 1)).toEqual(changed);
+    expect(portraitCueAtLine(initial, lines, 2)).toBeNull();
+    expect(portraitCueAtLine(initial, lines, 99)).toBeNull();
   });
 
   it('关系阶段只改变日常问候，不改变稳定变体和章节援助选项', () => {
@@ -285,10 +302,15 @@ describe('idle encounters', () => {
     const early = encounterPresentation(definition, earlyState, 9, 'same_uid');
     const trusted = encounterPresentation(definition, trustedState, 9, 'same_uid');
     expect(early.variantId).toBe(trusted.variantId);
+    expect(early.sceneAsset).toBe(trusted.sceneAsset);
+    expect(early.initialPortrait).toEqual(trusted.initialPortrait);
     expect(early.dialogue[0]?.text).not.toBe(trusted.dialogue[0]?.text);
-    expect(encounterChoicesForChapters(definition, new Set(['1-5']))).toEqual(
-      encounterChoicesForChapters(definition, new Set(['1-5'])),
-    );
+    const firstTier = definition.supportTiers?.find((tier) => tier.unlockChapterId === '1-5');
+    expect(firstTier).toBeDefined();
+    expect(encounterChoicesForChapters(definition, new Set(['1-5']))).toEqual([
+      firstTier!.choice,
+      definition.choices[1],
+    ]);
   });
 
   it('援助选项使用历史已解锁的最后档，免费结束选项始终不变', () => {
