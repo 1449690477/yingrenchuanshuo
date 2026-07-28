@@ -297,15 +297,49 @@ button.card:active,
 }
 
 /* ── 弹窗遮罩 ── */
+
+/*
+ * ⚠ 这里的布局方式是刻意的，改之前请先读完。
+ *
+ * 曾经写的是 `display: grid; place-items: center`，没有滚动。
+ * 桌面浏览器窗口高，内容放得下，看起来一切正常；
+ * 但手机屏幕短，内容一旦超过视口高度，居中会让它**向上下两侧同时溢出**，
+ * 而顶部那一半是永远滚不到的 —— 副本打完的「领取装备」确认按钮
+ * 就是这么消失在屏幕外的。
+ *
+ * 现在的写法是可滚动 flex 容器 + 子元素 `margin: auto`：
+ *   · 内容放得下 → margin auto 均分剩余空间，视觉上正常居中
+ *   · 内容放不下 → auto 外边距计算为 0，自动退化成顶部对齐，
+ *     配合 overflow-y 可以完整滚到底
+ *
+ * 这是「居中弹窗又要能滚」的标准解法，比 `align-content: safe center`
+ * 兼容性好得多（后者在不少移动端浏览器上还不支持）。
+ */
 .overlay {
   position: absolute;
   inset: 0;
   z-index: 50;
-  display: grid;
-  place-items: center;
-  padding: 20px;
+  display: flex;
+  overflow-y: auto;
+
+  /* 滚到边界时不要把滚动传递给背后的页面 */
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+
+  /* 刘海屏与手势条的安全区；左右保持 16px 以免面板贴边 */
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+    max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
   background: rgb(70 89 107 / 35%);
   backdrop-filter: blur(3px);
+}
+
+/*
+ * 直接子元素即弹窗面板。margin: auto 承担居中，
+ * 不要改回 place-items / align-items，否则又会截断顶部。
+ */
+.overlay > * {
+  margin: auto;
+  flex-shrink: 0;
 }
 
 /* ============================================================

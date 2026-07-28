@@ -1558,16 +1558,24 @@ onUnmounted(() => {
   position: fixed;
   z-index: 120;
   inset: 0;
+  /*
+   * 底部弹出式：原本 align-items:flex-end 贴底，内容一高就向上溢出且滚不到。
+   * 改成可滚动 flex + 子面板 margin-top:auto —— 放得下仍贴底，
+   * 放不下自动退化成顶部对齐并可滚完。详见 style.css 里 .overlay 的说明。
+   */
   display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  padding: 10px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: max(10px, env(safe-area-inset-top)) 10px max(10px, env(safe-area-inset-bottom));
   background: rgb(32 40 55 / 45%);
   backdrop-filter: blur(3px);
 }
 
 .picker-sheet {
   position: relative;
+  margin: auto auto 0;
+  flex-shrink: 0;
   display: flex;
   width: min(100%, 390px);
   max-height: min(72dvh, 620px);

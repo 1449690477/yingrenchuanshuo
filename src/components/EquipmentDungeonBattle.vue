@@ -526,8 +526,16 @@ onUnmounted(() => {
   position: fixed;
   z-index: 80;
   inset: 0;
-  display: grid;
-  place-items: center;
+
+  /*
+   * 可滚动 flex + 子元素 margin:auto —— 放得下居中，放不下从顶部开始且能滚完。
+   * 溢出，顶部永远滚不到（副本「领取装备」按钮就是这么消失的）。
+   * 详见 style.css 里 .overlay 的完整说明。
+   */
+  display: flex;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   padding:
     max(12px, env(safe-area-inset-top))
     max(12px, env(safe-area-inset-right))
@@ -538,6 +546,8 @@ onUnmounted(() => {
 }
 
 .battle-dialog {
+  margin: auto;
+  flex-shrink: 0;
   position: relative;
   width: min(100%, 390px);
   max-height: 100%;

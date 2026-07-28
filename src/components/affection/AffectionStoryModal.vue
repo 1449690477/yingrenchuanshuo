@@ -581,8 +581,16 @@ onUnmounted(() => {
   width: 100%;
   max-width: var(--app-max-w);
   margin: 0 auto;
-  display: grid;
-  place-items: end center;
+
+  /*
+   * 底部弹出式同理：原本用 align-items:flex-end 贴底，内容一高就向上溢出且
+   * 滚不到。改成可滚动 flex + 子元素 margin-top:auto —— 放得下仍贴底，
+   * 放不下自动退化成顶部对齐并可滚完。详见 style.css 里 .overlay 的说明。
+   */
+  display: flex;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   padding: max(8px, var(--sat)) 8px max(8px, var(--sab));
   background: rgb(25 29 46 / 68%);
   backdrop-filter: blur(7px);
@@ -590,6 +598,8 @@ onUnmounted(() => {
 }
 
 .story-dialog {
+  margin: auto;
+  flex-shrink: 0;
   position: relative;
   width: min(100%, 390px);
   height: calc(100dvh - var(--sat) - var(--sab) - 20px);

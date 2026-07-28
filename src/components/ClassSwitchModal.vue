@@ -199,8 +199,16 @@ onUnmounted(() => {
   width: 100%;
   max-width: var(--app-max-w);
   margin: 0 auto;
-  display: grid;
-  place-items: center;
+
+  /*
+   * 可滚动 flex + 子元素 margin:auto —— 放得下居中，放不下从顶部开始且能滚完。
+   * 溢出，顶部永远滚不到（副本「领取装备」按钮就是这么消失的）。
+   * 详见 style.css 里 .overlay 的完整说明。
+   */
+  display: flex;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   padding: calc(var(--sat) + 10px) 10px calc(var(--sab) + 10px);
   background: rgb(35 40 58 / 52%);
   backdrop-filter: blur(5px);
@@ -208,6 +216,8 @@ onUnmounted(() => {
 }
 
 .class-switch-sheet {
+  margin: auto;
+  flex-shrink: 0;
   position: relative;
   width: min(100%, 390px);
   max-height: calc(100dvh - var(--sat) - var(--sab) - 20px);
