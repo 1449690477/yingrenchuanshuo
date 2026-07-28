@@ -71,11 +71,13 @@ describe('affection store transaction', () => {
       requireEquipment('eq_dungeon_azure_head_1'),
       new Rng(1),
       'set-head',
+      save.player.classId,
     );
     const candidate = createInstance(
       requireEquipment('eq_dungeon_azure_body_witch'),
       new Rng(2),
       'set-body',
+      save.player.classId,
     );
     save.bag.equipment.push(candidate);
     game.loadFrom(save);

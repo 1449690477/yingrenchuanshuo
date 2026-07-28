@@ -1,10 +1,10 @@
 import type {
-  Affix,
   AffixKey,
   BoutiqueThemeId,
   ClassId,
   EquipmentDef,
   EquipSlot,
+  FixedAffix,
 } from '@/core/types';
 import { BOUTIQUE_THEMES, boutiqueAppearanceId } from './boutique';
 
@@ -353,7 +353,7 @@ function affectionFixedAffixes(
   slot: EquipSlot,
   level: number,
   collectionIndex: number,
-): Affix[] {
+): FixedAffix[] {
   return slotAffixKeys[slot].map((key) => ({
     key,
     value: affectionAffixValue(key, level, collectionIndex),
@@ -412,6 +412,7 @@ function buildDefinition(
       // 这样心虹装备的“互动与攻击换肤”是实际运行效果，不是只写在描述里的承诺。
       boutiqueTheme: spec.appearanceTheme,
       fixedAffixes: affectionFixedAffixes(spec.slot, spec.level, collectionIndex),
+      fixedTemplate: true,
       uniqueEffect: `心虹共鸣：激活「${BOUTIQUE_THEMES[spec.appearanceTheme].name}」角色外观、互动粒子与攻击换肤。`,
     },
   };
@@ -447,8 +448,7 @@ export function eligibleAffectionEquipmentIds(
   }
   return affectionEquipmentForClass(classId)
     .filter(
-      (entry) =>
-        affectionPoints >= entry.unlockPoints && playerLevel >= entry.definition.level,
+      (entry) => affectionPoints >= entry.unlockPoints && playerLevel >= entry.definition.level,
     )
     .map((entry) => entry.definition.id);
 }

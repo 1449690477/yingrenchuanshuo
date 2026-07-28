@@ -32,9 +32,17 @@ describe('心虹好感专属装备', () => {
     for (const classId of CLASS_IDS) {
       const entries = affectionEquipmentForClass(classId);
       expect(entries, classId).toHaveLength(10);
-      expect(new Set(entries.map((entry) => entry.definition.slot)), classId).toEqual(requiredSlots);
-      expect(entries.filter((entry) => entry.definition.slot === 'body'), classId).toHaveLength(2);
-      expect(entries.filter((entry) => entry.definition.slot === 'weapon'), classId).toHaveLength(2);
+      expect(new Set(entries.map((entry) => entry.definition.slot)), classId).toEqual(
+        requiredSlots,
+      );
+      expect(
+        entries.filter((entry) => entry.definition.slot === 'body'),
+        classId,
+      ).toHaveLength(2);
+      expect(
+        entries.filter((entry) => entry.definition.slot === 'weapon'),
+        classId,
+      ).toHaveLength(2);
       expect(affectionEquipmentIdsForClass(classId)).toHaveLength(10);
     }
   });
@@ -47,10 +55,10 @@ describe('心虹好感专属装备', () => {
       expect(definition.quality, definition.id).toBe('prismatic');
       expect(definition.classId, definition.id).toBe(entry.classId);
       expect(definition.fixedAffixes, definition.id).toHaveLength(6);
-      expect(
-        new Set(definition.fixedAffixes!.map((affix) => affix.key)).size,
-        definition.id,
-      ).toBe(6);
+      expect(definition.fixedTemplate, definition.id).toBe(true);
+      expect(new Set(definition.fixedAffixes!.map((affix) => affix.key)).size, definition.id).toBe(
+        6,
+      );
       expect(definition.boutiqueTheme, definition.id).toBeDefined();
       expect(definition.uniqueEffect, definition.id).toContain('攻击换肤');
       expect(entry.flavorText.length, definition.id).toBeGreaterThanOrEqual(18);
