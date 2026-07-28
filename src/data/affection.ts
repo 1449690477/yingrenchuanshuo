@@ -1,6 +1,7 @@
 import type { AffectionMood } from '@/core/affection';
 import type { EncounterLine } from '@/core/encounters';
 import type { ClassId } from '@/core/types';
+import { affectionDateStories } from '@/data/affectionDates';
 
 export type AffectionStageAction = 'idle' | 'cast' | 'victory';
 
@@ -2118,7 +2119,7 @@ export const AFFECTION_CHARACTERS: Readonly<Record<ClassId, AffectionCharacterDe
         'aff_swordsman_03_victory',
       ),
     ],
-    stories: SWORDSMAN_STORIES,
+    stories: [...SWORDSMAN_STORIES, ...affectionDateStories('swordsman')],
   },
   witch: {
     classId: 'witch',
@@ -2183,7 +2184,7 @@ export const AFFECTION_CHARACTERS: Readonly<Record<ClassId, AffectionCharacterDe
         'aff_witch_03_recipe',
       ),
     ],
-    stories: WITCH_STORIES,
+    stories: [...WITCH_STORIES, ...affectionDateStories('witch')],
   },
   shaman: {
     classId: 'shaman',
@@ -2248,7 +2249,7 @@ export const AFFECTION_CHARACTERS: Readonly<Record<ClassId, AffectionCharacterDe
         'aff_shaman_03_wish',
       ),
     ],
-    stories: SHAMAN_STORIES,
+    stories: [...SHAMAN_STORIES, ...affectionDateStories('shaman')],
   },
   catkin: {
     classId: 'catkin',
@@ -2313,7 +2314,7 @@ export const AFFECTION_CHARACTERS: Readonly<Record<ClassId, AffectionCharacterDe
         'aff_catkin_03_rooftop',
       ),
     ],
-    stories: CATKIN_STORIES,
+    stories: [...CATKIN_STORIES, ...affectionDateStories('catkin')],
   },
 } as const;
 

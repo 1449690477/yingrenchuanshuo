@@ -105,6 +105,18 @@ const SCENES = [
   'catkin-gift-inspection-workshop',
   'catkin-sentimental-shelf-rain',
   'catkin-shared-expedition-locker-sunrise',
+  'swordsman-morning-market',
+  'swordsman-lakeside-bento',
+  'swordsman-lantern-bridge',
+  'witch-starcandy-atelier',
+  'witch-planetarium-repair',
+  'witch-meteor-terrace',
+  'shaman-shrine-market',
+  'shaman-firefly-ferry',
+  'shaman-rainy-teahouse',
+  'catkin-supply-market',
+  'catkin-workshop-coffee',
+  'catkin-rooftop-platform',
 ];
 
 const CGS = [
@@ -120,6 +132,10 @@ const CGS = [
   'witch-reciprocal-star-ink',
   'shaman-open-knot-keepsakes',
   'catkin-two-way-supply-tags',
+  'swordsman-paired-tassels',
+  'witch-meteor-journal',
+  'shaman-paired-teacups',
+  'catkin-two-tickets',
 ];
 
 const equipmentIconFiles = Object.entries(EQUIPMENT).flatMap(([classId, slugs]) =>
@@ -139,15 +155,15 @@ function assertManifest() {
   const expectedCounts = [
     [equipmentIconFiles.length, 40, '心虹装备图标'],
     [giftIconFiles.length, 12, '角色礼物图标'],
-    [sceneFiles.length, 36, '好感剧情场景'],
-    [cgFiles.length, 12, '好感高潮 CG'],
+    [sceneFiles.length, 48, '好感剧情场景'],
+    [cgFiles.length, 16, '好感高潮 CG'],
   ];
   for (const [actual, expected, label] of expectedCounts) {
     if (actual !== expected) {
       throw new Error(`${label}清单应为 ${expected} 项，当前为 ${actual}`);
     }
   }
-  if (new Set(allFiles).size !== 100) {
+  if (new Set(allFiles).size !== 116) {
     throw new Error('好感度美术清单存在重复运行时路径');
   }
 }
@@ -187,7 +203,7 @@ async function assertExactRuntimeFiles() {
   if (missing.length > 0 || unexpected.length > 0) {
     throw new Error(
       [
-        '好感度运行时美术目录必须严格匹配 40 装备图标 + 12 礼物图标 + 36 场景 + 12 CG。',
+        '好感度运行时美术目录必须严格匹配 40 装备图标 + 12 礼物图标 + 48 场景 + 16 CG。',
         `缺失：${missing.join('、') || '无'}`,
         `多余：${unexpected.join('、') || '无'}`,
       ].join('\n'),
@@ -292,11 +308,45 @@ async function validateStoryImage(file) {
   }
 }
 
+/**
+ * 像素级查重：任何两张剧情图都不许「同图复用」。
+ * 缩成 16×16 灰度指纹后逐对比较，平均像素差 ≤ 2 即视为同图。
+ */
+async function assertStoryImagesDistinct(files) {
+  const fingerprints = await Promise.all(
+    files.map(async (file) => ({
+      file,
+      data: await sharp(resolve(file))
+        .resize(16, 16, { fit: 'fill' })
+        .grayscale()
+        .raw()
+        .toBuffer(),
+    })),
+  );
+  for (let a = 0; a < fingerprints.length; a += 1) {
+    for (let b = a + 1; b < fingerprints.length; b += 1) {
+      const left = fingerprints[a];
+      const right = fingerprints[b];
+      let total = 0;
+      for (let i = 0; i < left.data.length; i += 1) {
+        total += Math.abs(left.data[i] - right.data[i]);
+      }
+      const meanDiff = total / left.data.length;
+      if (meanDiff <= 2) {
+        throw new Error(
+          `疑似同图复用：${left.file} 与 ${right.file} 平均像素差仅 ${meanDiff.toFixed(2)}`,
+        );
+      }
+    }
+  }
+}
+
 assertManifest();
 await assertExactRuntimeFiles();
 for (const file of [...equipmentIconFiles, ...giftIconFiles]) await validateIcon(file);
 for (const file of [...sceneFiles, ...cgFiles]) await validateStoryImage(file);
+await assertStoryImagesDistinct([...sceneFiles, ...cgFiles]);
 
 console.log(
-  '好感度美术审计通过：40 张装备 RGBA 图标 + 12 张礼物 RGBA 图标 + 36 张 3:2 场景 + 12 张 3:2 CG。',
+  '好感度美术审计通过：40 张装备 RGBA 图标 + 12 张礼物 RGBA 图标 + 48 张 3:2 场景 + 16 张 3:2 CG（像素查重无异）。',
 );

@@ -419,7 +419,7 @@ describe('affection store transaction', () => {
     expect(loaded?.affection.characters.shaman.choiceHistory[story.id]).toBe(choice.id);
   });
 
-  it('三批九幕按门槛线性开放，第四幕后等额结算且第九幕不可重复领奖', () => {
+  it('四批十二幕按门槛线性开放，第四幕后等额结算且已完成幕不可重复领奖', () => {
     const game = useGameStore();
     game.loadFrom(createSave('六幕剧情', 'swordsman', 20260803, NOW));
     const stories = requireAffectionCharacter('swordsman').stories;
@@ -459,7 +459,7 @@ describe('affection store transaction', () => {
 
     const progress = game.save!.affection.characters.swordsman;
     expect(progress.completedStoryIds).toEqual(stories.map((story) => story.id));
-    expect(progress.points).toBe(2_660);
+    expect(progress.points).toBe(4_160);
     const before = jsonClone(progress);
     expect(
       game.completeAffectionStoryChoice(

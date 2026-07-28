@@ -13,6 +13,7 @@ import { QUALITY_AFFIX_COUNT, SLOT_ORDER } from './constants';
 import { AFFECTION_EQUIPMENT_LIST } from './affectionEquipment';
 import { BOUTIQUE_THEME_LIST, boutiqueAppearanceId, boutiqueEquipmentId } from './boutique';
 import { EQUIPMENT_DUNGEON_GEAR_LIST } from './equipmentDungeonGear';
+import { REGION_34_EQUIPMENT_THEMES } from './region34';
 
 /** 每个区域一套命名主题：8 个槽位各一个词根 */
 interface NamingTheme {
@@ -78,6 +79,19 @@ const THEMES: NamingTheme[] = [
       shoes: '蓬松绒靴',
     },
   },
+
+  // 区域 3/4：主题与可见名称登记在 region34.ts，此处只补等级与品质档。
+  // 品质上限停在史诗，传说留给区域 5 的第一个套装区，
+  // 提前放开会让后面的区域没有东西可给（见 docs/44 品质开放节奏）。
+  ...REGION_34_EQUIPMENT_THEMES.map((theme) => ({
+    regionId: theme.regionId,
+    level: theme.regionId === 'r3' ? 26 : 36,
+    qualities: ['rare', 'epic'] as Quality[],
+    icons: Object.fromEntries(
+      SLOT_ORDER.map((slot) => [slot, `assets/equipment/${theme.regionId}/${slot}.png`]),
+    ) as Record<EquipSlot, string>,
+    names: theme.names,
+  })),
 ];
 
 /** 品质前缀，让同名装备在背包里能区分开 */

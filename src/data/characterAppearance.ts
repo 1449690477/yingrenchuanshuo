@@ -60,6 +60,11 @@ interface LayerAppearance {
   renderMode: 'layer';
   assets: Partial<Record<ClassId, string>>;
   transforms: Record<ClassId, LayerTransform>;
+  /**
+   * 头部图层默认压在三职业安全脸层之上、喵喵安全脸层之下（保护猫耳与眼睛）。
+   * 置 true 时喵喵也提到脸层之上——只给「遮住头顶但不会盖眼睛」的帽饰使用。
+   */
+  aboveFace?: boolean;
 }
 
 interface SlotOnlyAppearance {
@@ -141,6 +146,8 @@ function buildBoutiqueAppearances(): Record<string, EquipmentAppearance> {
           renderMode: 'layer',
           assets: boutiqueClassAssets(theme.id, slot, item.classId),
           transforms: alignedTransforms,
+          // 精品店帽饰是戴在头顶的整帽，喵喵同样需要压过安全脸层，否则整顶被头发埋住。
+          ...(slot === 'head' ? { aboveFace: true } : {}),
         };
         continue;
       }
@@ -172,7 +179,7 @@ function buildEquipmentDungeonAppearances(): Record<string, EquipmentAppearance>
       renderMode: 'replacement',
       assets: dungeonClassAssets(tier.id, 'body'),
     };
-    for (const slot of ['head', 'shoes', 'weapon'] as const) {
+    for (const slot of ['head', 'weapon'] as const) {
       const id = equipmentDungeonAppearanceId(tier.id, slot);
       out[id] = {
         id,
@@ -182,7 +189,8 @@ function buildEquipmentDungeonAppearances(): Record<string, EquipmentAppearance>
         transforms: alignedTransforms,
       };
     }
-    for (const slot of ['necklace', 'bracelet', 'ring', 'belt'] as const) {
+    // 整身换装本体已画出配套鞋靴；独立的鞋子图层素材悬空错位，不再叠加到人物身上。
+    for (const slot of ['necklace', 'bracelet', 'ring', 'belt', 'shoes'] as const) {
       const id = equipmentDungeonAppearanceId(tier.id, slot);
       out[id] = { id, slot, renderMode: 'slot-only' };
     }
@@ -281,6 +289,27 @@ export const EQUIPMENT_APPEARANCES: Readonly<Record<string, EquipmentAppearance>
   'r2-ring': { id: 'r2-ring', slot: 'ring', renderMode: 'slot-only' },
   'r2-belt': { id: 'r2-belt', slot: 'belt', renderMode: 'slot-only' },
   'r2-shoes': { id: 'r2-shoes', slot: 'shoes', renderMode: 'slot-only' },
+  // 区域 3/4：body / head / weapon 有真实换装层，其余五槽与区域 1～2 一致走 slot-only。
+  // 生产脚本每职业各出 3 层 × 2 区域 = 24 张，见 docs/46。
+  ...Object.fromEntries(
+    (['r3', 'r4'] as const).flatMap((regionId) => [
+      ...(['weapon', 'head', 'body'] as const).map((slot) => [
+        `${regionId}-${slot}`,
+        {
+          id: `${regionId}-${slot}`,
+          slot,
+          renderMode: 'layer' as const,
+          assets: classAssets(`${regionId}-${slot}`),
+          transforms: alignedTransforms,
+        },
+      ]),
+      ...(['necklace', 'bracelet', 'ring', 'belt', 'shoes'] as const).map((slot) => [
+        `${regionId}-${slot}`,
+        { id: `${regionId}-${slot}`, slot, renderMode: 'slot-only' as const },
+      ]),
+    ]),
+  ),
+
   ...buildBoutiqueAppearances(),
   ...buildEquipmentDungeonAppearances(),
 };
@@ -290,6 +319,18 @@ export const CHARACTER_BASE_ASSETS: Readonly<Record<ClassId, string>> = {
   witch: 'assets/characters/modular/witch/base.png',
   shaman: 'assets/characters/modular/shaman/base.png',
   catkin: 'assets/characters/modular/catkin/base.png',
+};
+
+/**
+ * 脱掉初始靴的底模：靴区被重涂成裤袜质感。
+ * 只要装备了会真实叠加到身上的鞋子图层就换用该底模，
+ * 避免初始靴从新鞋上沿/后方探出来形成「双靴」。
+ */
+export const CHARACTER_BASE_NOSHOES_ASSETS: Readonly<Record<ClassId, string>> = {
+  swordsman: 'assets/characters/modular/swordsman/base-noshoes.png',
+  witch: 'assets/characters/modular/witch/base-noshoes.png',
+  shaman: 'assets/characters/modular/shaman/base-noshoes.png',
+  catkin: 'assets/characters/modular/catkin/base-noshoes.png',
 };
 
 export const BASIC_ATTACK_EFFECTS: Readonly<Record<ClassId, string>> = {
@@ -308,6 +349,7 @@ export interface ResolvedAppearanceLayer {
   enhance: number;
   forgeStage: ForgeStage;
   transform: LayerTransform;
+  aboveFace?: boolean;
 }
 
 export interface ResolvedCharacterAppearance {
@@ -357,6 +399,7 @@ export function resolveCharacterAppearance(
   let activeDungeonTier: EquipmentDungeonTierId | null = null;
   let replacementBaseAsset: string | null = null;
   let replacementId: string | null = null;
+  let hasVisibleShoes = false;
   let visibleEquippedCount = 0;
   const visibleNames: string[] = [];
 
@@ -414,6 +457,7 @@ export function resolveCharacterAppearance(
       if (!transform) {
         throw new Error(`[配置错误] ${classId} 缺少装备外观变换：${appearance.id}`);
       }
+      if (slot === 'shoes') hasVisibleShoes = true;
       layers.push({
         id: appearance.id,
         asset,
@@ -423,6 +467,7 @@ export function resolveCharacterAppearance(
         enhance: instance.enhance,
         forgeStage: forgeStageAt(instance.enhance),
         transform,
+        ...(appearance.aboveFace ? { aboveFace: true } : {}),
       });
     }
   }
@@ -447,9 +492,12 @@ export function resolveCharacterAppearance(
   layers.sort((a, b) => slotOrder[a.slot] - slotOrder[b.slot]);
 
   const growthTier = growthTierFor(level);
+  const baseAsset =
+    replacementBaseAsset ??
+    (hasVisibleShoes ? CHARACTER_BASE_NOSHOES_ASSETS[classId] : CHARACTER_BASE_ASSETS[classId]);
   return {
     classId,
-    baseAsset: replacementBaseAsset ?? CHARACTER_BASE_ASSETS[classId],
+    baseAsset,
     growthTier,
     layers,
     equippedCount,

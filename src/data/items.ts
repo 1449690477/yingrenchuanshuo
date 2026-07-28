@@ -3,6 +3,8 @@
  * 装备不在这里，见 equipment.ts。
  */
 
+import { REGION_34_MATERIALS } from './region34';
+
 export type ItemKind = 'material' | 'consumable' | 'currency' | 'fragment';
 
 export interface ItemDef {
@@ -121,6 +123,15 @@ export const ITEMS: Record<string, ItemDef> = {
       mat('honey_bee', '蜂娘蜜', 'fine', 30, '蜜蜂娘辛苦攒的，甜到发晕。'),
       mat('crystal_altar', '祭坛结晶', 'rare', 200, '草原祭坛的能量结晶。'),
     ].map((i) => [i.id, i]),
+  ),
+
+  // ── 区域 3～4：虫娘洞窟 / 月下墓园 ──
+  // 声明在 region34.ts，与区域、装备主题、怪物动作同源，避免同一批内容分散两处。
+  ...Object.fromEntries(
+    REGION_34_MATERIALS.map((spec) => [
+      spec.id,
+      mat(spec.id, spec.name, spec.tier, spec.sellPrice, spec.desc),
+    ]),
   ),
 
   // ── 消耗品 ──

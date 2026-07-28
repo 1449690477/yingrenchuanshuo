@@ -17,6 +17,7 @@ import type {
   AffectionInteractionDefinition,
   AffectionStoryDefinition,
 } from '@/data/affection';
+import AffectionDatePlanner from '@/components/affection/AffectionDatePlanner.vue';
 
 interface AffectionStoryView {
   story: AffectionStoryDefinition;
@@ -231,6 +232,13 @@ function requestInteraction(interaction: AffectionInteractionDefinition): void {
         今天的有效互动已经完成。你仍可重看剧情与收藏，明早 04:00 她会准备好新的相处时光。
       </p>
     </section>
+
+    <AffectionDatePlanner
+      :stories="stories"
+      :progress="progress"
+      :disabled="disabled"
+      @open-date="(storyId) => emit('openStory', storyId)"
+    />
 
     <section class="story-section" aria-labelledby="affection-story-title">
       <div class="section-heading">

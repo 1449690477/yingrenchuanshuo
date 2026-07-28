@@ -227,7 +227,113 @@ export const ENHANCE_PROGRESSION: Record<string, ChapterEnhanceProgression> = {
       { itemId: MATERIAL.protection, count: 2 },
     ],
   ),
+
+  // ── 区域 3 虫娘洞窟（Lv20-30）──
+  // 推荐档位必须从区域 2 收尾的 9 / 10 继续递增，不能回落；
+  // 精英掉落只配给真正有精英的章节（3-2 / 3-5），否则会生成不可触达的掉落表。
+  '3-1': chapter('3-1', 9, 10, [110, 125, 140, 155, 170, 240], {
+    normal: source([entry(MATERIAL.stone, 300, 8, 13)]),
+    elite: EMPTY_SOURCE,
+    boss: EMPTY_SOURCE,
+  }),
+  '3-2': chapter('3-2', 9, 11, [125, 140, 155, 170, 190, 265], {
+    normal: source([entry(MATERIAL.stone, 305, 9, 14)]),
+    elite: source(
+      [entry(MATERIAL.ore, 24, 1, 2, 4)],
+      [guaranteed(MATERIAL.stone, 18, 26), guaranteed(MATERIAL.ore, 4, 7)],
+    ),
+    boss: EMPTY_SOURCE,
+  }),
+  '3-3': chapter('3-3', 10, 11, [140, 155, 175, 190, 210, 290], {
+    normal: source([entry(MATERIAL.stone, 310, 10, 15)]),
+    elite: EMPTY_SOURCE,
+    boss: EMPTY_SOURCE,
+  }),
+  '3-4': chapter('3-4', 10, 12, [155, 175, 195, 210, 230, 320], {
+    normal: source([entry(MATERIAL.stone, 315, 11, 16)]),
+    elite: EMPTY_SOURCE,
+    boss: EMPTY_SOURCE,
+  }),
+  '3-5': chapter(
+    '3-5',
+    10,
+    12,
+    [175, 195, 215, 235, 260, 360],
+    {
+      normal: source([entry(MATERIAL.stone, 320, 12, 18)]),
+      elite: source([], [guaranteed(MATERIAL.stone, 24, 34), guaranteed(MATERIAL.ore, 7, 11)]),
+      boss: source(
+        [entry(MATERIAL.lucky, 22, 1, 2, 3), entry(MATERIAL.protection, 13, 1, 1, 4)],
+        [
+          guaranteed(MATERIAL.stone, 55, 80),
+          guaranteed(MATERIAL.reforge, 3, 5),
+          guaranteed(MATERIAL.ore, 16, 24),
+        ],
+      ),
+    },
+    [
+      { itemId: MATERIAL.reforge, count: 3 },
+      { itemId: MATERIAL.ore, count: 40 },
+      { itemId: MATERIAL.lucky, count: 3 },
+      { itemId: MATERIAL.protection, count: 2 },
+    ],
+  ),
+
+  // ── 区域 4 月下墓园（Lv30-40）──
+  // 保护符从「首通奖励」转为精英与 BOSS 的常规低概率产出，
+  // 支撑玩家第一次尝试冲 +13 以上。精英章节为 4-2 / 4-4 / 4-5。
+  '4-1': chapter('4-1', 11, 12, [200, 225, 250, 275, 300, 420], {
+    normal: source([entry(MATERIAL.stone, 325, 14, 20)]),
+    elite: EMPTY_SOURCE,
+    boss: EMPTY_SOURCE,
+  }),
+  '4-2': chapter('4-2', 11, 13, [225, 250, 275, 300, 330, 460], {
+    normal: source([entry(MATERIAL.stone, 330, 15, 22)]),
+    elite: source(
+      [entry(MATERIAL.ore, 28, 2, 4, 4), entry(MATERIAL.protection, 6, 1, 1, 8)],
+      [guaranteed(MATERIAL.stone, 30, 42), guaranteed(MATERIAL.ore, 9, 14)],
+    ),
+    boss: EMPTY_SOURCE,
+  }),
+  '4-3': chapter('4-3', 11, 13, [250, 275, 305, 330, 365, 505], {
+    normal: source([entry(MATERIAL.stone, 335, 16, 24)]),
+    elite: EMPTY_SOURCE,
+    boss: EMPTY_SOURCE,
+  }),
+  '4-4': chapter('4-4', 12, 14, [275, 305, 335, 365, 400, 555], {
+    normal: source([entry(MATERIAL.stone, 340, 18, 26)]),
+    elite: source(
+      [entry(MATERIAL.ore, 30, 3, 5, 3), entry(MATERIAL.lucky, 8, 1, 1, 6)],
+      [guaranteed(MATERIAL.stone, 35, 48), guaranteed(MATERIAL.ore, 11, 17)],
+    ),
+    boss: EMPTY_SOURCE,
+  }),
+  '4-5': chapter(
+    '4-5',
+    12,
+    14,
+    [305, 335, 370, 400, 440, 610],
+    {
+      normal: source([entry(MATERIAL.stone, 345, 20, 28)]),
+      elite: source([], [guaranteed(MATERIAL.stone, 38, 52), guaranteed(MATERIAL.ore, 13, 19)]),
+      boss: source(
+        [entry(MATERIAL.lucky, 26, 2, 3, 3), entry(MATERIAL.protection, 16, 1, 2, 3)],
+        [
+          guaranteed(MATERIAL.stone, 75, 105),
+          guaranteed(MATERIAL.reforge, 4, 6),
+          guaranteed(MATERIAL.ore, 22, 32),
+        ],
+      ),
+    },
+    [
+      { itemId: MATERIAL.reforge, count: 4 },
+      { itemId: MATERIAL.ore, count: 55 },
+      { itemId: MATERIAL.lucky, count: 4 },
+      { itemId: MATERIAL.protection, count: 3 },
+    ],
+  ),
 };
+
 
 export function getEnhanceProgression(chapterId: string): ChapterEnhanceProgression | undefined {
   return ENHANCE_PROGRESSION[chapterId];

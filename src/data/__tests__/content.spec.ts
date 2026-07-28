@@ -8,6 +8,7 @@ import { CLASS_VISUALS } from '../classVisuals';
 import {
   BASIC_ATTACK_EFFECTS,
   CHARACTER_BASE_ASSETS,
+  CHARACTER_BASE_NOSHOES_ASSETS,
   EQUIPMENT_APPEARANCES,
   growthTierFor,
 } from '../characterAppearance';
@@ -35,7 +36,7 @@ import {
   requireEnhanceProgression,
 } from '../enhanceProgression';
 
-describe('区域 1–2 内容完整性', () => {
+describe('区域 1–4 内容完整性', () => {
   it('已登记的职业立绘文件都真实存在', () => {
     for (const [classId, visual] of Object.entries(CLASS_VISUALS)) {
       for (const asset of [visual.portrait, visual.castPortrait]) {
@@ -107,14 +108,15 @@ describe('区域 1–2 内容完整性', () => {
     }
   });
 
-  it('数量达到 M2 内容目标', () => {
-    expect(REGIONS).toHaveLength(2);
-    expect(ALL_CHAPTERS).toHaveLength(10);
-    expect(Object.keys(STAGES)).toHaveLength(60);
-    expect(Object.keys(MONSTERS)).toHaveLength(49);
-    // 区域/珍品商店 83 件（含喵喵专属两件套）+ 定向副本 80 件 + 心虹 40 件。
-    expect(Object.keys(EQUIPMENT)).toHaveLength(203);
-    expect(Object.keys(LOOT_TABLES)).toHaveLength(30);
+  it('数量达到区域 1–4 的内容目标', () => {
+    // 区域 3 虫娘洞窟与区域 4 月下墓园接入后，等级覆盖由 Lv1-20 延伸到 Lv1-40。
+    expect(REGIONS).toHaveLength(4);
+    expect(ALL_CHAPTERS).toHaveLength(20);
+    expect(Object.keys(STAGES)).toHaveLength(120);
+    expect(Object.keys(MONSTERS)).toHaveLength(96);
+    // 区域/珍品商店 83 件 + 定向副本 80 件 + 心虹 40 件 + 区域 3/4 各 16 件。
+    expect(Object.keys(EQUIPMENT)).toHaveLength(235);
+    expect(Object.keys(LOOT_TABLES)).toHaveLength(60);
   });
 
   it('所有 id 唯一且关卡顺序从第一关开始', () => {
@@ -188,7 +190,7 @@ describe('区域 1–2 内容完整性', () => {
     );
     expect(region2Monsters).toHaveLength(25);
     expect(Object.keys(MONSTER_VISUALS).filter((id) => id.startsWith('mon_2-'))).toHaveLength(25);
-    expect(Object.keys(MONSTER_VISUALS)).toHaveLength(49);
+    expect(Object.keys(MONSTER_VISUALS)).toHaveLength(96);
     for (const monster of region2Monsters) {
       expect(monster.sprite, monster.id).toBe(MONSTER_VISUALS[monster.id]?.asset);
       expect(
@@ -200,7 +202,7 @@ describe('区域 1–2 内容完整性', () => {
 
   it('49 张怪物运行时贴图均为统一尺寸、透明画布与脚底锚点', async () => {
     const assets = Object.values(MONSTER_VISUALS).map((visual) => visual.asset);
-    expect(assets).toHaveLength(49);
+    expect(assets).toHaveLength(96);
 
     for (const asset of assets) {
       expect(asset.endsWith('.webp'), asset).toBe(true);
@@ -433,8 +435,15 @@ describe('区域 1–2 内容完整性', () => {
     const layerAssets = Object.values(EQUIPMENT_APPEARANCES)
       .filter((appearance) => appearance.renderMode !== 'slot-only')
       .flatMap((appearance) => Object.values(appearance.assets));
-    const assets = [...new Set([...Object.values(CHARACTER_BASE_ASSETS), ...layerAssets])];
-    expect(assets).toHaveLength(142);
+    const assets = [
+      ...new Set([
+        ...Object.values(CHARACTER_BASE_ASSETS),
+        ...Object.values(CHARACTER_BASE_NOSHOES_ASSETS),
+        ...layerAssets,
+      ]),
+    ];
+    // 4 底模 + 4 无靴底模 + 区域 2×3×4 + 精品店 50 + 装备副本 4×3×4（鞋已改为仅槽位显示）
+    expect(assets).toHaveLength(154);
 
     for (const asset of assets) {
       const assetPath = resolve('public', asset);
@@ -618,7 +627,7 @@ describe('区域 1–2 内容完整性', () => {
   });
 
   it('全部物品都引用真实存在的正式图标', () => {
-    expect(Object.keys(ITEMS)).toHaveLength(23);
+    expect(Object.keys(ITEMS)).toHaveLength(31);
     for (const [id, item] of Object.entries(ITEMS)) {
       expect(item.icon).toBe(`assets/items/${id}.png`);
       expect(existsSync(resolve('public', item.icon)), `${id} → ${item.icon}`).toBe(true);

@@ -11,13 +11,13 @@ import {
 } from '../affection';
 
 describe('affection content', () => {
-  it('四位成年角色各有 9 幕剧情、每幕 3 个等价回答和 6 种互动', () => {
-    expect(AFFECTION_STORIES).toHaveLength(36);
+  it('四位成年角色各有 12 幕剧情、每幕 3 个等价回答和 6 种互动', () => {
+    expect(AFFECTION_STORIES).toHaveLength(48);
 
     for (const classId of CLASS_IDS) {
       const character = AFFECTION_CHARACTERS[classId];
       expect(character.adult).toBe(true);
-      expect(character.stories).toHaveLength(9);
+      expect(character.stories).toHaveLength(12);
       expect(character.interactions).toHaveLength(6);
       expect(new Set(character.interactions.map((entry) => entry.id)).size).toBe(6);
       expect(new Set(character.interactions.map((entry) => entry.points))).toEqual(new Set([10]));
@@ -34,10 +34,10 @@ describe('affection content', () => {
       });
 
       expect(character.stories.map((story) => story.unlockPoints)).toEqual([
-        0, 80, 240, 520, 900, 1_400, 1_700, 2_100, 2_600,
+        0, 80, 240, 520, 900, 1_400, 1_700, 2_100, 2_600, 3_000, 3_500, 4_100,
       ]);
       expect(character.stories.slice(3).map((story) => story.completionPoints)).toEqual([
-        60, 60, 60, 60, 60, 60,
+        60, 60, 60, 60, 60, 60, 60, 60, 60,
       ]);
     }
   });
@@ -94,7 +94,9 @@ describe('affection content', () => {
       ['aff_catkin_09_reciprocal', '下一站也有你的收纳格', 'catkin-shared-expedition-locker-sunrise.webp'],
     ] as const;
 
-    const thirdBatch = AFFECTION_STORIES.filter((story) => story.episode >= 7);
+    const thirdBatch = AFFECTION_STORIES.filter(
+      (story) => story.episode >= 7 && story.episode <= 9,
+    );
     expect(
       thirdBatch.map((story) => [
         story.id,
@@ -178,7 +180,7 @@ describe('affection content', () => {
     for (const classId of CLASS_IDS) {
       const stories = AFFECTION_CHARACTERS[classId].stories;
       const byId = new Map(stories.map((story) => [story.id, story]));
-      for (const story of stories.slice(6)) {
+      for (const story of stories.slice(6, 9)) {
         const callbacks = story.memoryCallbacks ?? [];
         expect(callbacks).toHaveLength(3);
         expect(new Set(callbacks.map((entry) => entry.fromStoryId)).size).toBe(1);
@@ -221,17 +223,17 @@ describe('affection content', () => {
         expect(story.cgAsset).toMatch(/^assets\/affection\/cg\/[a-z0-9-]+\.webp$/);
       }
     }
-    expect(scenePaths.size).toBe(36);
-    expect(AFFECTION_STORIES.filter((story) => story.cgAsset)).toHaveLength(12);
+    expect(scenePaths.size).toBe(48);
+    expect(AFFECTION_STORIES.filter((story) => story.cgAsset)).toHaveLength(16);
   });
 
-  it('三批三十六张场景与十二张高潮插画均真实存在且保持 3:2 横图', async () => {
+  it('四批四十八张场景与十六张高潮插画均真实存在且保持 3:2 横图', async () => {
     const assets = new Set<string>();
     for (const story of AFFECTION_STORIES) {
       assets.add(story.backgroundAsset);
       if (story.cgAsset) assets.add(story.cgAsset);
     }
-    expect(assets.size).toBe(48);
+    expect(assets.size).toBe(64);
 
     for (const asset of assets) {
       const assetPath = resolve('public', asset);

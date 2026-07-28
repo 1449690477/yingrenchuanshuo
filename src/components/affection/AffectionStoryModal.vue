@@ -1,9 +1,15 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
-import { ChevronDown, Heart, History, Pause, Play, Sparkles, X } from '@lucide/vue';
+import { ChevronDown, Heart, History, Pause, Play, Sparkles, Volume2, X } from '@lucide/vue';
 import { createFocusTrap, type FocusTrap } from 'focus-trap';
 import type { AffectionMood } from '@/core/affection';
 import type { EncounterLine } from '@/core/encounters';
+import {
+  AffectionVoicePlayer,
+  affectionOpeningCueId,
+  affectionResponseCueId,
+  hasAffectionVoice,
+} from '@/core/affectionVoice';
 import type {
   AffectionStoryChoiceDefinition,
   AffectionStoryDefinition,
@@ -20,6 +26,8 @@ const props = withDefaults(
     feedback?: string | null;
     portraitLabel?: string;
     replay?: boolean;
+    /** 全局 sfx 关闭时置 true：语音与音效同生共死 */
+    voiceMuted?: boolean;
   }>(),
   {
     memoryDialogue: () => [],
@@ -27,6 +35,7 @@ const props = withDefaults(
     feedback: null,
     portraitLabel: '',
     replay: false,
+    voiceMuted: false,
   },
 );
 
@@ -52,6 +61,10 @@ const showBacklog = ref(false);
 const cgFlash = ref(false);
 /** 本场已播台词，回放面板的数据源 */
 const backlog = ref<readonly { speaker: string | null; text: string }[]>([]);
+/** A-4 语音挂载点：单一实例负责当前句的播放/停止，无真实音频时按钮永不渲染 */
+const voicePlayer = new AffectionVoicePlayer();
+const voicePlaying = ref(false);
+const voiceError = ref<string | null>(null);
 let typeTimer = 0;
 let autoTimer = 0;
 let dialogFocusTrap: FocusTrap | null = null;
@@ -87,6 +100,44 @@ const hasMemoryEcho = computed(
 const activeMood = computed<AffectionMood>(
   () => selectedChoice.value?.mood ?? 'calm',
 );
+
+/** 当前台词的语音 cueId；回响行（非本幕正文）没有 cue。 */
+const currentCueId = computed(() => {
+  if (phase.value === 'opening') {
+    const openingIndex = lineIndex.value - props.memoryDialogue.length;
+    if (openingIndex < 0) return null;
+    return affectionOpeningCueId(props.story.id, openingIndex);
+  }
+  const choice = selectedChoice.value;
+  if (!choice) return null;
+  return affectionResponseCueId(props.story.id, choice.id, lineIndex.value);
+});
+/** 只有登记在册、文件真实存在的 cue 才渲染语音按钮（第一阶段清单为空→永不渲染） */
+const voiceAvailable = computed(
+  () => currentCueId.value !== null && hasAffectionVoice(currentCueId.value),
+);
+
+async function toggleVoice(): Promise<void> {
+  const cueId = currentCueId.value;
+  if (!cueId) return;
+  voiceError.value = null;
+  const result = await voicePlayer.play(cueId);
+  if (!result.ok) {
+    voicePlaying.value = false;
+    voiceError.value =
+      result.reason === 'load-failed'
+        ? '这句语音没能加载出来，请稍后再试。'
+        : '这句语音暂时还没有录制好。';
+    return;
+  }
+  voicePlaying.value = true;
+}
+
+function stopVoice(): void {
+  voicePlayer.stop();
+  voicePlaying.value = false;
+  voiceError.value = null;
+}
 
 const TYPE_SPEED_MS = 32;
 
@@ -169,6 +220,7 @@ function requestClose(): void {
 function resetStory(): void {
   stopTyping();
   clearTimeout(autoTimer);
+  stopVoice();
   phase.value = 'opening';
   selectedChoice.value = null;
   lineIndex.value = 0;
@@ -182,6 +234,15 @@ function resetStory(): void {
 
 watch(currentLine, startTyping, { immediate: true });
 watch(() => props.story.id, resetStory);
+
+// 语音：切句必停，绝不让上一句的声音盖过下一句
+watch(currentLine, stopVoice);
+// sfx 开关与语音同生共死
+watch(
+  () => props.voiceMuted,
+  (muted) => voicePlayer.setMuted(muted),
+  { immediate: true },
+);
 
 // 每播一句记一句，回放面板随时能翻看本场台词
 watch(
@@ -235,6 +296,7 @@ onUnmounted(() => {
   stopTyping();
   clearTimeout(autoTimer);
   clearTimeout(cgFlashTimer);
+  stopVoice();
   if (dialogFocusTrap?.active) {
     dialogFocusTrap.deactivate({
       returnFocus: true,
@@ -378,6 +440,19 @@ onUnmounted(() => {
                 {{ currentLine.speaker }}
               </span>
               <span v-else class="nameplate narration-label">心之手札</span>
+
+              <button
+                v-if="voiceAvailable"
+                type="button"
+                class="voice-chip"
+                :aria-label="voicePlaying ? '重播本句语音' : '播放本句语音'"
+                @click.stop="toggleVoice"
+                @keydown.enter.stop
+                @keydown.space.stop
+              >
+                <Volume2 :size="12" aria-hidden="true" />
+              </button>
+              <p v-if="voiceError" class="voice-error" role="status">{{ voiceError }}</p>
 
               <p :class="{ narration: !currentLine.speaker }">
                 {{ typedText }}<span v-if="isTyping" class="typing-caret" aria-hidden="true" />
@@ -865,6 +940,34 @@ onUnmounted(() => {
   color: var(--story-glow);
   background: rgb(38 32 58 / 88%);
   border-color: rgb(255 255 255 / 30%);
+}
+
+/* A-4 语音挂载点：与名牌对角的朗读小钮，仅在真实音频登记后出现 */
+.voice-chip {
+  position: absolute;
+  top: -13px;
+  right: 12px;
+  min-width: 30px;
+  min-height: 30px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: linear-gradient(120deg, var(--story-accent), #a27fd7);
+  border: 2px solid rgb(255 255 255 / 88%);
+  border-radius: 999px;
+  box-shadow: 0 4px 10px color-mix(in srgb, var(--story-accent) 34%, transparent);
+  transition: transform var(--t-fast, 0.16s) ease;
+}
+
+.voice-chip:active {
+  transform: scale(0.92);
+}
+
+.voice-error {
+  margin: 0 0 6px;
+  font-size: 10px;
+  line-height: 1.5;
+  color: #ffd9a8;
 }
 
 .dialogue-box p {

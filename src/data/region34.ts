@@ -53,6 +53,10 @@ export const REGION_34_MATERIALS: readonly Region34MaterialSpec[] = [
     tier: 'rare',
     sellPrice: 320,
     source: 'boss',
+    // 数值策划确认：BOSS 连续 12 次未掉则必掉。
+    // 每日可打的 BOSS 次数有限，12 次约合两周日常，
+    // 与 docs/44 的「凑满一套 ≤ 2 周」同一口径；极端非酋是这类游戏的主要流失原因。
+    pityCount: 12,
     desc: '还在轻轻搏动，捧在手心时能感觉到一点暖意。',
   },
   {
@@ -85,6 +89,10 @@ export const REGION_34_MATERIALS: readonly Region34MaterialSpec[] = [
     tier: 'rare',
     sellPrice: 480,
     source: 'boss',
+    // 数值策划确认：BOSS 连续 12 次未掉则必掉。
+    // 每日可打的 BOSS 次数有限，12 次约合两周日常，
+    // 与 docs/44 的「凑满一套 ≤ 2 周」同一口径；极端非酋是这类游戏的主要流失原因。
+    pityCount: 12,
     desc: '像月光凝成的一滴泪，握住时安静得听不见风。',
   },
 ];
