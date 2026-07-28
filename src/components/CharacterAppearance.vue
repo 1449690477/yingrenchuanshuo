@@ -172,7 +172,11 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
   left: 50%;
   width: 66%;
   height: 13%;
-  background: radial-gradient(ellipse, color-mix(in srgb, var(--dungeon-glow) 54%, transparent), transparent 70%);
+  background: radial-gradient(
+    ellipse,
+    color-mix(in srgb, var(--dungeon-glow) 54%, transparent),
+    transparent 70%
+  );
   border: 1px solid color-mix(in srgb, var(--dungeon-color) 70%, white);
   border-radius: 50%;
   box-shadow: 0 0 12px color-mix(in srgb, var(--dungeon-color) 36%, transparent);
@@ -908,8 +912,12 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
   animation: catkin-pounce 0.64s cubic-bezier(0.16, 0.84, 0.22, 1);
 }
 
+/*
+ * 乱抓必须用 linear：六爪的节奏全写在关键帧里，
+ * 换成 steps() 会把它量化成几段跳变，五连爪只剩两下能看出来。
+ */
 .class-catkin.action-flurry .doll {
-  animation: catkin-flurry 0.76s steps(4, end);
+  animation: catkin-flurry 0.68s linear;
 }
 
 .class-catkin.action-spin .doll {
@@ -918,6 +926,11 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
 
 .class-catkin.action-cast .doll {
   animation: catkin-furball-cast 0.84s ease-out;
+}
+
+/* 喵喵的闪避反击此前用的是四职业通用动作，猫感全无 */
+.class-catkin.action-counter .doll {
+  animation: catkin-air-twist 0.92s cubic-bezier(0.2, 0.82, 0.26, 1);
 }
 
 /* ─────────────────────────────────────────────
@@ -1020,19 +1033,42 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
   }
 }
 
+/* 闪避反击：向后腾空翻半圈，落地立刻回身补一爪。 */
+@keyframes catkin-air-twist {
+  0% {
+    transform: translate(0, 0) scale(1, 1) rotate(0);
+  }
+  18% {
+    transform: translate(-7%, 6%) scale(1.12, 0.85) rotate(-4deg);
+  }
+  42% {
+    transform: translate(-12%, -20%) scale(0.88, 1.18) rotate(-18deg);
+  }
+  62% {
+    transform: translate(2%, -16%) scale(0.94, 1.08) rotate(10deg);
+  }
+  80% {
+    transform: translate(10%, 2%) scale(1.14, 0.84) rotate(4deg);
+  }
+  100% {
+    transform: translate(0, 0) scale(1, 1) rotate(0);
+  }
+}
+
+/* 待机：猫式呼吸。比人类角色更明显的起伏，随时准备动起来。 */
 @keyframes catkin-idle {
   0%,
   100% {
-    transform: translateY(0) rotate(-0.25deg) scale(1);
+    transform: translateY(0) rotate(-0.7deg) scale(1, 1);
   }
-  35% {
-    transform: translateY(-1.05%) rotate(0.45deg) scale(1.004);
+  30% {
+    transform: translateY(-2.2%) rotate(1deg) scale(0.992, 1.012);
   }
-  52% {
-    transform: translateY(-1.35%) rotate(-0.15deg) scale(1.008);
+  58% {
+    transform: translateY(-0.9%) rotate(-0.5deg) scale(1.008, 0.995);
   }
-  72% {
-    transform: translateY(-0.25%) rotate(0.35deg) scale(0.998);
+  80% {
+    transform: translateY(-2.6%) rotate(1.2deg) scale(0.988, 1.016);
   }
 }
 
@@ -1049,19 +1085,22 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
   }
 }
 
+/* 猫拳：后坐蓄力 → 爆发前刺 → 慢收。快出慢收是猫科动物的出手节奏。 */
 @keyframes catkin-attack {
-  0%,
+  0% {
+    transform: translate(0, 0) scale(1, 1) rotate(0);
+  }
+  14% {
+    transform: translate(-9%, 4%) scale(1.06, 0.9) rotate(-5deg);
+  }
+  30% {
+    transform: translate(14%, -6%) scale(0.92, 1.12) rotate(7deg);
+  }
+  46% {
+    transform: translate(18%, -3%) scale(1.04, 0.96) rotate(4deg);
+  }
   100% {
-    transform: translate(0) scale(1) rotate(0);
-  }
-  18% {
-    transform: translate(-4%, 1.5%) scale(0.97) rotate(-2.4deg);
-  }
-  48% {
-    transform: translate(8%, -2.2%) scale(1.045) rotate(3.2deg);
-  }
-  67% {
-    transform: translate(3%, -0.8%) scale(1.018) rotate(-1.5deg);
+    transform: translate(0, 0) scale(1, 1) rotate(0);
   }
 }
 
@@ -1313,66 +1352,107 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
   }
 }
 
+/*
+ * 扑击：深蹲蓄力 → 腾空拉长 → 滞空 → 落地压扁 → 回弹。
+ *
+ * 这是喵喵最标志性的动作，五个阶段一个都不能省：
+ * 少了蓄力就变成平移，少了压扁就没有重量，少了回弹就像纸片。
+ * 垂直位移到 -22%，是其他三个职业的四倍多 —— 猫感就是从这来的。
+ */
 @keyframes catkin-pounce {
-  0%,
-  100% {
-    transform: translate(0) rotate(0) scale(1);
+  0% {
+    transform: translate(0, 0) scale(1, 1) rotate(0);
   }
-  18% {
-    transform: translate(-8%, 3%) rotate(-4deg) scale(0.94, 1.025);
+  16% {
+    transform: translate(-6%, 7%) scale(1.14, 0.82) rotate(-3deg);
   }
-  46% {
-    transform: translate(17%, -5%) rotate(6deg) scale(1.08, 0.95);
+  38% {
+    transform: translate(10%, -22%) scale(0.86, 1.2) rotate(8deg);
   }
-  68% {
-    transform: translate(7%, -2%) rotate(-2deg) scale(1.025);
-  }
-}
-
-@keyframes catkin-flurry {
-  0%,
-  100% {
-    transform: translate(0) rotate(0) scale(1);
-  }
-  24% {
-    transform: translate(7%, -2%) rotate(4deg) scale(1.035);
-  }
-  48% {
-    transform: translate(-4%, -1%) rotate(-4deg) scale(1.02);
+  56% {
+    transform: translate(20%, -14%) scale(0.94, 1.08) rotate(5deg);
   }
   72% {
-    transform: translate(9%, -3%) rotate(5deg) scale(1.05);
+    transform: translate(16%, 3%) scale(1.18, 0.8) rotate(-2deg);
+  }
+  86% {
+    transform: translate(8%, -3%) scale(0.96, 1.05) rotate(1deg);
+  }
+  100% {
+    transform: translate(0, 0) scale(1, 1) rotate(0);
   }
 }
 
-@keyframes catkin-tail-spin {
-  0%,
-  100% {
-    transform: translateY(0) rotate(0) scale(1);
+/*
+ * 疯狂乱抓：五连爪，左右交替，幅度递增。
+ * 原本只有两个来回，读起来像「挥了挥手」；
+ * 猫挠东西是高频、密集、越挠越起劲的。
+ */
+@keyframes catkin-flurry {
+  0% {
+    transform: translate(0, 0) rotate(0) scale(1, 1);
   }
-  26% {
-    transform: translateY(-3%) rotate(-8deg) scale(0.96, 1.035);
+  12% {
+    transform: translate(9%, -3%) rotate(9deg) scale(0.95, 1.06);
   }
-  52% {
-    transform: translateY(-4%) rotate(10deg) scale(1.07, 0.96);
+  24% {
+    transform: translate(-5%, -1%) rotate(-8deg) scale(1.05, 0.96);
+  }
+  36% {
+    transform: translate(11%, -4%) rotate(11deg) scale(0.94, 1.07);
+  }
+  48% {
+    transform: translate(-6%, -2%) rotate(-10deg) scale(1.06, 0.95);
+  }
+  60% {
+    transform: translate(13%, -5%) rotate(12deg) scale(0.93, 1.08);
   }
   74% {
-    transform: translateY(-1%) rotate(-4deg) scale(1.02);
+    transform: translate(-3%, -1%) rotate(-6deg) scale(1.03, 0.97);
+  }
+  100% {
+    transform: translate(0, 0) rotate(0) scale(1, 1);
   }
 }
 
-@keyframes catkin-furball-cast {
-  0%,
+/* 尾扫旋身：下沉蓄力 → 踮起旋身把尾巴甩出去 → 落地。 */
+@keyframes catkin-tail-spin {
+  0% {
+    transform: translateY(0) rotate(0) scale(1, 1);
+  }
+  20% {
+    transform: translateY(4%) rotate(-14deg) scale(1.08, 0.9);
+  }
+  46% {
+    transform: translateY(-14%) rotate(16deg) scale(0.9, 1.14);
+  }
+  68% {
+    transform: translateY(-8%) rotate(-10deg) scale(1.02, 1);
+  }
+  86% {
+    transform: translateY(2%) rotate(4deg) scale(1.06, 0.94);
+  }
   100% {
-    transform: translateY(0) scale(1);
-    filter: brightness(1);
+    transform: translateY(0) rotate(0) scale(1, 1);
   }
-  34% {
-    transform: translateY(-4%) scale(1.045);
-    filter: brightness(1.16) saturate(1.12);
+}
+
+/* 毛球术：后仰蓄力，再把整个身子的力量抛出去。 */
+@keyframes catkin-furball-cast {
+  0% {
+    transform: translate(0, 0) scale(1, 1) rotate(0);
   }
-  62% {
-    transform: translateY(-1.5%) scale(0.99, 1.025);
+  22% {
+    transform: translate(-8%, 5%) scale(1.1, 0.88) rotate(-7deg);
+  }
+  44% {
+    transform: translate(4%, -12%) scale(0.9, 1.14) rotate(5deg);
+  }
+  64% {
+    transform: translate(9%, -6%) scale(1.02, 1) rotate(3deg);
+  }
+  100% {
+    transform: translate(0, 0) scale(1, 1) rotate(0);
   }
 }
 
@@ -1672,18 +1752,22 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
 }
 
 /* 喵喵：猫的本能，直接向后弹跳拉开距离，落地再收回 */
+/* 受击：猫的本能是弹开而不是硬扛。后跳带弧线，落地有缓冲。 */
 @keyframes catkin-hop-back {
   0% {
-    transform: translate3d(0, 0, 0) scale(1);
+    transform: translate(0, 0) scale(1, 1) rotate(0);
   }
-  30% {
-    transform: translate3d(-8px, -10px, 0) scale(0.97);
+  26% {
+    transform: translate(-13%, -13%) scale(0.9, 1.12) rotate(-6deg);
   }
-  60% {
-    transform: translate3d(-4px, 0, 0) scale(1.02);
+  54% {
+    transform: translate(-9%, 2%) scale(1.12, 0.86) rotate(2deg);
+  }
+  78% {
+    transform: translate(-3%, -2%) scale(0.97, 1.04) rotate(-1deg);
   }
   100% {
-    transform: translate3d(0, 0, 0) scale(1);
+    transform: translate(0, 0) scale(1, 1) rotate(0);
   }
 }
 
@@ -1735,21 +1819,25 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
 }
 
 /* 喵喵：打完了先舔一下爪子，尾巴甩两下 */
+/* 胜利：打完先坐下来舔爪子理毛，尾巴左右甩两下。 */
 @keyframes catkin-groom {
   0% {
-    transform: rotate(0deg) translate3d(0, 0, 0);
+    transform: translate(0, 0) rotate(0) scale(1, 1);
   }
-  25% {
-    transform: rotate(-7deg) translate3d(3px, -4px, 0);
+  18% {
+    transform: translate(2%, 3%) rotate(-9deg) scale(1.05, 0.93);
   }
-  50% {
-    transform: rotate(5deg) translate3d(-2px, -1px, 0);
+  40% {
+    transform: translate(-2%, -1%) rotate(7deg) scale(0.97, 1.05);
   }
-  75% {
-    transform: rotate(-3deg) translate3d(1px, -2px, 0);
+  62% {
+    transform: translate(3%, 1%) rotate(-6deg) scale(1.03, 0.97);
+  }
+  84% {
+    transform: translate(-1%, -2%) rotate(4deg) scale(0.99, 1.02);
   }
   100% {
-    transform: rotate(0deg) translate3d(0, 0, 0);
+    transform: translate(0, 0) rotate(0) scale(1, 1);
   }
 }
 
