@@ -78,4 +78,16 @@ async function validate({ file, width, height, maxBytes }) {
 
 for (const spec of specs) await validate(spec);
 
-console.log(`纸箱键帽摸鱼套资产审计通过：${specs.length} 个运行时文件`);
+const motionQaFile = 'art-source/qa/catkin-motion-extremes.png';
+const [motionQa, motionQaStat] = await Promise.all([
+  sharp(resolve(motionQaFile)).metadata(),
+  stat(resolve(motionQaFile)),
+]);
+if (motionQa.width !== 1080 || motionQa.height !== 720) {
+  throw new Error(`${motionQaFile} 规格错误：${motionQa.width}×${motionQa.height}`);
+}
+if (motionQaStat.size > 900 * 1024) {
+  throw new Error(`${motionQaFile} 体积 ${motionQaStat.size} 超过 ${900 * 1024}`);
+}
+
+console.log(`纸箱键帽摸鱼套资产审计通过：${specs.length} 个运行时文件 + 九动作 QA`);

@@ -16,11 +16,13 @@ const props = withDefaults(
     equipped?: EquippedRecord | null;
     variant?: CharacterVariant;
     action?: CharacterAction;
+    reduceMotion?: boolean;
   }>(),
   {
     equipped: null,
     variant: 'showcase',
     action: 'idle',
+    reduceMotion: false,
   },
 );
 
@@ -53,6 +55,7 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
       `weapon-forge-${appearance.weaponForgeStage}`,
       appearance.activeBoutiqueTheme ? `theme-${appearance.activeBoutiqueTheme}` : '',
       appearance.activeDungeonTier ? `dungeon-${appearance.activeDungeonTier}` : '',
+      { 'reduce-motion': reduceMotion },
     ]"
     role="img"
     :aria-label="appearance.ariaLabel"
@@ -109,6 +112,15 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
       <img :src="assetUrl(appearance.boutiqueEffectAsset)" alt="" draggable="false" />
     </span>
 
+    <span
+      v-if="classId === 'catkin' && variant === 'battle'"
+      class="catkin-motion-fx"
+      aria-hidden="true"
+    >
+      <b />
+      <i v-for="index in 7" :key="index" :style="{ '--cat-index': index }" />
+    </span>
+
     <span v-if="appearance.activeDungeonTier" class="dungeon-effect" aria-hidden="true">
       <b></b>
       <i v-for="index in 8" :key="index"></i>
@@ -134,14 +146,203 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
   transform: translateZ(0);
 }
 
+.character-appearance.is-battle.class-catkin {
+  /* 为扑击与空翻预留头顶安全区，避免在 3:2 战场边缘裁掉猫耳。 */
+  transform: translate3d(0, 2%, 0) scale(0.88);
+  transform-origin: 50% 100%;
+}
+
 .doll-frame,
 .growth-aura,
 .growth-particles,
 .enhance-particles,
 .boutique-effect,
-.dungeon-effect {
+.dungeon-effect,
+.catkin-motion-fx {
   position: absolute;
   inset: 0;
+}
+
+.catkin-motion-fx {
+  --cat-fx-primary: #7fd8ff;
+  --cat-fx-secondary: #ff91c6;
+  z-index: 8;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.theme-cardboard-cat .catkin-motion-fx {
+  --cat-fx-primary: #63d8ff;
+  --cat-fx-secondary: #ff8fb5;
+}
+
+.catkin-motion-fx b,
+.catkin-motion-fx i {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.catkin-motion-fx b {
+  top: 43%;
+  left: 58%;
+  width: 34%;
+  aspect-ratio: 1;
+  border: 3px solid color-mix(in srgb, var(--cat-fx-primary) 74%, white);
+  border-radius: 50%;
+  box-shadow:
+    inset 0 0 14px color-mix(in srgb, var(--cat-fx-secondary) 46%, transparent),
+    0 0 18px color-mix(in srgb, var(--cat-fx-primary) 62%, transparent);
+}
+
+.catkin-motion-fx i {
+  --cat-index: 1;
+  top: calc(32% + var(--cat-index) * 4%);
+  left: 43%;
+  width: 44%;
+  height: 4px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--cat-fx-primary) 78%, white) 28%,
+    var(--cat-fx-secondary)
+  );
+  border-radius: 999px;
+  box-shadow: 0 0 8px color-mix(in srgb, var(--cat-fx-primary) 72%, transparent);
+  transform-origin: 100% 50%;
+}
+
+.action-attack .catkin-motion-fx i:nth-of-type(-n + 3),
+.action-flurry .catkin-motion-fx i {
+  animation: catkin-slash-mark 0.48s ease-out both;
+  animation-delay: calc((var(--cat-index) - 1) * 38ms);
+}
+
+.action-dash .catkin-motion-fx i {
+  top: calc(28% + var(--cat-index) * 7%);
+  left: 2%;
+  width: 68%;
+  height: 3px;
+  animation: catkin-dash-streak 0.54s ease-out both;
+  animation-delay: calc((var(--cat-index) - 1) * 24ms);
+}
+
+.action-spin .catkin-motion-fx b,
+.action-counter .catkin-motion-fx b {
+  animation: catkin-paw-ring 0.66s ease-out both;
+}
+
+.action-spin .catkin-motion-fx i {
+  top: 48%;
+  left: 50%;
+  width: 38%;
+  animation: catkin-orbit-streak 0.66s ease-out both;
+  animation-delay: calc((var(--cat-index) - 1) * 28ms);
+}
+
+.action-cast .catkin-motion-fx i,
+.action-victory .catkin-motion-fx i {
+  top: auto;
+  bottom: calc(18% + var(--cat-index) * 5%);
+  left: calc(18% + var(--cat-index) * 9%);
+  width: 7px;
+  height: 7px;
+  background: var(--cat-fx-secondary);
+  border: 1px solid #fff;
+  border-radius: 2px;
+  animation: catkin-keycap-rise 0.78s ease-out both;
+  animation-delay: calc((var(--cat-index) - 1) * 42ms);
+}
+
+.action-react .catkin-motion-fx b {
+  top: 31%;
+  left: 14%;
+  width: 24%;
+  border-color: #ff9aa8;
+  animation: catkin-hit-ripple 0.36s ease-out both;
+}
+
+@keyframes catkin-slash-mark {
+  0% {
+    opacity: 0;
+    transform: translate(-26%, 22%) rotate(calc(-24deg + var(--cat-index) * 6deg))
+      scaleX(0.3);
+  }
+  32% {
+    opacity: 0.95;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(12%, -16%) rotate(calc(-24deg + var(--cat-index) * 6deg))
+      scaleX(1.16);
+  }
+}
+
+@keyframes catkin-dash-streak {
+  0% {
+    opacity: 0;
+    transform: translateX(-18%) scaleX(0.25);
+  }
+  38% {
+    opacity: 0.72;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(72%) scaleX(1.08);
+  }
+}
+
+@keyframes catkin-paw-ring {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.35) rotate(-18deg);
+  }
+  42% {
+    opacity: 0.88;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.5) rotate(24deg);
+  }
+}
+
+@keyframes catkin-orbit-streak {
+  0% {
+    opacity: 0;
+    transform: rotate(calc(var(--cat-index) * 51deg)) translateX(8%) scaleX(0.3);
+  }
+  38% {
+    opacity: 0.76;
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(calc(var(--cat-index) * 51deg + 96deg)) translateX(48%) scaleX(0.82);
+  }
+}
+
+@keyframes catkin-keycap-rise {
+  0% {
+    opacity: 0;
+    transform: translateY(12px) rotate(0) scale(0.45);
+  }
+  35% {
+    opacity: 0.92;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-42px) rotate(150deg) scale(1.12);
+  }
+}
+
+@keyframes catkin-hit-ripple {
+  0% {
+    opacity: 0.92;
+    transform: translate(-50%, -50%) scale(0.3);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.45);
+  }
 }
 
 .dungeon-effect {
@@ -413,6 +614,17 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
   object-fit: contain;
   opacity: 0.22;
   filter: saturate(1.08);
+}
+
+.is-battle .boutique-effect img {
+  /* 战斗待机不常驻整张命中特效，只在真实动作帧里揭晓。 */
+  opacity: 0;
+}
+
+.theme-cardboard-cat :is(.boutique-react, .boutique-victory) img {
+  /* 这张母版是命中爪痕，不拿来盖住试穿立绘或胜利收势。 */
+  opacity: 0;
+  animation: none;
 }
 
 .boutique-attack img,
@@ -1042,10 +1254,10 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
     transform: translate(-7%, 6%) scale(1.12, 0.85) rotate(-4deg);
   }
   42% {
-    transform: translate(-12%, -20%) scale(0.88, 1.18) rotate(-18deg);
+    transform: translate(-12%, -14%) scale(0.92, 1.1) rotate(-14deg);
   }
   62% {
-    transform: translate(2%, -16%) scale(0.94, 1.08) rotate(10deg);
+    transform: translate(2%, -10%) scale(0.96, 1.05) rotate(9deg);
   }
   80% {
     transform: translate(10%, 2%) scale(1.14, 0.84) rotate(4deg);
@@ -1357,7 +1569,7 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
  *
  * 这是喵喵最标志性的动作，五个阶段一个都不能省：
  * 少了蓄力就变成平移，少了压扁就没有重量，少了回弹就像纸片。
- * 垂直位移到 -22%，是其他三个职业的四倍多 —— 猫感就是从这来的。
+ * 战斗态垂直位移控制在 -15% 安全区内，靠横向扑击、拉伸和落地压缩保留猫感。
  */
 @keyframes catkin-pounce {
   0% {
@@ -1367,13 +1579,13 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
     transform: translate(-6%, 7%) scale(1.14, 0.82) rotate(-3deg);
   }
   38% {
-    transform: translate(10%, -22%) scale(0.86, 1.2) rotate(8deg);
+    transform: translate(10%, -15%) scale(0.9, 1.12) rotate(7deg);
   }
   56% {
-    transform: translate(20%, -14%) scale(0.94, 1.08) rotate(5deg);
+    transform: translate(20%, -10%) scale(0.96, 1.05) rotate(5deg);
   }
   72% {
-    transform: translate(16%, 3%) scale(1.18, 0.8) rotate(-2deg);
+    transform: translate(16%, 2%) scale(1.12, 0.86) rotate(-2deg);
   }
   86% {
     transform: translate(8%, -3%) scale(0.96, 1.05) rotate(1deg);
@@ -1424,7 +1636,7 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
     transform: translateY(4%) rotate(-14deg) scale(1.08, 0.9);
   }
   46% {
-    transform: translateY(-14%) rotate(16deg) scale(0.9, 1.14);
+    transform: translateY(-10%) rotate(14deg) scale(0.93, 1.09);
   }
   68% {
     transform: translateY(-8%) rotate(-10deg) scale(1.02, 1);
@@ -1446,7 +1658,7 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
     transform: translate(-8%, 5%) scale(1.1, 0.88) rotate(-7deg);
   }
   44% {
-    transform: translate(4%, -12%) scale(0.9, 1.14) rotate(5deg);
+    transform: translate(4%, -8%) scale(0.94, 1.08) rotate(5deg);
   }
   64% {
     transform: translate(9%, -6%) scale(1.02, 1) rotate(3deg);
@@ -1694,15 +1906,40 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
   }
 }
 
+.character-appearance.reduce-motion
+  :is(
+    .doll,
+    .growth-aura,
+    .growth-particles i,
+    .enhance-particles i,
+    .weapon-trail,
+    .boutique-effect img,
+    .dungeon-effect b,
+    .dungeon-effect i,
+    .catkin-motion-fx b,
+    .catkin-motion-fx i
+  ) {
+  animation: none !important;
+  transition: none !important;
+}
+
+.character-appearance.reduce-motion :is(.catkin-motion-fx, .boutique-effect) {
+  display: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .doll,
-  .growth-aura,
-  .growth-particles i,
-  .enhance-particles i,
-  .weapon-trail,
-  .boutique-effect img,
-  .dungeon-effect b,
-  .dungeon-effect i {
+  :is(
+    .doll,
+    .growth-aura,
+    .growth-particles i,
+    .enhance-particles i,
+    .weapon-trail,
+    .boutique-effect img,
+    .dungeon-effect b,
+    .dungeon-effect i,
+    .catkin-motion-fx b,
+    .catkin-motion-fx i
+  ) {
     animation: none !important;
   }
 }

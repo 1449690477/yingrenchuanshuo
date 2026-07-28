@@ -11,6 +11,7 @@ import {
 import { abbr } from '@/core/format';
 import {
   BASIC_ATTACK_EFFECTS,
+  resolveCharacterAppearance,
   type CharacterAction,
   type EquippedRecord,
 } from '@/data/characterAppearance';
@@ -28,6 +29,7 @@ import {
 } from '@/data/battleMotions';
 import { requireMonsterVisual } from '@/data/monsterVisuals';
 import { battleRhythmSkills, type ActiveVisualSkill } from '@/data/skills';
+import { useGameStore } from '@/stores/game';
 import CharacterAppearance from '@/components/CharacterAppearance.vue';
 import MonsterArtwork from '@/components/MonsterArtwork.vue';
 
@@ -49,11 +51,25 @@ const props = defineProps<{
   drop: { id: number; name: string; quality: string; assetUrl: string } | null;
   /** 持续战斗演出的拍子流，见 core/battleRhythm */
   beats: BattleBeat[];
+  /** 游戏内减弱动效设置；与系统 prefers-reduced-motion 共同生效。 */
+  reduceMotion?: boolean;
 }>();
 
+const game = useGameStore();
+const reduceMotionEnabled = computed(
+  () => Boolean(props.reduceMotion || game.save?.settings.reduceMotion),
+);
 const basicEffectUrl = computed(
   () => `${import.meta.env.BASE_URL}${BASIC_ATTACK_EFFECTS[props.classId]}`,
 );
+const equippedBasicEffectUrl = computed(() => {
+  const effectAsset = resolveCharacterAppearance(
+    props.classId,
+    props.level,
+    props.equipped,
+  ).boutiqueEffectAsset;
+  return effectAsset ? `${import.meta.env.BASE_URL}${effectAsset}` : basicEffectUrl.value;
+});
 const monsterMotionTiming = computed(() =>
   requireMonsterMotionTiming(requireMonsterVisual(props.monster.id).motion),
 );
@@ -134,6 +150,7 @@ function triggerHeroReact(): void {
 }
 
 function triggerImpact(kind: BattleBeat['kind'], crit: boolean): void {
+  if (reduceMotionEnabled.value) return;
   const feedback = requireImpactFeedback(impactTierFor({ kind, crit }));
 
   if (feedback.hitstopMs > 0) {
@@ -174,6 +191,17 @@ watch(
   () => {
     beatGateState = createBattleBeatGateState();
     clearAllBeats();
+  },
+);
+
+watch(
+  reduceMotionEnabled,
+  (enabled) => {
+    if (!enabled) return;
+    clearTimeout(hitstopTimer);
+    clearTimeout(shakeTimer);
+    hitstop.value = false;
+    shakeTier.value = null;
   },
 );
 
@@ -313,7 +341,9 @@ function requireRhythmSkill(skillIndex: number | null): ActiveVisualSkill {
 
 function effectUrlForBeat(beat: LiveBeat): string {
   const beatSkill = skillForBeat(beat);
-  return beatSkill ? `${import.meta.env.BASE_URL}${beatSkill.effectAsset}` : basicEffectUrl.value;
+  return beatSkill
+    ? `${import.meta.env.BASE_URL}${beatSkill.effectAsset}`
+    : equippedBasicEffectUrl.value;
 }
 
 const latestRhythmSkill = computed(() => {
@@ -437,8 +467,10 @@ onUnmounted(() => {
       {
         active,
         casting: heroAction === 'cast',
+        'hero-catkin': classId === 'catkin',
         'player-low': playerHpPercent <= 25,
         'is-hitstop': hitstop,
+        'reduced-motion': reduceMotionEnabled,
       },
     ]"
     :style="{
@@ -536,6 +568,7 @@ onUnmounted(() => {
           :equipped="equipped"
           variant="battle"
           :action="heroAction"
+          :reduce-motion="reduceMotionEnabled"
         />
       </div>
     </div>
@@ -962,11 +995,21 @@ onUnmounted(() => {
   height: 82%;
 }
 
+.battle-scene.hero-catkin .hero-unit {
+  /* 猫科动作有横向空翻包围盒，整体右移给尾巴与后撤动作留安全边。 */
+  left: 8%;
+}
+
 .hero-actor {
   position: absolute;
   inset: 0 0 6px;
   filter: drop-shadow(0 5px 4px rgb(29 35 51 / 28%));
   transform-origin: 50% 92%;
+}
+
+.hero-actor :deep(.boutique-effect) {
+  /* 主挂机命中特效由 swing-layer 放到怪物身上，避免角色中心重复炸一次。 */
+  display: none;
 }
 
 .active:not(.casting) .hero-actor {
@@ -1891,6 +1934,52 @@ onUnmounted(() => {
   }
 }
 
+.battle-scene.reduced-motion
+  :is(
+    .hero-actor,
+    .enemy-actor,
+    .enemy-unit,
+    .hpbar.low .hpbar-fill,
+    .scene-background,
+    .support-unit,
+    .ambient-particles i,
+    .loot-burst,
+    .loot-burst i,
+    .loot-ring,
+    .hero-unit.hurt
+  ) {
+  animation: none !important;
+  transition: none !important;
+}
+
+.battle-scene.reduced-motion.player-low::after {
+  animation: none !important;
+}
+
+.battle-scene.reduced-motion :is(.ambient-particles, .swing-layer, .loot-burst i, .loot-ring) {
+  display: none;
+}
+
+.battle-scene.reduced-motion :is(.wave-track i, .hp-ghost) {
+  transition: none !important;
+}
+
+.battle-scene.reduced-motion :deep(.monster-art),
+.battle-scene.reduced-motion :deep(.monster-art *) {
+  animation: none !important;
+  transition: none !important;
+}
+
+.battle-scene.reduced-motion.is-hitstop
+  :is(.hero-unit, .hero-unit *, .enemy-unit, .enemy-unit *) {
+  animation-play-state: running;
+}
+
+.battle-scene.reduced-motion[class*='shake-']
+  :is(.scene-background, .hero-unit, .enemy-unit) {
+  animation: none !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .hero-actor,
   .enemy-actor,
@@ -1915,10 +2004,16 @@ onUnmounted(() => {
     transition: none !important;
   }
 
+  .ambient-particles,
+  .swing-layer,
   .spell-fx,
   .basic-attack-fx,
-  .loot-burst,
   .damage {
+    display: none;
+  }
+
+  .loot-burst i,
+  .loot-ring {
     display: none;
   }
 }
@@ -2326,6 +2421,16 @@ onUnmounted(() => {
     opacity: 0;
     transform: scale(1.28) rotate(12deg);
   }
+}
+
+.battle-scene.reduced-motion
+  :is(
+    .beat-float-enter-active,
+    .beat-float-leave-active,
+    .swing-enter-active,
+    .swing-leave-active
+  ) {
+  transition-duration: 0.01ms;
 }
 
 @media (prefers-reduced-motion: reduce) {

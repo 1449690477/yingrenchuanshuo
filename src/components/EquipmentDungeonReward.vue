@@ -9,6 +9,7 @@ import EquipmentIcon from './EquipmentIcon.vue';
 const props = defineProps<{
   instances: readonly EquipmentInstance[];
   firstClear: boolean;
+  reduceMotion: boolean;
 }>();
 
 const rewards = computed(() =>
@@ -29,11 +30,14 @@ const PRIZE_QUALITIES = new Set<Quality>(['legendary', 'mythic', 'divine']);
 function isPrize(quality: Quality): boolean {
   return PRIZE_QUALITIES.has(quality);
 }
+const hasPrize = computed(() =>
+  rewards.value.some(({ definition }) => isPrize(definition.quality)),
+);
 </script>
 
 <template>
-  <section class="reward-panel" aria-live="polite">
-    <span class="reward-burst" aria-hidden="true">
+  <section class="reward-panel" :class="{ 'reduced-motion': reduceMotion }" aria-live="polite">
+    <span v-if="hasPrize && !reduceMotion" class="reward-burst" aria-hidden="true">
       <i v-for="index in 8" :key="index" :style="{ '--spark-index': index }">✦</i>
     </span>
     <header>
@@ -123,7 +127,8 @@ header strong {
 
 header small,
 .reward-copy small {
-  font-size: 9px;
+  font-size: 10px;
+  line-height: 1.45;
   color: var(--text-dim);
 }
 
@@ -169,6 +174,10 @@ header small,
   --reward-color: var(--q-mythic);
 }
 
+.quality-divine {
+  --reward-color: var(--q-divine);
+}
+
 .reward-copy {
   display: grid;
   flex: 1;
@@ -188,7 +197,7 @@ header small,
   display: flex;
   align-items: center;
   gap: 3px;
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 800;
   color: var(--reward-color);
 }
@@ -196,7 +205,7 @@ header small,
 .quality-line b {
   padding: 1px 5px;
   margin-left: 3px;
-  font-size: 8px;
+  font-size: 9px;
   color: #b16513;
   background: #fff1c8;
   border-radius: 999px;
@@ -210,7 +219,7 @@ header small,
 
 .affix-pills span {
   padding: 2px 5px;
-  font-size: 8px;
+  font-size: 9px;
   color: var(--text-mid);
   background: color-mix(in srgb, var(--reward-color) 9%, white);
   border-radius: 999px;
@@ -252,6 +261,10 @@ header small,
   .reward-burst {
     display: none;
   }
+}
+
+.reward-panel.reduced-motion .reward-burst {
+  display: none;
 }
 
 /* ── 逐张揭晓 ── */
@@ -313,5 +326,15 @@ header small,
   .reward-item.is-prize {
     box-shadow: 0 0 0 2px rgb(255 214 132 / 55%);
   }
+}
+
+.reward-panel.reduced-motion .reward-item,
+.reward-panel.reduced-motion .reward-item.is-prize {
+  animation: none;
+  opacity: 1;
+}
+
+.reward-panel.reduced-motion .reward-item.is-prize {
+  box-shadow: 0 0 0 2px rgb(255 214 132 / 55%);
 }
 </style>

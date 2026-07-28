@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { ShieldCheck, Sparkles, Swords, X } from '@lucide/vue';
+import { createFocusTrap, type FocusTrap } from 'focus-trap';
 import type { ClassId } from '@/core/types';
 import type { CharacterAction, EquippedRecord } from '@/data/characterAppearance';
 import {
@@ -33,9 +34,11 @@ const playerHpPercent = ref(100);
 const monsterHpPercent = ref(100);
 const displayedPlayerHp = ref(props.playerMaxHp);
 const displayedMonsterHp = ref(0);
-const closeButton = ref<HTMLButtonElement | null>(null);
 const dismissButton = ref<HTMLButtonElement | null>(null);
+const dialogRef = ref<HTMLElement | null>(null);
+const resultPanel = ref<HTMLElement | null>(null);
 const timers: ReturnType<typeof setTimeout>[] = [];
+let dialogFocusTrap: FocusTrap | null = null;
 
 /**
  * 一波拆成几下打出来。
@@ -176,7 +179,7 @@ function schedule(delay: number, callback: () => void): void {
 
 function revealResult(): void {
   phase.value = 'result';
-  void nextTick(() => closeButton.value?.focus());
+  void nextTick(() => resultPanel.value?.focus());
 }
 
 function clampPercent(value: number): number {
@@ -266,7 +269,7 @@ function play(): void {
       ? 0
       : clampPercent((displayedMonsterHp.value / wave.enemyMaxHp) * 100);
     phase.value = 'result';
-    void nextTick(() => closeButton.value?.focus());
+    void nextTick(() => resultPanel.value?.focus());
     return;
   }
 
@@ -290,39 +293,59 @@ function play(): void {
   schedule(cursor, revealResult);
 }
 
-function handleKeydown(event: KeyboardEvent): void {
-  if (event.key !== 'Escape') return;
-  event.preventDefault();
+function requestClose(): void {
+  if (dialogFocusTrap?.active) {
+    dialogFocusTrap.deactivate();
+    return;
+  }
   emit('close');
 }
 
-watch(() => props.result, play, { immediate: true });
-onMounted(() => {
-  window.addEventListener('keydown', handleKeydown);
-  void nextTick(() => dismissButton.value?.focus());
+watch([() => props.result, () => props.reduceMotion], play, { immediate: true });
+onMounted(async () => {
+  await nextTick();
+  const dialog = dialogRef.value;
+  if (!dialog) return;
+  dialogFocusTrap = createFocusTrap(dialog, {
+    initialFocus: () => dismissButton.value ?? dialog,
+    fallbackFocus: () => dialog,
+    clickOutsideDeactivates: true,
+    returnFocusOnDeactivate: false,
+    isolateSubtrees: 'aria-hidden',
+    onDeactivate: () => emit('close'),
+  });
+  dialogFocusTrap.activate();
 });
 onUnmounted(() => {
   clearTimers();
   clearTimeout(hitstopTimer);
   clearTimeout(shakeTimer);
-  window.removeEventListener('keydown', handleKeydown);
+  if (dialogFocusTrap?.active) {
+    dialogFocusTrap.deactivate({
+      returnFocus: false,
+      onDeactivate: () => undefined,
+    });
+  }
+  dialogFocusTrap = null;
 });
 </script>
 
 <template>
-  <div class="battle-backdrop" @click.self="emit('close')">
+  <div class="battle-backdrop">
     <section
+      ref="dialogRef"
       class="battle-dialog"
       role="dialog"
       aria-modal="true"
       :aria-label="`${result.stage.name}挑战结果`"
+      tabindex="-1"
     >
       <button
         ref="dismissButton"
         class="dismiss"
         type="button"
         aria-label="关闭副本战报"
-        @click="emit('close')"
+        @click="requestClose"
       >
         <X :size="17" aria-hidden="true" />
       </button>
@@ -333,7 +356,12 @@ onUnmounted(() => {
           `phase-${phase}`,
           `wave-${currentWave.role}`,
           shakeTier ? `shake-${shakeTier}` : null,
-          { won: result.win, lost: !result.win, 'is-hitstop': hitstop },
+          {
+            won: result.win,
+            lost: !result.win,
+            'is-hitstop': hitstop,
+            'reduced-motion': reduceMotion,
+          },
         ]"
         :style="{
           '--accent': result.stage.accent,
@@ -359,7 +387,14 @@ onUnmounted(() => {
                   ? '灵巫'
                   : '喵喵'
           }}</span>
-          <i :key="`p-${waveIndex}`"
+          <i
+            :key="`p-${waveIndex}`"
+            role="meter"
+            aria-label="玩家生命"
+            aria-valuemin="0"
+            :aria-valuemax="playerMaxHp"
+            :aria-valuenow="Math.round(displayedPlayerHp)"
+            :aria-valuetext="`${Math.round(displayedPlayerHp)} / ${Math.round(playerMaxHp)}`"
             ><b class="ghost" :style="{ width: `${playerHpPercent}%` }"></b
             ><b :style="{ width: `${playerHpPercent}%` }"></b
           ></i>
@@ -368,7 +403,14 @@ onUnmounted(() => {
 
         <div class="vitals monster-vitals">
           <span>{{ currentWave.monsterName }}</span>
-          <i :key="`m-${waveIndex}`"
+          <i
+            :key="`m-${waveIndex}`"
+            role="meter"
+            aria-label="敌人生命"
+            aria-valuemin="0"
+            :aria-valuemax="currentWave.enemyMaxHp"
+            :aria-valuenow="Math.round(displayedMonsterHp)"
+            :aria-valuetext="`${Math.round(displayedMonsterHp)} / ${Math.round(currentWave.enemyMaxHp)}`"
             ><b class="ghost" :style="{ width: `${monsterHpPercent}%` }"></b
             ><b :style="{ width: `${monsterHpPercent}%` }"></b
           ></i>
@@ -390,6 +432,7 @@ onUnmounted(() => {
               :equipped="equipped"
               variant="battle"
               :action="heroAction"
+              :reduce-motion="reduceMotion"
             />
             <span class="hero-ring" aria-hidden="true"></span>
           </div>
@@ -443,14 +486,23 @@ onUnmounted(() => {
         </footer>
       </div>
 
-      <div v-if="phase === 'result'" class="result-panel" :class="{ victory: result.win }">
+      <div
+        v-if="phase === 'result'"
+        ref="resultPanel"
+        class="result-panel"
+        :class="{ victory: result.win }"
+        tabindex="-1"
+      >
         <template v-if="result.win">
-          <EquipmentDungeonReward :instances="result.instances" :first-clear="result.firstClear" />
+          <EquipmentDungeonReward
+            :instances="result.instances"
+            :first-clear="result.firstClear"
+            :reduce-motion="reduceMotion"
+          />
           <button
-            ref="closeButton"
             class="result-action victory-action"
             type="button"
-            @click="emit('close')"
+            @click="requestClose"
           >
             收下装备
           </button>
@@ -460,7 +512,7 @@ onUnmounted(() => {
             <strong>这次差一点</strong>
             <span>失败不会扣每日次数，也不会推进保底和随机序列。强化装备后可原样再试。</span>
           </div>
-          <button ref="closeButton" class="result-action" type="button" @click="emit('close')">
+          <button class="result-action" type="button" @click="requestClose">
             调整装备
           </button>
         </template>
@@ -476,7 +528,11 @@ onUnmounted(() => {
   inset: 0;
   display: grid;
   place-items: center;
-  padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom));
+  padding:
+    max(12px, env(safe-area-inset-top))
+    max(12px, env(safe-area-inset-right))
+    max(12px, env(safe-area-inset-bottom))
+    max(12px, env(safe-area-inset-left));
   background: rgb(31 27 54 / 64%);
   backdrop-filter: blur(7px);
 }
@@ -484,7 +540,7 @@ onUnmounted(() => {
 .battle-dialog {
   position: relative;
   width: min(100%, 390px);
-  max-height: calc(100dvh - 24px);
+  max-height: 100%;
   overflow-y: auto;
   background: #f8f7ff;
   border: 1px solid rgb(255 255 255 / 88%);
@@ -933,7 +989,6 @@ onUnmounted(() => {
     0 1px 0 #7d2440,
     0 -1px 0 #7d2440,
     0 2px 3px rgb(30 16 40 / 72%);
-  transform: translateX(var(--hit-offset, 0));
   animation: damage-rise 780ms ease-out both;
 }
 
@@ -1075,6 +1130,15 @@ onUnmounted(() => {
   padding: 12px;
 }
 
+.result-panel:focus {
+  outline: none;
+}
+
+.result-panel:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--q-rare) 58%, white);
+  outline-offset: -2px;
+}
+
 .defeat-copy {
   display: grid;
   gap: 4px;
@@ -1149,14 +1213,14 @@ onUnmounted(() => {
 @keyframes damage-rise {
   from {
     opacity: 0;
-    transform: translateY(8px) scale(0.7);
+    transform: translate(var(--hit-offset, 0), 8px) scale(0.7);
   }
   25% {
     opacity: 1;
   }
   to {
     opacity: 0;
-    transform: translateY(-34px) scale(1.08);
+    transform: translate(var(--hit-offset, 0), -34px) scale(1.08);
   }
 }
 
@@ -1173,6 +1237,24 @@ onUnmounted(() => {
   .vitals {
     width: 45%;
   }
+
+  .combatants {
+    bottom: 58px;
+  }
+
+  .stage-footer {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: 4px;
+  }
+
+  .stage-footer span:nth-child(even) {
+    justify-self: end;
+  }
+
+  .fighting {
+    margin-left: 0;
+  }
 }
 
 /*
@@ -1182,6 +1264,41 @@ onUnmounted(() => {
  * 飘字的字号分档保留 —— 那是静态信息不是动效，
  * 关掉反而让这些玩家失去判断哪一下最重的唯一线索。
  */
+.battle-stage.reduced-motion
+  :is(
+    .hero-unit,
+    .monster-unit,
+    .clash-core,
+    .hit-number,
+    .impact-flash,
+    .wave-banner,
+    .combo,
+    .monster-unit.flinch img,
+    .monster-unit.dying img,
+    .monster-unit.dying .monster-aura,
+    .hero-vitals.lowhp b:not(.ghost)
+  ) {
+  animation: none !important;
+  transition: none !important;
+}
+
+.battle-stage.reduced-motion .impact-flash {
+  display: none;
+}
+
+.battle-stage.reduced-motion :is(.vitals b, .vitals b.ghost) {
+  transition: none;
+}
+
+.battle-stage.reduced-motion.is-hitstop
+  :is(.hero-unit, .hero-unit *, .monster-unit img, .monster-aura) {
+  animation-play-state: running;
+}
+
+.battle-stage.reduced-motion[class*='shake-'] .combatants {
+  animation: none !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .hero-unit,
   .monster-unit,

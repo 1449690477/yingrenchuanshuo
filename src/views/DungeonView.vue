@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import {
   CalendarDays,
   Check,
@@ -46,6 +46,9 @@ const selectedTierId = ref<EquipmentDungeonTierId>('azure');
 const battleResult = ref<PlayedResult | null>(null);
 const challengeButton = ref<HTMLButtonElement | null>(null);
 const notice = ref('');
+const pendingNotice = ref('');
+const systemReduceMotion = ref(false);
+let motionPreference: MediaQueryList | null = null;
 
 const planned = [
   {
@@ -81,6 +84,7 @@ const classId = computed(() => game.player?.classId ?? 'swordsman');
 const dungeonState = computed(() => game.save?.equipmentDungeon ?? null);
 const equipped = computed(() => game.save?.equipped ?? emptyEquipped());
 const reduceMotion = computed(() => game.save?.settings.reduceMotion ?? false);
+const effectiveReduceMotion = computed(() => reduceMotion.value || systemReduceMotion.value);
 const clearedCount = computed(() =>
   dungeonState.value ? Object.keys(dungeonState.value.records).length : 0,
 );
@@ -149,6 +153,7 @@ function selectTier(tierId: EquipmentDungeonTierId): void {
 
 function challenge(): void {
   notice.value = '';
+  pendingNotice.value = '';
   const result = game.runEquipmentDungeon(stage.value.id);
   if (!result.ok) {
     notice.value =
@@ -164,21 +169,37 @@ function challenge(): void {
     return;
   }
   battleResult.value = result;
-  notice.value = result.win
+  pendingNotice.value = result.win
     ? `获得 ${result.instances.map((instance) => requireEquipment(instance.defId).name).join('、')}`
     : '挑战失败：次数、保底与随机序列均未消耗';
 }
 
 function closeBattle(): void {
   battleResult.value = null;
+  notice.value = pendingNotice.value;
+  pendingNotice.value = '';
   void nextTick(() => challengeButton.value?.focus());
 }
 
-onMounted(() => game.refreshEquipmentDungeon());
+function syncSystemMotionPreference(event?: MediaQueryListEvent): void {
+  systemReduceMotion.value = event?.matches ?? motionPreference?.matches ?? false;
+}
+
+onMounted(() => {
+  game.refreshEquipmentDungeon();
+  motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)');
+  syncSystemMotionPreference();
+  motionPreference.addEventListener('change', syncSystemMotionPreference);
+});
+
+onUnmounted(() => {
+  motionPreference?.removeEventListener('change', syncSystemMotionPreference);
+  motionPreference = null;
+});
 </script>
 
 <template>
-  <div class="dungeon scroll-y">
+  <div class="dungeon scroll-y" :class="{ 'reduced-motion': effectiveReduceMotion }">
     <section class="banner">
       <div class="banner-copy">
         <span class="eyebrow">镜界装备回廊 · 已开放</span>
@@ -255,7 +276,7 @@ onMounted(() => game.refreshEquipmentDungeon());
         </span>
         <em>同部位逐档首通解锁</em>
       </header>
-      <div class="tier-tabs" role="tablist" aria-label="装备副本品质难度">
+      <div class="tier-tabs" role="group" aria-label="装备副本品质难度">
         <button
           v-for="candidate in slotStages"
           :key="candidate.id"
@@ -271,8 +292,15 @@ onMounted(() => game.refreshEquipmentDungeon());
             },
           ]"
           type="button"
-          role="tab"
-          :aria-selected="candidate.tierId === selectedTierId"
+          :aria-pressed="candidate.tierId === selectedTierId"
+          :aria-label="`${QUALITY_LABELS[candidate.quality]} Lv${candidate.unlockLevel}${
+            !dungeonState ||
+            !isEquipmentDungeonStageUnlocked(candidate, dungeonState, playerLevel)
+              ? '，未解锁'
+              : dungeonState.records[candidate.id]
+                ? '，已首通'
+                : ''
+          }`"
           @click="selectTier(candidate.tierId)"
         >
           <span class="tier-gem">
@@ -354,6 +382,25 @@ onMounted(() => game.refreshEquipmentDungeon());
           <span><Sparkles :size="12" />双款 3 次内补偿</span>
         </div>
 
+        <div class="challenge-bar">
+          <span class="challenge-note" :class="{ warning: !unlocked || cpRatio < 0.75 }">
+            <LockKeyhole v-if="!unlocked" :size="12" aria-hidden="true" />
+            <Sparkles v-else :size="12" aria-hidden="true" />
+            {{ lockCopy }}
+          </span>
+          <button
+            ref="challengeButton"
+            class="challenge-button"
+            type="button"
+            :disabled="challengeDisabled"
+            @click="challenge"
+          >
+            <Swords :size="16" aria-hidden="true" />
+            {{ currentRecord ? '再次挑战' : '首通挑战' }}
+          </button>
+        </div>
+        <p v-if="notice" class="notice" role="status">{{ notice }}</p>
+
         <div class="set-block">
           <header>
             <span>
@@ -393,24 +440,6 @@ onMounted(() => game.refreshEquipmentDungeon());
           </div>
         </div>
 
-        <div class="challenge-bar">
-          <span class="challenge-note" :class="{ warning: !unlocked || cpRatio < 0.75 }">
-            <LockKeyhole v-if="!unlocked" :size="12" aria-hidden="true" />
-            <Sparkles v-else :size="12" aria-hidden="true" />
-            {{ lockCopy }}
-          </span>
-          <button
-            ref="challengeButton"
-            class="challenge-button"
-            type="button"
-            :disabled="challengeDisabled"
-            @click="challenge"
-          >
-            <Swords :size="16" aria-hidden="true" />
-            {{ currentRecord ? '再次挑战' : '首通挑战' }}
-          </button>
-        </div>
-        <p v-if="notice" class="notice" role="status">{{ notice }}</p>
       </div>
     </section>
 
@@ -446,7 +475,7 @@ onMounted(() => game.refreshEquipmentDungeon());
       :level="game.save.player.level"
       :equipped="equipped"
       :player-max-hp="game.finalStats.hp"
-      :reduce-motion="reduceMotion"
+      :reduce-motion="effectiveReduceMotion"
       @close="closeBattle"
     />
   </div>
@@ -1323,6 +1352,15 @@ onMounted(() => game.refreshEquipmentDungeon());
     right: -5%;
     width: 61%;
   }
+}
+
+.dungeon.reduced-motion :is(.banner-art, .banner-glow, .stage-particles i, .future-row) {
+  animation: none;
+}
+
+.dungeon.reduced-motion
+  :is(.portal-button, .attempts i, .power-track i, .challenge-button) {
+  transition: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
