@@ -85,6 +85,7 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
             `q-${layer.quality}`,
             `plus-${layer.enhance}`,
             `forge-${layer.forgeStage}`,
+            { 'above-face': layer.aboveFace },
           ]"
           :style="layerStyle(layer)"
           :src="assetUrl(layer.asset)"
@@ -550,9 +551,14 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
   z-index: 5;
 }
 
-/* 猫耳属于底模身份特征，喵喵的帽饰必须压在安全脸层后方，不能盖掉眼睛与耳朵。 */
+/* 猫耳属于底模身份特征，默认让喵喵的帽饰压在安全脸层后方，不能盖掉眼睛与耳朵。 */
 .class-catkin .slot-head {
   z-index: 3;
+}
+
+/* 整顶戴在头顶的帽饰（精品店帽子）允许提到脸层之上，否则整顶会被头发埋住。 */
+.class-catkin .slot-head.above-face {
+  z-index: 5;
 }
 
 .slot-weapon {

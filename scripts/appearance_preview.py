@@ -56,8 +56,16 @@ def face_overlay(class_id: str, base: Image.Image) -> Image.Image:
 
 
 def compose(class_id: str, body=None, head=None, shoes=None, weapon=None,
-            body_mode='layer') -> Image.Image:
-    base = load(ROOT / class_id / 'base.png')
+            body_mode='layer', head_above_face=False) -> Image.Image:
+    """与修复后的组件逻辑一致：
+
+    - 可见鞋层装备时换用 base-noshoes 底模（整身替换优先）
+    - 商店帽 aboveFace=True：喵喵也压到脸层之上
+    - 副本鞋已不再叠加（调用方不要传 dungeon shoes）
+    """
+    noshoes = ROOT / class_id / 'base-noshoes.png'
+    use_noshoes = shoes is not None and body_mode != 'replacement' and noshoes.exists()
+    base = load(noshoes if use_noshoes else ROOT / class_id / 'base.png')
     canvas = Image.new('RGBA', (W, H), (0, 0, 0, 0))
     face_src = base
     if body is not None and body_mode == 'replacement':
@@ -67,12 +75,12 @@ def compose(class_id: str, body=None, head=None, shoes=None, weapon=None,
         canvas.alpha_composite(base)
         if body is not None:
             canvas.alpha_composite(body)
-    if class_id == 'catkin' and head is not None:
+    if class_id == 'catkin' and head is not None and not head_above_face:
         canvas.alpha_composite(head)
     if shoes is not None:
         canvas.alpha_composite(shoes)
     canvas.alpha_composite(face_overlay(class_id, face_src))
-    if class_id != 'catkin' and head is not None:
+    if head is not None and (class_id != 'catkin' or head_above_face):
         canvas.alpha_composite(head)
     if weapon is not None:
         canvas.alpha_composite(weapon)
@@ -133,7 +141,8 @@ def main() -> None:
                         continue
                     mode = 'replacement' if (theme == 'cardboard-cat' and slot == 'body') else 'layer'
                     kw = {slot: layer}
-                    cells.append((f'{c} · {slot}', compose(c, body_mode=mode, **kw)))
+                    cells.append((f'{c} · {slot}', compose(
+                        c, body_mode=mode, head_above_face=(slot == 'head'), **kw)))
                 if cells:
                     sheet(cells, OUT / f'shop-single-{theme}-{slot}.png')
 
@@ -146,6 +155,7 @@ def main() -> None:
                     c,
                     body=shop_layer(theme, c, 'body'),
                     head=shop_layer(theme, c, 'head'),
+                    head_above_face=True,
                     shoes=shop_layer(theme, c, 'shoes'),
                     weapon=shop_layer(theme, c, 'weapon'),
                 )))
@@ -162,12 +172,12 @@ def main() -> None:
         for tier in DUNGEON_TIERS:
             cells = []
             for c in CLASSES:
+                # 副本鞋已改为仅槽位显示，不再叠加到人物身上
                 cells.append((f'{c} · {tier}', compose(
                     c,
                     body=dungeon_layer(tier, c, 'body'),
                     body_mode='replacement',
                     head=dungeon_layer(tier, c, 'head'),
-                    shoes=dungeon_layer(tier, c, 'shoes'),
                     weapon=dungeon_layer(tier, c, 'weapon'),
                 )))
             sheet(cells, OUT / f'dungeon-{tier}.png')
@@ -192,7 +202,7 @@ def main() -> None:
                 head = shop_layer(theme, c, 'head')
                 if head is None:
                     continue
-                im = compose(c, head=head)
+                im = compose(c, head=head, head_above_face=True)
                 cells.append((f'{c} · {theme} 帽', im.crop((120, 0, 520, 400)).resize((320, 320))))
         sheet(cells, OUT / 'cat-head-shop.png', cell_w=320, label_h=34)
 

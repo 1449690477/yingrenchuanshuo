@@ -185,8 +185,41 @@ describe('角色换装外观解析', () => {
     expect(appearance.ariaLabel).toContain('绯樱典藏共鸣外观');
   });
 
-  it('区域 3/4 的八个部位都显式登记，三个可见槽为四职业独立图层', () => {
-    for (const regionId of ['r3', 'r4']) {
+  it('装备可见鞋层时换用无靴底模，避免初始靴与新鞋双穿', () => {
+    const equipped = emptyEquipped();
+    equipped.shoes = instance('eq_shop_rose-night_shoes');
+
+    const appearance = resolveCharacterAppearance('shaman', 20, equipped);
+
+    expect(appearance.baseAsset).toBe('assets/characters/modular/shaman/base-noshoes.png');
+    expect(appearance.layers.map((layer) => layer.slot)).toEqual(['shoes']);
+  });
+
+  it('整身替换优先于无靴底模：副本礼服不被商店鞋换掉底模', () => {
+    const equipped = emptyEquipped();
+    equipped.body = instance('eq_dungeon_azure_body_witch');
+    equipped.shoes = instance('eq_shop_rose-night_shoes');
+
+    const appearance = resolveCharacterAppearance('witch', 20, equipped);
+
+    expect(appearance.baseAsset).toBe('assets/characters/modular/dungeon/azure/witch-body.png');
+  });
+
+  it('精品店帽饰声明提到脸层之上，副本鞋不再叠加到人物身上', () => {
+    const equipped = emptyEquipped();
+    equipped.head = instance('eq_shop_rose-night_head');
+    equipped.shoes = instance('eq_dungeon_azure_shoes_1');
+
+    const appearance = resolveCharacterAppearance('catkin', 20, equipped);
+
+    expect(appearance.layers).toHaveLength(1);
+    expect(appearance.layers[0]?.slot).toBe('head');
+    expect(appearance.layers[0]?.aboveFace).toBe(true);
+    expect(appearance.visibleEquippedCount).toBe(1);
+    expect(appearance.equippedCount).toBe(2);
+  });
+
+  it('区域 3/4 的八个部位都显式登记，三个可见槽为四职业独立图层', () => {    for (const regionId of ['r3', 'r4']) {
       for (const slot of ['body', 'head', 'weapon'] as const) {
         const appearance = REGION_34_EQUIPMENT_APPEARANCES[`${regionId}-${slot}`];
         expect(appearance).toBeDefined();
