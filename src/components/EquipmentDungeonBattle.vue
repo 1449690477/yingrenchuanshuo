@@ -989,6 +989,7 @@ onUnmounted(() => {
     0 1px 0 #7d2440,
     0 -1px 0 #7d2440,
     0 2px 3px rgb(30 16 40 / 72%);
+  transform: translateX(var(--hit-offset, 0));
   animation: damage-rise 780ms ease-out both;
 }
 
