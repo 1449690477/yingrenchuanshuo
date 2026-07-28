@@ -13,6 +13,8 @@ const characterFiles = [
       (slot) => `public/assets/characters/modular/shop/${theme}/catkin-${slot}.png`,
     ),
   ),
+  'public/assets/characters/modular/shop/cardboard-cat/catkin-body.png',
+  'public/assets/characters/modular/shop/cardboard-cat/catkin-weapon.png',
 ];
 
 const effectNames = [
@@ -33,6 +35,7 @@ const effectFiles = [
   ...['berry-cream', 'moon-sugar', 'rose-night'].map(
     (theme) => `public/assets/effects/boutique/${theme}-catkin.png`,
   ),
+  'public/assets/effects/boutique/cardboard-cat-catkin.png',
 ];
 
 const iconFiles = [
@@ -43,6 +46,8 @@ const iconFiles = [
   ...['berry-cream', 'moon-sugar', 'rose-night'].map(
     (theme) => `public/assets/equipment/shop/${theme}/weapon-catkin.png`,
   ),
+  'public/assets/equipment/shop/cardboard-cat/body-catkin.png',
+  'public/assets/equipment/shop/cardboard-cat/weapon-catkin.png',
 ];
 
 const sourceFiles = [
@@ -62,6 +67,9 @@ const sourceFiles = [
   ].map((name) => `art-source/effects/catkin/${name}-alpha.png`),
   ...['berry-cream', 'moon-sugar', 'rose-night'].map(
     (theme) => `art-source/shop/${theme}/catkin-effect-alpha.png`,
+  ),
+  ...['body', 'weapon', 'effect'].map(
+    (name) => `art-source/shop/cardboard-cat/catkin-${name}-alpha.png`,
   ),
 ];
 
@@ -152,10 +160,10 @@ async function validate(file) {
 }
 
 const runtimeFiles = [...characterFiles, ...effectFiles, ...iconFiles];
-if (new Set(runtimeFiles).size !== 52) {
-  throw new Error(`喵喵运行时资产清单应为 52 个，当前为 ${new Set(runtimeFiles).size}`);
+if (new Set(runtimeFiles).size !== 57) {
+  throw new Error(`喵喵运行时资产清单应为 57 个，当前为 ${new Set(runtimeFiles).size}`);
 }
 
 for (const file of [...runtimeFiles, ...sourceFiles]) await validate(file);
 
-console.log(`喵喵资产审计通过：52 个运行时文件 + ${sourceFiles.length} 个透明母版`);
+console.log(`喵喵资产审计通过：57 个运行时文件 + ${sourceFiles.length} 个透明母版`);

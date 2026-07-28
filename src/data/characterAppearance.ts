@@ -71,7 +71,7 @@ interface ReplacementAppearance {
   id: string;
   slot: 'body';
   renderMode: 'replacement';
-  assets: Record<ClassId, string>;
+  assets: Partial<Record<ClassId, string>>;
 }
 
 export type EquipmentAppearance =
@@ -99,43 +99,51 @@ const sameTransform = (transform: LayerTransform): Record<ClassId, LayerTransfor
  */
 const alignedTransforms = sameTransform({ scale: 1, x: 0, y: 0 });
 
-function boutiqueClassAssets(themeId: BoutiqueThemeId, slot: 'body' | 'head' | 'shoes') {
-  return {
-    swordsman: `assets/characters/modular/shop/${themeId}/swordsman-${slot}.png`,
-    witch: `assets/characters/modular/shop/${themeId}/witch-${slot}.png`,
-    shaman: `assets/characters/modular/shop/${themeId}/shaman-${slot}.png`,
-    catkin: `assets/characters/modular/shop/${themeId}/catkin-${slot}.png`,
-  } satisfies Record<ClassId, string>;
+function boutiqueClassAssets(
+  themeId: BoutiqueThemeId,
+  slot: 'body' | 'head' | 'shoes' | 'weapon',
+  classId?: ClassId,
+): Partial<Record<ClassId, string>> {
+  if (classId) {
+    return {
+      [classId]: `assets/characters/modular/shop/${themeId}/${classId}-${slot}.png`,
+    };
+  }
+  return Object.fromEntries(
+    CLASS_IDS.map((candidate) => [
+      candidate,
+      `assets/characters/modular/shop/${themeId}/${candidate}-${slot}.png`,
+    ]),
+  ) as Record<ClassId, string>;
 }
 
 function buildBoutiqueAppearances(): Record<string, EquipmentAppearance> {
   const out: Record<string, EquipmentAppearance> = {};
   for (const theme of BOUTIQUE_THEME_LIST) {
-    for (const slot of ['body', 'head', 'shoes'] as const) {
-      const id = boutiqueAppearanceId(theme.id, slot);
-      out[id] = {
-        id,
-        slot,
-        renderMode: 'layer',
-        assets: boutiqueClassAssets(theme.id, slot),
-        transforms: alignedTransforms,
-      };
-    }
-    for (const classId of CLASS_IDS) {
-      const id = boutiqueAppearanceId(theme.id, 'weapon', classId);
-      out[id] = {
-        id,
-        slot: 'weapon',
-        renderMode: 'layer',
-        assets: {
-          [classId]: `assets/characters/modular/shop/${theme.id}/${classId}-weapon.png`,
-        },
-        transforms: alignedTransforms,
-      };
-    }
-    for (const slot of ['necklace', 'bracelet', 'ring', 'belt'] as const) {
-      const id = boutiqueAppearanceId(theme.id, slot);
-      out[id] = { id, slot, renderMode: 'slot-only' };
+    for (const item of theme.items) {
+      const id = boutiqueAppearanceId(theme.id, item.slot, item.classId);
+      if (out[id]) continue;
+      if (item.slot === 'body' && item.renderMode === 'replacement') {
+        out[id] = {
+          id,
+          slot: 'body',
+          renderMode: 'replacement',
+          assets: boutiqueClassAssets(theme.id, 'body', item.classId),
+        };
+        continue;
+      }
+      if (['body', 'head', 'shoes', 'weapon'].includes(item.slot)) {
+        const slot = item.slot as 'body' | 'head' | 'shoes' | 'weapon';
+        out[id] = {
+          id,
+          slot,
+          renderMode: 'layer',
+          assets: boutiqueClassAssets(theme.id, slot, item.classId),
+          transforms: alignedTransforms,
+        };
+        continue;
+      }
+      out[id] = { id, slot: item.slot, renderMode: 'slot-only' };
     }
   }
   return out;
@@ -397,6 +405,13 @@ export function resolveCharacterAppearance(
     }
   }
 
+  const boutiqueEffectAsset = activeBoutiqueTheme
+    ? BOUTIQUE_THEMES[activeBoutiqueTheme].attackEffects[classId]
+    : undefined;
+  if (activeBoutiqueTheme && !boutiqueEffectAsset) {
+    throw new Error(`[配置错误] ${activeBoutiqueTheme} 缺少 ${classId} 的攻击特效`);
+  }
+
   const slotOrder: Readonly<Record<EquipSlot, number>> = {
     body: 0,
     shoes: 1,
@@ -419,9 +434,7 @@ export function resolveCharacterAppearance(
     visibleEquippedCount,
     highestVisibleQuality,
     activeBoutiqueTheme,
-    boutiqueEffectAsset: activeBoutiqueTheme
-      ? BOUTIQUE_THEMES[activeBoutiqueTheme].attackEffects[classId]
-      : null,
+    boutiqueEffectAsset: boutiqueEffectAsset ?? null,
     activeDungeonTier,
     forgeStage: forgeStageAt(highestVisibleEnhance),
     weaponForgeStage: forgeStageAt(weaponEnhance),

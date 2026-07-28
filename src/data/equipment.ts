@@ -125,7 +125,9 @@ function buildEquipment(): Record<string, EquipmentDef> {
     const percentile = theme.quality === 'epic' ? 0.6 : theme.quality === 'legendary' ? 0.75 : 0.9;
     for (const item of theme.items) {
       const id = boutiqueEquipmentId(theme.id, item.slot, item.classId);
-      const iconName = item.slot === 'weapon' ? `weapon-${item.classId}.png` : `${item.slot}.png`;
+      const iconName = item.classId
+        ? `${item.slot}-${item.classId}.png`
+        : `${item.slot}.png`;
       out[id] = {
         id,
         name: item.name,

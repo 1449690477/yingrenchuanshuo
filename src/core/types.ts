@@ -13,8 +13,12 @@ export const CLASS_IDS = ['swordsman', 'witch', 'shaman', 'catkin'] as const;
 /** 四职业。catkin 的暂定显示名为「喵喵」。 */
 export type ClassId = (typeof CLASS_IDS)[number];
 
-/** 精品商店首批换装系列。 */
-export type BoutiqueThemeId = 'berry-cream' | 'moon-sugar' | 'rose-night';
+/** 精品商店换装系列。稳定 ID 会写入装备定义，新增时只能追加。 */
+export type BoutiqueThemeId =
+  | 'berry-cream'
+  | 'moon-sugar'
+  | 'rose-night'
+  | 'cardboard-cat';
 
 /** 属性克制三角：炎 → 冰 → 雷 → 炎 */
 export type Element = 'fire' | 'ice' | 'thunder' | 'none';

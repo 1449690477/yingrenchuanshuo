@@ -6,6 +6,11 @@ const classId = process.argv[2];
 if (!classId) {
   throw new Error('用法：node scripts/resize-aligned-character-layers.mjs <classId>');
 }
+if (classId === 'catkin') {
+  throw new Error(
+    'catkin 有独立的猫耳、头饰与双爪锚点，请运行 node scripts/align-catkin-layers.mjs',
+  );
+}
 
 const sourceDir = resolve(`art-source/characters/modular/${classId}/alpha-master`);
 const outputDir = resolve(`public/assets/characters/modular/${classId}`);

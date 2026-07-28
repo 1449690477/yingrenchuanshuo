@@ -112,8 +112,8 @@ describe('区域 1–2 内容完整性', () => {
     expect(ALL_CHAPTERS).toHaveLength(10);
     expect(Object.keys(STAGES)).toHaveLength(60);
     expect(Object.keys(MONSTERS)).toHaveLength(49);
-    // 区域/珍品商店 81 件 + 定向装备副本 80 件。
-    expect(Object.keys(EQUIPMENT)).toHaveLength(161);
+    // 区域/珍品商店 83 件（含喵喵专属两件套）+ 定向装备副本 80 件。
+    expect(Object.keys(EQUIPMENT)).toHaveLength(163);
     expect(Object.keys(LOOT_TABLES)).toHaveLength(30);
   });
 
@@ -434,7 +434,7 @@ describe('区域 1–2 内容完整性', () => {
       .filter((appearance) => appearance.renderMode !== 'slot-only')
       .flatMap((appearance) => Object.values(appearance.assets));
     const assets = [...new Set([...Object.values(CHARACTER_BASE_ASSETS), ...layerAssets])];
-    expect(assets).toHaveLength(140);
+    expect(assets).toHaveLength(142);
 
     for (const asset of assets) {
       const assetPath = resolve('public', asset);
@@ -459,17 +459,17 @@ describe('区域 1–2 内容完整性', () => {
     }
   });
 
-  it('珍品商店首发 33 件定义，每个职业可见 24 件且价格与词条合法', () => {
-    expect(BOUTIQUE_THEME_LIST).toHaveLength(3);
-    expect(SHOP_OFFERS).toHaveLength(33);
-    expect(new Set(SHOP_OFFERS.map((offer) => offer.id)).size).toBe(33);
+  it('珍品商店 35 件定义中，喵喵额外可见纸箱键帽专属两件且价格与词条合法', () => {
+    expect(BOUTIQUE_THEME_LIST).toHaveLength(4);
+    expect(SHOP_OFFERS).toHaveLength(35);
+    expect(new Set(SHOP_OFFERS.map((offer) => offer.id)).size).toBe(35);
 
     for (const classId of CLASS_IDS) {
       const visible = SHOP_OFFERS.filter((offer) => {
         const equipment = EQUIPMENT[offer.defId]!;
         return !equipment.classId || equipment.classId === classId;
       });
-      expect(visible, classId).toHaveLength(24);
+      expect(visible, classId).toHaveLength(classId === 'catkin' ? 26 : 24);
     }
 
     for (const offer of SHOP_OFFERS) {
@@ -504,9 +504,9 @@ describe('区域 1–2 内容完整性', () => {
     }
   });
 
-  it('珍品商品图标、四职业换装层与十二套攻击特效符合移动端规格', async () => {
+  it('珍品商品图标、纸娃娃换装层与十三套职业攻击特效符合移动端规格', async () => {
     const iconAssets = [...new Set(SHOP_OFFERS.map((offer) => EQUIPMENT[offer.defId]!.icon))];
-    expect(iconAssets).toHaveLength(33);
+    expect(iconAssets).toHaveLength(35);
     for (const asset of iconAssets) {
       const path = resolve('public', asset);
       expect(existsSync(path), asset).toBe(true);
@@ -518,13 +518,13 @@ describe('区域 1–2 内容完整性', () => {
       expect(statSync(path).size, `${asset} 文件大小`).toBeLessThan(82_000);
     }
 
-    const boutiqueLayers = Object.entries(EQUIPMENT_APPEARANCES)
-      .filter(([id, appearance]) => id.startsWith('boutique-') && appearance.renderMode === 'layer')
+    const boutiqueAssets = Object.entries(EQUIPMENT_APPEARANCES)
+      .filter(([id, appearance]) => id.startsWith('boutique-') && appearance.renderMode !== 'slot-only')
       .flatMap(([, appearance]) =>
-        appearance.renderMode === 'layer' ? Object.values(appearance.assets) : [],
+        appearance.renderMode === 'slot-only' ? [] : Object.values(appearance.assets),
       );
-    expect(new Set(boutiqueLayers).size).toBe(48);
-    for (const asset of boutiqueLayers) {
+    expect(new Set(boutiqueAssets).size).toBe(50);
+    for (const asset of boutiqueAssets) {
       expect(asset).toBeDefined();
       const path = resolve('public', asset!);
       expect(existsSync(path), asset).toBe(true);
@@ -537,7 +537,7 @@ describe('区域 1–2 内容完整性', () => {
     }
 
     const effects = BOUTIQUE_THEME_LIST.flatMap((theme) => Object.values(theme.attackEffects));
-    expect(new Set(effects).size).toBe(12);
+    expect(new Set(effects).size).toBe(13);
     for (const asset of effects) {
       const path = resolve('public', asset);
       expect(existsSync(path), asset).toBe(true);

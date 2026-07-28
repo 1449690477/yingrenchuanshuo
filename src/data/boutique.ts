@@ -6,6 +6,8 @@ export interface BoutiqueItemSpec {
   price: number;
   category: ShopOfferCategory;
   classId?: ClassId;
+  /** 只有整身换装可声明 replacement；普通纸娃娃层保持默认 layer。 */
+  renderMode?: 'layer' | 'replacement';
   uniqueEffect: string;
 }
 
@@ -21,7 +23,7 @@ export interface BoutiqueTheme {
   palette: readonly [string, string, string];
   interactionName: string;
   interactionLines: readonly string[];
-  attackEffects: Record<ClassId, string>;
+  attackEffects: Partial<Record<ClassId, string>>;
   items: readonly BoutiqueItemSpec[];
 }
 
@@ -323,6 +325,45 @@ export const BOUTIQUE_THEMES: Readonly<Record<BoutiqueThemeId, BoutiqueTheme>> =
         price: 11_000_000,
         category: 'armor',
         uniqueEffect: '脚步换肤：留下渐隐的蔷薇星爆。',
+      },
+    ],
+  },
+  'cardboard-cat': {
+    id: 'cardboard-cat',
+    name: '纸箱键帽摸鱼套',
+    shortName: '宅猫',
+    quality: 'epic',
+    level: 14,
+    unlockStageId: 'stage_2-2_6',
+    rank: 1.5,
+    tagline: '纸箱小包、键帽晶爪与“再摸五分钟”的猫系机动工装。',
+    palette: ['#334f82', '#fff1d8', '#ff8fb5'],
+    interactionName: '纸箱摸鱼时间',
+    interactionLines: [
+      '键盘先交给爪爪检查一下……没有小鱼干，差评！',
+      '这个纸箱口袋刚好能装下今天的战利品。',
+      '再摸五分钟就出发，猫猫说话算话……大概。',
+    ],
+    attackEffects: {
+      catkin: 'assets/effects/boutique/cardboard-cat-catkin.png',
+    },
+    items: [
+      {
+        slot: 'body',
+        name: '纸箱键帽机动工装',
+        price: 2_600_000,
+        category: 'dress',
+        classId: 'catkin',
+        renderMode: 'replacement',
+        uniqueEffect: '整身换装：猫耳与蓝泪滴完全保留，纸箱小包随扑击动作一起摆动。',
+      },
+      {
+        slot: 'weapon',
+        name: '键帽疾打晶爪',
+        price: 3_200_000,
+        category: 'weapon',
+        classId: 'catkin',
+        uniqueEffect: '攻击换肤：六道蓝晶键帽爪痕交错，命中中心绽开粉色肉球。',
       },
     ],
   },

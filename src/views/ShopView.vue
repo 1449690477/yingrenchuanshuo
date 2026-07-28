@@ -226,7 +226,7 @@ onUnmounted(() => {
       <span class="shopkeeper-copy">
         <small>店主 · 樱桃</small>
         <strong>欢迎试穿，喜欢再带走～</strong>
-        <span>已收藏 {{ shop.purchasedCount }}/24 件本职业珍品</span>
+        <span>已收藏 {{ shop.purchasedCount }}/{{ shop.offers.length }} 件本职业珍品</span>
       </span>
     </section>
 

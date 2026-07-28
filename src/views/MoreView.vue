@@ -94,7 +94,7 @@ function say(text: string, ok: boolean) {
       <section class="boutique-entry" :style="{ backgroundImage: `url(${shopSceneUrl})` }">
         <span class="boutique-shade" />
         <span class="boutique-copy">
-          <small><Sparkles :size="11" />首批 33 件珍品试水</small>
+          <small><Sparkles :size="11" />35 件珍品 · 喵喵专属纸箱套</small>
           <strong>樱花珍品店</strong>
           <span>紫 · 金 · 红洛丽塔系列，支持试穿、专属互动与攻击换肤。</span>
           <em><Coins :size="11" />只收分解与挂机获得的金币</em>

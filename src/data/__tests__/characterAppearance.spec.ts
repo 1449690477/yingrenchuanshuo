@@ -122,6 +122,27 @@ describe('角色换装外观解析', () => {
     );
   });
 
+  it('纸箱键帽套使用喵喵专属整身替换并只叠加同画布双爪', () => {
+    const equipped = emptyEquipped();
+    equipped.body = instance('eq_shop_cardboard-cat_body_catkin');
+    equipped.weapon = instance('eq_shop_cardboard-cat_weapon_catkin');
+
+    const appearance = resolveCharacterAppearance('catkin', 30, equipped);
+
+    expect(appearance.baseAsset).toBe(
+      'assets/characters/modular/shop/cardboard-cat/catkin-body.png',
+    );
+    expect(appearance.layers.map((layer) => layer.asset)).toEqual([
+      'assets/characters/modular/shop/cardboard-cat/catkin-weapon.png',
+    ]);
+    expect(appearance.activeBoutiqueTheme).toBe('cardboard-cat');
+    expect(appearance.boutiqueEffectAsset).toBe(
+      'assets/effects/boutique/cardboard-cat-catkin.png',
+    );
+    expect(appearance.ariaLabel).toContain('纸箱键帽机动工装');
+    expect(appearance.ariaLabel).toContain('键帽疾打晶爪');
+  });
+
   it('装备副本礼服使用整人替换，头冠与武器继续独立叠加且不冒充商店主题', () => {
     const equipped = emptyEquipped();
     equipped.body = instance('eq_dungeon_azure_body_witch');
