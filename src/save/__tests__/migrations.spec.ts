@@ -78,6 +78,17 @@ function v6Save(): Record<string, unknown> {
   return { ...legacy, version: 6 };
 }
 
+function v7Save(): Record<string, unknown> {
+  const current = createSave('v7 少女', 'witch', 30, 1_800_000_000_000);
+  const { characters: _removed, ...legacyEncounters } = current.encounters;
+  legacyEncounters.pending.push({
+    uid: 'enc_7',
+    encounterId: 'enc_r1_petalsmith',
+    regionId: 'r1',
+  });
+  return { ...current, version: 7, encounters: legacyEncounters };
+}
+
 describe('save migrations', () => {
   it('v0 依次迁移到当前版本且不丢旧数据', () => {
     const migrated = migrate(v0Save());
@@ -183,6 +194,7 @@ describe('save migrations', () => {
       generatedCount: 0,
       resolvedCount: 0,
       pending: [],
+      characters: {},
     });
     expect(migrated.player.gold).toBe(8_765_432);
     expect(migrated.player.name).toBe('v4 少女');
@@ -218,6 +230,17 @@ describe('save migrations', () => {
     });
   });
 
+  it('v7 → v8 新增空角色进度并原样保留待处理奇遇', () => {
+    const raw = v7Save();
+    const migrated = migrate(raw);
+
+    expect(migrated.version).toBe(SAVE_VERSION);
+    expect(migrated.encounters.characters).toEqual({});
+    expect(migrated.encounters.pending).toEqual([
+      { uid: 'enc_7', encounterId: 'enc_r1_petalsmith', regionId: 'r1' },
+    ]);
+    expect(migrated.player.name).toBe('v7 少女');
+  });
   it('当前版本不迁移，只做严格结构校验', () => {
     const current = createSave('当前档', 'shaman', 3, 1_800_000_000_000);
     expect(migrate(current as unknown as Record<string, unknown>)).toEqual(current);

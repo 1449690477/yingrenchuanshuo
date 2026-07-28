@@ -102,6 +102,17 @@ export const migrations: Record<number, Migration> = {
       equipmentDungeon: createEquipmentDungeonState(save.lastActiveAt),
     };
   },
+  7: (save) => {
+    const encounters = asObject(save.encounters, 7, 'encounters');
+    return {
+      ...save,
+      version: 8,
+      encounters: {
+        ...encounters,
+        characters: {},
+      },
+    };
+  },
 };
 
 export class SaveTooNewError extends Error {

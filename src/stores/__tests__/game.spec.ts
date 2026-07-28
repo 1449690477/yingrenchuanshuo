@@ -318,6 +318,7 @@ describe('encounter transaction', () => {
       uid: 'enc_1',
       encounterId: 'enc_r1_petalsmith',
       regionId: 'r1',
+      storyChoiceId: 'lasting_grip',
     });
     save.encounters.generatedCount = 1;
     game.loadFrom(save);
@@ -344,6 +345,7 @@ describe('encounter transaction', () => {
       uid: 'enc_1',
       encounterId: 'enc_r1_petalsmith',
       regionId: 'r1',
+      storyChoiceId: 'lasting_grip',
     });
     game.loadFrom(save);
     const before = JSON.parse(JSON.stringify(game.save));
@@ -354,6 +356,56 @@ describe('encounter transaction', () => {
     });
     expect(game.save).toEqual(before);
     await game.persist();
+  });
+
+  it('角色篇章会先记住回答，再在援助或告别时完成且只增加一次关系', async () => {
+    const game = useGameStore();
+    const save = createSave('角色奇遇测试', 'witch', 101, Date.now());
+    save.bag.items = { petal_sakura: 3, grass_soft: 2 };
+    save.encounters.pending.push({
+      uid: 'enc_story_1',
+      encounterId: 'enc_r1_petalsmith',
+      regionId: 'r1',
+    });
+    game.loadFrom(save);
+
+    expect(game.resolvePendingEncounter('enc_story_1', 'trade')).toEqual({
+      ok: false,
+      reason: 'story-choice-required',
+    });
+    expect(game.rememberPendingEncounterChoice('enc_story_1', 'lasting_grip')).toEqual({
+      ok: true,
+    });
+    expect(game.save?.encounters.pending[0]?.storyChoiceId).toBe('lasting_grip');
+
+    const resolution = game.resolvePendingEncounter('enc_story_1', 'trade');
+    expect(resolution.ok).toBe(true);
+    expect(game.save?.encounters.characters.char_akane).toEqual({
+      bond: 1,
+      completedEncounterIds: ['enc_r1_petalsmith'],
+      choiceHistory: { enc_r1_petalsmith: 'lasting_grip' },
+    });
+    expect(game.save?.encounters.pending).toHaveLength(0);
+  });
+
+  it('材料援助失败时保留已经作出的剧情回答，稍后可以继续', async () => {
+    const game = useGameStore();
+    const save = createSave('角色奇遇恢复测试', 'witch', 102, Date.now());
+    save.bag.items = { petal_sakura: 3, grass_soft: 1 };
+    save.encounters.pending.push({
+      uid: 'enc_story_2',
+      encounterId: 'enc_r1_petalsmith',
+      regionId: 'r1',
+      storyChoiceId: 'lasting_grip',
+    });
+    game.loadFrom(save);
+
+    expect(game.resolvePendingEncounter('enc_story_2', 'trade')).toEqual({
+      ok: false,
+      reason: 'insufficient-resource',
+    });
+    expect(game.save?.encounters.pending[0]?.storyChoiceId).toBe('lasting_grip');
+    expect(game.save?.encounters.characters.char_akane).toBeUndefined();
   });
 
   it('在线首通会在旧关结算结束后进入下一关，并保留新关的初始演出状态', async () => {
@@ -485,6 +537,7 @@ function classSwitchSave(): SaveData {
         regionId: 'r1',
       },
     ],
+    characters: {},
   };
   return save;
 }
@@ -1085,7 +1138,7 @@ describe('equipment dungeon transaction', () => {
 
     expect(game.equipmentSetResolution.sets[0]).toMatchObject({
       equippedPieces: 8,
-      activeBonuses: [
+activeBonuses: [
         { pieces: 2 },
         { pieces: 4 },
         { pieces: 6 },

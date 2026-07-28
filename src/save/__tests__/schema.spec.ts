@@ -98,6 +98,31 @@ describe('save schema', () => {
     expect(looksLikeSave(zeroLuckBucket)).toBe(false);
   });
 
+  it('v8 角色进度拒绝负关系值、重复完成记录和空回答', () => {
+    const negativeBond = createSave('小樱', 'witch', 8, 1);
+    negativeBond.encounters.characters.char_akane = {
+      bond: -1,
+      completedEncounterIds: [],
+      choiceHistory: {},
+    };
+    expect(looksLikeSave(negativeBond)).toBe(false);
+
+    const duplicateChapter = createSave('小樱', 'witch', 8, 1);
+    duplicateChapter.encounters.characters.char_akane = {
+      bond: 2,
+      completedEncounterIds: ['enc_r1_petalsmith', 'enc_r1_petalsmith'],
+      choiceHistory: { enc_r1_petalsmith: 'lasting_grip' },
+    };
+    expect(looksLikeSave(duplicateChapter)).toBe(false);
+
+    const emptyChoice = createSave('小樱', 'witch', 8, 1);
+    emptyChoice.encounters.characters.char_akane = {
+      bond: 1,
+      completedEncounterIds: ['enc_r1_petalsmith'],
+      choiceHistory: { enc_r1_petalsmith: '' },
+    };
+    expect(looksLikeSave(emptyChoice)).toBe(false);
+  });
   it('装备 UID 必须全局唯一，nextUid 必须大于已存在编号', () => {
     const save = createSave('小樱', 'witch', 3, 1);
     const instance = {

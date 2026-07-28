@@ -74,8 +74,11 @@ import {
 import { decomposeGold } from '@/core/economy';
 import {
   advanceEncounterState,
+  createEncounterState,
   encounterRewardSeed,
+  rememberEncounterStoryChoice,
   resolveEncounterChoice,
+  resolveStoryEncounter,
   type ResourceBundle,
 } from '@/core/encounters';
 import { rollLoot } from '@/core/loot';
@@ -197,7 +200,11 @@ export type EnhanceBatchActionResult =
 
 export type EncounterResolveResult =
   | { ok: true; outcome: string; rewards: ResourceBundle }
-  | { ok: false; reason: 'not-found' | 'insufficient-resource' };
+  | { ok: false; reason: 'not-found' | 'insufficient-resource' | 'story-choice-required' };
+
+export type EncounterStoryChoiceActionResult =
+  | { ok: true }
+  | { ok: false; reason: 'not-found' | 'not-story' | 'invalid-choice' | 'already-chosen' };
 
 export type ClassSwitchResult =
   | { ok: false; reason: 'no-save' | 'same-class' }
@@ -347,6 +354,7 @@ export const useGameStore = defineStore('game', () => {
 
   const staminaMax = computed(() => staminaMaxForLevel(player.value?.level ?? 1));
   const pendingEncounters = computed(() => save.value?.encounters.pending ?? []);
+  const encounterState = computed(() => save.value?.encounters ?? createEncounterState());
   const unlockedEncounterChapterIds = computed(
     () =>
       new Set(
@@ -563,7 +571,12 @@ export const useGameStore = defineStore('game', () => {
       save.value.encounters,
       elapsedSec,
       regionId,
-      encounterIdsForProgress(regionId, unlockedEncounterChapterIds.value),
+      encounterIdsForProgress(
+        regionId,
+        unlockedEncounterChapterIds.value,
+        save.value.encounters.characters,
+        new Set(save.value.encounters.pending.map((entry) => entry.encounterId)),
+      ),
       save.value.seed,
       ENCOUNTER_TIMING,
     );
@@ -962,6 +975,25 @@ export const useGameStore = defineStore('game', () => {
     return chapter.tutorial;
   }
 
+  function rememberPendingEncounterChoice(
+    uid: string,
+    choiceId: string,
+  ): EncounterStoryChoiceActionResult {
+    if (!save.value) return { ok: false, reason: 'not-found' };
+    const entry = save.value.encounters.pending.find((candidate) => candidate.uid === uid);
+    if (!entry) return { ok: false, reason: 'not-found' };
+    const result = rememberEncounterStoryChoice(
+      save.value.encounters,
+      uid,
+      requireEncounter(entry.encounterId),
+      choiceId,
+    );
+    if (!result.ok) return result;
+    save.value.encounters = result.state;
+    void persist();
+    return { ok: true };
+  }
+
   function resolvePendingEncounter(uid: string, choiceId: string): EncounterResolveResult {
     if (!save.value) return { ok: false, reason: 'not-found' };
     const index = save.value.encounters.pending.findIndex((entry) => entry.uid === uid);
@@ -970,14 +1002,28 @@ export const useGameStore = defineStore('game', () => {
     const encounter = requireEncounter(entry.encounterId);
     const choice = encounter.choices.find((candidate) => candidate.id === choiceId);
     if (!choice) return { ok: false, reason: 'not-found' };
+    const rewardRng = new Rng(encounterRewardSeed(save.value.seed, entry.uid, choice.id));
+    const wallet = { gold: save.value.player.gold, items: save.value.bag.items };
 
-    const result = resolveEncounterChoice(
-      choice,
-      { gold: save.value.player.gold, items: save.value.bag.items },
-      new Rng(encounterRewardSeed(save.value.seed, entry.uid, choice.id)),
-    );
+    if (encounter.storyArc) {
+      const result = resolveStoryEncounter(
+        save.value.encounters,
+        uid,
+        encounter,
+        choice,
+        wallet,
+        rewardRng,
+      );
+      if (!result.ok) return result;
+      save.value.player.gold = result.wallet.gold;
+      save.value.bag.items = result.wallet.items;
+      save.value.encounters = result.state;
+      void persist();
+      return { ok: true, outcome: choice.outcome, rewards: result.rewards };
+    }
+
+    const result = resolveEncounterChoice(choice, wallet, rewardRng);
     if (!result.ok) return result;
-
     save.value.player.gold = result.wallet.gold;
     save.value.bag.items = result.wallet.items;
     save.value.encounters.pending.splice(index, 1);
@@ -1610,6 +1656,7 @@ export const useGameStore = defineStore('game', () => {
     staminaMax,
     kps,
     pendingEncounters,
+    encounterState,
     equipmentDungeonRemaining,
     // 动作
     init,
@@ -1626,6 +1673,7 @@ export const useGameStore = defineStore('game', () => {
     advanceStage,
     isStageUnlocked,
     takeTutorial,
+    rememberPendingEncounterChoice,
     resolvePendingEncounter,
     refreshEquipmentDungeon,
     runEquipmentDungeon,

@@ -33,6 +33,29 @@ export interface EncounterLine {
   text: string;
 }
 
+export interface EncounterStoryChoice {
+  id: string;
+  label: string;
+  responseDialogue: EncounterLine[];
+}
+
+export interface EncounterMemoryCallback {
+  fromEncounterId: string;
+  choiceId: string;
+  dialogue: EncounterLine[];
+}
+
+export interface EncounterStoryArc {
+  characterId: string;
+  characterName: string;
+  episode: number;
+  episodeLabel: string;
+  requiredEncounterIds: string[];
+  repeatable: boolean;
+  storyChoices: [EncounterStoryChoice, EncounterStoryChoice];
+  memoryCallbacks?: EncounterMemoryCallback[];
+}
+
 export interface EncounterDefinition {
   id: string;
   regionIds: string[];
@@ -41,6 +64,8 @@ export interface EncounterDefinition {
   title: string;
   story: string;
   choices: [EncounterChoice, EncounterChoice];
+  /** 连续角色剧情；缺失时沿用普通奇遇的一步结算流程。 */
+  storyArc?: EncounterStoryArc;
 
   // ── 演出相关（全部可选，缺失时 UI 会优雅降级）──
 
@@ -66,12 +91,20 @@ export interface PendingEncounter {
   uid: string;
   encounterId: string;
   regionId: string;
+  /** 角色剧情已选的回答；存在时重新打开直接进入回应阶段。 */
+  storyChoiceId?: string;
+}
+export interface EncounterCharacterProgress {
+  bond: number;
+  completedEncounterIds: string[];
+  choiceHistory: Record<string, string>;
 }
 export interface EncounterState {
   progressSec: number;
   generatedCount: number;
   resolvedCount: number;
   pending: PendingEncounter[];
+  characters: Record<string, EncounterCharacterProgress>;
 }
 export interface EncounterTiming {
   firstSec: number;
@@ -86,18 +119,147 @@ export type EncounterChoiceResult =
   | { ok: true; wallet: ResourceWallet; rewards: ResourceBundle }
   | { ok: false; reason: 'insufficient-resource' };
 
+export type EncounterRelationshipStage = '初遇' | '熟悉' | '亲近' | '信赖';
+
+export type RememberStoryChoiceResult =
+  | { ok: true; state: EncounterState }
+  | { ok: false; reason: 'not-found' | 'not-story' | 'invalid-choice' | 'already-chosen' };
+
+export type StoryEncounterResolveResult =
+  | {
+      ok: true;
+      state: EncounterState;
+      wallet: ResourceWallet;
+      rewards: ResourceBundle;
+      relationship: EncounterRelationshipStage;
+    }
+  | { ok: false; reason: 'not-found' | 'story-choice-required' | 'insufficient-resource' };
+
+export function createEncounterState(): EncounterState {
+  return {
+    progressSec: 0,
+    generatedCount: 0,
+    resolvedCount: 0,
+    pending: [],
+    characters: {},
+  };
+}
+
+export function relationshipStage(bond: number): EncounterRelationshipStage {
+  if (bond >= 3) return '信赖';
+  if (bond >= 2) return '亲近';
+  if (bond >= 1) return '熟悉';
+  return '初遇';
+}
+
+export function characterProgress(
+  state: EncounterState,
+  characterId: string,
+): EncounterCharacterProgress {
+  const progress = state.characters[characterId];
+  return progress
+    ? {
+        bond: progress.bond,
+        completedEncounterIds: [...progress.completedEncounterIds],
+        choiceHistory: { ...progress.choiceHistory },
+      }
+    : { bond: 0, completedEncounterIds: [], choiceHistory: {} };
+}
+
 /** 按地区与历史已解锁章节筛选可生成的奇遇。 */
 export function availableEncounterIds(
   definitions: readonly EncounterDefinition[],
   regionId: string,
   unlockedChapterIds: ReadonlySet<string>,
+  characters: Readonly<Record<string, EncounterCharacterProgress>> = {},
+  pendingEncounterIds: ReadonlySet<string> = new Set(),
 ): string[] {
   return definitions
-    .filter(
-      (encounter) =>
-        encounter.regionIds.includes(regionId) && unlockedChapterIds.has(encounter.unlockChapterId),
-    )
+    .filter((encounter) => {
+      if (pendingEncounterIds.has(encounter.id)) return false;
+      if (
+        !encounter.regionIds.includes(regionId) ||
+        !unlockedChapterIds.has(encounter.unlockChapterId)
+      ) {
+        return false;
+      }
+      const arc = encounter.storyArc;
+      if (!arc) return true;
+      const completed = new Set(characters[arc.characterId]?.completedEncounterIds ?? []);
+      if (!arc.repeatable && completed.has(encounter.id)) return false;
+      return arc.requiredEncounterIds.every((id) => completed.has(id));
+    })
     .map((encounter) => encounter.id);
+}
+
+export function memoryDialogueForEncounter(
+  definition: EncounterDefinition,
+  state: EncounterState,
+): EncounterLine[] {
+  const arc = definition.storyArc;
+  if (!arc) return [];
+  const history = state.characters[arc.characterId]?.choiceHistory ?? {};
+  return (arc.memoryCallbacks ?? [])
+    .filter((callback) => history[callback.fromEncounterId] === callback.choiceId)
+    .flatMap((callback) => callback.dialogue);
+}
+
+export function rememberEncounterStoryChoice(
+  state: EncounterState,
+  uid: string,
+  definition: EncounterDefinition,
+  choiceId: string,
+): RememberStoryChoiceResult {
+  const index = state.pending.findIndex((entry) => entry.uid === uid);
+  if (index < 0 || state.pending[index]?.encounterId !== definition.id) {
+    return { ok: false, reason: 'not-found' };
+  }
+  const arc = definition.storyArc;
+  if (!arc) return { ok: false, reason: 'not-story' };
+  if (!arc.storyChoices.some((choice) => choice.id === choiceId)) {
+    return { ok: false, reason: 'invalid-choice' };
+  }
+  if (state.pending[index]?.storyChoiceId) return { ok: false, reason: 'already-chosen' };
+  const next = cloneState(state);
+  next.pending[index] = { ...next.pending[index]!, storyChoiceId: choiceId };
+  return { ok: true, state: next };
+}
+
+export function resolveStoryEncounter(
+  state: EncounterState,
+  uid: string,
+  definition: EncounterDefinition,
+  settlementChoice: EncounterChoice,
+  wallet: ResourceWallet,
+  rewardRng: Rng,
+): StoryEncounterResolveResult {
+  const index = state.pending.findIndex((entry) => entry.uid === uid);
+  const entry = state.pending[index];
+  if (index < 0 || !entry || entry.encounterId !== definition.id || !definition.storyArc) {
+    return { ok: false, reason: 'not-found' };
+  }
+  if (!entry.storyChoiceId) return { ok: false, reason: 'story-choice-required' };
+  const settlement = resolveEncounterChoice(settlementChoice, wallet, rewardRng);
+  if (!settlement.ok) return settlement;
+
+  const next = cloneState(state);
+  next.pending.splice(index, 1);
+  next.resolvedCount += 1;
+  const arc = definition.storyArc;
+  const progress = characterProgress(next, arc.characterId);
+  if (!arc.repeatable && !progress.completedEncounterIds.includes(definition.id)) {
+    progress.completedEncounterIds.push(definition.id);
+    progress.choiceHistory[definition.id] = entry.storyChoiceId;
+    progress.bond += 1;
+  }
+  next.characters[arc.characterId] = progress;
+  return {
+    ok: true,
+    state: next,
+    wallet: settlement.wallet,
+    rewards: settlement.rewards,
+    relationship: relationshipStage(progress.bond),
+  };
 }
 
 /** 用有效挂机时间推进队列；独立派生 RNG，不改变掉落随机序列。 */
@@ -119,18 +281,24 @@ export function advanceEncounterState(
   while (pending.length < timing.queueMax) {
     const threshold = generatedCount === 0 ? timing.firstSec : timing.intervalSec;
     if (progressSec < threshold) break;
+    const pendingIds = new Set(pending.map((entry) => entry.encounterId));
+    const candidates = availableEncounterIds.filter((id) => !pendingIds.has(id));
+    if (candidates.length === 0) {
+      progressSec = 0;
+      break;
+    }
     progressSec -= threshold;
     const sequence = generatedCount + 1;
     const eventRng = new Rng(saveSeed ^ Math.imul(sequence, 0x9e3779b1));
     pending.push({
       uid: `enc_${sequence}`,
-      encounterId: eventRng.pick(availableEncounterIds),
+      encounterId: eventRng.pick(candidates),
       regionId,
     });
     generatedCount = sequence;
   }
   if (pending.length >= timing.queueMax) progressSec = 0;
-  return { progressSec, generatedCount, resolvedCount: state.resolvedCount, pending };
+  return { ...cloneState(state), progressSec, generatedCount, pending };
 }
 
 /** 原子校验并结算奇遇选项；失败时不返回半扣资源的状态。 */
@@ -205,5 +373,18 @@ function applyBundle(wallet: ResourceWallet, bundle: ResourceBundle | undefined,
 }
 
 function cloneState(state: EncounterState): EncounterState {
-  return { ...state, pending: state.pending.map((entry) => ({ ...entry })) };
+  return {
+    ...state,
+    pending: state.pending.map((entry) => ({ ...entry })),
+    characters: Object.fromEntries(
+      Object.entries(state.characters).map(([id, progress]) => [
+        id,
+        {
+          bond: progress.bond,
+          completedEncounterIds: [...progress.completedEncounterIds],
+          choiceHistory: { ...progress.choiceHistory },
+        },
+      ]),
+    ),
+  };
 }

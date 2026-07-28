@@ -10,7 +10,7 @@
  */
 
 import { z } from 'zod';
-import type { EncounterState } from '@/core/encounters';
+import { createEncounterState, type EncounterState } from '@/core/encounters';
 import {
   createEquipmentDungeonState,
   type EquipmentDungeonState,
@@ -33,7 +33,7 @@ import {
 } from '@/data/equipmentDungeons';
 
 /** 当前存档版本。加字段就 +1。 */
-export const SAVE_VERSION = 7;
+export const SAVE_VERSION = 8;
 
 export const SAVE_KEY = 'main';
 
@@ -164,7 +164,7 @@ export function createSave(name: string, classId: ClassId, seed: number, now: nu
     },
     stats: { totalKills: 0, totalPlaySec: 0, bossKills: {} },
     shop: { purchasedOfferIds: [] },
-    encounters: { progressSec: 0, generatedCount: 0, resolvedCount: 0, pending: [] },
+    encounters: createEncounterState(),
     equipmentDungeon: createEquipmentDungeonState(now),
   };
 }
@@ -336,10 +336,23 @@ export const saveDataSchema = z
                 uid: z.string().min(1),
                 encounterId: z.string().min(1),
                 regionId: z.string().min(1),
+                storyChoiceId: z.string().min(1).optional(),
               })
               .strict(),
           )
           .max(3),
+        characters: z.record(
+          z.string().min(1),
+          z
+            .object({
+              bond: nonNegativeInteger,
+              completedEncounterIds: z
+                .array(z.string().min(1))
+                .refine((ids) => new Set(ids).size === ids.length, '已完成篇章不能重复'),
+              choiceHistory: z.record(z.string().min(1), z.string().min(1)),
+            })
+            .strict(),
+        ),
       })
       .strict(),
     equipmentDungeon: z

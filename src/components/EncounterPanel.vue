@@ -1,7 +1,15 @@
 <script setup lang="ts">
-import { computed, onUnmounted, ref, watch } from 'vue';
+import { computed, nextTick, onUnmounted, ref, watch } from 'vue';
 import { ChevronLeft, ChevronRight, Sparkles, X } from '@lucide/vue';
-import { canAfford, type EncounterChoice, type ResourceBundle } from '@/core/encounters';
+import {
+  canAfford,
+  characterProgress,
+  memoryDialogueForEncounter,
+  relationshipStage,
+  type EncounterChoice,
+  type EncounterStoryChoice,
+  type ResourceBundle,
+} from '@/core/encounters';
 import { abbr } from '@/core/format';
 import { requireEncounter } from '@/data/encounters';
 import { REGIONS } from '@/data/regions';
@@ -18,118 +26,9 @@ type EncounterFeedback = { text: string; tone: 'success' | 'notice' };
 
 const feedback = ref<EncounterFeedback | null>(null);
 const selectedUid = ref<string | null>(stage.pendingEncounters[0]?.uid ?? null);
-
-/**
- * 对话推进游标。
- *
- * 奇遇要像「一小段剧情」而不是一个提示框：先逐句把话说完，
- * 读到最后一句才展示选项。玩家点任意处推进，也可以直接跳过。
- */
 const lineIndex = ref(0);
-
-const dialogue = computed(() => encounter.value?.dialogue ?? []);
-const hasDialogue = computed(() => dialogue.value.length > 0);
-
-/** 当前正在念的这一句。galgame 一次只显示一句，而不是堆成列表。 */
-const currentLine = computed(() => dialogue.value[lineIndex.value] ?? null);
-const isLastLine = computed(
-  () => !hasDialogue.value || lineIndex.value >= dialogue.value.length - 1,
-);
-
-// ── 打字机 ──
-//
-// 逐字显示是 galgame 的灵魂：文字一次性糊上去就没有「在跟你说话」的感觉。
-// 打到一半时点击先补完整句，再点才推进 —— 这是玩家最熟悉的交互习惯。
-
-/** 每个字的间隔（毫秒）。中文比英文慢一点更好读。 */
-const TYPE_SPEED_MS = 34;
-
 const typedCount = ref(0);
 let typeTimer = 0;
-
-const typedText = computed(() => (currentLine.value?.text ?? '').slice(0, typedCount.value));
-const isTyping = computed(() => typedCount.value < (currentLine.value?.text.length ?? 0));
-
-function startTyping(): void {
-  stopTyping();
-  typedCount.value = 0;
-  const full = currentLine.value?.text ?? '';
-  if (!full) return;
-
-  // 尊重系统的「减弱动效」设置，直接整句显示
-  if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
-    typedCount.value = full.length;
-    return;
-  }
-
-  typeTimer = window.setInterval(() => {
-    if (typedCount.value >= full.length) {
-      stopTyping();
-      return;
-    }
-    typedCount.value++;
-  }, TYPE_SPEED_MS);
-}
-
-function stopTyping(): void {
-  if (typeTimer) {
-    clearInterval(typeTimer);
-    typeTimer = 0;
-  }
-}
-
-/** 整句立刻显示完 */
-function completeLine(): void {
-  stopTyping();
-  typedCount.value = currentLine.value?.text.length ?? 0;
-}
-
-/**
- * 点击对话区：正在打字就补完，已打完就推进下一句。
- * 这是 galgame 的标准手感。
- */
-function advanceDialogue(): void {
-  if (isTyping.value) {
-    completeLine();
-    return;
-  }
-  if (isLastLine.value) return;
-  lineIndex.value++;
-}
-
-/** 跳过整段对话，直接看选项 */
-function skipDialogue(): void {
-  lineIndex.value = Math.max(0, dialogue.value.length - 1);
-  completeLine();
-}
-
-/** 对话是否已经念完（最后一句且打完字），选项在此之后才出现 */
-const dialogueDone = computed(() => isLastLine.value && !isTyping.value);
-
-onUnmounted(stopTyping);
-
-/** 换奇遇时对话要从头开始 */
-watch(selectedUid, () => {
-  lineIndex.value = 0;
-});
-
-/** 场景背景：奇遇自带优先，否则退回该区域的地图美术 */
-const sceneUrl = computed(() => {
-  const asset = encounter.value?.sceneAsset ?? regionOfEncounter.value?.mapAsset;
-  return asset ? `${import.meta.env.BASE_URL}${asset}` : null;
-});
-
-const regionOfEncounter = computed(() => {
-  const regionId = entry.value?.regionId;
-  return regionId ? REGIONS.find((r) => r.id === regionId) ?? null : null;
-});
-
-/** 立绘：还没出图时用 glyph 渲染风格化占位，看起来是刻意设计而非坏图 */
-const portraitUrl = computed(() =>
-  encounter.value?.portraitAsset
-    ? `${import.meta.env.BASE_URL}${encounter.value.portraitAsset}`
-    : null,
-);
 
 const entry = computed(() => {
   if (!selectedUid.value) return null;
@@ -141,20 +40,108 @@ const activeIndex = computed(() =>
     : -1,
 );
 const encounter = computed(() => (entry.value ? requireEncounter(entry.value.encounterId) : null));
+const storyArc = computed(() => encounter.value?.storyArc ?? null);
+const selectedStoryChoice = computed(
+  () =>
+    storyArc.value?.storyChoices.find((choice) => choice.id === entry.value?.storyChoiceId) ?? null,
+);
+const memoryLines = computed(() =>
+  encounter.value ? memoryDialogueForEncounter(encounter.value, stage.encounterState) : [],
+);
+const dialogue = computed(() => {
+  if (selectedStoryChoice.value) return selectedStoryChoice.value.responseDialogue;
+  return [...memoryLines.value, ...(encounter.value?.dialogue ?? [])];
+});
+const hasDialogue = computed(() => dialogue.value.length > 0);
+const currentLine = computed(() => dialogue.value[lineIndex.value] ?? null);
+const isLastLine = computed(
+  () => !hasDialogue.value || lineIndex.value >= dialogue.value.length - 1,
+);
+const typedText = computed(() => (currentLine.value?.text ?? '').slice(0, typedCount.value));
+const isTyping = computed(() => typedCount.value < (currentLine.value?.text.length ?? 0));
+const dialogueDone = computed(() => isLastLine.value && !isTyping.value);
+const relationship = computed(() => {
+  const arc = storyArc.value;
+  if (!arc) return null;
+  return relationshipStage(characterProgress(stage.encounterState, arc.characterId).bond);
+});
+const storyStepLabel = computed(() =>
+  selectedStoryChoice.value ? '是否伸出援手' : '你想怎样回应她？',
+);
 const wallet = computed(() => ({
   gold: player.player?.gold ?? 0,
   items: inventory.bag?.items ?? {},
 }));
+const regionOfEncounter = computed(() => {
+  const regionId = entry.value?.regionId;
+  return regionId ? (REGIONS.find((region) => region.id === regionId) ?? null) : null;
+});
+const sceneUrl = computed(() => {
+  const asset = encounter.value?.sceneAsset ?? regionOfEncounter.value?.mapAsset;
+  return asset ? `${import.meta.env.BASE_URL}${asset}` : null;
+});
+const portraitUrl = computed(() =>
+  encounter.value?.portraitAsset
+    ? `${import.meta.env.BASE_URL}${encounter.value.portraitAsset}`
+    : null,
+);
 
-/**
- * 换一句就重新打字。
- *
- * ⚠ 这个 watch 必须放在 encounter / entry 声明之后。
- * immediate 会在 setup 阶段立刻求值 currentLine → dialogue → encounter，
- * 而 encounter 是下面才声明的 const，提前访问会触发 TDZ 报错，
- * 整个面板会渲染失败且只在控制台留下一行错误（真踩过这个坑）。
- */
+const TYPE_SPEED_MS = 34;
+
+function stopTyping(): void {
+  if (!typeTimer) return;
+  clearInterval(typeTimer);
+  typeTimer = 0;
+}
+
+function startTyping(): void {
+  stopTyping();
+  typedCount.value = 0;
+  const full = currentLine.value?.text ?? '';
+  if (!full) return;
+  if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+    typedCount.value = full.length;
+    return;
+  }
+  typeTimer = window.setInterval(() => {
+    if (typedCount.value >= full.length) {
+      stopTyping();
+      return;
+    }
+    typedCount.value++;
+  }, TYPE_SPEED_MS);
+}
+
+function completeLine(): void {
+  stopTyping();
+  typedCount.value = currentLine.value?.text.length ?? 0;
+}
+
+function advanceDialogue(): void {
+  if (isTyping.value) {
+    completeLine();
+    return;
+  }
+  if (!isLastLine.value) lineIndex.value++;
+}
+
+async function skipDialogue(): Promise<void> {
+  lineIndex.value = Math.max(0, dialogue.value.length - 1);
+  await nextTick();
+  completeLine();
+}
+
+watch(selectedUid, () => {
+  lineIndex.value = 0;
+});
+watch(
+  () => entry.value?.storyChoiceId,
+  () => {
+    lineIndex.value = 0;
+  },
+);
 watch(currentLine, startTyping, { immediate: true });
+onUnmounted(stopTyping);
 
 function resourceText(bundle: ResourceBundle | undefined, emptyLabel = '无需材料'): string {
   if (!bundle) return emptyLabel;
@@ -179,6 +166,16 @@ function showNextPending(): void {
   feedback.value = null;
 }
 
+function chooseStory(choice: EncounterStoryChoice): void {
+  if (!entry.value) return;
+  const result = stage.rememberEncounterChoice(entry.value.uid, choice.id);
+  if (!result.ok) {
+    feedback.value = { text: '这段回应没有记下来，请重新打开奇遇再试', tone: 'notice' };
+    return;
+  }
+  feedback.value = null;
+}
+
 function choose(choice: EncounterChoice): void {
   if (!entry.value) return;
   const result = stage.resolveEncounter(entry.value.uid, choice.id);
@@ -186,8 +183,10 @@ function choose(choice: EncounterChoice): void {
     feedback.value = {
       text:
         result.reason === 'insufficient-resource'
-          ? '材料数量刚刚发生变化，可以稍后再试'
-          : '这段奇遇已经结束了',
+          ? '手头的材料还不够。先去挂机收集吧，这段故事会为你保留。'
+          : result.reason === 'story-choice-required'
+            ? '先回应她，再决定是否伸出援手。'
+            : '这段奇遇已经结束了。',
       tone: 'notice',
     };
     return;
@@ -203,13 +202,13 @@ function choose(choice: EncounterChoice): void {
 </script>
 
 <template>
-  <div class="overlay encounter-overlay" @click.self="emit('close')">
+  <div class="overlay encounter-overlay" @click.self="emit('close')" @keydown.esc="emit('close')">
     <section class="sheet" role="dialog" aria-modal="true" aria-label="旅途奇遇">
       <header class="head">
         <span class="sigil"><Sparkles :size="20" aria-hidden="true" /></span>
         <span>
           <small>
-            旅途奇遇 ·
+            {{ storyArc ? '旅途手札' : '旅途奇遇' }} ·
             {{
               encounter
                 ? `第 ${activeIndex + 1}/${stage.pendingEncounters.length} 件`
@@ -237,6 +236,14 @@ function choose(choice: EncounterChoice): void {
             <ChevronRight :size="16" aria-hidden="true" />
           </button>
         </nav>
+        <div v-if="storyArc" class="story-meta" aria-label="角色篇章信息">
+          <span>{{ storyArc.characterName }} · {{ storyArc.episodeLabel }}</span>
+          <span class="relationship">关系 · {{ relationship }}</span>
+        </div>
+        <p v-if="storyArc && memoryLines.length > 0 && !selectedStoryChoice" class="memory-echo">
+          <Sparkles :size="14" aria-hidden="true" />
+          她还记得你上次说过的话。
+        </p>
         <!-- 场景舞台：背景 + 立绘 + 名牌 -->
         <div class="stage-view" :class="{ tappable: !dialogueDone }" @click="advanceDialogue">
           <img v-if="sceneUrl" class="scene-art" :src="sceneUrl" alt="" aria-hidden="true" />
@@ -244,15 +251,12 @@ function choose(choice: EncounterChoice): void {
 
           <div class="portrait" :class="{ 'is-art': !!portraitUrl }">
             <img v-if="portraitUrl" :src="portraitUrl" :alt="encounter.speaker ?? '奇遇角色'" />
-            <span v-else class="portrait-glyph" aria-hidden="true">{{ encounter.glyph ?? '✦' }}</span>
+            <span v-else class="portrait-glyph" aria-hidden="true">{{
+              encounter.glyph ?? '✦'
+            }}</span>
           </div>
 
-          <button
-            v-if="!dialogueDone"
-            type="button"
-            class="skip"
-            @click.stop="skipDialogue"
-          >
+          <button v-if="!dialogueDone" type="button" class="skip" @click.stop="skipDialogue">
             跳过
           </button>
         </div>
@@ -276,11 +280,7 @@ function choose(choice: EncounterChoice): void {
           </p>
 
           <span class="progress-dots" aria-hidden="true">
-            <i
-              v-for="(_, i) in dialogue"
-              :key="i"
-              :class="{ on: i <= lineIndex }"
-            />
+            <i v-for="(_, i) in dialogue" :key="i" :class="{ on: i <= lineIndex }" />
           </span>
 
           <span v-if="!isTyping && !isLastLine" class="tap-hint" aria-hidden="true">▼</span>
@@ -291,18 +291,34 @@ function choose(choice: EncounterChoice): void {
           {{ feedback.text }}
         </div>
         <div v-if="dialogueDone" class="choices">
-          <button
-            v-for="choice in encounter.choices"
-            :key="choice.id"
-            class="choice"
-            :class="{ unavailable: !canAfford(choice.costs, wallet) }"
-            :disabled="!canAfford(choice.costs, wallet)"
-            @click="choose(choice)"
-          >
-            <span class="choice-title">{{ choice.label }}</span>
-            <span class="cost">需要：{{ resourceText(choice.costs) }}</span>
-            <span v-if="!canAfford(choice.costs, wallet)" class="lack">当前材料不足</span>
-          </button>
+          <p v-if="storyArc" class="choice-step">{{ storyStepLabel }}</p>
+          <template v-if="storyArc && !selectedStoryChoice">
+            <button
+              v-for="choice in storyArc.storyChoices"
+              :key="choice.id"
+              class="choice story-choice"
+              type="button"
+              @click="chooseStory(choice)"
+            >
+              <span class="choice-title">{{ choice.label }}</span>
+              <span class="choice-hint">只影响之后的对白，不影响奖励</span>
+            </button>
+          </template>
+          <template v-else>
+            <button
+              v-for="choice in encounter.choices"
+              :key="choice.id"
+              class="choice"
+              :class="{ unavailable: !canAfford(choice.costs, wallet) }"
+              :disabled="!canAfford(choice.costs, wallet)"
+              type="button"
+              @click="choose(choice)"
+            >
+              <span class="choice-title">{{ choice.label }}</span>
+              <span class="cost">需要：{{ resourceText(choice.costs) }}</span>
+              <span v-if="!canAfford(choice.costs, wallet)" class="lack">当前材料不足</span>
+            </button>
+          </template>
         </div>
         <p class="aside">关闭后会保留，下次再处理也可以；挂机始终继续。</p>
       </template>
@@ -731,6 +747,83 @@ function choose(choice: EncounterChoice): void {
   }
 }
 
+.story-meta {
+  display: flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px;
+  margin-top: 10px;
+  font-size: 12px;
+  font-weight: 750;
+  color: var(--blue-deep);
+  background: rgb(255 255 255 / 78%);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+}
+.relationship {
+  flex: none;
+  padding: 4px 9px;
+  color: var(--pink-deep);
+  background: var(--pink-soft);
+  border-radius: 999px;
+}
+.memory-echo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 11px;
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #81703d;
+  background: #fff8df;
+  border: 1px solid #f1df9e;
+  border-radius: var(--r-sm);
+}
+.choice-step {
+  margin: 2px 2px 0;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--text-mid);
+}
+.choice-hint {
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-dim);
+}
+.story-choice {
+  min-height: 64px;
+  border-color: rgb(245 121 159 / 30%);
+  background: linear-gradient(135deg, #fff, #fff7fb);
+}
+.skip {
+  min-width: 52px;
+  min-height: 44px;
+}
+
+@media (max-width: 340px) {
+  .encounter-overlay {
+    padding: 8px;
+  }
+  .sheet {
+    max-height: 88dvh;
+    padding: 12px;
+  }
+  .stage-view,
+  .dialogue {
+    margin-right: 4px;
+    margin-left: 4px;
+  }
+  .stage-view {
+    height: 172px;
+  }
+  .story-meta {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .scene-art,
   .portrait,

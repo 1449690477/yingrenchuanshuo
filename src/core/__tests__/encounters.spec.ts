@@ -3,7 +3,11 @@ import {
   advanceEncounterState,
   availableEncounterIds,
   encounterRewardSeed,
+  memoryDialogueForEncounter,
+  relationshipStage,
+  rememberEncounterStoryChoice,
   resolveEncounterChoice,
+  resolveStoryEncounter,
   type EncounterState,
 } from '../encounters';
 import { Rng } from '../rng';
@@ -15,6 +19,7 @@ const emptyState = (): EncounterState => ({
   generatedCount: 0,
   resolvedCount: 0,
   pending: [],
+  characters: {},
 });
 
 describe('idle encounters', () => {
@@ -54,6 +59,157 @@ describe('idle encounters', () => {
     ]);
   });
 
+  it('角色篇章只开放下一幕，完成第三幕后才开放可重复日常', () => {
+    const definitions = Object.values(ENCOUNTERS);
+    const chapters = new Set(['1-1', '1-2', '1-3', '1-4', '1-5']);
+    const first = availableEncounterIds(definitions, 'r1', chapters, {});
+    expect(first).toContain('enc_r1_petalsmith');
+    expect(first).not.toContain('enc_r1_petalsmith_doubt');
+
+    const afterFirst = {
+      char_akane: {
+        bond: 1,
+        completedEncounterIds: ['enc_r1_petalsmith'],
+        choiceHistory: { enc_r1_petalsmith: 'lasting_grip' },
+      },
+    };
+    const second = availableEncounterIds(definitions, 'r1', chapters, afterFirst);
+    expect(second).not.toContain('enc_r1_petalsmith');
+    expect(second).toContain('enc_r1_petalsmith_doubt');
+    expect(second).not.toContain('enc_r1_petalsmith_first_blade');
+
+    const afterArc = {
+      char_akane: {
+        bond: 3,
+        completedEncounterIds: [
+          'enc_r1_petalsmith',
+          'enc_r1_petalsmith_doubt',
+          'enc_r1_petalsmith_first_blade',
+        ],
+        choiceHistory: {},
+      },
+    };
+    const daily = availableEncounterIds(definitions, 'r1', chapters, afterArc);
+    expect(daily).toContain('enc_r1_petalsmith_daily');
+    expect(daily).not.toContain('enc_r1_petalsmith_first_blade');
+  });
+
+  it('待处理队列不生成相同奇遇，离线填队列时也保持 ID 唯一', () => {
+    const generated = advanceEncounterState(emptyState(), 99_999, 'r1', r1Ids, 88, {
+      ...ENCOUNTER_TIMING,
+      queueMax: 8,
+    });
+    expect(new Set(generated.pending.map((entry) => entry.encounterId)).size).toBe(
+      generated.pending.length,
+    );
+    expect(
+      availableEncounterIds(
+        Object.values(ENCOUNTERS),
+        'r1',
+        new Set(['1-1', '1-3', '1-5']),
+        {},
+        new Set(['enc_r1_bell']),
+      ),
+    ).not.toContain('enc_r1_bell');
+  });
+
+  it('剧情回答会写入待处理事件，关闭重开后可恢复且不能反复改答案', () => {
+    const definition = ENCOUNTERS.enc_r1_petalsmith!;
+    const state = emptyState();
+    state.pending.push({ uid: 'enc_story_1', encounterId: definition.id, regionId: 'r1' });
+
+    const remembered = rememberEncounterStoryChoice(
+      state,
+      'enc_story_1',
+      definition,
+      'lasting_grip',
+    );
+    expect(remembered.ok).toBe(true);
+    if (!remembered.ok) return;
+    expect(remembered.state.pending[0]?.storyChoiceId).toBe('lasting_grip');
+    expect(state.pending[0]?.storyChoiceId).toBeUndefined();
+    expect(
+      rememberEncounterStoryChoice(remembered.state, 'enc_story_1', definition, 'prove_it'),
+    ).toEqual({ ok: false, reason: 'already-chosen' });
+  });
+
+  it('不同剧情回答完成同一幕获得相同关系进度，且无材料告别也能推进', () => {
+    const definition = ENCOUNTERS.enc_r1_petalsmith!;
+    const completeWith = (storyChoiceId: string) => {
+      const state = emptyState();
+      state.pending.push({ uid: 'enc_story_2', encounterId: definition.id, regionId: 'r1' });
+      const remembered = rememberEncounterStoryChoice(
+        state,
+        'enc_story_2',
+        definition,
+        storyChoiceId,
+      );
+      expect(remembered.ok).toBe(true);
+      if (!remembered.ok) throw new Error('测试夹具未能记录剧情回答');
+      return resolveStoryEncounter(
+        remembered.state,
+        'enc_story_2',
+        definition,
+        definition.choices[1],
+        { gold: 0, items: {} },
+        new Rng(7),
+      );
+    };
+
+    const gentle = completeWith('lasting_grip');
+    const bold = completeWith('prove_it');
+    expect(gentle.ok).toBe(true);
+    expect(bold.ok).toBe(true);
+    if (!gentle.ok || !bold.ok) return;
+    expect(gentle.relationship).toBe('熟悉');
+    expect(bold.relationship).toBe('熟悉');
+    expect(gentle.state.characters.char_akane?.bond).toBe(1);
+    expect(bold.state.characters.char_akane?.bond).toBe(1);
+    expect(gentle.state.characters.char_akane?.choiceHistory[definition.id]).toBe('lasting_grip');
+    expect(bold.state.characters.char_akane?.choiceHistory[definition.id]).toBe('prove_it');
+  });
+
+  it('材料援助不足不完成篇章，并保留已经记录的回答', () => {
+    const definition = ENCOUNTERS.enc_r1_petalsmith!;
+    const state = emptyState();
+    state.pending.push({
+      uid: 'enc_story_3',
+      encounterId: definition.id,
+      regionId: 'r1',
+      storyChoiceId: 'lasting_grip',
+    });
+    expect(
+      resolveStoryEncounter(
+        state,
+        'enc_story_3',
+        definition,
+        definition.choices[0],
+        { gold: 0, items: {} },
+        new Rng(8),
+      ),
+    ).toEqual({ ok: false, reason: 'insufficient-resource' });
+    expect(state.pending[0]?.storyChoiceId).toBe('lasting_grip');
+    expect(state.characters).toEqual({});
+  });
+
+  it('后续篇章按旧回答追加记忆对白，关系值仅映射为定性阶段', () => {
+    const state = emptyState();
+    state.characters.char_akane = {
+      bond: 1,
+      completedEncounterIds: ['enc_r1_petalsmith'],
+      choiceHistory: { enc_r1_petalsmith: 'lasting_grip' },
+    };
+    expect(
+      memoryDialogueForEncounter(ENCOUNTERS.enc_r1_petalsmith_doubt!, state)[0]?.text,
+    ).toContain('握得久');
+    expect([0, 1, 2, 3, 99].map(relationshipStage)).toEqual([
+      '初遇',
+      '熟悉',
+      '亲近',
+      '信赖',
+      '信赖',
+    ]);
+  });
   it('相同种子、序号和地区产生相同序列', () => {
     const a = advanceEncounterState(emptyState(), 1_260, 'r1', r1Ids, 77, ENCOUNTER_TIMING);
     const b = advanceEncounterState(emptyState(), 1_260, 'r1', r1Ids, 77, ENCOUNTER_TIMING);
