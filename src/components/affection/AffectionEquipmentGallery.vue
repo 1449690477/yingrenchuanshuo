@@ -154,7 +154,7 @@ function iconUrl(item: AffectionEquipmentViewModel): string {
 
     <div v-if="items.length > 0" class="equipment-grid" aria-label="专属装备收藏列表">
       <button
-        v-for="item in items"
+        v-for="(item, index) in items"
         :key="item.id"
         type="button"
         class="equipment-card"
@@ -164,6 +164,7 @@ function iconUrl(item: AffectionEquipmentViewModel): string {
           equipped: item.equipped,
           selected: selectedItem?.id === item.id,
         }"
+        :style="{ '--stagger': `${Math.min(index, 9) * 35}ms` }"
         :aria-pressed="selectedItem?.id === item.id"
         :aria-label="`${item.name}，${item.owned ? '图鉴已点亮' : '尚未收集'}${item.equipped ? '，当前仍持有并已装备' : ''}`"
         :disabled="busy"
@@ -196,7 +197,12 @@ function iconUrl(item: AffectionEquipmentViewModel): string {
       <span>装备数据接入后，会在这里显示每一件心虹装备。</span>
     </div>
 
-    <article v-if="selectedItem" class="equipment-detail" aria-live="polite">
+    <article
+      v-if="selectedItem"
+      :key="selectedItem.id"
+      class="equipment-detail"
+      aria-live="polite"
+    >
       <div
         class="detail-icon rainbow-frame"
         :class="{ missing: !selectedItem.owned }"
@@ -425,10 +431,25 @@ function iconUrl(item: AffectionEquipmentViewModel): string {
   background: rgb(255 255 255 / 68%);
   border: 1px solid transparent;
   border-radius: 12px;
+  animation: card-in 0.38s var(--ease-soft) both;
+  animation-delay: var(--stagger, 0ms);
   transition:
     transform var(--t-fast) var(--ease-spring),
     border-color var(--t-fast) var(--ease-soft),
     background-color var(--t-fast) var(--ease-soft);
+}
+
+/* 图鉴卡片错落点亮：进画廊像展品一盏盏亮起来 */
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(7px) scale(0.94);
+  }
+}
+
+.equipment-card:not(:disabled):hover {
+  background: rgb(255 255 255 / 94%);
+  transform: translateY(-1px);
 }
 
 .equipment-card:not(:disabled):active {
@@ -587,6 +608,15 @@ function iconUrl(item: AffectionEquipmentViewModel): string {
   border: 1px solid color-mix(in srgb, var(--gallery-accent) 20%, var(--line));
   border-radius: 16px;
   box-shadow: 0 5px 13px rgb(73 64 88 / 8%);
+  /* key 随选中件变化，点哪件详情就轻轻翻到哪件 */
+  animation: detail-swap 0.26s var(--ease-soft) both;
+}
+
+@keyframes detail-swap {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
 }
 
 .detail-icon {
@@ -727,7 +757,9 @@ function iconUrl(item: AffectionEquipmentViewModel): string {
   .equipment-gallery::before,
   .collection-track span,
   .rainbow-frame::after,
-  .rainbow-shine {
+  .rainbow-shine,
+  .equipment-card,
+  .equipment-detail {
     animation: none;
   }
 

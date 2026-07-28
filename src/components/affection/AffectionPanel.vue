@@ -247,7 +247,11 @@ function requestInteraction(interaction: AffectionInteractionDefinition): void {
           :key="entry.story.id"
           type="button"
           class="story-card"
-          :class="{ completed: entry.completed, locked: !entry.unlocked }"
+          :class="{
+            completed: entry.completed,
+            locked: !entry.unlocked,
+            fresh: entry.unlocked && !entry.completed,
+          }"
           :disabled="disabled || !entry.unlocked"
           @click="emit('openStory', entry.story.id)"
         >
@@ -259,6 +263,7 @@ function requestInteraction(interaction: AffectionInteractionDefinition): void {
             <em v-else-if="entry.unlocked">新篇章已解锁</em>
             <em v-else>需要 {{ entry.story.unlockPoints }} 心意与前置篇章</em>
           </span>
+          <i v-if="entry.unlocked && !entry.completed" class="new-tag" aria-hidden="true">NEW</i>
           <BookHeart v-if="entry.completed" :size="19" aria-hidden="true" />
           <LockKeyhole v-else-if="!entry.unlocked" :size="18" aria-hidden="true" />
           <ChevronRight v-else :size="19" aria-hidden="true" />
@@ -501,12 +506,56 @@ function requestInteraction(interaction: AffectionInteractionDefinition): void {
 }
 
 .progress-track span {
+  position: relative;
   display: block;
   height: 100%;
+  overflow: hidden;
   background: linear-gradient(90deg, var(--affection-accent), #ffc86f, #79c8ee);
   border-radius: inherit;
   box-shadow: 0 0 10px var(--affection-glow);
   transition: width 0.42s var(--ease-soft);
+}
+
+/* 进度条上的一缕扫光：让「默契在增长」是活的，不是一格死色 */
+.progress-track span::after {
+  position: absolute;
+  inset: 0;
+  content: '';
+  background: linear-gradient(100deg, transparent 30%, rgb(255 255 255 / 55%) 50%, transparent 70%);
+  background-size: 220% 100%;
+  animation: track-shine 2.6s linear infinite;
+}
+
+@keyframes track-shine {
+  from {
+    background-position: 180% 0;
+  }
+  to {
+    background-position: -60% 0;
+  }
+}
+
+/* 房间标签上的心跳：她就在这个房间里等你 */
+.room-label svg {
+  animation: heartbeat 1.7s ease-in-out infinite;
+  transform-origin: center;
+}
+
+@keyframes heartbeat {
+  0%,
+  32%,
+  100% {
+    transform: scale(1);
+  }
+  8% {
+    transform: scale(1.28);
+  }
+  16% {
+    transform: scale(1.06);
+  }
+  24% {
+    transform: scale(1.2);
+  }
 }
 
 .bonus-line {
@@ -616,7 +665,14 @@ function requestInteraction(interaction: AffectionInteractionDefinition): void {
   box-shadow: 0 4px 10px rgb(82 83 111 / 7%);
   transition:
     transform var(--t-fast) var(--ease-spring),
+    border-color var(--t-fast) var(--ease-soft),
     box-shadow var(--t-fast) var(--ease-soft);
+}
+
+.interaction-card:not(:disabled):hover {
+  border-color: color-mix(in srgb, var(--affection-accent) 36%, var(--line));
+  box-shadow: 0 7px 15px rgb(82 83 111 / 12%);
+  transform: translateY(-1px);
 }
 
 .interaction-card:not(:disabled):active {
@@ -641,6 +697,28 @@ function requestInteraction(interaction: AffectionInteractionDefinition): void {
   color: var(--affection-accent);
   background: color-mix(in srgb, var(--affection-glow) 56%, white);
   border-radius: 11px;
+}
+
+/* 五种心情五种颜色：扫一眼就知道这次互动是什么氛围 */
+.interaction-card.mood-calm .interaction-icon {
+  color: #4d94d4;
+  background: #e7f3fd;
+}
+.interaction-card.mood-bright .interaction-icon {
+  color: #d99a2b;
+  background: #fdf3df;
+}
+.interaction-card.mood-shy .interaction-icon {
+  color: #f06a9c;
+  background: #fdeaf2;
+}
+.interaction-card.mood-moved .interaction-icon {
+  color: #9370cf;
+  background: #f1ebfb;
+}
+.interaction-card.mood-playful .interaction-icon {
+  color: #2eae97;
+  background: #e4f8f3;
 }
 
 .interaction-copy {
@@ -715,6 +793,7 @@ function requestInteraction(interaction: AffectionInteractionDefinition): void {
 }
 
 .story-card {
+  position: relative;
   min-height: 64px;
   display: grid;
   grid-template-columns: 34px minmax(0, 1fr) 22px;
@@ -731,6 +810,10 @@ function requestInteraction(interaction: AffectionInteractionDefinition): void {
     border-color var(--t-fast) var(--ease-soft);
 }
 
+.story-card:not(:disabled):hover {
+  border-color: color-mix(in srgb, var(--affection-accent) 42%, var(--line));
+}
+
 .story-card:not(:disabled):active {
   transform: scale(0.98);
 }
@@ -741,6 +824,35 @@ function requestInteraction(interaction: AffectionInteractionDefinition): void {
 
 .story-card.locked {
   opacity: 0.58;
+}
+
+/* 新解锁未读的篇章：呼吸描边 + NEW 角标，不能埋没在列表里 */
+.story-card.fresh {
+  border-color: color-mix(in srgb, var(--affection-accent) 52%, var(--line));
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--affection-accent) 34%, transparent);
+  animation: fresh-breathe 2.2s ease-in-out infinite;
+}
+
+@keyframes fresh-breathe {
+  50% {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--affection-accent) 14%, transparent);
+  }
+}
+
+.new-tag {
+  position: absolute;
+  top: -6px;
+  right: 10px;
+  padding: 1px 7px;
+  font-size: 7px;
+  font-style: normal;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: #fff;
+  background: linear-gradient(120deg, var(--affection-accent), #aa83dd);
+  border: 1px solid #fff;
+  border-radius: 999px;
+  box-shadow: 0 3px 8px color-mix(in srgb, var(--affection-accent) 36%, transparent);
 }
 
 .story-number {
@@ -932,7 +1044,10 @@ function requestInteraction(interaction: AffectionInteractionDefinition): void {
 
 @media (prefers-reduced-motion: reduce) {
   .hero-sparkles i,
-  .collection-button::before {
+  .collection-button::before,
+  .progress-track span::after,
+  .room-label svg,
+  .story-card.fresh {
     animation: none;
   }
 
