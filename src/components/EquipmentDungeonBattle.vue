@@ -2,7 +2,13 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { ShieldCheck, Sparkles, Swords, X } from '@lucide/vue';
 import type { ClassId } from '@/core/types';
-import type { EquippedRecord } from '@/data/characterAppearance';
+import type { CharacterAction, EquippedRecord } from '@/data/characterAppearance';
+import {
+  basicBattleAction,
+  requireImpactFeedback,
+  stageWaveHits,
+  type ImpactTier,
+} from '@/data/battleMotions';
 import type { EquipmentDungeonRunResult } from '@/stores/game';
 import CharacterAppearance from './CharacterAppearance.vue';
 import EquipmentDungeonReward from './EquipmentDungeonReward.vue';
@@ -31,19 +37,83 @@ const closeButton = ref<HTMLButtonElement | null>(null);
 const dismissButton = ref<HTMLButtonElement | null>(null);
 const timers: ReturnType<typeof setTimeout>[] = [];
 
+/**
+ * 一波拆成几下打出来。
+ *
+ * 4 下是试出来的平衡点：再少回到「一击结算」的表格感，
+ * 再多每下就短到看不清数字，而且整场战报会拖过 4 秒，
+ * 玩家一天要打 3 次，太长会烦。
+ */
+const HITS_PER_WAVE = 4;
+/** 每下之间的间隔 */
+const HIT_INTERVAL_MS = 250;
+
+interface FloatingHit {
+  id: number;
+  damage: number;
+  tier: ImpactTier;
+  /** 横向偏移，避免连续数字完全重叠 */
+  offset: number;
+}
+
+const floatingHits = ref<FloatingHit[]>([]);
+/** 当前这一下用的姿势，按职业动作序列轮换 */
+const strikeIndex = ref(0);
+const hitstop = ref(false);
+const shakeTier = ref<ImpactTier | null>(null);
+let hitSeq = 0;
+let hitstopTimer = 0;
+let shakeTimer = 0;
+
+/**
+ * 触发一次打击反馈。
+ * 强度表与主线挂机战斗共用同一张 IMPACT_FEEDBACK，
+ * 手感统一 —— 玩家不该觉得副本里的暴击和外面的暴击是两回事。
+ */
+function triggerImpact(tier: ImpactTier): void {
+  if (props.reduceMotion) return;
+  const feedback = requireImpactFeedback(tier);
+
+  if (feedback.hitstopMs > 0) {
+    hitstop.value = true;
+    clearTimeout(hitstopTimer);
+    hitstopTimer = window.setTimeout(() => {
+      hitstop.value = false;
+    }, feedback.hitstopMs);
+  }
+  if (feedback.shakePx > 0) {
+    shakeTier.value = tier;
+    clearTimeout(shakeTimer);
+    shakeTimer = window.setTimeout(() => {
+      shakeTier.value = null;
+    }, feedback.shakeMs);
+  }
+}
+
+function pushFloatingHit(damage: number, tier: ImpactTier): void {
+  const id = ++hitSeq;
+  floatingHits.value.push({ id, damage, tier, offset: ((id * 29) % 40) - 20 });
+  timers.push(
+    setTimeout(() => {
+      floatingHits.value = floatingHits.value.filter((h) => h.id !== id);
+    }, 900),
+  );
+}
+
 const currentWave = computed(
   () => props.result.waves[Math.min(waveIndex.value, props.result.waves.length - 1)]!,
 );
 const assetUrl = (asset: string) => `${import.meta.env.BASE_URL}${asset}`;
-const heroAction = computed(() =>
-  phase.value === 'clash'
-    ? 'attack'
-    : phase.value === 'result'
-      ? props.result.win
-        ? 'victory'
-        : 'react'
-      : 'idle',
-);
+/**
+ * 每一下换一个姿势，走该职业自己的动作序列。
+ * 原本整波只有一个 attack —— 四个职业打起来长得一模一样，
+ * 副本里最该展示职业特色的地方反而最没有特色。
+ */
+const heroAction = computed<CharacterAction>(() => {
+  if (phase.value === 'result') return props.result.win ? 'victory' : 'react';
+  if (phase.value !== 'clash') return 'idle';
+  return basicBattleAction(props.classId, strikeIndex.value || 1);
+});
 const totalDamage = computed(() =>
   Math.round(props.result.waves.reduce((sum, wave) => sum + wave.result.damageDealt, 0)),
 );
@@ -70,53 +140,91 @@ function prepareWave(index: number): void {
   const wave = props.result.waves[index]!;
   displayedPlayerHp.value = wave.playerHpBefore;
   displayedMonsterHp.value = wave.enemyMaxHp;
-  playerHpPercent.value = clampPercent(
-    (wave.playerHpBefore / props.playerMaxHp) * 100,
-  );
+  playerHpPercent.value = clampPercent((wave.playerHpBefore / props.playerMaxHp) * 100);
   monsterHpPercent.value = 100;
 }
 
-function showWaveOutcome(): void {
+/**
+ * 一波打斗的逐下演出。
+ *
+ * 战斗结果早已算完（见 core/equipmentDungeon），这里只负责**把同一个结果分几下播出来**：
+ * 血条一格一格掉、数字一个一个飞、收尾那下给最强反馈。
+ * stageWaveHits 保证各段之和严格等于原本的 damageDealt，总伤害一分不差。
+ */
+function playWaveStrikes(index: number): void {
   phase.value = 'clash';
-  void nextTick(() => {
-    const wave = currentWave.value;
-    displayedPlayerHp.value = wave.playerHpAfter;
-    displayedMonsterHp.value = wave.result.win
-      ? 0
-      : Math.max(0, wave.enemyMaxHp - wave.result.damageDealt);
-    playerHpPercent.value = clampPercent(
-      (wave.playerHpAfter / props.playerMaxHp) * 100,
-    );
-    monsterHpPercent.value = wave.result.win
-      ? 0
-      : clampPercent(100 - (wave.result.damageDealt / wave.enemyMaxHp) * 100);
+  const wave = props.result.waves[index]!;
+  const hits = stageWaveHits(wave.result.damageDealt, HITS_PER_WAVE);
+
+  const hpBefore = wave.playerHpBefore;
+  const hpAfter = wave.playerHpAfter;
+  const enemyMax = wave.enemyMaxHp;
+
+  let dealt = 0;
+  hits.forEach((hit, i) => {
+    schedule(i * HIT_INTERVAL_MS, () => {
+      dealt += hit.damage;
+      strikeIndex.value++;
+
+      // 怪物血条按已打出的伤害逐段掉；最后一下若这波获胜就归零
+      const isLast = i === hits.length - 1;
+      const remaining = isLast && wave.result.win ? 0 : Math.max(0, enemyMax - dealt);
+      displayedMonsterHp.value = remaining;
+      monsterHpPercent.value = clampPercent((remaining / enemyMax) * 100);
+
+      // 玩家血条平摊到每一下，收尾时精确落到结算值，避免累加误差
+      const playerHp = isLast ? hpAfter : hpBefore + ((hpAfter - hpBefore) * (i + 1)) / hits.length;
+      displayedPlayerHp.value = playerHp;
+      playerHpPercent.value = clampPercent((playerHp / props.playerMaxHp) * 100);
+
+      // 收尾那下按「技能暴击」给满反馈，中途各下按普攻处理
+      const tier: ImpactTier = hit.finisher ? 'ultimate' : 'light';
+      pushFloatingHit(hit.damage, tier);
+      triggerImpact(tier);
+    });
   });
 }
 
 function play(): void {
   clearTimers();
-  phase.value = props.reduceMotion ? 'result' : 'intro';
+  floatingHits.value = [];
+  strikeIndex.value = 0;
+
+  // 关掉动效时直接给最终状态：这些玩家要的是结果，不是过程
   if (props.reduceMotion) {
-    prepareWave(props.result.waves.length - 1);
-    showWaveOutcome();
+    const last = props.result.waves.length - 1;
+    prepareWave(last);
+    const wave = props.result.waves[last]!;
+    displayedPlayerHp.value = wave.playerHpAfter;
+    displayedMonsterHp.value = wave.result.win
+      ? 0
+      : Math.max(0, wave.enemyMaxHp - wave.result.damageDealt);
+    playerHpPercent.value = clampPercent((wave.playerHpAfter / props.playerMaxHp) * 100);
+    monsterHpPercent.value = wave.result.win
+      ? 0
+      : clampPercent((displayedMonsterHp.value / wave.enemyMaxHp) * 100);
     phase.value = 'result';
     void nextTick(() => closeButton.value?.focus());
     return;
   }
 
-  prepareWave(0);
-  schedule(430, showWaveOutcome);
+  // 逐波逐下播：入场 → 几下打斗 → 下一波入场 → … → 战报
+  const INTRO_MS = 400;
+  const WAVE_GAP_MS = 420;
+  let cursor = 0;
 
-  if (props.result.waves.length > 1) {
-    schedule(1_180, () => {
-      prepareWave(1);
+  props.result.waves.forEach((_, index) => {
+    const at = cursor;
+    schedule(at, () => {
+      prepareWave(index);
       phase.value = 'intro';
     });
-    schedule(1_560, showWaveOutcome);
-    schedule(2_520, revealResult);
-  } else {
-    schedule(1_420, revealResult);
-  }
+    schedule(at + INTRO_MS, () => playWaveStrikes(index));
+    // 段数固定，整波时长可以提前算出来，不必等回调回报
+    cursor = at + INTRO_MS + HITS_PER_WAVE * HIT_INTERVAL_MS + WAVE_GAP_MS;
+  });
+
+  schedule(cursor, revealResult);
 }
 
 function handleKeydown(event: KeyboardEvent): void {
@@ -132,6 +240,8 @@ onMounted(() => {
 });
 onUnmounted(() => {
   clearTimers();
+  clearTimeout(hitstopTimer);
+  clearTimeout(shakeTimer);
   window.removeEventListener('keydown', handleKeydown);
 });
 </script>
@@ -159,7 +269,8 @@ onUnmounted(() => {
         :class="[
           `phase-${phase}`,
           `wave-${currentWave.role}`,
-          { won: result.win, lost: !result.win },
+          shakeTier ? `shake-${shakeTier}` : null,
+          { won: result.win, lost: !result.win, 'is-hitstop': hitstop },
         ]"
         :style="{
           '--accent': result.stage.accent,
@@ -172,13 +283,19 @@ onUnmounted(() => {
             <small>定向装备副本 · {{ result.stage.subtitle }}</small>
             <strong>{{ result.stage.name }}</strong>
           </span>
-          <span class="wave-count">
-            第 {{ waveIndex + 1 }} / {{ result.waves.length }} 波
-          </span>
+          <span class="wave-count"> 第 {{ waveIndex + 1 }} / {{ result.waves.length }} 波 </span>
         </header>
 
         <div class="vitals hero-vitals">
-          <span>{{ classId === 'swordsman' ? '剑姬' : classId === 'witch' ? '魔女' : classId === 'shaman' ? '灵巫' : '喵喵' }}</span>
+          <span>{{
+            classId === 'swordsman'
+              ? '剑姬'
+              : classId === 'witch'
+                ? '魔女'
+                : classId === 'shaman'
+                  ? '灵巫'
+                  : '喵喵'
+          }}</span>
           <i><b :style="{ width: `${playerHpPercent}%` }"></b></i>
           <small>{{ Math.round(displayedPlayerHp) }} / {{ Math.round(playerMaxHp) }}</small>
         </div>
@@ -186,7 +303,9 @@ onUnmounted(() => {
         <div class="vitals monster-vitals">
           <span>{{ currentWave.monsterName }}</span>
           <i><b :style="{ width: `${monsterHpPercent}%` }"></b></i>
-          <small>{{ Math.round(displayedMonsterHp) }} / {{ Math.round(currentWave.enemyMaxHp) }}</small>
+          <small
+            >{{ Math.round(displayedMonsterHp) }} / {{ Math.round(currentWave.enemyMaxHp) }}</small
+          >
         </div>
 
         <div class="combatants">
@@ -209,9 +328,18 @@ onUnmounted(() => {
           <div class="monster-unit" :class="{ defeated: currentWave.result.win }">
             <span class="monster-aura" aria-hidden="true"></span>
             <img :src="assetUrl(currentWave.asset)" alt="" draggable="false" />
-            <span class="impact-number" aria-hidden="true">
-              -{{ Math.round(currentWave.result.damageDealt) }}
-            </span>
+            <!-- 逐下飘字：每一下一个数字，收尾那下最大 -->
+            <TransitionGroup name="hit-float" tag="span" class="hit-layer" aria-hidden="true">
+              <span
+                v-for="hit in floatingHits"
+                :key="hit.id"
+                class="hit-number num"
+                :class="`tier-${hit.tier}`"
+                :style="{ '--hit-offset': `${hit.offset}px` }"
+              >
+                -{{ hit.damage.toLocaleString() }}
+              </span>
+            </TransitionGroup>
           </div>
         </div>
 
@@ -226,11 +354,13 @@ onUnmounted(() => {
 
       <div v-if="phase === 'result'" class="result-panel" :class="{ victory: result.win }">
         <template v-if="result.win">
-          <EquipmentDungeonReward
-            :instances="result.instances"
-            :first-clear="result.firstClear"
-          />
-          <button ref="closeButton" class="result-action victory-action" type="button" @click="emit('close')">
+          <EquipmentDungeonReward :instances="result.instances" :first-clear="result.firstClear" />
+          <button
+            ref="closeButton"
+            class="result-action victory-action"
+            type="button"
+            @click="emit('close')"
+          >
             收下装备
           </button>
         </template>
@@ -255,10 +385,7 @@ onUnmounted(() => {
   inset: 0;
   display: grid;
   place-items: center;
-  padding:
-    max(12px, env(safe-area-inset-top))
-    12px
-    max(12px, env(safe-area-inset-bottom));
+  padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom));
   background: rgb(31 27 54 / 64%);
   backdrop-filter: blur(7px);
 }
@@ -309,7 +436,11 @@ onUnmounted(() => {
   inset: 0;
   content: '';
   background:
-    radial-gradient(circle at 22% 62%, color-mix(in srgb, var(--accent) 34%, transparent), transparent 25%),
+    radial-gradient(
+      circle at 22% 62%,
+      color-mix(in srgb, var(--accent) 34%, transparent),
+      transparent 25%
+    ),
     radial-gradient(circle at 78% 58%, rgb(142 180 255 / 30%), transparent 27%);
   mix-blend-mode: screen;
   pointer-events: none;
@@ -462,7 +593,11 @@ onUnmounted(() => {
   left: 50%;
   width: 112px;
   height: 25px;
-  background: radial-gradient(ellipse, color-mix(in srgb, var(--accent) 55%, white), transparent 70%);
+  background: radial-gradient(
+    ellipse,
+    color-mix(in srgb, var(--accent) 55%, white),
+    transparent 70%
+  );
   border: 1px solid color-mix(in srgb, var(--accent) 60%, white);
   border-radius: 50%;
   transform: translateX(-50%);
@@ -528,22 +663,106 @@ onUnmounted(() => {
   transform: translateY(18px) rotate(4deg);
 }
 
-.impact-number {
+/* ── 逐下飘字 ── */
+.hit-layer {
   position: absolute;
+  inset: 0;
   z-index: 6;
+  pointer-events: none;
+}
+
+.hit-number {
+  position: absolute;
   top: 25%;
   left: 18%;
-  font-size: 18px;
   font-weight: 900;
+  font-size: 18px;
   color: #fff3a6;
+  white-space: nowrap;
   text-shadow:
     0 2px 0 #d94f6a,
     0 0 8px #fff;
-  opacity: 0;
+  transform: translateX(var(--hit-offset, 0));
+  animation: damage-rise 780ms ease-out both;
 }
 
-.phase-clash .impact-number {
-  animation: damage-rise 720ms ease-out 180ms both;
+/*
+ * 收尾那下明显更大。挂机战斗那边验证过：
+ * 玩家是扫视不是盯着看，字号差异才是一眼能读出「这下最重」的信号。
+ */
+.hit-number.tier-ultimate {
+  font-size: 28px;
+  color: #fff;
+  text-shadow:
+    0 2px 0 #d21f4c,
+    0 0 14px #ffd36b,
+    0 0 26px rgb(255 90 120 / 80%);
+}
+
+/* ── 打击反馈：与主线战斗共用 IMPACT_FEEDBACK 的强度表 ── */
+
+/* 顿帧：只冻角色与怪物，飘字继续飞，否则像页面卡住而不是打击有分量 */
+.battle-stage.is-hitstop .hero-unit,
+.battle-stage.is-hitstop .hero-unit *,
+.battle-stage.is-hitstop .monster-unit img,
+.battle-stage.is-hitstop .monster-aura {
+  animation-play-state: paused;
+}
+
+/*
+ * 震屏：只抖交战双方，不抖 .battle-stage 本身。
+ * 舞台的地图是 background 且带圆角与 overflow: hidden，
+ * 抖它会让圆角边缘露出底下的缝。抖角色反而更准 ——
+ * 观感上「被打的是人」而不是「镜头在晃」。
+ */
+.battle-stage[class*='shake-'] .combatants {
+  animation: dungeon-shake var(--shake-ms, 220ms) var(--ease-ios, ease-out) both;
+}
+
+.battle-stage.shake-heavy {
+  --shake-px: 3px;
+  --shake-ms: 160ms;
+}
+
+.battle-stage.shake-critical {
+  --shake-px: 5px;
+  --shake-ms: 220ms;
+}
+
+.battle-stage.shake-ultimate {
+  --shake-px: 8px;
+  --shake-ms: 300ms;
+}
+
+/* 衰减式：第一下最重后迅速收敛，等幅抖动看起来像故障不像撞击 */
+@keyframes dungeon-shake {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  15% {
+    transform: translate3d(calc(var(--shake-px, 4px) * -1), calc(var(--shake-px, 4px) * 0.5), 0);
+  }
+  34% {
+    transform: translate3d(calc(var(--shake-px, 4px) * 0.7), calc(var(--shake-px, 4px) * -0.4), 0);
+  }
+  56% {
+    transform: translate3d(calc(var(--shake-px, 4px) * -0.42), 0, 0);
+  }
+  78% {
+    transform: translate3d(calc(var(--shake-px, 4px) * 0.2), 0, 0);
+  }
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/* 飘字进出场：离场只淡出，位移交给 damage-rise，避免两个动画打架 */
+.hit-float-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.hit-float-leave-to {
+  opacity: 0;
 }
 
 .stage-footer {
@@ -680,13 +899,31 @@ onUnmounted(() => {
   }
 }
 
+/*
+ * 无障碍兜底。
+ *
+ * 顿帧与震屏正是前庭敏感人群最难受的两类效果，这里彻底关掉而非减弱。
+ * 飘字的字号分档保留 —— 那是静态信息不是动效，
+ * 关掉反而让这些玩家失去判断哪一下最重的唯一线索。
+ */
 @media (prefers-reduced-motion: reduce) {
   .hero-unit,
   .monster-unit,
   .clash-core,
-  .impact-number {
+  .hit-number {
     animation: none !important;
     transition: none !important;
+  }
+
+  .battle-stage.is-hitstop .hero-unit,
+  .battle-stage.is-hitstop .hero-unit *,
+  .battle-stage.is-hitstop .monster-unit img,
+  .battle-stage.is-hitstop .monster-aura {
+    animation-play-state: running;
+  }
+
+  .battle-stage[class*='shake-'] .combatants {
+    animation: none !important;
   }
 }
 </style>

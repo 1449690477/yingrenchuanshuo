@@ -5,6 +5,7 @@ import {
   IMPACT_FEEDBACK,
   impactTierFor,
   requireImpactFeedback,
+  stageWaveHits,
   CLASS_BATTLE_MOTIONS,
   latestSourceBeat,
   MONSTER_MOTION_TIMINGS,
@@ -179,5 +180,54 @@ describe('四职业受击性格', () => {
       expect(motion.reactMs).toBeLessThanOrEqual(500);
       expect(motion.victoryMs).toBeGreaterThanOrEqual(1000);
     }
+  });
+});
+
+describe('stageWaveHits', () => {
+  it('各段之和严格等于总伤害 —— 演出绝不能改数值', () => {
+    for (const total of [1, 7, 99, 1234, 57084, 986531]) {
+      for (const count of [1, 2, 3, 5, 8]) {
+        const hits = stageWaveHits(total, count);
+        const sum = hits.reduce((s, h) => s + h.damage, 0);
+        expect(sum).toBe(total);
+      }
+    }
+  });
+
+  it('确定性：同一场战斗重播多少次都一模一样', () => {
+    expect(stageWaveHits(8888, 5)).toEqual(stageWaveHits(8888, 5));
+  });
+
+  it('收尾那下最重，节奏是渐强不是平铺', () => {
+    const hits = stageWaveHits(10000, 5);
+    const last = hits[hits.length - 1]!;
+    expect(last.finisher).toBe(true);
+    for (const h of hits.slice(0, -1)) {
+      expect(h.finisher).toBe(false);
+      expect(last.damage).toBeGreaterThanOrEqual(h.damage);
+    }
+  });
+
+  it('每一段至少 1 点，不会出现一串 -0', () => {
+    for (const h of stageWaveHits(6, 5)) {
+      expect(h.damage).toBeGreaterThanOrEqual(1);
+    }
+  });
+
+  it('伤害小于段数时不硬凑，段数自动收敛', () => {
+    expect(stageWaveHits(3, 8)).toHaveLength(3);
+    expect(stageWaveHits(1, 6)).toHaveLength(1);
+  });
+
+  it('零伤害返回单段，不炸也不留空', () => {
+    const hits = stageWaveHits(0, 4);
+    expect(hits).toEqual([{ damage: 0, finisher: true }]);
+  });
+
+  it('非法入参直接报错', () => {
+    expect(() => stageWaveHits(-1, 3)).toThrow(/总伤害/);
+    expect(() => stageWaveHits(Number.NaN, 3)).toThrow(/总伤害/);
+    expect(() => stageWaveHits(100, 0)).toThrow(/分段数/);
+    expect(() => stageWaveHits(100, 2.5)).toThrow(/分段数/);
   });
 });

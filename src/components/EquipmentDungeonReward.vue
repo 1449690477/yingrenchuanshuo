@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { Gift, Sparkles } from '@lucide/vue';
-import type { EquipmentInstance } from '@/core/types';
+import type { EquipmentInstance, Quality } from '@/core/types';
 import { AFFIX_LABELS, QUALITY_LABELS } from '@/data/constants';
 import { requireEquipment } from '@/data/equipment';
 import EquipmentIcon from './EquipmentIcon.vue';
@@ -17,6 +17,18 @@ const rewards = computed(() =>
     definition: requireEquipment(instance.defId),
   })),
 );
+
+/**
+ * 高品质掉落才配拿到额外的揭晓演出。
+ *
+ * 副本每天能打 3 次，蓝装是常态、神话是惊喜。
+ * 如果每一件都金光四射，真正稀有的那件反而没了分量 ——
+ * 稀缺感是靠对比撑起来的，不是靠特效堆出来的。
+ */
+const PRIZE_QUALITIES = new Set<Quality>(['legendary', 'mythic', 'divine']);
+function isPrize(quality: Quality): boolean {
+  return PRIZE_QUALITIES.has(quality);
+}
 </script>
 
 <template>
@@ -38,10 +50,11 @@ const rewards = computed(() =>
 
     <div class="reward-list">
       <article
-        v-for="{ instance, definition } in rewards"
+        v-for="({ instance, definition }, index) in rewards"
         :key="instance.uid"
         class="reward-item"
-        :class="`quality-${definition.quality}`"
+        :class="[`quality-${definition.quality}`, { 'is-prize': isPrize(definition.quality) }]"
+        :style="{ '--card-index': index }"
       >
         <EquipmentIcon
           :def="definition"
@@ -238,6 +251,67 @@ header small,
 @media (prefers-reduced-motion: reduce) {
   .reward-burst {
     display: none;
+  }
+}
+
+/* ── 逐张揭晓 ── */
+
+/*
+ * 卡片依次浮上来，而不是一次性平铺。
+ * 首通会掉两件，同时出现的话玩家的目光没有落点；
+ * 错开 140ms 就能形成「一件、又一件」的节奏。
+ */
+.reward-item {
+  animation: reward-card-in 0.44s var(--ease-out-back, cubic-bezier(0.2, 1.25, 0.4, 1)) both;
+  animation-delay: calc(var(--card-index, 0) * 140ms);
+}
+
+@keyframes reward-card-in {
+  0% {
+    opacity: 0;
+    transform: translateY(14px) scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/*
+ * 传说及以上再加一层光晕呼吸，普通掉落保持安静。
+ *
+ * 用 box-shadow 而不是垫一层伪元素：卡片因为有入场动画（transform）
+ * 已经形成层叠上下文，此时 z-index:-1 的伪元素会盖在卡片白底之上，
+ * 把整张卡染成金粉色 —— 想要的是描边发光，不是整块变色。
+ */
+.reward-item.is-prize {
+  animation:
+    reward-card-in 0.44s var(--ease-out-back, cubic-bezier(0.2, 1.25, 0.4, 1)) both,
+    prize-halo 1.8s ease-in-out calc(var(--card-index, 0) * 140ms + 0.3s) 2;
+}
+
+@keyframes prize-halo {
+  0%,
+  100% {
+    box-shadow: 0 0 0 rgb(255 214 132 / 0%);
+  }
+  50% {
+    box-shadow:
+      0 0 0 2px rgb(255 214 132 / 65%),
+      0 0 18px rgb(255 154 204 / 55%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reward-item,
+  .reward-item.is-prize {
+    animation: none;
+    opacity: 1;
+  }
+
+  /* 动效关掉了，但「这件是好东西」的信息要留住 */
+  .reward-item.is-prize {
+    box-shadow: 0 0 0 2px rgb(255 214 132 / 55%);
   }
 }
 </style>

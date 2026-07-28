@@ -169,6 +169,69 @@ export function requireImpactFeedback(tier: ImpactTier): ImpactFeedback {
   return feedback;
 }
 
+// ─────────────────────── 副本战报分段 ───────────────────────
+
+export interface StagedHit {
+  /** 这一下打出的伤害 */
+  damage: number;
+  /** 是否本波最后一击 —— 用于给收尾那下更强的反馈 */
+  finisher: boolean;
+}
+
+/**
+ * 把一波已经算好的总伤害，拆成几下依次打出的分段。
+ *
+ * ## 为什么需要它
+ *
+ * 装备副本的战斗结果是**在进入演出之前就全部结算完的**（见 core/equipmentDungeon）。
+ * 原本的演出把整波伤害当成一次 clash 播出去：血条一跳到底，
+ * 屏幕上只出现一个总伤害数字，看起来不像打了一架，像是结算表格。
+ *
+ * 这个函数只做一件事：把同一个总数**重新分配到几下**，让血条能一格一格掉。
+ *
+ * ## 铁律：不碰数值
+ *
+ * 返回的各段之和**严格等于**传入的总伤害，一分不多一分不少。
+ * 它不接触 RNG、不影响掉落、不改变胜负 —— 纯粹是把同一个结果换个节奏播出来。
+ * 所以它必须是确定性的：同一场战斗重播多少次，每一下都一模一样。
+ *
+ * 权重递增（后面的打得更重），收尾那下最重，这样节奏是渐强而不是平铺。
+ */
+export function stageWaveHits(totalDamage: number, hitCount: number): StagedHit[] {
+  if (!Number.isFinite(totalDamage) || totalDamage < 0) {
+    throw new Error(`[战报分段] 总伤害必须是非负有限数：${totalDamage}`);
+  }
+  if (!Number.isSafeInteger(hitCount) || hitCount <= 0) {
+    throw new Error(`[战报分段] 分段数必须是正整数：${hitCount}`);
+  }
+
+  const total = Math.round(totalDamage);
+  if (total <= 0) return [{ damage: 0, finisher: true }];
+
+  // 伤害太小时不硬凑段数，否则会出现一串「-0」
+  const segments = Math.max(1, Math.min(hitCount, total));
+
+  // 递增权重：最后一下的权重最高，收尾才有分量
+  const weights = Array.from({ length: segments }, (_, i) => 1 + i * 0.35);
+  const weightSum = weights.reduce((sum, w) => sum + w, 0);
+
+  const hits: StagedHit[] = [];
+  let allocated = 0;
+  for (let i = 0; i < segments - 1; i++) {
+    // 每段至少 1 点，且要给后面的段留够
+    const remainingSegments = segments - 1 - i;
+    const ideal = Math.round((total * weights[i]!) / weightSum);
+    const maxAllowed = total - allocated - remainingSegments;
+    const damage = Math.max(1, Math.min(ideal, maxAllowed));
+    hits.push({ damage, finisher: false });
+    allocated += damage;
+  }
+  // 收尾那下吃掉全部余数 —— 这是「之和严格等于总伤害」的保证
+  hits.push({ damage: total - allocated, finisher: true });
+
+  return hits;
+}
+
 export type MonsterMotionProfile = 'flutter' | 'hopper' | 'bounce' | 'sway' | 'guard' | 'royal';
 
 export type MonsterAction = 'idle' | 'attack' | 'hit' | 'defeat';
