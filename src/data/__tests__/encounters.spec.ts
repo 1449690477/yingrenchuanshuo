@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { ENCOUNTERS, encounterIdsForProgress } from '../encounters';
 import { ALL_CHAPTERS, requireRegionOfChapter } from '../regions';
 import { getItem } from '../items';
@@ -168,6 +170,28 @@ describe('奇遇章节开放配置', () => {
           ).toBe(true);
         }
       }
+    }
+  });
+});
+
+describe('奇遇专属场景', () => {
+  it('每个奇遇都配了自己的场景图', () => {
+    for (const encounter of Object.values(ENCOUNTERS)) {
+      expect(encounter.sceneAsset, `${encounter.id} 缺少 sceneAsset`).toBeTruthy();
+    }
+  });
+
+  it('场景图两两不同 —— 共用一张就等于没有专属场景', () => {
+    const assets = Object.values(ENCOUNTERS).map((encounter) => encounter.sceneAsset);
+    expect(new Set(assets).size).toBe(assets.length);
+  });
+
+  it('引用的图确实存在，拼错路径会在这里挡下来', () => {
+    for (const encounter of Object.values(ENCOUNTERS)) {
+      const path = resolve(process.cwd(), 'public', encounter.sceneAsset!);
+      expect(existsSync(path), `${encounter.id} 的场景图不存在：${encounter.sceneAsset}`).toBe(
+        true,
+      );
     }
   });
 });

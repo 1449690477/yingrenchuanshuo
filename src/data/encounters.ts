@@ -17,6 +17,8 @@ const DEFINITIONS: EncounterDefinition[] = [
     story: '一位见习刀匠蹲在路旁，正为缺少柔韧的包刀材料发愁。',
     speaker: '见习刀匠·茜',
     glyph: '🔨',
+    // 花径与路牌，正是见习刀匠摆摊的地方
+    sceneAsset: 'assets/maps/chapter-1-2.webp',
     storyArc: {
       characterId: 'char_akane',
       characterName: '见习刀匠·茜',
@@ -73,6 +75,8 @@ const DEFINITIONS: EncounterDefinition[] = [
     regionIds: ['r1'],
     unlockChapterId: '1-3',
     title: '被退回的试作品',
+    // 温室工作台，退回的试作品摊了一桌
+    sceneAsset: 'assets/maps/chapter-1-3.webp',
     story: '茜抱着被师父退回的刀柄，躲在花房后面不肯回工坊。',
     speaker: '见习刀匠·茜',
     glyph: '🔨',
@@ -153,6 +157,8 @@ const DEFINITIONS: EncounterDefinition[] = [
     story: '结界前，茜正等待一个愿意替她试刀的人。',
     speaker: '见习刀匠·茜',
     glyph: '🗡️',
+    // 鸟居与法阵，交付第一把刀的仪式感
+    sceneAsset: 'assets/maps/chapter-1-5.webp',
     storyArc: {
       characterId: 'char_akane',
       characterName: '见习刀匠·茜',
@@ -227,6 +233,8 @@ const DEFINITIONS: EncounterDefinition[] = [
     regionIds: ['r1', 'r2'],
     unlockChapterId: '1-5',
     title: '刀匠的例行试握',
+    // 镇子日常，例行试握就在门口
+    sceneAsset: 'assets/maps/r1.webp',
     story: '茜又带着新的包柄样品来找她最信任的试握人。',
     speaker: '刀匠·茜',
     glyph: '🌸',
@@ -434,6 +442,8 @@ const DEFINITIONS: EncounterDefinition[] = [
     story: '林间传来清脆铃声，一只小木灵想收回散落的木铃。',
     speaker: '木铃',
     glyph: '🔔',
+    // 神社与灯笼，木铃本就属于这里
+    sceneAsset: 'assets/maps/chapter-1-1.webp',
     dialogue: [
       { text: '林间小径的树枝上，挂着一只没有风也在响的木铃。' },
       { speaker: '木铃', text: '叮铃——叮铃——' },
@@ -464,6 +474,8 @@ const DEFINITIONS: EncounterDefinition[] = [
     regionIds: ['r1'],
     unlockChapterId: '1-5',
     title: '微微发亮的裂隙',
+    // 水晶洞的微光，裂隙本身就在发亮
+    sceneAsset: 'assets/maps/chapter-1-4.webp',
     story: '落樱结界裂开了一道细缝，温暖的光正一点点漏出来。',
     speaker: '结界裂隙',
     glyph: '✨',
@@ -499,6 +511,8 @@ const DEFINITIONS: EncounterDefinition[] = [
     story: '信使抱着包裹睡在草垛旁，醒来后发现捆包材料全散了。',
     speaker: '草原信使·穗',
     glyph: '💤',
+    // 风车草原，信使睡过站的地方
+    sceneAsset: 'assets/maps/chapter-2-1.webp',
     storyArc: {
       characterId: 'char_sui',
       characterName: '草原信使·穗',
@@ -555,6 +569,8 @@ const DEFINITIONS: EncounterDefinition[] = [
     regionIds: ['r2'],
     unlockChapterId: '2-3',
     title: '迟到了三天的旧信',
+    // 麦田与稻草人，旧信在这里压了三天
+    sceneAsset: 'assets/maps/chapter-2-2.webp',
     story: '穗在蜂巢外踌躇不前，信袋里那封旧信仍没有送出去。',
     speaker: '草原信使·穗',
     glyph: '✉️',
@@ -635,6 +651,8 @@ const DEFINITIONS: EncounterDefinition[] = [
     story: '祭坛风暴将道路吹得模糊，穗却第一次没有停下脚步。',
     speaker: '草原信使·穗',
     glyph: '📨',
+    // 黄昏营地，赶在天黑前送到
+    sceneAsset: 'assets/maps/chapter-2-4.webp',
     storyArc: {
       characterId: 'char_sui',
       characterName: '草原信使·穗',
@@ -711,6 +729,8 @@ const DEFINITIONS: EncounterDefinition[] = [
     regionIds: ['r1', 'r2'],
     unlockChapterId: '2-5',
     title: '准时路过的信使',
+    // 草原日常，信使准时路过
+    sceneAsset: 'assets/maps/r2.webp',
     story: '穗准时从路口经过，还特意停下来和你打了声招呼。',
     speaker: '草原信使·穗',
     glyph: '🌾',
@@ -926,6 +946,8 @@ const DEFINITIONS: EncounterDefinition[] = [
     story: '巡逻的蜂娘想泡一壶甜茶，却怎么也找不到合适的杯垫。',
     speaker: '蜜蜂娘·芃',
     glyph: '🍯',
+    // 蜂巢拱门与蜂蜜，蜂娘的下午茶
+    sceneAsset: 'assets/maps/chapter-2-3.webp',
     dialogue: [
       { text: '蜂巢外摆着一张小桌子，桌上是刚倒好的两杯蜜茶。' },
       { speaker: '蜜蜂娘·芃', text: '欸？你不是来抢蜜的吧？' },
@@ -956,6 +978,8 @@ const DEFINITIONS: EncounterDefinition[] = [
     regionIds: ['r2'],
     unlockChapterId: '2-5',
     title: '草原祭坛的回声',
+    // 水晶祭坛，回声从这里荡开
+    sceneAsset: 'assets/maps/chapter-2-5.webp',
     story: '古老祭坛发出轻柔回声，似乎在等待一块失落的结晶。',
     speaker: '祭坛回声',
     glyph: '🌀',
