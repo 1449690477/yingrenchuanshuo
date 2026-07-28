@@ -34,7 +34,20 @@ interface PresentedCard {
   ratio: number;
   isNext: boolean;
   castToken: number;
+  /** 冷却只剩最后一点，马上就要放 —— 用来做蓄力预警 */
+  isImminent: boolean;
+  /** 每次从冷却转为就绪自增一次，驱动一次性的「好了」闪光 */
+  readyToken: number;
 }
+
+/**
+ * 进入「快好了」的阈值。
+ *
+ * 0.8 秒是试出来的：再短玩家来不及把视线移过去，
+ * 再长就有一堆卡同时在蓄力，预警反而失去意义 ——
+ * 预警的价值在于「此刻只有这一张要动」。
+ */
+const IMMINENT_SEC = 0.8;
 
 const railRef = ref<HTMLElement | null>(null);
 const selectedCardId = ref<string | null>(null);
@@ -82,20 +95,62 @@ const nextCardId = computed(() => {
   return candidates[0]?.id ?? null;
 });
 
+/**
+ * 「好了」闪光的计数器。
+ *
+ * ⚠ 必须声明在 presentedCards 之前。watch 的 source getter 在 setup 阶段
+ * 就会求值一次来建立基线，那时若 readyTokens 还没初始化会直接 TDZ 报错，
+ * 整个卡带渲染失败且只在控制台留一行错误（在奇遇面板上踩过同样的坑）。
+ */
+const readyTokens = ref<Record<string, number>>({});
+let readySeq = 0;
+
 const presentedCards = computed<readonly PresentedCard[]>(() =>
   definitions.value.map((definition) => {
     const runtime = runtimeFor(definition);
     const phase = phaseFor(definition.mode, runtime);
+    const remainingSec = runtime?.remainingSec ?? 0;
     return {
       definition,
       phase,
       status: statusFor(definition, phase, runtime),
-      remainingSec: runtime?.remainingSec ?? 0,
+      remainingSec,
       ratio: runtime?.ratio ?? (phase === 'locked' ? 1 : 0),
       isNext: definition.id === nextCardId.value,
       castToken: castTokens.value[definition.id] ?? 0,
+      isImminent: phase === 'cooling' && remainingSec > 0 && remainingSec <= IMMINENT_SEC,
+      readyToken: readyTokens.value[definition.id] ?? 0,
     };
   }),
+);
+
+/*
+ * 「好了」闪光：只认 cooling → ready 这一个方向的跳变。
+ *
+ * 冷却读秒是连续的，玩家扫一眼很难注意到某张卡刚好走到零；
+ * 转为就绪的那一帧给一次性闪光，才有「叮，这张可以了」的确认感。
+ * 暂停恢复、切角色都不该触发 —— 那不是「刚好了」，是「本来就好了」。
+ */
+watch(
+  () => presentedCards.value.map((entry) => `${entry.definition.id}:${entry.phase}`).join('|'),
+  (_next, previous) => {
+    if (previous === undefined) return;
+    const before = new Map(
+      previous.split('|').map((pair) => {
+        const at = pair.lastIndexOf(':');
+        return [pair.slice(0, at), pair.slice(at + 1)] as const;
+      }),
+    );
+    let changed = false;
+    const tokens = { ...readyTokens.value };
+    for (const entry of presentedCards.value) {
+      if (entry.phase === 'ready' && before.get(entry.definition.id) === 'cooling') {
+        tokens[entry.definition.id] = ++readySeq;
+        changed = true;
+      }
+    }
+    if (changed) readyTokens.value = tokens;
+  },
 );
 
 const selectedPresentedCard = computed(
@@ -393,6 +448,7 @@ onUnmounted(() => {
           {
             'is-next': entry.isNext,
             'has-cast': entry.castToken > 0,
+            'is-imminent': entry.isImminent,
           },
         ]"
         :style="cardStyle(entry)"
@@ -416,6 +472,14 @@ onUnmounted(() => {
               decoding="async"
             />
             <span v-if="entry.phase === 'cooling'" class="cooldown-shade" />
+            <!-- 冷却进度环：压暗告诉你「还剩多少」，亮环告诉你「走了多少」 -->
+            <span v-if="entry.phase === 'cooling'" class="cooldown-ring" />
+            <!-- 就绪那一帧的一次性闪光 -->
+            <span
+              v-if="entry.readyToken > 0"
+              :key="`ready-${entry.readyToken}`"
+              class="ready-flash"
+            />
             <LockKeyhole
               v-if="entry.phase === 'locked'"
               class="lock"
@@ -751,6 +815,101 @@ onUnmounted(() => {
     transparent var(--cooldown-turn) 1turn
   );
   border-radius: inherit;
+  pointer-events: none;
+}
+
+/*
+ * 冷却进度环。
+ *
+ * 压暗遮罩表达的是「还剩多少」，方向是递减的；
+ * 玩家真正想读的却是「走到哪了」，那是递增的。
+ * 两条信息叠在一起，扫一眼就能同时读出剩余量和推进感 ——
+ * 只有压暗的话，快好了的卡和刚开始冷却的卡在余光里很难分辨。
+ *
+ * 环形用 mask-composite 挖空中心而不是 radial-gradient 圆形遮罩 ——
+ * 图标底座是 14px 圆角的方块不是圆，圆形遮罩会四角对不上。
+ * padding 决定环的粗细，content-box 那层负责把中心排除掉。
+ */
+.cooldown-ring {
+  position: absolute;
+  inset: -2px;
+  padding: 2.5px;
+  background: conic-gradient(
+    from 0turn,
+    color-mix(in srgb, var(--skill-accent) 88%, white) 0 calc(1turn - var(--cooldown-turn)),
+    transparent calc(1turn - var(--cooldown-turn)) 1turn
+  );
+  border-radius: 16px;
+  pointer-events: none;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--skill-accent) 55%, transparent));
+}
+
+/*
+ * 临发预警：冷却只剩最后 0.8 秒。
+ *
+ * 挂机时玩家的注意力是散的，等到技能真的放出来才看过去往往已经错过。
+ * 提前 0.8 秒让这张卡自己「亮起来」，视线才有机会跟上。
+ * 只在最后一段做，同时亮起的卡多了就等于没提示。
+ */
+.is-imminent .skill-orb {
+  animation: orb-charge 0.42s ease-in-out infinite alternate;
+}
+
+.is-imminent .cooldown-ring {
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--skill-accent) 85%, transparent));
+}
+
+.is-imminent .skill-status {
+  color: var(--skill-accent);
+  font-weight: 800;
+}
+
+@keyframes orb-charge {
+  from {
+    transform: scale(1);
+    box-shadow: 0 0 0 rgb(255 255 255 / 0%);
+  }
+  to {
+    transform: scale(1.07);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--skill-accent) 60%, transparent);
+  }
+}
+
+/* 就绪那一帧的一次性闪光：从图标向外扩散一圈就消失 */
+.ready-flash {
+  position: absolute;
+  inset: -3px;
+  border: 2px solid color-mix(in srgb, var(--skill-accent) 92%, white);
+  border-radius: 17px;
+  pointer-events: none;
+  animation: ready-burst 0.52s var(--ease-out-back, cubic-bezier(0.2, 1.25, 0.4, 1)) both;
+}
+
+@keyframes ready-burst {
+  0% {
+    opacity: 0;
+    transform: scale(0.72);
+  }
+  35% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+}
+
+/* 就绪态本身也该看得出来，而不是只有文字换个颜色 */
+.phase-ready .skill-orb::after {
+  position: absolute;
+  inset: -1px;
+  content: '';
+  border: 1.5px solid color-mix(in srgb, var(--skill-accent) 62%, transparent);
+  border-radius: 15px;
   pointer-events: none;
 }
 
@@ -1121,6 +1280,21 @@ onUnmounted(() => {
   }
 }
 
+/*
+ * 关掉动效时，蓄力脉动和就绪闪光整个撤掉，
+ * 但冷却环留下 —— 它是静态的进度信息，不是动效。
+ * 关掉反而让这些玩家只剩一个压暗遮罩，读不出推进感。
+ * 临发状态改用文字加粗与配色表达，信息一点不少。
+ */
+.reduced-motion .is-imminent .skill-orb {
+  animation: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--skill-accent) 55%, transparent);
+}
+
+.reduced-motion .ready-flash {
+  display: none;
+}
+
 .reduced-motion .next-dot,
 .reduced-motion .cast-pop::after,
 .reduced-motion .cast-pop .cast-particle {
@@ -1165,6 +1339,19 @@ onUnmounted(() => {
     width: 34px;
     height: 34px;
     border-radius: 12px;
+  }
+
+  /* 底座圆角变了，环和闪光要跟着收，否则四角对不上 */
+  .cooldown-ring {
+    border-radius: 14px;
+  }
+
+  .ready-flash {
+    border-radius: 15px;
+  }
+
+  .phase-ready .skill-orb::after {
+    border-radius: 13px;
   }
 
   .skill-name {
