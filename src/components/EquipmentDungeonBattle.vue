@@ -54,13 +54,31 @@ interface FloatingHit {
   tier: ImpactTier;
   /** 横向偏移，避免连续数字完全重叠 */
   offset: number;
+  /** 纵向偏移，配合横向把连续数字在二维上摊开 */
+  lift: number;
+}
+
+/** 着弹闪光：每下打击在怪物身上炸一个光斑，和飘字同生共死 */
+interface ImpactBurst {
+  id: number;
+  tier: ImpactTier;
+  x: number;
+  y: number;
 }
 
 const floatingHits = ref<FloatingHit[]>([]);
+const impactBursts = ref<ImpactBurst[]>([]);
 /** 当前这一下用的姿势，按职业动作序列轮换 */
 const strikeIndex = ref(0);
 const hitstop = ref(false);
 const shakeTier = ref<ImpactTier | null>(null);
+/** 收尾那下打出击杀时立刻进入倒地演出，而不是罚站到结算面板 */
+const monsterDying = ref(false);
+/** 本波已打出的下数，底部连击计数用 */
+const comboCount = ref(0);
+/** 换波横幅：intro 阶段显示「第 X 波」，开打即收起 */
+const waveBanner = ref(0);
+const monsterEl = ref<HTMLElement | null>(null);
 let hitSeq = 0;
 let hitstopTimer = 0;
 let shakeTimer = 0;
@@ -92,12 +110,40 @@ function triggerImpact(tier: ImpactTier): void {
 
 function pushFloatingHit(damage: number, tier: ImpactTier): void {
   const id = ++hitSeq;
-  floatingHits.value.push({ id, damage, tier, offset: ((id * 29) % 40) - 20 });
+  // 二维散开：横向 ±34px、纵向再抬 0~18px，连续四下不再叠成一团
+  floatingHits.value.push({
+    id,
+    damage,
+    tier,
+    offset: ((id * 29) % 68) - 34,
+    lift: (id * 13) % 18,
+  });
   timers.push(
     setTimeout(() => {
       floatingHits.value = floatingHits.value.filter((h) => h.id !== id);
     }, 900),
   );
+  if (props.reduceMotion) return;
+  const burst = { id, tier, x: ((id * 17) % 40) - 20, y: -((id * 11) % 24) };
+  impactBursts.value.push(burst);
+  timers.push(
+    setTimeout(() => {
+      impactBursts.value = impactBursts.value.filter((b) => b.id !== id);
+    }, 460),
+  );
+}
+
+/**
+ * 逐下受击僵直。每下都摘掉 class 强制 reflow 再挂回，
+ * 确保 250ms 一拍连打时动画每次都重新播放，而不是整波只闪一下。
+ */
+function reflinch(): void {
+  if (props.reduceMotion) return;
+  const el = monsterEl.value;
+  if (!el) return;
+  el.classList.remove('flinch');
+  void el.offsetWidth;
+  el.classList.add('flinch');
 }
 
 const currentWave = computed(
@@ -117,6 +163,8 @@ const heroAction = computed<CharacterAction>(() => {
 const totalDamage = computed(() =>
   Math.round(props.result.waves.reduce((sum, wave) => sum + wave.result.damageDealt, 0)),
 );
+/** 玩家血量低于三成就转红告警，副本翻车往往是从没注意血线开始的 */
+const playerLowHp = computed(() => playerHpPercent.value <= 30);
 
 function clearTimers(): void {
   while (timers.length > 0) clearTimeout(timers.pop());
@@ -137,6 +185,8 @@ function clampPercent(value: number): number {
 
 function prepareWave(index: number): void {
   waveIndex.value = index;
+  monsterDying.value = false;
+  comboCount.value = 0;
   const wave = props.result.waves[index]!;
   displayedPlayerHp.value = wave.playerHpBefore;
   displayedMonsterHp.value = wave.enemyMaxHp;
@@ -153,6 +203,7 @@ function prepareWave(index: number): void {
  */
 function playWaveStrikes(index: number): void {
   phase.value = 'clash';
+  waveBanner.value = 0;
   const wave = props.result.waves[index]!;
   const hits = stageWaveHits(wave.result.damageDealt, HITS_PER_WAVE);
 
@@ -165,6 +216,8 @@ function playWaveStrikes(index: number): void {
     schedule(i * HIT_INTERVAL_MS, () => {
       dealt += hit.damage;
       strikeIndex.value++;
+      comboCount.value = i + 1;
+      reflinch();
 
       // 怪物血条按已打出的伤害逐段掉；最后一下若这波获胜就归零
       const isLast = i === hits.length - 1;
@@ -181,6 +234,11 @@ function playWaveStrikes(index: number): void {
       const tier: ImpactTier = hit.finisher ? 'ultimate' : 'light';
       pushFloatingHit(hit.damage, tier);
       triggerImpact(tier);
+
+      // 击杀即倒地：怪物不该血条空了还罚站到结算面板
+      if (isLast && wave.result.win && !props.reduceMotion) {
+        monsterDying.value = true;
+      }
     });
   });
 }
@@ -188,7 +246,11 @@ function playWaveStrikes(index: number): void {
 function play(): void {
   clearTimers();
   floatingHits.value = [];
+  impactBursts.value = [];
   strikeIndex.value = 0;
+  monsterDying.value = false;
+  comboCount.value = 0;
+  waveBanner.value = 0;
 
   // 关掉动效时直接给最终状态：这些玩家要的是结果，不是过程
   if (props.reduceMotion) {
@@ -218,6 +280,7 @@ function play(): void {
     schedule(at, () => {
       prepareWave(index);
       phase.value = 'intro';
+      waveBanner.value = index + 1;
     });
     schedule(at + INTRO_MS, () => playWaveStrikes(index));
     // 段数固定，整波时长可以提前算出来，不必等回调回报
@@ -286,7 +349,7 @@ onUnmounted(() => {
           <span class="wave-count"> 第 {{ waveIndex + 1 }} / {{ result.waves.length }} 波 </span>
         </header>
 
-        <div class="vitals hero-vitals">
+        <div class="vitals hero-vitals" :class="{ lowhp: playerLowHp }">
           <span>{{
             classId === 'swordsman'
               ? '剑姬'
@@ -296,17 +359,28 @@ onUnmounted(() => {
                   ? '灵巫'
                   : '喵喵'
           }}</span>
-          <i><b :style="{ width: `${playerHpPercent}%` }"></b></i>
+          <i :key="`p-${waveIndex}`"
+            ><b class="ghost" :style="{ width: `${playerHpPercent}%` }"></b
+            ><b :style="{ width: `${playerHpPercent}%` }"></b
+          ></i>
           <small>{{ Math.round(displayedPlayerHp) }} / {{ Math.round(playerMaxHp) }}</small>
         </div>
 
         <div class="vitals monster-vitals">
           <span>{{ currentWave.monsterName }}</span>
-          <i><b :style="{ width: `${monsterHpPercent}%` }"></b></i>
+          <i :key="`m-${waveIndex}`"
+            ><b class="ghost" :style="{ width: `${monsterHpPercent}%` }"></b
+            ><b :style="{ width: `${monsterHpPercent}%` }"></b
+          ></i>
           <small
             >{{ Math.round(displayedMonsterHp) }} / {{ Math.round(currentWave.enemyMaxHp) }}</small
           >
         </div>
+
+        <!-- 换波横幅：intro 阶段亮一下「第 X 波」，开打即收 -->
+        <span v-if="waveBanner" :key="`banner-${waveIndex}`" class="wave-banner num">
+          第 {{ waveBanner }} 波
+        </span>
 
         <div class="combatants">
           <div class="hero-unit">
@@ -325,9 +399,23 @@ onUnmounted(() => {
             <Swords :size="24" />
           </span>
 
-          <div class="monster-unit" :class="{ defeated: currentWave.result.win }">
+          <div
+            ref="monsterEl"
+            class="monster-unit"
+            :class="{ defeated: currentWave.result.win, dying: monsterDying }"
+          >
             <span class="monster-aura" aria-hidden="true"></span>
             <img :src="assetUrl(currentWave.asset)" alt="" draggable="false" />
+            <!-- 逐下着弹闪光：每下打击在怪物身上炸一个光斑 -->
+            <span class="burst-layer" aria-hidden="true">
+              <span
+                v-for="burst in impactBursts"
+                :key="burst.id"
+                class="impact-flash"
+                :class="`tier-${burst.tier}`"
+                :style="{ '--burst-x': `${burst.x}px`, '--burst-y': `${burst.y}px` }"
+              ></span>
+            </span>
             <!-- 逐下飘字：每一下一个数字，收尾那下最大 -->
             <TransitionGroup name="hit-float" tag="span" class="hit-layer" aria-hidden="true">
               <span
@@ -335,7 +423,7 @@ onUnmounted(() => {
                 :key="hit.id"
                 class="hit-number num"
                 :class="`tier-${hit.tier}`"
-                :style="{ '--hit-offset': `${hit.offset}px` }"
+                :style="{ '--hit-offset': `${hit.offset}px`, '--hit-lift': `${hit.lift}px` }"
               >
                 -{{ hit.damage.toLocaleString() }}
               </span>
@@ -346,6 +434,9 @@ onUnmounted(() => {
         <footer class="stage-footer">
           <span><Swords :size="12" />总伤害 {{ totalDamage.toLocaleString() }}</span>
           <span><ShieldCheck :size="12" />耗时 {{ (result.durationMs / 1000).toFixed(1) }} 秒</span>
+          <span v-if="phase === 'clash' && comboCount > 0" :key="comboCount" class="combo num"
+            >连击 ×{{ comboCount }}</span
+          >
           <span v-if="phase !== 'result'" class="fighting">
             <Sparkles :size="12" />自动战斗演算中
           </span>
@@ -525,25 +616,90 @@ onUnmounted(() => {
 }
 
 .vitals i {
+  position: relative;
   grid-column: 1 / -1;
-  height: 5px;
+  height: 6px;
   overflow: hidden;
   background: rgb(17 17 34 / 55%);
   border-radius: 999px;
 }
 
+/* 主条快速落位，残影条慢半拍拖尾 —— 掉血量一眼可读 */
 .vitals b {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
   display: block;
   width: 100%;
   height: 100%;
   background: linear-gradient(90deg, #66e8c0, #a5ffdd);
   border-radius: inherit;
-  transition: width 700ms ease-out;
+  transition: width 240ms ease-out;
+}
+
+.vitals b.ghost {
+  background: rgb(255 255 255 / 58%);
+  transition: width 880ms ease-out 260ms;
 }
 
 .monster-vitals b {
-  margin-left: auto;
+  right: 0;
+  left: auto;
   background: linear-gradient(90deg, #ff6e8b, #ffb18c);
+}
+
+.monster-vitals b.ghost {
+  background: rgb(255 226 140 / 62%);
+}
+
+/* 玩家血线告警：低于三成血条转红并呼吸闪烁 */
+.hero-vitals.lowhp > span {
+  color: #ffb3c2;
+}
+
+.hero-vitals.lowhp b:not(.ghost) {
+  background: linear-gradient(90deg, #ff5d7a, #ff9a8b);
+  animation: lowhp-pulse 900ms ease-in-out infinite;
+}
+
+@keyframes lowhp-pulse {
+  50% {
+    filter: brightness(1.45);
+  }
+}
+
+/* 换波横幅：intro 阶段弹出来，开打即由脚本收起 */
+.wave-banner {
+  position: absolute;
+  z-index: 7;
+  top: 33%;
+  left: 50%;
+  padding: 7px 22px;
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  color: #fff;
+  white-space: nowrap;
+  background: linear-gradient(100deg, rgb(38 32 68 / 72%), rgb(38 32 68 / 46%));
+  border: 1px solid rgb(255 255 255 / 42%);
+  border-radius: 999px;
+  text-shadow: 0 2px 8px rgb(28 25 57 / 65%);
+  backdrop-filter: blur(6px);
+  transform: translateX(-50%);
+  animation: banner-pop 480ms var(--ease-out-back, ease-out) both;
+  pointer-events: none;
+}
+
+@keyframes banner-pop {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) scale(0.72);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+  }
 }
 
 .combatants {
@@ -663,6 +819,97 @@ onUnmounted(() => {
   transform: translateY(18px) rotate(4deg);
 }
 
+/* 逐下受击僵直：脚本每下摘掉再挂回 flinch，保证动画每下都重播 */
+.monster-unit.flinch img {
+  animation: monster-flinch 190ms ease-out;
+}
+
+@keyframes monster-flinch {
+  0% {
+    filter: brightness(2) saturate(1.4) drop-shadow(0 9px 8px rgb(28 28 61 / 32%));
+    transform: translateX(10px) rotate(2.5deg) scale(0.985);
+  }
+  100% {
+    filter: brightness(1) drop-shadow(0 9px 8px rgb(28 28 61 / 32%));
+    transform: translateX(0) rotate(0) scale(1);
+  }
+}
+
+/* 击杀即倒地：收尾那下打出击杀立刻播放，不等到结算面板 */
+.monster-unit.dying img {
+  animation: monster-fall 560ms ease-in both;
+}
+
+.monster-unit.dying .monster-aura {
+  animation: aura-fade 560ms ease-in both;
+}
+
+@keyframes monster-fall {
+  0% {
+    opacity: 1;
+    filter: brightness(1.9) drop-shadow(0 9px 8px rgb(28 28 61 / 32%));
+    transform: translateY(0) rotate(0);
+  }
+  35% {
+    opacity: 1;
+    filter: brightness(1.4) saturate(0.7) drop-shadow(0 9px 8px rgb(28 28 61 / 32%));
+  }
+  100% {
+    opacity: 0.18;
+    filter: grayscale(0.7) drop-shadow(0 4px 4px rgb(28 28 61 / 26%));
+    transform: translateY(26px) rotate(9deg) scale(0.94);
+  }
+}
+
+@keyframes aura-fade {
+  to {
+    opacity: 0;
+  }
+}
+
+/* ── 着弹闪光 ── */
+.burst-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.impact-flash {
+  position: absolute;
+  top: calc(30% + var(--burst-y, 0px));
+  left: calc(42% + var(--burst-x, 0px));
+  width: 66px;
+  height: 66px;
+  background: radial-gradient(circle, #fff 4%, var(--accent) 32%, transparent 68%);
+  border-radius: 50%;
+  mix-blend-mode: screen;
+  transform: translate(-50%, -50%);
+  animation: impact-pop 430ms ease-out both;
+}
+
+/* 收尾重击的光斑更大更金，和 ultimate 飘字一个信号体系 */
+.impact-flash.tier-ultimate {
+  width: 116px;
+  height: 116px;
+  background: radial-gradient(circle, #fff 6%, #ffd36b 30%, rgb(255 90 120 / 42%) 52%, transparent 72%);
+}
+
+@keyframes impact-pop {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.28);
+  }
+  22% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.08);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.55);
+  }
+}
+
 /* ── 逐下飘字 ── */
 .hit-layer {
   position: absolute;
@@ -673,15 +920,19 @@ onUnmounted(() => {
 
 .hit-number {
   position: absolute;
-  top: 25%;
-  left: 18%;
+  top: calc(22% - var(--hit-lift, 0px));
+  left: 20%;
   font-weight: 900;
   font-size: 18px;
-  color: #fff3a6;
+  color: #ffe9a8;
   white-space: nowrap;
+  /* 深色四向描边替代白色泛光：亮背景上数字边缘利落，不再糊成一团 */
   text-shadow:
-    0 2px 0 #d94f6a,
-    0 0 8px #fff;
+    1px 0 0 #7d2440,
+    -1px 0 0 #7d2440,
+    0 1px 0 #7d2440,
+    0 -1px 0 #7d2440,
+    0 2px 3px rgb(30 16 40 / 72%);
   transform: translateX(var(--hit-offset, 0));
   animation: damage-rise 780ms ease-out both;
 }
@@ -694,6 +945,10 @@ onUnmounted(() => {
   font-size: 28px;
   color: #fff;
   text-shadow:
+    1px 0 0 #a1123c,
+    -1px 0 0 #a1123c,
+    0 1px 0 #a1123c,
+    0 -1px 0 #a1123c,
     0 2px 0 #d21f4c,
     0 0 14px #ffd36b,
     0 0 26px rgb(255 90 120 / 80%);
@@ -791,6 +1046,27 @@ onUnmounted(() => {
 .fighting {
   margin-left: auto;
   color: #fff1a8;
+}
+
+/* 连击计数：每打一下跳动一次（key 变化重播动画），给逐下演出一个计数锚点 */
+.combo {
+  padding: 2px 8px;
+  font-size: 9px;
+  font-weight: 900;
+  color: #ffd36b;
+  background: rgb(255 154 60 / 18%);
+  border: 1px solid rgb(255 211 107 / 46%);
+  border-radius: 999px;
+  animation: combo-tick 220ms ease-out both;
+}
+
+@keyframes combo-tick {
+  0% {
+    transform: scale(1.35);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 
 .result-panel {
@@ -910,9 +1186,25 @@ onUnmounted(() => {
   .hero-unit,
   .monster-unit,
   .clash-core,
-  .hit-number {
+  .hit-number,
+  .impact-flash,
+  .wave-banner,
+  .combo,
+  .monster-unit.flinch img,
+  .monster-unit.dying img,
+  .monster-unit.dying .monster-aura,
+  .hero-vitals.lowhp b:not(.ghost) {
     animation: none !important;
     transition: none !important;
+  }
+
+  .impact-flash {
+    display: none;
+  }
+
+  .vitals b,
+  .vitals b.ghost {
+    transition: none;
   }
 
   .battle-stage.is-hitstop .hero-unit,
