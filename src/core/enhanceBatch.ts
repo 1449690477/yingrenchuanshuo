@@ -55,6 +55,7 @@ export interface EnhanceBatchInput {
 }
 
 export type EnhanceBatchBlockReason =
+  | 'pending-affix-result'
   | 'insufficient-gold'
   | 'insufficient-stone'
   | 'insufficient-ore'
@@ -236,6 +237,9 @@ function planAttempt(
 ): PlannedAttempt | { reason: EnhanceBatchBlockReason; cost: EnhanceCost } {
   const targetLevel = candidate.instance.enhance + 1;
   const cost = enhanceCost(targetLevel, candidate.equipmentLevel);
+  if (candidate.instance.pendingAffixChange) {
+    return { reason: 'pending-affix-result', cost };
+  }
   const rule = enhanceRule(targetLevel);
   const luck = candidate.instance.enhanceLuck[String(targetLevel)] ?? 0;
   const guaranteed = rule.rate < 1 && luck === LUCK_FULL;

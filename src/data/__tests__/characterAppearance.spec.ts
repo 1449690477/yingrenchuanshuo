@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { EquipmentInstance, EquipSlot } from '@/core/types';
 import { ENHANCE_MAX } from '@/data/constants';
-import { resolveCharacterAppearance, type EquippedRecord } from '../characterAppearance';
+import {
+  REGION_34_EQUIPMENT_APPEARANCES,
+  resolveCharacterAppearance,
+  type EquippedRecord,
+} from '../characterAppearance';
 
 const emptyEquipped = (): EquippedRecord => ({
   weapon: null,
@@ -25,6 +29,7 @@ function instance(defId: string, enhance = 0): EquipmentInstance {
     ),
     enhanceLuck: {},
     affixes: [],
+    reforgeResonance: 0,
     locked: false,
   };
 }
@@ -178,5 +183,37 @@ describe('角色换装外观解析', () => {
     expect(appearance.visibleEquippedCount).toBe(0);
     expect(appearance.activeDungeonTier).toBe('crimson');
     expect(appearance.ariaLabel).toContain('绯樱典藏共鸣外观');
+  });
+
+  it('区域 3/4 的八个部位都显式登记，三个可见槽为四职业独立图层', () => {
+    for (const regionId of ['r3', 'r4']) {
+      for (const slot of ['body', 'head', 'weapon'] as const) {
+        const appearance = REGION_34_EQUIPMENT_APPEARANCES[`${regionId}-${slot}`];
+        expect(appearance).toBeDefined();
+        if (!appearance) continue;
+        expect(appearance.renderMode).toBe('layer');
+        if (appearance.renderMode !== 'layer') continue;
+        expect(appearance.slot).toBe(slot);
+        expect(Object.keys(appearance.assets).sort()).toEqual([
+          'catkin',
+          'shaman',
+          'swordsman',
+          'witch',
+        ]);
+        expect(new Set(Object.values(appearance.assets)).size).toBe(4);
+        for (const [classId, asset] of Object.entries(appearance.assets)) {
+          expect(asset).toBe(
+            `assets/characters/modular/${classId}/${regionId}-${slot}.png`,
+          );
+        }
+      }
+      for (const slot of ['necklace', 'bracelet', 'ring', 'belt', 'shoes'] as const) {
+        expect(REGION_34_EQUIPMENT_APPEARANCES[`${regionId}-${slot}`]).toEqual({
+          id: `${regionId}-${slot}`,
+          slot,
+          renderMode: 'slot-only',
+        });
+      }
+    }
   });
 });

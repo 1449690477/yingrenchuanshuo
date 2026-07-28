@@ -1,9 +1,37 @@
 import type { MonsterMotionProfile } from './battleMotions';
+import { REGION_34_MONSTER_MOTIONS } from './region34';
 
 export interface MonsterVisual {
   asset: string;
   motion: MonsterMotionProfile;
 }
+
+function buildRegion34MonsterVisuals(): Record<string, MonsterVisual> {
+  return Object.fromEntries(
+    Object.entries(REGION_34_MONSTER_MOTIONS).map(([id, motion]) => {
+      const regionIndex = id.match(/^mon_([34])-/)?.[1];
+      if (!regionIndex) {
+        throw new Error(`[怪物配置] 区域 3/4 怪物 ID 格式错误：${id}`);
+      }
+      return [
+        id,
+        {
+          asset: `assets/monsters/r${regionIndex}/${id}.webp`,
+          motion,
+        },
+      ];
+    }),
+  );
+}
+
+/**
+ * 区域 3/4 的待启用视觉注册表。
+ *
+ * 新区域必须在怪物、掉落、强化曲线和全部素材同时完成后原子接入
+ * `MONSTER_VISUALS`，避免其他协作者在生产期间读到半套内容。
+ */
+export const REGION_34_MONSTER_VISUALS: Readonly<Record<string, MonsterVisual>> =
+  buildRegion34MonsterVisuals();
 
 /**
  * 已完成制作和校验的怪物素材注册表。

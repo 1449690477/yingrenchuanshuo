@@ -1,25 +1,43 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import { X } from '@lucide/vue';
+import { computed, ref } from 'vue';
+import { Sparkles, X } from '@lucide/vue';
 import { abbr, signed } from '@/core/format';
 import { zeroStats } from '@/core/formula';
-import { baseRollGrade, enhanceMultiplier, forgeStageAt, instanceStats } from '@/core/equipment';
+import {
+  baseRollGrade,
+  enhanceMultiplier,
+  forgeStageAt,
+  instanceStatsForClass,
+} from '@/core/equipment';
 import type { EquipmentInstance, Stats } from '@/core/types';
 import { useInventoryStore } from '@/stores/inventory';
 import { usePlayerStore } from '@/stores/player';
 import { requireEquipment } from '@/data/equipment';
 import { AFFIX_LABELS, QUALITY_LABELS, SLOT_LABELS, STAT_LABELS } from '@/data/constants';
+import { REFORGE_RESONANCE_MAX } from '@/data/reforgeRules';
+import {
+  affixDisplayName,
+  affixProfession,
+  affixProfessionLabel,
+  affixRuntimeNotice,
+  affixTierLabel,
+  formatAffixValue,
+} from '@/ui/affixPresentation';
 import EquipmentIcon from '@/components/EquipmentIcon.vue';
+import ReforgePanel from '@/components/ReforgePanel.vue';
 
 const props = defineProps<{ inst: EquipmentInstance; from: 'bag' | 'equipped' }>();
 const emit = defineEmits<{ close: [] }>();
 
 const inventory = useInventoryStore();
 const player = usePlayerStore();
+const showReforge = ref(false);
 const def = computed(() => requireEquipment(props.inst.defId));
 
 const stats = computed<Stats>(() =>
-  def.value ? instanceStats(def.value, props.inst) : zeroStats(),
+  def.value && player.player
+    ? instanceStatsForClass(def.value, props.inst, player.player.classId)
+    : zeroStats(),
 );
 
 const cp = computed(() => inventory.contributionCp(props.inst));
@@ -51,6 +69,9 @@ const classMatched = computed(
 );
 const canEquip = computed(
   () => (player.player?.level ?? 0) >= def.value.level && classMatched.value,
+);
+const canReforge = computed(
+  () => props.inst.affixes.length > 0 && def.value.fixedTemplate !== true,
 );
 
 /** 与当前已穿戴的同部位装备对比 */
@@ -84,6 +105,11 @@ function fmtAffix(key: string, value: number): string {
   return `+${abbr(Math.round(value))}`;
 }
 
+function affixInactiveForCurrentClass(key: EquipmentInstance['affixes'][number]['key']): boolean {
+  const owner = affixProfession(key);
+  return owner !== null && owner !== player.player?.classId;
+}
+
 function doEquip() {
   inventory.equip(props.inst.uid);
   emit('close');
@@ -95,7 +121,8 @@ function doUnequip() {
 }
 
 function doDecompose() {
-  inventory.decompose([props.inst.uid]);
+  const result = inventory.decompose([props.inst.uid]);
+  if (result.reason === 'pending-affix-result') return;
   emit('close');
 }
 </script>
@@ -151,15 +178,41 @@ function doDecompose() {
         </section>
 
         <section v-if="inst.affixes.length > 0" class="group">
-          <div class="group-head">随机词条</div>
-          <div v-for="(a, i) in inst.affixes" :key="i" class="stat affix">
-            <span>{{ AFFIX_LABELS[a.key] }}</span>
-            <span class="num">+{{ a.value }}</span>
+          <div class="group-head affix-head">
+            <span>随机词条</span>
+            <span
+              class="resonance-chip"
+              :class="{ full: inst.reforgeResonance >= REFORGE_RESONANCE_MAX }"
+            >
+              共鸣 {{ inst.reforgeResonance }}/{{ REFORGE_RESONANCE_MAX }}
+            </span>
           </div>
+          <div v-for="(a, i) in inst.affixes" :key="`${i}-${a.key}`" class="stat affix-detail">
+            <span class="affix-tier" :class="`tier-${a.tier}`">{{ affixTierLabel(a.tier) }}</span>
+            <span class="affix-copy">
+              <b>{{ affixDisplayName(a) }}</b>
+              <small v-if="affixProfessionLabel(a.key)">
+                {{ affixProfessionLabel(a.key) }}
+              </small>
+              <small v-if="affixInactiveForCurrentClass(a.key)" class="inactive-notice">
+                当前职业不生效
+              </small>
+              <small v-if="affixRuntimeNotice(a.key)" class="runtime-notice">
+                {{ affixRuntimeNotice(a.key) }}
+              </small>
+            </span>
+            <span class="num">{{ formatAffixValue(a) }}</span>
+          </div>
+          <p v-if="inst.reforgeResonance >= REFORGE_RESONANCE_MAX" class="resonance-ready">
+            共鸣已满：下一次随机洗练必出卓越或极品。
+          </p>
         </section>
 
         <section v-if="def.fixedAffixes?.length" class="group">
-          <div class="group-head">珍品固定词条</div>
+          <div class="group-head fixed-head">
+            <span>珍品固定词条</span>
+            <span v-if="def.fixedTemplate" class="fixed-chip">完整固定 · 不可洗练</span>
+          </div>
           <div v-for="(a, i) in def.fixedAffixes" :key="i" class="stat fixed-affix">
             <span>{{ AFFIX_LABELS[a.key] }}</span>
             <span class="num">{{ fmtAffix(a.key, a.value) }}</span>
@@ -174,11 +227,26 @@ function doDecompose() {
       </div>
 
       <footer class="foot">
+        <button v-if="canReforge" class="btn reforge-entry" @click="showReforge = true">
+          <Sparkles :size="16" aria-hidden="true" />
+          {{ inst.pendingAffixChange ? '查看洗练候选' : '词条洗练' }}
+        </button>
         <template v-if="from === 'bag'">
-          <button class="btn btn-plain f" @click="inventory.toggleLock(inst.uid)">
-            {{ inst.locked ? '解锁' : '锁定' }}
+          <button
+            class="btn btn-plain f"
+            :disabled="Boolean(inst.pendingAffixChange)"
+            @click="inventory.toggleLock(inst.uid)"
+          >
+            {{ inst.pendingAffixChange ? '候选保护中' : inst.locked ? '解锁' : '锁定' }}
           </button>
-          <button class="btn btn-plain f" :disabled="inst.locked" @click="doDecompose">分解</button>
+          <button
+            class="btn btn-plain f"
+            :disabled="inst.locked || Boolean(inst.pendingAffixChange)"
+            :title="inst.pendingAffixChange ? '请先采用或保留洗练候选' : undefined"
+            @click="doDecompose"
+          >
+            {{ inst.pendingAffixChange ? '先确认洗练' : '分解' }}
+          </button>
           <button class="btn btn-pink f2" :disabled="!canEquip" @click="doEquip">
             {{ canEquip ? '穿戴' : classMatched ? `Lv${def.level} 可穿戴` : '职业不适用' }}
           </button>
@@ -187,6 +255,8 @@ function doDecompose() {
           <button class="btn btn-plain f2" @click="doUnequip">卸下</button>
         </template>
       </footer>
+
+      <ReforgePanel v-if="showReforge" :inst="inst" @close="showReforge = false" />
     </div>
   </div>
 </template>
@@ -399,9 +469,108 @@ function doDecompose() {
   border-radius: 8px;
 }
 
-.stat.affix {
-  color: var(--q-epic);
+.affix-head,
+.fixed-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.resonance-chip,
+.fixed-chip {
+  padding: 3px 7px;
+  color: #4d7590;
+  font-size: 8px;
+  font-weight: 800;
+  background: #edf7fd;
+  border: 1px solid #cce3f0;
+  border-radius: 999px;
+}
+
+.resonance-chip.full {
+  color: #9a5b25;
+  background: linear-gradient(100deg, #fff7d9, #fff0f7);
+  border-color: #efcd93;
+}
+
+.fixed-chip {
+  color: #9a5c20;
+  background: #fff6df;
+  border-color: #efd6a8;
+}
+
+.stat.affix-detail {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  min-height: 44px;
+  color: #655084;
   background: #f8f2fe;
+}
+
+.affix-tier {
+  padding: 4px 5px;
+  font-size: 8px;
+  font-weight: 800;
+  text-align: center;
+  background: rgb(255 255 255 / 66%);
+  border-radius: 6px;
+}
+
+.affix-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.affix-copy b {
+  overflow: hidden;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.affix-copy small {
+  color: #8b5caa;
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.affix-copy small.runtime-notice {
+  color: #ad673d;
+}
+
+.resonance-ready {
+  margin: 2px 0 0;
+  padding: 6px 9px;
+  color: #95632e;
+  font-size: 8px;
+  line-height: 1.45;
+  background: linear-gradient(90deg, #fff8df, #fff2f7);
+  border-radius: 7px;
+}
+
+.tier-1 {
+  color: #7c828b;
+}
+
+.tier-2 {
+  color: #526276;
+}
+
+.tier-3 {
+  color: #3b9967;
+}
+
+.tier-4 {
+  color: #397db5;
+}
+
+.tier-5 {
+  color: #b37722;
+  text-shadow: 0 0 8px rgb(244 185 66 / 35%);
 }
 
 .stat.fixed-affix {
@@ -437,9 +606,28 @@ function doDecompose() {
 
 .foot {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   padding: 12px 16px calc(12px + var(--sab));
   border-top: 1px solid var(--line);
+}
+
+.foot button {
+  min-height: 44px;
+}
+
+.reforge-entry {
+  min-width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #86506f;
+  font-size: 12px;
+  font-weight: 800;
+  background: linear-gradient(100deg, rgb(228 245 255 / 92%), rgb(255 230 244 / 92%)), #fff;
+  border: 1px solid #eab9d1;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 75%);
 }
 
 .f {

@@ -49,9 +49,13 @@ function buildWaves(spec: ChapterSpec, idx: number): { waves: Wave[]; bossId?: s
 
   const isEliteStage = idx === 2;
   const isFinalStage = idx === STAGES_PER_CHAPTER - 1;
+  const hasEliteWave = (isEliteStage || isFinalStage) && Boolean(elite);
+  const hasBossWave = isFinalStage && Boolean(boss);
 
   const waves: Wave[] = [];
-  const normalWaveCount = isEliteStage || isFinalStage ? 2 : 3;
+  // 第 3 / 6 关只有在确实存在精英或 BOSS 时才让出一波。
+  // 没有特殊怪的章节仍应完整打 3 波小怪，不能因为关卡序号凭空少一波。
+  const normalWaveCount = hasEliteWave || hasBossWave ? 2 : 3;
 
   for (let w = 0; w < normalWaveCount; w++) {
     // 波次里混 2 种小怪，数量随波次递增
@@ -63,11 +67,11 @@ function buildWaves(spec: ChapterSpec, idx: number): { waves: Wave[]; bossId?: s
     waves.push({ monsters });
   }
 
-  if ((isEliteStage || isFinalStage) && elite) {
+  if (hasEliteWave && elite) {
     waves.push({ monsters: [{ id: elite.id, count: 1 }] });
   }
 
-  if (isFinalStage && boss) {
+  if (hasBossWave && boss) {
     waves.push({ monsters: [{ id: boss.id, count: 1 }] });
     return { waves, bossId: boss.id };
   }
@@ -92,7 +96,7 @@ function buildStages(): Record<string, Stage> {
         waves,
         ...(bossId ? { bossId } : {}),
         recommendCP: estimateRecommendCP(level),
-        firstClearRewards: enhanceFirstClearRewards(spec.id, idx),
+        firstClearRewards: enhanceFirstClearRewards(spec.id, idx, Boolean(bossId)),
         // 挂机基础收益统一掷普通表；store 再按真实波次为精英/BOSS 追加专属表。
         lootTableId: lootTableIdFor(spec.id, 'normal'),
         maxKillsPerSec: DEFAULT_MAX_KILLS_PER_SEC,

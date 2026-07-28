@@ -209,6 +209,11 @@ function confirmDecompose(): void {
 
   const targetUids = decomposePlan.value.targets.map((inst) => inst.uid);
   const result = inventory.decompose(targetUids);
+  if (result.reason === 'pending-affix-result') {
+    closeDecompose();
+    show('有装备正在等待确认洗练候选，请先采用或保留候选');
+    return;
+  }
   closeDecompose();
   if (result.count === 0) {
     show('这些装备已不在背包中');
@@ -325,9 +330,14 @@ onUnmounted(() => {
         >
           <EquipmentIcon :def="row.def" :enhance="row.inst.enhance" :locked="row.inst.locked" />
           <span class="mid">
-            <span class="name" :class="'q-' + row.def.quality">
-              {{ row.def.name }}
-              <span v-if="row.inst.enhance > 0" class="enh">+{{ row.inst.enhance }}</span>
+            <span class="name-line">
+              <span class="name" :class="'q-' + row.def.quality">
+                {{ row.def.name }}
+                <span v-if="row.inst.enhance > 0" class="enh">+{{ row.inst.enhance }}</span>
+              </span>
+              <span v-if="row.inst.pendingAffixChange" class="pending-affix-badge">
+                洗练待确认
+              </span>
             </span>
             <span class="sub">
               {{ SLOT_LABELS[row.def.slot] }} · {{ QUALITY_LABELS[row.def.quality] }} · Lv{{
@@ -468,11 +478,12 @@ onUnmounted(() => {
             <div class="protection-copy">
               <ShieldCheck :size="17" aria-hidden="true" />
               <span>
-                锁定装备始终保护
+                待确认洗练候选与锁定装备始终保护
                 <small>
-                  本次跳过 {{ decomposePlan.protectedLocked }} 件锁定装备、{{
-                    decomposePlan.protectedEnhanced
+                  本次跳过 {{ decomposePlan.protectedPending }} 件待确认装备、{{
+                    decomposePlan.protectedLocked
                   }}
+                  件锁定装备、{{ decomposePlan.protectedEnhanced }}
                   件强化装备
                 </small>
               </span>
@@ -742,12 +753,33 @@ onUnmounted(() => {
   gap: 2px;
 }
 
+.name-line {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
 .name {
+  flex: 1;
+  min-width: 0;
   font-size: 11px;
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.pending-affix-badge {
+  flex: none;
+  padding: 1px 5px;
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: #8c4b00;
+  background: rgb(255 211 105 / 35%);
+  border: 1px solid rgb(232 164 32 / 45%);
+  border-radius: 999px;
 }
 
 .enh {

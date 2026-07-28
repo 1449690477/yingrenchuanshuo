@@ -16,6 +16,18 @@ import { lootTableIdFor } from './monsters';
 import { boutiqueBossDropIds } from './shop';
 import { requireEnhanceProgression } from './enhanceProgression';
 
+const REFORGE_DROP = {
+  temper: 'sand_crystal',
+  bind: 'charm_bind',
+  resonance: 'crystal_resonance',
+  sigils: {
+    swordsman: 'sigil_swordsman',
+    witch: 'sigil_witch',
+    shaman: 'sigil_shaman',
+    catkin: 'sigil_catkin',
+  },
+} as const;
+
 /** 各怪物类型能掉的装备品质及权重 */
 /**
  * 各怪物类型能掉的装备品质及权重。
@@ -61,6 +73,40 @@ function buildTable(spec: ChapterSpec, type: MonsterType): LootTable {
 
   // 强化材料按章节成长配置注入，避免关卡等级、成本与产出各写一套规则。
   entries.push(...enhanceLoot.entries.map((drop) => ({ ...drop })));
+
+  // 洗练材料遵循「小怪供日常、精英供进阶、BOSS 供定向与突破」的来源分层。
+  if (type === 'normal') {
+    entries.push({
+      itemId: REFORGE_DROP.temper,
+      weight: 120,
+      minCount: 1,
+      maxCount: 2,
+    });
+  } else if (type === 'elite') {
+    entries.push({
+      itemId: REFORGE_DROP.bind,
+      weight: 18,
+      minCount: 1,
+      maxCount: 1,
+    });
+  } else {
+    for (const [classId, itemId] of Object.entries(REFORGE_DROP.sigils)) {
+      entries.push({
+        itemId,
+        classId: classId as keyof typeof REFORGE_DROP.sigils,
+        weight: 2,
+        minCount: 1,
+        maxCount: 1,
+      });
+    }
+    entries.push({
+      itemId: REFORGE_DROP.resonance,
+      weight: 0.25,
+      minCount: 1,
+      maxCount: 1,
+      pityCount: 80,
+    });
+  }
 
   // ── 装备 ──
   if (region) {

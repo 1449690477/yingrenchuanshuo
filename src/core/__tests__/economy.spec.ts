@@ -28,6 +28,7 @@ function instance(defId: string, enhance = 0): EquipmentInstance {
     ),
     enhanceLuck: {},
     affixes: [],
+    reforgeResonance: 0,
     locked: false,
   };
 }

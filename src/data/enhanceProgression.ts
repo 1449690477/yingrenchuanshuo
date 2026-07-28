@@ -4,6 +4,7 @@ import { ENHANCE_MATERIAL_IDS } from './constants';
 const MATERIAL = {
   ...ENHANCE_MATERIAL_IDS,
   reforge: 'stone_reforge',
+  resonance: 'crystal_resonance',
 } as const;
 
 export const ENHANCE_PROGRESSION_MATERIAL_IDS = [
@@ -239,7 +240,11 @@ export function requireEnhanceProgression(chapterId: string): ChapterEnhanceProg
 }
 
 /** 生成一关的首通强化奖励，返回副本以防调用方修改共享配置。 */
-export function enhanceFirstClearRewards(chapterId: string, stageIndex: number): LootResult[] {
+export function enhanceFirstClearRewards(
+  chapterId: string,
+  stageIndex: number,
+  isBossStage: boolean,
+): LootResult[] {
   if (!Number.isInteger(stageIndex) || stageIndex < 0 || stageIndex >= 6) {
     throw new Error(`[配置错误] 首通奖励关卡索引必须在 0~5：${stageIndex}`);
   }
@@ -251,6 +256,9 @@ export function enhanceFirstClearRewards(chapterId: string, stageIndex: number):
       count: firstClear.stoneByStage[stageIndex]!,
     },
   ];
+  if (stageIndex === 5 && isBossStage) {
+    rewards.push({ itemId: MATERIAL.resonance, count: 1 });
+  }
   if (stageIndex === 5) {
     rewards.push(...firstClear.finalBonus.map((reward) => ({ ...reward })));
   }

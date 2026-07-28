@@ -11,13 +11,23 @@ function mk(
     value?: number;
     locked?: boolean;
     enhance?: number;
+    pending?: boolean;
   } = {},
 ): EquipmentInstance & { _v: number; _slot: EquipSlot; _q: Quality } {
   return {
     uid,
     defId: 'def_' + uid,
     enhance: opts.enhance ?? 0,
-    affixes: [],
+    affixes: [{ key: 'atk', value: 1, tier: 1 }],
+    ...(opts.pending
+      ? {
+          pendingAffixChange: {
+            operation: 'temper',
+            affixIndex: 0,
+            candidate: { key: 'atk', value: 2, tier: 3 },
+          },
+        }
+      : {}),
     locked: opts.locked ?? false,
     _v: opts.value ?? 1,
     _slot: opts.slot ?? 'weapon',
@@ -71,6 +81,21 @@ describe('trimBag', () => {
     const r = trimBag(list, 3, ctx);
     expect(r.removed.some((e) => e.uid === 'locked')).toBe(false);
     expect(r.kept.some((e) => e.uid === 'locked')).toBe(true);
+  });
+
+  it('已付费但待确认的洗练候选永不被容量裁剪', () => {
+    const list = [
+      mk('pending', { value: 1, pending: true, slot: 'weapon' }),
+      mk('better-weapon', { value: 99, slot: 'weapon' }),
+      mk('junk-head', { value: 2, slot: 'head' }),
+      mk('better-head', { value: 98, slot: 'head' }),
+    ];
+
+    const result = trimBag(list, 2, ctx);
+
+    expect(result.kept.map((item) => item.uid)).toContain('pending');
+    expect(result.removed.map((item) => item.uid)).not.toContain('pending');
+    expect(result.kept).toHaveLength(3);
   });
 
   it('史诗及以上永不被自动分解', () => {
@@ -188,6 +213,19 @@ describe('planBulkDecompose', () => {
 
     expect(plan.targets.map((item) => item.uid)).toEqual(['normal']);
     expect(plan.protectedLocked).toBe(1);
+  });
+
+  it('待确认洗练候选不受强化许可影响，始终从批量分解计划中硬拒绝', () => {
+    const list = [
+      mk('normal', { quality: 'rare' }),
+      mk('pending', { quality: 'rare', pending: true, enhance: 7 }),
+    ];
+
+    const plan = planBulkDecompose(list, ['rare'], true, ctx.qualityOf);
+
+    expect(plan.targets.map((item) => item.uid)).toEqual(['normal']);
+    expect(plan.protectedPending).toBe(1);
+    expect(plan.protectedEnhanced).toBe(0);
   });
 
   it('默认保护强化装备，只有明确许可后才纳入', () => {

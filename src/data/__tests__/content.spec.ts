@@ -480,6 +480,7 @@ describe('区域 1–2 内容完整性', () => {
       expect(equipment!.fixedAffixes, equipment!.id).toHaveLength(
         QUALITY_AFFIX_COUNT[equipment!.quality],
       );
+      expect(equipment!.fixedTemplate, equipment!.id).toBe(true);
       expect(new Set(equipment!.fixedAffixes!.map((affix) => affix.key)).size).toBe(
         equipment!.fixedAffixes!.length,
       );
@@ -519,7 +520,9 @@ describe('区域 1–2 内容完整性', () => {
     }
 
     const boutiqueAssets = Object.entries(EQUIPMENT_APPEARANCES)
-      .filter(([id, appearance]) => id.startsWith('boutique-') && appearance.renderMode !== 'slot-only')
+      .filter(
+        ([id, appearance]) => id.startsWith('boutique-') && appearance.renderMode !== 'slot-only',
+      )
       .flatMap(([, appearance]) =>
         appearance.renderMode === 'slot-only' ? [] : Object.values(appearance.assets),
       );
@@ -589,9 +592,7 @@ describe('区域 1–2 内容完整性', () => {
         height: 256,
       });
       expect({ width: effect.width, height: effect.height }, `${skill.id} effect`).toEqual(
-        skill.type === 'active'
-          ? { width: 512, height: 512 }
-          : { width: 256, height: 256 },
+        skill.type === 'active' ? { width: 512, height: 512 } : { width: 256, height: 256 },
       );
     }
   });
@@ -617,7 +618,7 @@ describe('区域 1–2 内容完整性', () => {
   });
 
   it('全部物品都引用真实存在的正式图标', () => {
-    expect(Object.keys(ITEMS)).toHaveLength(16);
+    expect(Object.keys(ITEMS)).toHaveLength(23);
     for (const [id, item] of Object.entries(ITEMS)) {
       expect(item.icon).toBe(`assets/items/${id}.png`);
       expect(existsSync(resolve('public', item.icon)), `${id} → ${item.icon}`).toBe(true);

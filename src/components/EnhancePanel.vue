@@ -261,6 +261,7 @@ const blockedCopy = computed(() => {
 function enhanceBlockLabel(reason: string): string {
   const labels: Record<string, string> = {
     'not-found': '这件装备已不在背包或穿戴栏',
+    'pending-affix-result': '请先采用或保留当前洗练候选，再进行强化',
     'max-level': `装备已经强化至 +${ENHANCE_MAX}`,
     'protection-not-allowed': '当前阶段不能使用保护符',
     'insufficient-gold': '金币不足',

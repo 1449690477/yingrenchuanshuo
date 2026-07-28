@@ -8,14 +8,7 @@
  * 其余部位提供「星辉 / 守护」两条搭配路线，让同品质也有取舍。
  */
 
-import type {
-  Affix,
-  AffixKey,
-  ClassId,
-  EquipmentDef,
-  EquipSlot,
-  Quality,
-} from '@/core/types';
+import type { AffixKey, ClassId, EquipmentDef, EquipSlot, FixedAffix, Quality } from '@/core/types';
 import { CLASS_IDS } from '@/core/types';
 
 export type EquipmentDungeonTierId = 'azure' | 'violet' | 'auric' | 'crimson';
@@ -150,9 +143,7 @@ const CLASS_GEAR: Readonly<
   },
 };
 
-const TIER_CLASS_PREFIX: Readonly<
-  Record<EquipmentDungeonTierId, Record<ClassId, string>>
-> = {
+const TIER_CLASS_PREFIX: Readonly<Record<EquipmentDungeonTierId, Record<ClassId, string>>> = {
   azure: {
     swordsman: '晴蓝茶会',
     witch: '晴蓝糖星',
@@ -292,7 +283,7 @@ function tierRank(tier: EquipmentDungeonTier): number {
   return EQUIPMENT_DUNGEON_TIERS.findIndex((candidate) => candidate.id === tier.id);
 }
 
-function fixedAffix(key: AffixKey, tier: EquipmentDungeonTier): Affix {
+function fixedAffix(key: AffixKey, tier: EquipmentDungeonTier): FixedAffix {
   const rank = tierRank(tier);
   const levelScale = Math.pow(tier.level, 1.3);
   let value: number;
@@ -342,8 +333,7 @@ function buildClassGear(
   slot: 'weapon' | 'body',
 ): EquipmentDef {
   const classSpec = CLASS_GEAR[classId];
-  const visualKey =
-    slot === 'weapon' ? classSpec.weaponVisualKey : classSpec.bodyVisualKey;
+  const visualKey = slot === 'weapon' ? classSpec.weaponVisualKey : classSpec.bodyVisualKey;
   const affixKey = slot === 'weapon' ? classSpec.weaponAffix : classSpec.bodyAffix;
   const noun = slot === 'weapon' ? classSpec.weaponNoun : classSpec.dressNoun;
   const effect = slot === 'weapon' ? classSpec.attackCopy : classSpec.interactionCopy;
@@ -411,9 +401,7 @@ export const EQUIPMENT_DUNGEON_GEAR: Readonly<Record<string, EquipmentDef>> =
 export const EQUIPMENT_DUNGEON_GEAR_LIST: readonly EquipmentDef[] =
   Object.values(EQUIPMENT_DUNGEON_GEAR);
 
-export function requireEquipmentDungeonTier(
-  tierId: EquipmentDungeonTierId,
-): EquipmentDungeonTier {
+export function requireEquipmentDungeonTier(tierId: EquipmentDungeonTierId): EquipmentDungeonTier {
   const tier = TIER_BY_ID[tierId];
   if (!tier) throw new Error(`[配置错误] 装备副本品质档不存在：${tierId}`);
   return tier;
@@ -428,8 +416,6 @@ export function equipmentDungeonGearFor(
     (definition) =>
       definition.quality === requireEquipmentDungeonTier(tierId).quality &&
       definition.slot === slot &&
-      (classId === undefined ||
-        definition.classId === undefined ||
-        definition.classId === classId),
+      (classId === undefined || definition.classId === undefined || definition.classId === classId),
   );
 }

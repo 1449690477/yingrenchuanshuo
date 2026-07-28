@@ -11,6 +11,7 @@ export const useStageStore = defineStore('stage', () => {
   const kills = computed(() => game.currentStageKills);
   const killTarget = computed(() => game.currentKillTarget);
   const cpRatio = computed(() => game.cpRatio);
+  const battleEfficiency = computed(() => game.battleEfficiency);
   const canIdle = computed(() => game.canIdle);
   const kps = computed(() => game.kps);
   const lootLog = computed(() => game.lootLog);
@@ -31,6 +32,7 @@ export const useStageStore = defineStore('stage', () => {
     kills,
     killTarget,
     cpRatio,
+    battleEfficiency,
     canIdle,
     kps,
     lootLog,

@@ -190,6 +190,37 @@ function buildEquipmentDungeonAppearances(): Record<string, EquipmentAppearance>
   return out;
 }
 
+function buildRegionAppearances(regionIds: readonly string[]): Record<string, EquipmentAppearance> {
+  const out: Record<string, EquipmentAppearance> = {};
+  for (const regionId of regionIds) {
+    for (const slot of ['body', 'head', 'weapon'] as const) {
+      const id = `${regionId}-${slot}`;
+      out[id] = {
+        id,
+        slot,
+        renderMode: 'layer',
+        assets: classAssets(id),
+        transforms: alignedTransforms,
+      };
+    }
+    for (const slot of ['necklace', 'bracelet', 'ring', 'belt', 'shoes'] as const) {
+      const id = `${regionId}-${slot}`;
+      out[id] = { id, slot, renderMode: 'slot-only' };
+    }
+  }
+  return out;
+}
+
+/**
+ * 区域 3/4 的待启用换装注册表。
+ *
+ * 与新区装备定义和实际图层一起原子接入 `EQUIPMENT_APPEARANCES`，生产期间
+ * 保持当前线上内容数量不变，避免其他协作者的完整性验证被半成品干扰。
+ */
+export const REGION_34_EQUIPMENT_APPEARANCES: Readonly<
+  Record<string, EquipmentAppearance>
+> = buildRegionAppearances(['r3', 'r4']);
+
 /**
  * 装备定义到运行时外观的显式注册表。
  *

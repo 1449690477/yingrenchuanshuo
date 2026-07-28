@@ -4,21 +4,33 @@ import { LockKeyhole, X } from '@lucide/vue';
 import { abbr } from '@/core/format';
 import { usePlayerStore } from '@/stores/player';
 import { useStageStore } from '@/stores/stage';
-import { REGIONS } from '@/data/regions';
+import { REGIONS, regionIdForChapterId } from '@/data/regions';
 import { stagesOfChapter } from '@/data/stages';
+import { requireItem, type ItemDef } from '@/data/items';
 import SystemArtwork from '@/components/SystemArtwork.vue';
 
 const emit = defineEmits<{ close: [] }>();
 const player = usePlayerStore();
 const stage = useStageStore();
 
-const openRegion = ref(stage.current.chapterId.split('-')[0] === '1' ? 'r1' : 'r2');
+const openRegion = ref(regionIdForChapterId(stage.current.chapterId));
 const openChapter = ref(stage.current.chapterId);
 
 const regions = computed(() => REGIONS);
 
 function assetUrl(asset: string): string {
   return `${import.meta.env.BASE_URL}${asset}`;
+}
+
+function chapterMaterials(materialIds: readonly string[]): ItemDef[] {
+  return materialIds.map(requireItem);
+}
+
+function materialSourceLabel(tier: ItemDef['tier']): string {
+  if (tier === 'common') return '普通怪';
+  if (tier === 'fine') return '精英';
+  if (tier === 'rare') return 'BOSS · 有保底';
+  return '章节目标';
 }
 
 function pick(stageId: string) {
@@ -80,6 +92,23 @@ function pick(stageId: string) {
 
                 <Transition name="fold">
                   <div v-if="openChapter === c.id" :id="`stage-chapter-${c.id}`" class="stages">
+                    <section class="chapter-loot" aria-label="本章区域材料">
+                      <span class="loot-title">本章掉落</span>
+                      <div class="loot-chips">
+                        <span
+                          v-for="material in chapterMaterials(c.materials)"
+                          :key="material.id"
+                          class="loot-chip"
+                          :class="`tier-${material.tier}`"
+                        >
+                          <img :src="assetUrl(material.icon)" alt="" aria-hidden="true" />
+                          <span class="loot-copy">
+                            <b>{{ material.name }}</b>
+                            <small>{{ materialSourceLabel(material.tier) }}</small>
+                          </span>
+                        </span>
+                      </div>
+                    </section>
                     <button
                       v-for="s in stagesOfChapter(c.id)"
                       :key="s.id"
@@ -321,6 +350,84 @@ function pick(stageId: string) {
   grid-template-columns: 1fr 1fr;
   gap: 6px;
   padding: 6px 0 4px 6px;
+}
+
+.chapter-loot {
+  grid-column: 1 / -1;
+  padding: 8px;
+  border: 1px solid rgb(153 201 229 / 42%);
+  border-radius: var(--r-sm);
+  background:
+    linear-gradient(135deg, rgb(255 242 248 / 92%), rgb(234 247 255 / 88%)),
+    var(--panel);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 88%);
+}
+
+.loot-title {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 9px;
+  font-weight: 800;
+  color: var(--text-dim);
+  letter-spacing: 0.08em;
+}
+
+.loot-chips {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.loot-chip {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 6px;
+  overflow: hidden;
+  border: 1px solid rgb(139 181 210 / 26%);
+  border-radius: 11px;
+  background: rgb(255 255 255 / 72%);
+  box-shadow: 0 3px 9px rgb(76 113 145 / 7%);
+}
+
+.loot-chip img {
+  width: 27px;
+  height: 27px;
+  flex: 0 0 auto;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 3px rgb(56 86 112 / 18%));
+}
+
+.loot-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.18;
+}
+
+.loot-copy b {
+  overflow: hidden;
+  font-size: 10px;
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.loot-copy small {
+  margin-top: 2px;
+  font-size: 8px;
+  color: var(--text-dim);
+}
+
+.loot-chip.tier-fine {
+  border-color: rgb(80 166 216 / 36%);
+  background: rgb(236 248 255 / 82%);
+}
+
+.loot-chip.tier-rare {
+  border-color: rgb(157 113 222 / 38%);
+  background: linear-gradient(135deg, rgb(248 240 255 / 92%), rgb(240 248 255 / 84%));
 }
 
 .stage {

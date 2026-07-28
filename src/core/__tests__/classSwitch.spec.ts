@@ -15,7 +15,7 @@ describe('planClassSwitch', () => {
     sword.enhance = 12;
     sword.enhanceGainPermille[0] = 88;
     sword.enhanceLuck['13'] = 77;
-    sword.affixes = [{ key: 'atk', value: 321 }];
+    sword.affixes = [{ key: 'atk', value: 321, tier: 3 }];
     const staff = instance('staff-1', 'staff', false);
     const equipped = loadout({ body, weapon: sword });
     const bag = [staff];
@@ -144,6 +144,7 @@ function instance(uid: string, defId: string, locked: boolean): EquipmentInstanc
     enhanceGainPermille: Array<number>(15).fill(0),
     enhanceLuck: {},
     affixes: [],
+    reforgeResonance: 0,
     locked,
   };
 }

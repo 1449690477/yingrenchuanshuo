@@ -58,9 +58,29 @@ export function elementMultiplier(attacker: Element, defender: Element): number 
 }
 
 /**
+ * 实际属性系数。
+ *
+ * elemDmg 只认攻击者当前属性；无属性攻击或词条属性不匹配时不生效。
+ * 百分点换算成小数后直接加在基础克制系数上。
+ */
+export function effectiveElementMultiplier(attacker: Combatant, defender: Combatant): number {
+  const base = elementMultiplier(attacker.element, defender.element);
+  if (attacker.element === 'none') return base;
+  const bonusPoints = attacker.combatBonuses?.elementDamage[attacker.element] ?? 0;
+  return base + Math.max(0, bonusPoints) / 100;
+}
+
+/** 装备伤害减免的剩余伤害倍率；与防御减伤相乘。 */
+export function combatBonusDamageMultiplier(defender: Combatant): number {
+  const reductionPoints = defender.combatBonuses?.damageReduction ?? 0;
+  return 1 - clamp(reductionPoints / 100, 0, 1);
+}
+
+/**
  * 单次攻击的伤害结算。
  *
- * 最终伤害 = atk × 技能倍率 × (1 - 减伤) × 浮动 × 暴击 × 克制
+ * 最终伤害 = atk × 技能倍率 × (1 - 防御减伤) × (1 - 词条减伤)
+ *            × 浮动 × 暴击 × 属性系数
  * 且不低于 atk × MIN_DAMAGE_RATIO
  */
 export function calcDamage(
@@ -76,11 +96,12 @@ export function calcDamage(
 
   const base = attacker.stats.atk * skillMultiplier;
   const reduction = damageReduction(defender.stats.def, attacker.level);
+  const bonusDamageMul = combatBonusDamageMultiplier(defender);
   const variance = rng.float(DAMAGE_VARIANCE_MIN, DAMAGE_VARIANCE_MAX);
   const critMul = crit ? critMultiplier(attacker.stats.critDmg) : 1;
-  const elemMul = elementMultiplier(attacker.element, defender.element);
+  const elemMul = effectiveElementMultiplier(attacker, defender);
 
-  const raw = base * (1 - reduction) * variance * critMul * elemMul;
+  const raw = base * (1 - reduction) * bonusDamageMul * variance * critMul * elemMul;
   const floor = attacker.stats.atk * MIN_DAMAGE_RATIO;
 
   return { damage: Math.max(floor, raw), hit: true, crit };
@@ -101,11 +122,12 @@ export function expectedDamage(
 
   const base = attacker.stats.atk * skillMultiplier;
   const reduction = damageReduction(defender.stats.def, attacker.level);
+  const bonusDamageMul = combatBonusDamageMultiplier(defender);
   const avgVariance = (DAMAGE_VARIANCE_MIN + DAMAGE_VARIANCE_MAX) / 2;
   const avgCritMul = 1 + critP * (critMultiplier(attacker.stats.critDmg) - 1);
-  const elemMul = elementMultiplier(attacker.element, defender.element);
+  const elemMul = effectiveElementMultiplier(attacker, defender);
 
-  const raw = base * (1 - reduction) * avgVariance * avgCritMul * elemMul;
+  const raw = base * (1 - reduction) * bonusDamageMul * avgVariance * avgCritMul * elemMul;
   const floor = attacker.stats.atk * MIN_DAMAGE_RATIO;
 
   return hitP * Math.max(floor, raw);

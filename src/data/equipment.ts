@@ -8,7 +8,7 @@
  * 这里只负责：名字、等级、品质、槽位、图标。
  */
 
-import type { Affix, AffixKey, EquipmentDef, EquipSlot, Quality } from '@/core/types';
+import type { AffixKey, EquipmentDef, EquipSlot, FixedAffix, Quality } from '@/core/types';
 import { QUALITY_AFFIX_COUNT, SLOT_ORDER } from './constants';
 import { AFFECTION_EQUIPMENT_LIST } from './affectionEquipment';
 import { BOUTIQUE_THEME_LIST, boutiqueAppearanceId, boutiqueEquipmentId } from './boutique';
@@ -128,9 +128,7 @@ function buildEquipment(): Record<string, EquipmentDef> {
     const percentile = theme.quality === 'epic' ? 0.6 : theme.quality === 'legendary' ? 0.75 : 0.9;
     for (const item of theme.items) {
       const id = boutiqueEquipmentId(theme.id, item.slot, item.classId);
-      const iconName = item.classId
-        ? `${item.slot}-${item.classId}.png`
-        : `${item.slot}.png`;
+      const iconName = item.classId ? `${item.slot}-${item.classId}.png` : `${item.slot}.png`;
       out[id] = {
         id,
         name: item.name,
@@ -145,6 +143,7 @@ function buildEquipment(): Record<string, EquipmentDef> {
           QUALITY_AFFIX_COUNT[theme.quality],
           percentile,
         ),
+        fixedTemplate: true,
         uniqueEffect: item.uniqueEffect,
         boutiqueTheme: theme.id,
         ...(item.classId ? { classId: item.classId } : {}),
@@ -171,14 +170,14 @@ function buildEquipment(): Record<string, EquipmentDef> {
 }
 
 const BOUTIQUE_AFFIX_KEYS: Readonly<Record<EquipSlot, readonly AffixKey[]>> = {
-  weapon: ['atk', 'critRate', 'critDmg', 'acc', 'spd'],
-  head: ['def', 'hp', 'acc', 'critRate', 'eva'],
-  body: ['def', 'hp', 'eva', 'acc', 'critRate'],
-  necklace: ['atk', 'critDmg', 'hp', 'critRate', 'acc'],
-  bracelet: ['atk', 'acc', 'def', 'critRate', 'hp'],
-  ring: ['atk', 'critRate', 'critDmg', 'acc', 'eva'],
-  belt: ['def', 'hp', 'eva', 'acc', 'critRate'],
-  shoes: ['eva', 'spd', 'def', 'hp', 'acc'],
+  weapon: ['atk', 'critRate', 'critDmg', 'acc', 'spd', 'hp'],
+  head: ['def', 'hp', 'acc', 'critRate', 'eva', 'critDmg'],
+  body: ['def', 'hp', 'eva', 'acc', 'critRate', 'critDmg'],
+  necklace: ['atk', 'critDmg', 'hp', 'critRate', 'acc', 'eva'],
+  bracelet: ['atk', 'acc', 'def', 'critRate', 'hp', 'eva'],
+  ring: ['atk', 'critRate', 'critDmg', 'acc', 'eva', 'hp'],
+  belt: ['def', 'hp', 'eva', 'acc', 'critRate', 'critDmg'],
+  shoes: ['eva', 'spd', 'def', 'hp', 'acc', 'critRate'],
 };
 
 /** 商店珍品用固定高档词条，掉落与购买获得的同款战力完全一致。 */
@@ -187,7 +186,7 @@ function boutiqueAffixes(
   level: number,
   count: number,
   percentile: number,
-): Affix[] {
+): FixedAffix[] {
   return BOUTIQUE_AFFIX_KEYS[slot]
     .slice(0, count)
     .map((key) => ({ key, value: boutiqueAffixValue(key, level, percentile) }));

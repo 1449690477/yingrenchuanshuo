@@ -43,6 +43,12 @@ export default defineConfig({
           'assets/monsters/equipment-dungeon/**',
           'assets/equipment/dungeon/**',
           'assets/encounters/**',
+          'assets/maps/r{3,4}.webp',
+          'assets/maps/chapter-{3,4}-*.webp',
+          'assets/battlefields/chapter-{3,4}-*.webp',
+          'assets/monsters/{r3,r4}/**',
+          'assets/equipment/{r3,r4}/**',
+          'assets/characters/modular/*/r{3,4}-{body,head,weapon}.png',
         ],
         runtimeCaching: [
           {
@@ -82,6 +88,24 @@ export default defineConfig({
               cacheableResponse: { statuses: [0, 200] },
               expiration: {
                 maxEntries: 56,
+                maxAgeSeconds: 60 * 60 * 24 * 30,
+              },
+            },
+          },
+          {
+            urlPattern: ({ url }) =>
+              /\/assets\/maps\/(?:r[34]|chapter-[34]-\d)\.webp$/.test(url.pathname) ||
+              /\/assets\/battlefields\/chapter-[34]-\d\.webp$/.test(url.pathname) ||
+              /\/assets\/(?:monsters|equipment)\/r[34]\//.test(url.pathname) ||
+              /\/assets\/characters\/modular\/(?:swordsman|witch|shaman|catkin)\/r[34]-(?:body|head|weapon)\.png$/.test(
+                url.pathname,
+              ),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'region-content-v1',
+              cacheableResponse: { statuses: [0, 200] },
+              expiration: {
+                maxEntries: 128,
                 maxAgeSeconds: 60 * 60 * 24 * 30,
               },
             },

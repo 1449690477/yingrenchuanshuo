@@ -48,6 +48,8 @@ export interface TrimResult {
 export interface BulkDecomposePlan {
   /** 本次确认后会被分解的装备快照 */
   targets: EquipmentInstance[];
+  /** 因存在已付费、待确认的洗练候选而受到硬保护的数量 */
+  protectedPending: number;
   /** 因锁定而受到硬保护的数量 */
   protectedLocked: number;
   /** 因已强化且未开启许可而受到保护的数量 */
@@ -68,6 +70,7 @@ export function planBulkDecompose(
 ): BulkDecomposePlan {
   const selected = new Set(selectedQualities);
   const targets: EquipmentInstance[] = [];
+  let protectedPending = 0;
   let protectedLocked = 0;
   let protectedEnhanced = 0;
 
@@ -75,6 +78,12 @@ export function planBulkDecompose(
     const quality = qualityOf(inst);
     if (!quality || !selected.has(quality)) continue;
 
+    // 待确认候选已经扣过洗练成本；任何分解都会让玩家永久丢失已付费结果。
+    // 它的保护优先级高于手动锁定，且必须单独计数给 UI 明示。
+    if (inst.pendingAffixChange) {
+      protectedPending++;
+      continue;
+    }
     // 锁定是不可绕过的硬保护，优先级高于所有其他条件。
     if (inst.locked) {
       protectedLocked++;
@@ -87,7 +96,7 @@ export function planBulkDecompose(
     targets.push(inst);
   }
 
-  return { targets, protectedLocked, protectedEnhanced };
+  return { targets, protectedPending, protectedLocked, protectedEnhanced };
 }
 
 /**
@@ -128,6 +137,7 @@ export function trimBag(
   }
 
   const isProtected = (inst: EquipmentInstance): boolean => {
+    if (inst.pendingAffixChange) return true;
     if (inst.locked) return true;
     const q = ctx.qualityOf(inst);
     // 品质查不到时按受保护处理，宁可不删也不能误删

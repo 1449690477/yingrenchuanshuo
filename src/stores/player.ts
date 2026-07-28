@@ -25,13 +25,14 @@ export const usePlayerStore = defineStore('player', () => {
   const expNeeded = computed(() => game.expNeeded);
   const expPercent = computed(() => game.expPercent);
   const staminaMax = computed(() => game.staminaMax);
+  const equipCombatBonuses = computed(() => game.equipCombatBonuses);
+  const playerCombatElement = computed(() => game.playerCombatElement);
+  const playerSkillMultiplier = computed(() => game.playerSkillMultiplier);
   const affectionState = computed(() => game.affectionState);
   const affectionProgress = computed(() => game.affectionProgress);
   const affectionTier = computed(() => game.affectionTier);
   const affectionRemaining = computed(() => game.affectionRemaining);
-  const affectionInteractionsRemaining = computed(
-    () => game.affectionInteractionsRemaining,
-  );
+  const affectionInteractionsRemaining = computed(() => game.affectionInteractionsRemaining);
 
   function create(name: string, classId: ClassId): Promise<void> {
     return game.startNewGame(name, classId);
@@ -73,6 +74,9 @@ export const usePlayerStore = defineStore('player', () => {
     expNeeded,
     expPercent,
     staminaMax,
+    equipCombatBonuses,
+    playerCombatElement,
+    playerSkillMultiplier,
     affectionState,
     affectionProgress,
     affectionTier,

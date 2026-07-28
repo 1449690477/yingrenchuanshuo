@@ -3,7 +3,15 @@
  * 全部定义见 docs/10-数值与战斗.md 第二节 2.3。
  */
 
-import type { ClassId, Combatant, Element, MonsterDef, MonsterType, Stats } from './types';
+import type {
+  ClassId,
+  CombatBonuses,
+  Combatant,
+  Element,
+  MonsterDef,
+  MonsterType,
+  Stats,
+} from './types';
 import {
   ACC_PER_LEVEL,
   AVG_SKILL_MULTIPLIERS,
@@ -148,8 +156,16 @@ export function makePlayer(
   level: number,
   stats: Stats,
   element: Element = 'none',
+  combatBonuses?: CombatBonuses,
 ): Combatant {
-  return { name, level, element, stats, currentHp: stats.hp };
+  return {
+    name,
+    level,
+    element,
+    stats,
+    currentHp: stats.hp,
+    ...(combatBonuses ? { combatBonuses } : {}),
+  };
 }
 
 /** M2 的平均技能倍率；M3-4 会替换成玩家实际技能栏计算。 */

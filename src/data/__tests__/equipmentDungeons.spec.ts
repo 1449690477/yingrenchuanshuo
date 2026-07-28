@@ -27,18 +27,17 @@ describe('装备副本 80 件装备矩阵', () => {
 
   it('每档 20 件：4 职业武器 + 4 职业礼服 + 6 部位各 2 款', () => {
     for (const tier of EQUIPMENT_DUNGEON_TIERS) {
-      const tierItems = EQUIPMENT_DUNGEON_GEAR_LIST.filter(
-        (item) => item.quality === tier.quality,
-      );
+      const tierItems = EQUIPMENT_DUNGEON_GEAR_LIST.filter((item) => item.quality === tier.quality);
       expect(tierItems, tier.id).toHaveLength(20);
       expect(tierItems.filter((item) => item.slot === 'weapon')).toHaveLength(4);
       expect(tierItems.filter((item) => item.slot === 'body')).toHaveLength(4);
       for (const slot of SLOT_ORDER.filter(
         (candidate) => candidate !== 'weapon' && candidate !== 'body',
       )) {
-        expect(tierItems.filter((item) => item.slot === slot), `${tier.id}/${slot}`).toHaveLength(
-          2,
-        );
+        expect(
+          tierItems.filter((item) => item.slot === slot),
+          `${tier.id}/${slot}`,
+        ).toHaveLength(2);
       }
     }
   });
@@ -52,9 +51,9 @@ describe('装备副本 80 件装备矩阵', () => {
           expect(
             eligible.every((item) => item.classId === undefined || item.classId === classId),
           ).toBe(true);
-          expect(eligible.every((item) => item.slot === slot && item.quality === tier.quality)).toBe(
-            true,
-          );
+          expect(
+            eligible.every((item) => item.slot === slot && item.quality === tier.quality),
+          ).toBe(true);
         }
       }
     }
@@ -63,6 +62,7 @@ describe('装备副本 80 件装备矩阵', () => {
   it('所有装备固定一条真实属性词条，其余词条仍由现有随机实例规则补齐', () => {
     for (const item of EQUIPMENT_DUNGEON_GEAR_LIST) {
       expect(item.fixedAffixes, item.id).toHaveLength(1);
+      expect(item.fixedTemplate, item.id).not.toBe(true);
       expect(item.uniqueEffect, item.id).toMatch(/^专属视觉：/);
       expect(item.setId, item.id).toMatch(/^set_dungeon_/);
     }
@@ -90,12 +90,7 @@ describe('8 门户 × 4 档装备副本', () => {
     for (const slot of SLOT_ORDER) {
       const stages = equipmentDungeonStagesForSlot(slot);
       expect(stages).toHaveLength(4);
-      expect(stages.map((stage) => stage.quality)).toEqual([
-        'rare',
-        'epic',
-        'legendary',
-        'mythic',
-      ]);
+      expect(stages.map((stage) => stage.quality)).toEqual(['rare', 'epic', 'legendary', 'mythic']);
       expect(stages[0]?.previousStageId).toBeUndefined();
       expect(stages[1]?.previousStageId).toBe(stages[0]?.id);
       expect(stages[2]?.previousStageId).toBe(stages[1]?.id);
@@ -179,10 +174,11 @@ describe('8 门户 × 4 档装备副本', () => {
       const { data, info } = await sharp(path).ensureAlpha().raw().toBuffer({
         resolveWithObject: true,
       });
-      expect(
-        { width: info.width, height: info.height, channels: info.channels },
-        asset,
-      ).toEqual({ width: expectedSize, height: expectedSize, channels: 4 });
+      expect({ width: info.width, height: info.height, channels: info.channels }, asset).toEqual({
+        width: expectedSize,
+        height: expectedSize,
+        channels: 4,
+      });
       expect(
         [
           data[3],
@@ -192,9 +188,7 @@ describe('8 门户 × 4 档装备副本', () => {
         ],
         `${asset} 四角透明`,
       ).toEqual([0, 0, 0, 0]);
-      expect(statSync(path).size, asset).toBeLessThanOrEqual(
-        (isMonster ? 140 : 120) * 1024,
-      );
+      expect(statSync(path).size, asset).toBeLessThanOrEqual((isMonster ? 140 : 120) * 1024);
     }
   });
 });

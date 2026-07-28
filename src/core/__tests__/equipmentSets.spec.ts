@@ -16,6 +16,7 @@ function instance(defId: string, uid: string): EquipmentInstance {
     enhanceGainPermille: Array<number>(ENHANCE_MAX).fill(0),
     enhanceLuck: {},
     affixes: [],
+    reforgeResonance: 0,
     locked: false,
   };
 }

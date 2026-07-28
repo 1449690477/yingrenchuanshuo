@@ -1,12 +1,15 @@
 /** 背包与装备领域 store。 */
 import { computed } from 'vue';
 import { defineStore } from 'pinia';
-import type { EquipSlot, EquipmentInstance } from '@/core/types';
+import type { AffixChangeOperation, EquipSlot, EquipmentInstance } from '@/core/types';
 import {
   useGameStore,
+  type AffixChangeActionResult,
+  type DecomposeResult,
   type EnhanceBatchActionResult,
   type EnhanceEquipmentResult,
   type EnhanceQuote,
+  type ResolveAffixChangeActionResult,
 } from './game';
 
 export const useInventoryStore = defineStore('inventory', () => {
@@ -28,7 +31,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     return game.equipBest();
   }
 
-  function decompose(uids: string[]): { count: number; gold: number } {
+  function decompose(uids: string[]): DecomposeResult {
     return game.decompose(uids);
   }
 
@@ -46,6 +49,22 @@ export const useInventoryStore = defineStore('inventory', () => {
 
   function contributionCp(inst: EquipmentInstance): number {
     return game.equipmentContributionCp(inst);
+  }
+
+  function startAffixChange(
+    uid: string,
+    operation: AffixChangeOperation,
+    lockedIndices: readonly number[] = [],
+    targetIndex?: number,
+  ): AffixChangeActionResult {
+    return game.startAffixChange(uid, operation, lockedIndices, targetIndex);
+  }
+
+  function resolveAffixChange(
+    uid: string,
+    decision: 'adopt' | 'keep',
+  ): ResolveAffixChangeActionResult {
+    return game.resolveAffixChange(uid, decision);
   }
 
   function quoteEnhance(uid: string, useProtection: boolean): EnhanceQuote {
@@ -76,6 +95,8 @@ export const useInventoryStore = defineStore('inventory', () => {
     candidateCp,
     cpDelta,
     contributionCp,
+    startAffixChange,
+    resolveAffixChange,
     quoteEnhance,
     enhance,
     autoEnhance,

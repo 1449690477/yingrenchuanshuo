@@ -244,3 +244,10 @@ export function requireRegionOfChapter(chapterId: string): RegionSpec {
   if (!region) throw new Error(`[配置错误] 章节没有所属区域：${chapterId}`);
   return region;
 }
+
+/** 从稳定的章节编号推导区域编号，不把后续所有区域错误折叠成 r2。 */
+export function regionIdForChapterId(chapterId: string): string {
+  const regionIndex = chapterId.match(/^(\d+)-\d+$/)?.[1];
+  if (!regionIndex) throw new Error(`[配置错误] 章节编号格式错误：${chapterId}`);
+  return `r${regionIndex}`;
+}

@@ -14,16 +14,45 @@ import { mkdir, readdir, stat } from 'node:fs/promises';
 import { dirname, extname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
+import { REGION34_MONSTERS } from './region34-assets-manifest.mjs';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(SCRIPT_DIR, '..');
 const MASTER_ROOT = resolve(ROOT, 'art-source/monsters');
 const OUTPUT_ROOT = resolve(ROOT, 'public/assets/monsters');
-const REGIONS = ['r1', 'r2'];
+const DEFAULT_REGIONS = ['r1', 'r2'];
 const CANVAS_SIZE = 512;
 const CONTENT_SIZE = 480;
 const BOTTOM_PADDING = 8;
 const WORKER_COUNT = 4;
+
+function requestedRegions() {
+  const argument = process.argv.find((value) => value.startsWith('--regions='));
+  if (!argument) return DEFAULT_REGIONS;
+  const regions = argument
+    .slice('--regions='.length)
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+  if (regions.length === 0) {
+    throw new Error('参数 --regions 至少要包含一个区域，例如 --regions=r3,r4');
+  }
+  const knownRegions = new Set([...DEFAULT_REGIONS, 'r3', 'r4']);
+  const unknown = regions.filter((region) => !knownRegions.has(region));
+  if (unknown.length > 0) {
+    throw new Error(`未知怪物区域：${unknown.join(', ')}`);
+  }
+  return [...new Set(regions)];
+}
+
+const REGIONS = requestedRegions();
+
+function expectedMasterNames(region) {
+  if (region !== 'r3' && region !== 'r4') return null;
+  return REGION34_MONSTERS.filter((monster) => monster.region === region)
+    .map((monster) => `${monster.id}.png`)
+    .sort();
+}
 
 async function validateOutput(outputFile) {
   const metadata = await sharp(outputFile).metadata();
@@ -130,12 +159,32 @@ for (const region of REGIONS) {
   const outputDir = resolve(OUTPUT_ROOT, region);
   await mkdir(outputDir, { recursive: true });
 
-  const filenames = (await readdir(masterDir))
+  const discoveredFilenames = (await readdir(masterDir))
     .filter((filename) => extname(filename).toLowerCase() === '.png')
     .sort();
+  const expectedFilenames = expectedMasterNames(region);
+  const filenames = expectedFilenames ?? discoveredFilenames;
 
   if (filenames.length === 0) {
     throw new Error(`没有找到怪物母版：${masterDir}`);
+  }
+  if (expectedFilenames) {
+    const discovered = new Set(discoveredFilenames);
+    const missing = expectedFilenames.filter((filename) => !discovered.has(filename));
+    const unexpected = discoveredFilenames.filter(
+      (filename) => !expectedFilenames.includes(filename),
+    );
+    if (missing.length > 0 || unexpected.length > 0) {
+      throw new Error(
+        [
+          `${region} 怪物母版与清单不一致。`,
+          missing.length > 0 ? `缺少：${missing.join(', ')}` : '',
+          unexpected.length > 0 ? `多出：${unexpected.join(', ')}` : '',
+        ]
+          .filter(Boolean)
+          .join(' '),
+      );
+    }
   }
 
   for (const filename of filenames) {
@@ -171,4 +220,4 @@ for (const region of REGIONS) {
   }
 }
 
-console.log(`怪物战斗素材已生成：${jobs.length} 张。`);
+console.log(`怪物战斗素材已生成：${jobs.length} 张（${REGIONS.join(', ')}）。`);

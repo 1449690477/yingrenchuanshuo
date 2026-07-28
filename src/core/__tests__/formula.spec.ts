@@ -3,9 +3,11 @@ import {
   addStats,
   calcDamage,
   clamp,
+  combatBonusDamageMultiplier,
   combatPower,
   critMultiplier,
   damageReduction,
+  effectiveElementMultiplier,
   elementMultiplier,
   expectedDamage,
   hitChance,
@@ -13,7 +15,7 @@ import {
 } from '../formula';
 import { Rng } from '../rng';
 import { makePlayer } from '../progression';
-import type { Stats } from '../types';
+import type { CombatBonuses, Stats } from '../types';
 import { K_DEF, MIN_DAMAGE_RATIO } from '@/data/constants';
 
 const stats = (o: Partial<Stats> = {}): Stats => ({
@@ -26,6 +28,20 @@ const stats = (o: Partial<Stats> = {}): Stats => ({
   critDmg: 50,
   spd: 1,
   ...o,
+});
+
+const bonuses = (
+  o: Partial<Omit<CombatBonuses, 'elementDamage'>> & {
+    elementDamage?: Partial<CombatBonuses['elementDamage']>;
+  } = {},
+): CombatBonuses => ({
+  damageReduction: o.damageReduction ?? 0,
+  lifesteal: o.lifesteal ?? 0,
+  elementDamage: {
+    fire: o.elementDamage?.fire ?? 0,
+    ice: o.elementDamage?.ice ?? 0,
+    thunder: o.elementDamage?.thunder ?? 0,
+  },
 });
 
 describe('clamp', () => {
@@ -95,6 +111,50 @@ describe('elementMultiplier', () => {
   });
 });
 
+describe('装备战斗修正系数', () => {
+  it('元素伤害只在攻击属性与词条属性匹配时加到基础克制系数', () => {
+    const defender = makePlayer('冰目标', 10, stats(), 'ice');
+    const fire = makePlayer(
+      '炎攻击者',
+      10,
+      stats(),
+      'fire',
+      bonuses({ elementDamage: { fire: 10, ice: 50 } }),
+    );
+    const mismatch = makePlayer(
+      '错配攻击者',
+      10,
+      stats(),
+      'fire',
+      bonuses({ elementDamage: { ice: 50 } }),
+    );
+    const neutral = makePlayer(
+      '无属性攻击者',
+      10,
+      stats(),
+      'none',
+      bonuses({ elementDamage: { fire: 50 } }),
+    );
+
+    expect(effectiveElementMultiplier(fire, defender)).toBeCloseTo(1.35, 8);
+    expect(effectiveElementMultiplier(mismatch, defender)).toBeCloseTo(1.25, 8);
+    expect(effectiveElementMultiplier(neutral, defender)).toBe(1);
+  });
+
+  it('词条减伤使用百分点并限制在 0%~100%', () => {
+    expect(
+      combatBonusDamageMultiplier(
+        makePlayer('目标', 10, stats(), 'none', bonuses({ damageReduction: 25 })),
+      ),
+    ).toBeCloseTo(0.75, 8);
+    expect(
+      combatBonusDamageMultiplier(
+        makePlayer('目标', 10, stats(), 'none', bonuses({ damageReduction: 999 })),
+      ),
+    ).toBe(0);
+  });
+});
+
 describe('calcDamage', () => {
   it('必定命中时伤害为正', () => {
     const rng = new Rng(1);
@@ -144,12 +204,89 @@ describe('calcDamage', () => {
     expect(r2.crit).toBe(false);
     expect(r1.damage).toBeGreaterThan(r2.damage);
   });
+
+  it('词条减伤与防御减伤相乘，逐击和期望伤害都按 20% 等比降低', () => {
+    const attacker = makePlayer('p', 10, stats({ atk: 1000, acc: 99999, critRate: 0 }));
+    const plain = makePlayer('m', 10, stats({ def: 100, eva: 0 }));
+    const reduced = makePlayer(
+      'm',
+      10,
+      stats({ def: 100, eva: 0 }),
+      'none',
+      bonuses({ damageReduction: 20 }),
+    );
+
+    const plainRoll = calcDamage(attacker, plain, 1, new Rng(80));
+    const reducedRoll = calcDamage(attacker, reduced, 1, new Rng(80));
+    expect(reducedRoll.damage / plainRoll.damage).toBeCloseTo(0.8, 8);
+    expect(expectedDamage(attacker, reduced, 1) / expectedDamage(attacker, plain, 1)).toBeCloseTo(
+      0.8,
+      8,
+    );
+  });
+
+  it('词条减伤在最终保底伤害前应用，100% 减伤仍保留 MIN_DAMAGE floor', () => {
+    const attacker = makePlayer('p', 10, stats({ atk: 1000, acc: 99999, critRate: 0 }));
+    const defender = makePlayer(
+      'm',
+      10,
+      stats({ def: 100, eva: 0 }),
+      'none',
+      bonuses({ damageReduction: 100 }),
+    );
+    expect(calcDamage(attacker, defender, 1, new Rng(81)).damage).toBe(
+      attacker.stats.atk * MIN_DAMAGE_RATIO,
+    );
+    expect(expectedDamage(attacker, defender, 1)).toBe(attacker.stats.atk * MIN_DAMAGE_RATIO);
+  });
+
+  it('匹配的元素伤害会同时提高逐击与期望伤害，错配词条不生效', () => {
+    const defender = makePlayer('m', 10, stats({ def: 0, eva: 0 }), 'ice');
+    const plain = makePlayer('p', 10, stats({ acc: 99999, critRate: 0 }), 'fire');
+    const matched = makePlayer(
+      'p',
+      10,
+      stats({ acc: 99999, critRate: 0 }),
+      'fire',
+      bonuses({ elementDamage: { fire: 10 } }),
+    );
+    const mismatched = makePlayer(
+      'p',
+      10,
+      stats({ acc: 99999, critRate: 0 }),
+      'fire',
+      bonuses({ elementDamage: { thunder: 10 } }),
+    );
+
+    expect(calcDamage(matched, defender, 1, new Rng(82)).damage).toBeGreaterThan(
+      calcDamage(plain, defender, 1, new Rng(82)).damage,
+    );
+    expect(calcDamage(mismatched, defender, 1, new Rng(82)).damage).toBeCloseTo(
+      calcDamage(plain, defender, 1, new Rng(82)).damage,
+      8,
+    );
+    expect(expectedDamage(matched, defender, 1)).toBeGreaterThan(
+      expectedDamage(plain, defender, 1),
+    );
+  });
 });
 
 describe('expectedDamage', () => {
   it('与大量 calcDamage 采样的均值接近', () => {
-    const a = makePlayer('p', 30, stats({ atk: 500, critRate: 25 }));
-    const d = makePlayer('m', 30, stats({ def: 300, eva: 40 }));
+    const a = makePlayer(
+      'p',
+      30,
+      stats({ atk: 500, critRate: 25 }),
+      'fire',
+      bonuses({ elementDamage: { fire: 8 } }),
+    );
+    const d = makePlayer(
+      'm',
+      30,
+      stats({ def: 300, eva: 40 }),
+      'ice',
+      bonuses({ damageReduction: 12 }),
+    );
 
     const rng = new Rng(20260726);
     const N = 30000;

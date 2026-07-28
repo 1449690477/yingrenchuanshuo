@@ -4,10 +4,11 @@ import { BookOpen, ChevronDown, Sparkles } from '@lucide/vue';
 import { abbr } from '@/core/format';
 import { battleVitalsAtProgress } from '@/core/battleVisual';
 import { aggregateLootEntries, type LootDisplayCategory } from '@/core/lootGrouping';
-import { averageSkillMultiplier, makeMonster, makePlayer } from '@/core/progression';
+import { makeMonster, makePlayer } from '@/core/progression';
 import { useInventoryStore } from '@/stores/inventory';
 import { usePlayerStore } from '@/stores/player';
 import { useStageStore } from '@/stores/stage';
+import { idleEfficiencyPresentation } from '@/ui/idleEfficiencyPresentation';
 import { requireChapter, requireRegionOfChapter } from '@/data/regions';
 import { requireMonster } from '@/data/monsters';
 import { requireEquipment } from '@/data/equipment';
@@ -53,7 +54,7 @@ const idleStats = computed(() => [
   { label: '击杀进度', value: stage.cleared ? '已通关' : `${stage.kills}/${stage.killTarget}` },
   { label: '击杀速度', value: `${stage.kps.toFixed(2)} 只/秒` },
   { label: '本轮掉落', value: `${stage.lootLog.length} 件` },
-  { label: '战力对比', value: `${Math.round(stage.cpRatio * 100)}%` },
+  { label: '战力参考', value: `${Math.round(stage.cpRatio * 100)}%` },
 ]);
 
 /** 掉落日志里史诗以上好货的数量分布，一眼看出这波挂机缘不缘。 */
@@ -106,10 +107,16 @@ const battleVitals = computed(() => {
   const currentPlayer = player.player;
   if (!currentPlayer) return null;
   return battleVitalsAtProgress(
-    makePlayer(currentPlayer.name, currentPlayer.level, player.finalStats),
+    makePlayer(
+      currentPlayer.name,
+      currentPlayer.level,
+      player.finalStats,
+      player.playerCombatElement,
+      player.equipCombatBonuses,
+    ),
     makeMonster(target.value),
     stage.battleProgress,
-    averageSkillMultiplier(currentPlayer.level),
+    player.playerSkillMultiplier,
   );
 });
 
@@ -127,13 +134,8 @@ const recentDrop = computed(() => {
   };
 });
 
-/** 战力提示。宁可提示得保守，也不要让玩家白挂。 */
-const cpWarn = computed(() => {
-  if (stage.cpRatio >= 1) return null;
-  if (stage.cpRatio >= 0.8) return { level: 'ok', text: '战力略低，效率会慢一些' };
-  if (stage.cpRatio >= 0.6) return { level: 'mid', text: '战力不足，建议先提升装备' };
-  return { level: 'stop', text: '战力过低，已停止挂机，换低一点的关卡吧' };
-});
+/** 真实承伤结算给出的效率提示；推荐战力只保留为右侧参考值。 */
+const efficiencyStatus = computed(() => idleEfficiencyPresentation(stage.battleEfficiency));
 </script>
 
 <template>
@@ -151,10 +153,14 @@ const cpWarn = computed(() => {
       </span>
     </button>
 
-    <div v-if="cpWarn" class="warn" :class="cpWarn.level">
-      <span>{{ cpWarn.text }}</span>
-      <span class="warn-num num">
-        {{ abbr(player.cp) }} / {{ abbr(stage.current.recommendCP) }}
+    <div class="efficiency-row" :class="efficiencyStatus.level">
+      <span class="efficiency-copy">
+        <strong class="num">战斗效率 {{ efficiencyStatus.percent }}%</strong>
+        <small v-if="efficiencyStatus.detail">· {{ efficiencyStatus.detail }}</small>
+      </span>
+      <span class="efficiency-reference">
+        战力参考
+        <b class="num">{{ abbr(player.cp) }} / {{ abbr(stage.current.recommendCP) }}</b>
       </span>
     </div>
 
@@ -438,32 +444,78 @@ const cpWarn = computed(() => {
   text-shadow: 0 1px 4px rgb(24 38 52 / 58%);
 }
 
-.warn {
-  display: flex;
+.efficiency-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
   padding: 8px 12px;
-  font-size: 11px;
+  border: 1px solid transparent;
   border-radius: var(--r-sm);
 }
 
-.warn.ok {
-  color: #8a7330;
-  background: #fff6e0;
-}
-.warn.mid {
-  color: #a3591c;
-  background: #ffeed6;
-}
-.warn.stop {
-  color: #a33b43;
-  background: #ffe4e6;
+.efficiency-row.smooth {
+  color: #2f8059;
+  background: #eaf8f0;
+  border-color: #c8ead7;
 }
 
-.warn-num {
-  flex-shrink: 0;
+.efficiency-row.strained {
+  color: #806b21;
+  background: #fff7dc;
+  border-color: #f0df9d;
+}
+
+.efficiency-row.pressured {
+  color: #a45a24;
+  background: #fff0df;
+  border-color: #f0c79f;
+}
+
+.efficiency-copy {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  line-height: 1.35;
+}
+
+.efficiency-copy strong {
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.efficiency-copy small {
+  font-size: 10px;
   font-weight: 700;
+}
+
+.efficiency-reference {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+  flex-shrink: 0;
+  color: var(--text-dim);
+  font-size: 8px;
+  line-height: 1.25;
+}
+
+.efficiency-reference b {
+  color: currentcolor;
+  font-size: 10px;
+}
+
+@media (width <= 350px) {
+  .efficiency-row {
+    grid-template-columns: 1fr;
+    gap: 3px;
+  }
+
+  .efficiency-reference {
+    align-items: center;
+    flex-direction: row;
+    gap: 4px;
+  }
 }
 
 .battle {

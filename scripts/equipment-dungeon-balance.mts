@@ -59,7 +59,12 @@ function entryInstances(
   const rng = new Rng(90_000 + CLASS_IDS.indexOf(classId) * 997);
   const enhance = enhanceByTier[tierId];
   return entryDefinitions(tierId, classId).map((definition, index) => {
-    const instance = createInstance(definition, rng, `balance-${tierId}-${classId}-${index}`);
+    const instance = createInstance(
+      definition,
+      rng,
+      `balance-${tierId}-${classId}-${index}`,
+      classId,
+    );
     instance.enhance = enhance;
     instance.enhanceGainPermille = instance.enhanceGainPermille.map((_, gainIndex) =>
       gainIndex < enhance ? 80 : 0,
@@ -77,7 +82,7 @@ function playerFor(tierId: EquipmentDungeonTierId, classId: ClassId) {
     applyEquipmentSetStats(
       addStats(
         baseStatsFor(classId, tier.level),
-        totalEquipStats(equipment, (id) => EQUIPMENT[id]),
+        totalEquipStats(equipment, (id) => EQUIPMENT[id], classId),
       ),
       setResolution,
     ),

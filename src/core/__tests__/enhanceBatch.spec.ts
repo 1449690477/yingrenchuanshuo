@@ -24,7 +24,8 @@ function instance(
       index < enhance ? 80 : 0,
     ),
     enhanceLuck: {},
-    affixes: [{ key: 'atk', value: 3 }],
+    affixes: [{ key: 'atk', value: 3, tier: 3 }],
+    reforgeResonance: 0,
     locked: false,
     ...overrides,
   };
@@ -169,6 +170,41 @@ describe('单件一键强化', () => {
     ]);
     expect(result.nextRngState).toBe(rngState);
     expect(result.instances[0]!.enhance).toBe(0);
+  });
+
+  it('待确认洗练候选在 +13 碎裂判定前硬拒绝，资产与 RNG 都不推进', () => {
+    const rngState = 0x2468_1357;
+    const originalWallet = wallet();
+    const pending = candidate('paid-pending', 12, 20, 0, {
+      pendingAffixChange: {
+        operation: 'temper',
+        affixIndex: 0,
+        candidate: { key: 'atk', value: 9, tier: 5 },
+      },
+    });
+
+    const result = enhanceBatch(
+      input({
+        rngState,
+        wallet: originalWallet,
+        candidates: [pending],
+        targetLevel: 13,
+      }),
+    );
+
+    expect(result.stopReason).toBe('blocked');
+    expect(result.attempts).toEqual([]);
+    expect(result.blocked).toMatchObject([
+      {
+        uid: 'paid-pending',
+        reason: 'pending-affix-result',
+        currentLevel: 12,
+        targetLevel: 13,
+      },
+    ]);
+    expect(result.wallet).toEqual(originalWallet);
+    expect(result.nextRngState).toBe(rngState);
+    expect(result.instances[0]).toEqual(pending.instance);
   });
 
   it('+10 随机失败会掉一级并把幸运值留在 +10 独立桶', () => {
