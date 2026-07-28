@@ -53,12 +53,24 @@ import {
 import {
   createFixedInstance,
   createInstance,
+  hasFullyFixedAffixes,
   instanceStats,
   rollEnhanceGainPermille,
   totalEquipStats,
   type PermilleRoll,
   type EnhanceGainGrade,
 } from '@/core/equipment';
+import {
+  applyEquipmentSetStats,
+  resolveEquipmentSetBonuses,
+} from '@/core/equipmentSets';
+import {
+  equipmentDungeonAttemptsRemaining,
+  refreshEquipmentDungeonDay,
+  resolveEquipmentDungeonChallenge,
+  type EquipmentDungeonBlockReason,
+  type EquipmentDungeonWaveResult,
+} from '@/core/equipmentDungeon';
 import { decomposeGold } from '@/core/economy';
 import {
   advanceEncounterState,
@@ -105,6 +117,10 @@ import {
 import { requireChapter, requireRegionOfChapter } from '@/data/regions';
 import { requireShopOffer } from '@/data/shop';
 import { battleRhythmSkills } from '@/data/skills';
+import {
+  getEquipmentDungeonStage,
+  type EquipmentDungeonStage,
+} from '@/data/equipmentDungeons';
 
 import { createSave, type SaveData } from '@/save/schema';
 import { clearSave, loadSave, saveSave } from '@/save/storage';
@@ -194,6 +210,29 @@ export type ClassSwitchResult =
       cpDelta: number;
     };
 
+export type EquipmentDungeonRunResult =
+  | {
+      ok: false;
+      reason: 'no-save' | 'unknown-stage' | EquipmentDungeonBlockReason;
+    }
+  | {
+      ok: true;
+      win: false;
+      stage: EquipmentDungeonStage;
+      waves: EquipmentDungeonWaveResult[];
+      durationMs: number;
+    }
+  | {
+      ok: true;
+      win: true;
+      stage: EquipmentDungeonStage;
+      waves: EquipmentDungeonWaveResult[];
+      durationMs: number;
+      firstClear: boolean;
+      drops: LootResult[];
+      instances: EquipmentInstance[];
+    };
+
 const AUTO_SAVE_INTERVAL_MS = 3_000;
 const LOOT_LOG_MAX = 40;
 /** 战斗拍子的环形缓冲长度。演出是瞬时的，留太多只会占内存。 */
@@ -272,12 +311,22 @@ export const useGameStore = defineStore('game', () => {
     );
   });
 
+  const equipmentSetResolution = computed(() =>
+    resolveEquipmentSetBonuses(
+      SLOT_ORDER.map((slot) => save.value?.equipped[slot] ?? null),
+      getEquipment,
+    ),
+  );
+
   /** 最终属性 = 裸属性 + 装备，再乘职业系数（顺序见 ADR-007） */
   const finalStats = computed<Stats>(() => {
     if (!save.value) return zeroStats();
     const p = save.value.player;
     const base = baseStatsFor(p.classId, p.level);
-    const combined = addStats(base, equipStats.value);
+    const combined = applyEquipmentSetStats(
+      addStats(base, equipStats.value),
+      equipmentSetResolution.value,
+    );
     combined.critRate = Math.min(CRIT_RATE_CAP, combined.critRate);
     return applyClassMods(p.classId, combined);
   });
@@ -298,6 +347,11 @@ export const useGameStore = defineStore('game', () => {
 
   const staminaMax = computed(() => staminaMaxForLevel(player.value?.level ?? 1));
   const pendingEncounters = computed(() => save.value?.encounters.pending ?? []);
+  const equipmentDungeonRemaining = computed(() =>
+    save.value
+      ? equipmentDungeonAttemptsRemaining(save.value.equipmentDungeon, Date.now())
+      : 0,
+  );
 
   /** 当前关卡是否已通关 */
   const currentCleared = computed(
@@ -344,7 +398,9 @@ export const useGameStore = defineStore('game', () => {
       goldPerKill: monsterGold(monDef.level, monDef.type),
       lootTable: requireLootTable(stage.lootTableId),
       maxKillsPerSec: stage.maxKillsPerSec,
-      skillMultiplier: averageSkillMultiplier(p.level),
+      skillMultiplier:
+        averageSkillMultiplier(p.level) +
+        equipmentSetResolution.value.skillMultiplierBonus,
     };
   }
 
@@ -739,7 +795,7 @@ export const useGameStore = defineStore('game', () => {
       // 装备逐件生成实例（每件的随机词条不同）
       for (let i = 0; i < drop.count; i++) {
         const uid = `e${s.nextUid}`;
-        const inst = eqDef.boutiqueTheme
+        const inst = hasFullyFixedAffixes(eqDef)
           ? createFixedInstance(eqDef, uid, true)
           : createInstance(eqDef, rng.derive(s.nextUid), uid);
         s.nextUid++;
@@ -920,6 +976,106 @@ export const useGameStore = defineStore('game', () => {
     save.value.encounters.resolvedCount += 1;
     void persist();
     return { ok: true, outcome: choice.outcome, rewards: result.rewards };
+  }
+
+  // ─────────── 装备副本 ───────────
+
+  function refreshEquipmentDungeon(now = Date.now()): void {
+    if (!save.value) return;
+    const previousDayKey = save.value.equipmentDungeon.dayKey;
+    const next = refreshEquipmentDungeonDay(save.value.equipmentDungeon, now);
+    save.value.equipmentDungeon = next;
+    if (next.dayKey !== previousDayKey) void persist();
+  }
+
+  function runEquipmentDungeon(
+    stageId: string,
+    now = Date.now(),
+  ): EquipmentDungeonRunResult {
+    if (!save.value) return { ok: false, reason: 'no-save' };
+    const stage = getEquipmentDungeonStage(stageId);
+    if (!stage) return { ok: false, reason: 'unknown-stage' };
+
+    const s = save.value;
+    const previousDayKey = s.equipmentDungeon.dayKey;
+    const planned = resolveEquipmentDungeonChallenge({
+      stage,
+      state: s.equipmentDungeon,
+      pity: s.progress.pity,
+      player: makePlayer(s.player.name, s.player.level, finalStats.value),
+      classId: s.player.classId,
+      playerSkillMultiplier:
+        averageSkillMultiplier(s.player.level) +
+        equipmentSetResolution.value.skillMultiplierBonus,
+      rngState: rng.getState(),
+      now,
+    });
+
+    if (!planned.ok) {
+      s.equipmentDungeon = planned.state;
+      if (planned.state.dayKey !== previousDayKey) void persist();
+      return { ok: false, reason: planned.reason };
+    }
+
+    if (!planned.win) {
+      // 失败只允许提交跨日刷新；核心已保证次数、保底和 RNG 不变。
+      s.equipmentDungeon = planned.state;
+      if (planned.state.dayKey !== previousDayKey) void persist();
+      return {
+        ok: true,
+        win: false,
+        stage,
+        waves: planned.waves,
+        durationMs: planned.durationMs,
+      };
+    }
+
+    // 先把全部装备实例规划在局部变量中；配置缺失时在触碰存档前直接抛错。
+    const instanceRng = new Rng(planned.nextRngState);
+    const instances: EquipmentInstance[] = [];
+    let nextUid = s.nextUid;
+    for (const drop of planned.drops) {
+      const definition = requireEquipment(drop.itemId);
+      if (definition.slot !== stage.slot || definition.quality !== stage.quality) {
+        throw new Error(
+          `[配置错误] ${stage.id} 掉出了错误装备 ${definition.id}（${definition.slot}/${definition.quality}）`,
+        );
+      }
+      for (let index = 0; index < drop.count; index++) {
+        const uid = `e${nextUid}`;
+        const instance = hasFullyFixedAffixes(definition)
+          ? createFixedInstance(definition, uid, true)
+          : createInstance(definition, instanceRng.derive(nextUid), uid);
+        // 首通奖励是图鉴启动资产，必须锁定，不能被满背包安全裁剪静默分解。
+        if (planned.firstClear) instance.locked = true;
+        instances.push(instance);
+        nextUid += 1;
+      }
+    }
+
+    // 从这里开始只做同步赋值，构成一次原子提交。
+    s.equipmentDungeon = planned.state;
+    s.progress.pity = planned.pity;
+    rng.setState(planned.nextRngState);
+    s.nextUid = nextUid;
+    s.bag.equipment.push(...instances);
+    for (const drop of planned.drops) {
+      const definition = requireEquipment(drop.itemId);
+      pushLog(drop.itemId, definition.name, drop.count, definition.quality, true);
+    }
+    enforceBagCapacity();
+    void persist();
+
+    return {
+      ok: true,
+      win: true,
+      stage,
+      waves: planned.waves,
+      durationMs: planned.durationMs,
+      firstClear: planned.firstClear,
+      drops: planned.drops,
+      instances,
+    };
   }
 
   // ─────────── 装备操作 ───────────
@@ -1433,6 +1589,7 @@ export const useGameStore = defineStore('game', () => {
     player,
     finalStats,
     equipStats,
+    equipmentSetResolution,
     cp,
     cpRatio,
     canIdle,
@@ -1445,6 +1602,7 @@ export const useGameStore = defineStore('game', () => {
     staminaMax,
     kps,
     pendingEncounters,
+    equipmentDungeonRemaining,
     // 动作
     init,
     startNewGame,
@@ -1461,6 +1619,8 @@ export const useGameStore = defineStore('game', () => {
     isStageUnlocked,
     takeTutorial,
     resolvePendingEncounter,
+    refreshEquipmentDungeon,
+    runEquipmentDungeon,
     equip,
     unequip,
     equipBest,

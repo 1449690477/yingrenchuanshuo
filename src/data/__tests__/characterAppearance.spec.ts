@@ -121,4 +121,41 @@ describe('角色换装外观解析', () => {
       'assets/effects/boutique/berry-cream-catkin.png',
     );
   });
+
+  it('装备副本礼服使用整人替换，头冠与武器继续独立叠加且不冒充商店主题', () => {
+    const equipped = emptyEquipped();
+    equipped.body = instance('eq_dungeon_azure_body_witch');
+    equipped.head = instance('eq_dungeon_azure_head_1');
+    equipped.weapon = instance('eq_dungeon_azure_weapon_witch');
+
+    const appearance = resolveCharacterAppearance('witch', 20, equipped);
+
+    expect(appearance.baseAsset).toBe(
+      'assets/characters/modular/dungeon/azure/witch-body.png',
+    );
+    expect(appearance.layers.map((layer) => layer.asset)).toEqual([
+      'assets/characters/modular/dungeon/azure/witch-head.png',
+      'assets/characters/modular/dungeon/azure/witch-weapon.png',
+    ]);
+    expect(appearance.visibleEquippedCount).toBe(3);
+    expect(appearance.activeDungeonTier).toBe('azure');
+    expect(appearance.activeBoutiqueTheme).toBeNull();
+    expect(appearance.boutiqueEffectAsset).toBeNull();
+    expect(appearance.signature).toContain('body:dungeon-azure-body');
+    expect(appearance.signature).toContain('dungeon:azure');
+    expect(appearance.ariaLabel).toContain('晴蓝茶会共鸣外观');
+  });
+
+  it('仅穿戴副本首饰也会触发档位粒子，但不会伪造可见纸娃娃层', () => {
+    const equipped = emptyEquipped();
+    equipped.ring = instance('eq_dungeon_crimson_ring_1');
+
+    const appearance = resolveCharacterAppearance('catkin', 78, equipped);
+
+    expect(appearance.layers).toEqual([]);
+    expect(appearance.baseAsset).toBe('assets/characters/modular/catkin/base.png');
+    expect(appearance.visibleEquippedCount).toBe(0);
+    expect(appearance.activeDungeonTier).toBe('crimson');
+    expect(appearance.ariaLabel).toContain('绯樱典藏共鸣外观');
+  });
 });

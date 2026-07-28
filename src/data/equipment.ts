@@ -11,6 +11,7 @@
 import type { Affix, AffixKey, EquipmentDef, EquipSlot, Quality } from '@/core/types';
 import { QUALITY_AFFIX_COUNT, SLOT_ORDER } from './constants';
 import { BOUTIQUE_THEME_LIST, boutiqueAppearanceId, boutiqueEquipmentId } from './boutique';
+import { EQUIPMENT_DUNGEON_GEAR_LIST } from './equipmentDungeonGear';
 
 /** 每个区域一套命名主题：8 个槽位各一个词根 */
 interface NamingTheme {
@@ -144,6 +145,13 @@ function buildEquipment(): Record<string, EquipmentDef> {
         ...(item.classId ? { classId: item.classId } : {}),
       };
     }
+  }
+
+  for (const definition of EQUIPMENT_DUNGEON_GEAR_LIST) {
+    if (out[definition.id]) {
+      throw new Error(`[配置错误] 装备 ID 重复：${definition.id}`);
+    }
+    out[definition.id] = definition;
   }
 
   return out;

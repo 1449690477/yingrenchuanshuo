@@ -6,7 +6,7 @@ import { decomposeGold } from '@/core/economy';
 import { createInstance } from '@/core/equipment';
 import { CLASS_IDS, type EquipmentInstance } from '@/core/types';
 import { Rng } from '@/core/rng';
-import { ENHANCE_MAX, ENHANCE_MATERIAL_IDS } from '@/data/constants';
+import { ENHANCE_MAX, ENHANCE_MATERIAL_IDS, SLOT_ORDER } from '@/data/constants';
 import { requireEquipment } from '@/data/equipment';
 import { SHOP_OFFERS } from '@/data/shop';
 import { ORDERED_STAGE_IDS, STAGES, nextStageId, totalMonsterCount } from '@/data/stages';
@@ -930,6 +930,172 @@ describe('enhancement transaction', () => {
     expect(result).toEqual({ ok: false, reason });
     expect(game.save).toEqual(before);
     await game.persist();
+  });
+});
+
+describe('equipment dungeon transaction', () => {
+  const now = Date.parse('2026-07-28T10:00:00+08:00');
+
+  function dungeonSave(powerful: boolean): SaveData {
+    const save = createSave('副本测试', 'witch', 20260728, now);
+    save.player.level = 90;
+    if (powerful) {
+      const weapon = createInstance(
+        requireEquipment('eq_r1_weapon_rare'),
+        new Rng(20260729),
+        'dungeon-power',
+      );
+      weapon.affixes = [
+        { key: 'atk', value: 10_000_000 },
+        { key: 'def', value: 1_000_000 },
+        { key: 'hp', value: 10_000_000 },
+        { key: 'acc', value: 100_000 },
+        { key: 'eva', value: 1_000 },
+        { key: 'spd', value: 2 },
+      ];
+      save.equipped.weapon = weapon;
+    }
+    return save;
+  }
+
+  it('胜利原子提交次数、RNG、UID、定向装备与持久化记录', async () => {
+    const game = useGameStore();
+    const save = dungeonSave(true);
+    const beforeRng = save.rngState;
+    const beforeUid = save.nextUid;
+    game.loadFrom(save);
+
+    const result = game.runEquipmentDungeon('equipment_weapon_azure', now);
+
+    expect(result.ok && result.win).toBe(true);
+    if (!result.ok || !result.win) return;
+    expect(result.instances).toHaveLength(2);
+    expect(result.instances[0]).toMatchObject({
+      uid: `e${beforeUid}`,
+      defId: 'eq_dungeon_azure_weapon_witch',
+      enhance: 0,
+      locked: true,
+    });
+    // 装备副本只固定一条职业词条，剩余蓝装词条和胚子必须继续随机。
+    expect(result.instances[0]?.affixes).toHaveLength(1);
+    expect(game.save?.equipmentDungeon).toMatchObject({
+      clearsToday: 1,
+      totalClears: 1,
+    });
+    expect(game.save?.equipmentDungeon.records.equipment_weapon_azure?.clears).toBe(1);
+    expect(game.save?.rngState).not.toBe(beforeRng);
+    expect(game.save?.nextUid).toBe(beforeUid + 2);
+    expect(game.equipmentDungeonRemaining).toBe(2);
+
+    await game.persist();
+    const loaded = await loadSave();
+    expect(loaded?.equipmentDungeon.records.equipment_weapon_azure?.clears).toBe(1);
+    expect(loaded?.bag.equipment.some((item) => item.defId === result.instances[0]?.defId)).toBe(
+      true,
+    );
+  });
+
+  it('失败不消耗次数、不生成装备、不推进 RNG 与保底', async () => {
+    const game = useGameStore();
+    const save = dungeonSave(false);
+    save.progress.pity.keep = 9;
+    const before = jsonClone(save);
+    game.loadFrom(save);
+
+    const result = game.runEquipmentDungeon('equipment_weapon_azure', now);
+
+    expect(result.ok && !result.win).toBe(true);
+    expect(game.save?.equipmentDungeon).toEqual(before.equipmentDungeon);
+    expect(game.save?.progress.pity).toEqual(before.progress.pity);
+    expect(game.save?.rngState).toBe(before.rngState);
+    expect(game.save?.nextUid).toBe(before.nextUid);
+    expect(game.save?.bag.equipment).toEqual(before.bag.equipment);
+    await game.persist();
+  });
+
+  it('同部位前一档未通关和每日次数用完都会阻止发奖', () => {
+    const game = useGameStore();
+    const save = dungeonSave(true);
+    game.loadFrom(save);
+
+    expect(game.runEquipmentDungeon('equipment_weapon_violet', now)).toEqual({
+      ok: false,
+      reason: 'previous-tier-locked',
+    });
+
+    game.save!.equipmentDungeon.clearsToday = 3;
+    expect(game.runEquipmentDungeon('equipment_weapon_azure', now)).toEqual({
+      ok: false,
+      reason: 'daily-limit',
+    });
+    expect(game.save?.bag.equipment).toHaveLength(0);
+  });
+
+  it('跨 04:00 日切恢复三次，永久纪录保留', async () => {
+    const game = useGameStore();
+    const save = dungeonSave(true);
+    save.equipmentDungeon = {
+      dayKey: '2026-07-27',
+      clearsToday: 3,
+      totalClears: 2,
+      records: {
+        equipment_ring_azure: {
+          clears: 2,
+          firstClearedAt: now - 86_400_000,
+          bestDurationMs: 22_000,
+        },
+      },
+    };
+    game.loadFrom(save);
+
+    const result = game.runEquipmentDungeon('equipment_weapon_azure', now);
+
+    expect(result.ok && result.win).toBe(true);
+    expect(game.save?.equipmentDungeon.dayKey).toBe('2026-07-28');
+    expect(game.save?.equipmentDungeon.clearsToday).toBe(1);
+    expect(game.save?.equipmentDungeon.totalClears).toBe(3);
+    expect(game.save?.equipmentDungeon.records.equipment_ring_azure?.clears).toBe(2);
+    await game.persist();
+  });
+
+  it('穿齐八件副本套装后，属性与技能共鸣真实进入 store 结算', () => {
+    const game = useGameStore();
+    const save = dungeonSave(false);
+    const ids = [
+      'eq_dungeon_azure_weapon_witch',
+      'eq_dungeon_azure_head_1',
+      'eq_dungeon_azure_body_witch',
+      'eq_dungeon_azure_necklace_1',
+      'eq_dungeon_azure_bracelet_1',
+      'eq_dungeon_azure_ring_1',
+      'eq_dungeon_azure_belt_1',
+      'eq_dungeon_azure_shoes_1',
+    ];
+    SLOT_ORDER.forEach((slot, index) => {
+      save.equipped[slot] = createInstance(
+        requireEquipment(ids[index]!),
+        new Rng(80_000 + index),
+        `set-${index}`,
+      );
+    });
+    game.loadFrom(save);
+
+    expect(game.equipmentSetResolution.sets[0]).toMatchObject({
+      equippedPieces: 8,
+      activeBonuses: [
+        { pieces: 2 },
+        { pieces: 4 },
+        { pieces: 6 },
+        { pieces: 8 },
+      ],
+    });
+    expect(game.equipmentSetResolution.skillMultiplierBonus).toBe(0.05);
+    expect(game.equipmentSetResolution.statPercent).toMatchObject({
+      atk: 0.04,
+      def: 0.06,
+      hp: 0.08,
+    });
+    expect(game.finalStats.critRate).toBeGreaterThanOrEqual(10);
   });
 });
 

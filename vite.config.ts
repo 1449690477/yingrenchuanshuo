@@ -37,7 +37,12 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,webp,woff2}'],
         // 换装层会随区域持续增长，不应全部塞进首次安装包。
-        globIgnores: ['assets/characters/modular/**'],
+        globIgnores: [
+          'assets/characters/modular/**',
+          'assets/dungeons/equipment/**',
+          'assets/monsters/equipment-dungeon/**',
+          'assets/equipment/dungeon/**',
+        ],
         runtimeCaching: [
           {
             urlPattern: ({ url }) => url.pathname.includes('/assets/characters/modular/'),
@@ -46,7 +51,22 @@ export default defineConfig({
               cacheName: 'character-appearance-v1',
               cacheableResponse: { statuses: [0, 200] },
               expiration: {
-                maxEntries: 64,
+                maxEntries: 160,
+                maxAgeSeconds: 60 * 60 * 24 * 30,
+              },
+            },
+          },
+          {
+            urlPattern: ({ url }) =>
+              url.pathname.includes('/assets/dungeons/equipment/') ||
+              url.pathname.includes('/assets/monsters/equipment-dungeon/') ||
+              url.pathname.includes('/assets/equipment/dungeon/'),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'equipment-dungeon-art-v1',
+              cacheableResponse: { statuses: [0, 200] },
+              expiration: {
+                maxEntries: 112,
                 maxAgeSeconds: 60 * 60 * 24 * 30,
               },
             },

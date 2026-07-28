@@ -8,6 +8,7 @@ import {
   enhanceGainGrade,
   enhanceMultiplier,
   forgeStageAt,
+  hasFullyFixedAffixes,
   instanceStats,
   itemBaseValue,
   rollBasePermille,
@@ -167,6 +168,41 @@ describe('随机词条', () => {
     const random = rollAffixes(definition, new Rng(2027));
     expect(random).toHaveLength(1);
     expect(random.some((affix) => affix.key === 'atk' || affix.key === 'critRate')).toBe(false);
+  });
+
+  it('只有填满该品质全部词条名额才属于确定模板', () => {
+    expect(
+      hasFullyFixedAffixes(
+        def({
+          quality: 'epic',
+          fixedAffixes: [{ key: 'atk', value: 10 }],
+        }),
+      ),
+    ).toBe(false);
+    expect(
+      hasFullyFixedAffixes(
+        def({
+          quality: 'epic',
+          fixedAffixes: [
+            { key: 'atk', value: 10 },
+            { key: 'def', value: 8 },
+            { key: 'hp', value: 80 },
+          ],
+        }),
+      ),
+    ).toBe(true);
+    expect(() =>
+      hasFullyFixedAffixes(
+        def({
+          quality: 'rare',
+          fixedAffixes: [
+            { key: 'atk', value: 10 },
+            { key: 'def', value: 8 },
+            { key: 'hp', value: 80 },
+          ],
+        }),
+      ),
+    ).toThrow(/超过/);
   });
 
   it('同种子生成完全相同的装备实例', () => {

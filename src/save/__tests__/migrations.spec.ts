@@ -72,6 +72,12 @@ function v5Save(): Record<string, unknown> {
   return { ...current, version: 5 };
 }
 
+function v6Save(): Record<string, unknown> {
+  const current = createSave('v6 少女', 'catkin', 29, 1_800_000_000_000);
+  const { equipmentDungeon: _removed, ...legacy } = current;
+  return { ...legacy, version: 6 };
+}
+
 describe('save migrations', () => {
   it('v0 依次迁移到当前版本且不丢旧数据', () => {
     const migrated = migrate(v0Save());
@@ -192,6 +198,24 @@ describe('save migrations', () => {
     expect(migrated.player.classId).toBe('witch');
     expect(migrated.player.gold).toBe(9_876_543);
     expect(migrated.player.name).toBe('v5 少女');
+  });
+
+  it('v6 → v7 新增装备副本日次数与永久记录，不改写旧资产', () => {
+    const raw = v6Save();
+    const legacyPlayer = raw.player as { gold: number };
+    legacyPlayer.gold = 12_345_678;
+
+    const migrated = migrate(raw);
+
+    expect(migrated.version).toBe(SAVE_VERSION);
+    expect(migrated.player.classId).toBe('catkin');
+    expect(migrated.player.gold).toBe(12_345_678);
+    expect(migrated.equipmentDungeon).toEqual({
+      dayKey: '2027-01-15',
+      clearsToday: 0,
+      totalClears: 0,
+      records: {},
+    });
   });
 
   it('当前版本不迁移，只做严格结构校验', () => {

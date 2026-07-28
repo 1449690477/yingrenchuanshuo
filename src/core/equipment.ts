@@ -233,6 +233,23 @@ export function createInstance(def: EquipmentDef, rng: Rng, uid: string): Equipm
   };
 }
 
+/**
+ * 是否为“全部词条都已写死”的确定模板。
+ *
+ * 精品商店与其 BOSS 同款属于完整固定模板；装备副本只固定一条职业定位词条，
+ * 剩余名额仍要正常掷胚子和随机词条，不能仅凭有主题外观就误判成固定珍品。
+ */
+export function hasFullyFixedAffixes(def: EquipmentDef): boolean {
+  const fixedCount = def.fixedAffixes?.length ?? 0;
+  const capacity = QUALITY_AFFIX_COUNT[def.quality];
+  if (fixedCount > capacity) {
+    throw new Error(
+      `[配置错误] ${def.id} 固定词条 ${fixedCount} 条，超过 ${def.quality} 品质容量 ${capacity}`,
+    );
+  }
+  return fixedCount === capacity;
+}
+
 /** 珍品商店、珍品 BOSS 同款与预览使用确定实例，购买时绝不盲抽。 */
 export function createFixedInstance(
   def: EquipmentDef,

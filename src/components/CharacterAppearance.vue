@@ -52,6 +52,7 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
       `forge-${appearance.forgeStage}`,
       `weapon-forge-${appearance.weaponForgeStage}`,
       appearance.activeBoutiqueTheme ? `theme-${appearance.activeBoutiqueTheme}` : '',
+      appearance.activeDungeonTier ? `dungeon-${appearance.activeDungeonTier}` : '',
     ]"
     role="img"
     :aria-label="appearance.ariaLabel"
@@ -108,6 +109,11 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
       <img :src="assetUrl(appearance.boutiqueEffectAsset)" alt="" draggable="false" />
     </span>
 
+    <span v-if="appearance.activeDungeonTier" class="dungeon-effect" aria-hidden="true">
+      <b></b>
+      <i v-for="index in 8" :key="index"></i>
+    </span>
+
     <span class="growth-particles" aria-hidden="true">
       <i v-for="n in 9" :key="n" />
     </span>
@@ -132,9 +138,122 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
 .growth-aura,
 .growth-particles,
 .enhance-particles,
-.boutique-effect {
+.boutique-effect,
+.dungeon-effect {
   position: absolute;
   inset: 0;
+}
+
+.dungeon-effect {
+  --dungeon-color: #71bdf7;
+  --dungeon-glow: #d9f4ff;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.dungeon-violet .dungeon-effect {
+  --dungeon-color: #ac78f5;
+  --dungeon-glow: #ead8ff;
+}
+
+.dungeon-auric .dungeon-effect {
+  --dungeon-color: #eeb451;
+  --dungeon-glow: #fff0b7;
+}
+
+.dungeon-crimson .dungeon-effect {
+  --dungeon-color: #ff6685;
+  --dungeon-glow: #ffd7b0;
+}
+
+.dungeon-effect b {
+  position: absolute;
+  bottom: 4%;
+  left: 50%;
+  width: 66%;
+  height: 13%;
+  background: radial-gradient(ellipse, color-mix(in srgb, var(--dungeon-glow) 54%, transparent), transparent 70%);
+  border: 1px solid color-mix(in srgb, var(--dungeon-color) 70%, white);
+  border-radius: 50%;
+  box-shadow: 0 0 12px color-mix(in srgb, var(--dungeon-color) 36%, transparent);
+  transform: translateX(-50%) rotateX(68deg);
+  animation: dungeon-ring 2.8s ease-in-out infinite;
+}
+
+.dungeon-effect i {
+  position: absolute;
+  bottom: 17%;
+  left: 50%;
+  color: var(--dungeon-glow);
+  font-size: clamp(7px, 3.1cqw, 12px);
+  font-style: normal;
+  text-shadow:
+    0 0 5px #fff,
+    0 0 8px var(--dungeon-color);
+  opacity: 0;
+  animation: dungeon-spark 2.7s ease-in-out infinite;
+  animation-delay: calc((var(--spark-index, 1) - 1) * -0.31s);
+}
+
+.dungeon-effect i::before {
+  content: '✦';
+}
+
+.dungeon-azure .dungeon-effect i::before {
+  content: '◌';
+}
+
+.dungeon-violet .dungeon-effect i::before {
+  content: '☾';
+}
+
+.dungeon-crimson .dungeon-effect i::before {
+  content: '✿';
+}
+
+.dungeon-effect i:nth-of-type(1) {
+  --spark-index: 1;
+  left: 20%;
+}
+
+.dungeon-effect i:nth-of-type(2) {
+  --spark-index: 2;
+  left: 31%;
+  bottom: 35%;
+}
+
+.dungeon-effect i:nth-of-type(3) {
+  --spark-index: 3;
+  left: 43%;
+}
+
+.dungeon-effect i:nth-of-type(4) {
+  --spark-index: 4;
+  left: 56%;
+  bottom: 39%;
+}
+
+.dungeon-effect i:nth-of-type(5) {
+  --spark-index: 5;
+  left: 69%;
+}
+
+.dungeon-effect i:nth-of-type(6) {
+  --spark-index: 6;
+  left: 79%;
+  bottom: 31%;
+}
+
+.dungeon-effect i:nth-of-type(7) {
+  --spark-index: 7;
+  left: 36%;
+  bottom: 58%;
+}
+
+.dungeon-effect i:nth-of-type(8) {
+  --spark-index: 8;
+  left: 64%;
+  bottom: 56%;
 }
 
 .doll-frame {
@@ -1469,13 +1588,41 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
   }
 }
 
+@keyframes dungeon-ring {
+  0%,
+  100% {
+    opacity: 0.52;
+    transform: translateX(-50%) rotateX(68deg) scale(0.9);
+  }
+  50% {
+    opacity: 0.92;
+    transform: translateX(-50%) rotateX(68deg) scale(1.06);
+  }
+}
+
+@keyframes dungeon-spark {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 14px) rotate(-18deg) scale(0.5);
+  }
+  35% {
+    opacity: 0.94;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -42px) rotate(24deg) scale(1.12);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .doll,
   .growth-aura,
   .growth-particles i,
   .enhance-particles i,
   .weapon-trail,
-  .boutique-effect img {
+  .boutique-effect img,
+  .dungeon-effect b,
+  .dungeon-effect i {
     animation: none !important;
   }
 }

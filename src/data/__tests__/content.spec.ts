@@ -112,7 +112,8 @@ describe('区域 1–2 内容完整性', () => {
     expect(ALL_CHAPTERS).toHaveLength(10);
     expect(Object.keys(STAGES)).toHaveLength(60);
     expect(Object.keys(MONSTERS)).toHaveLength(49);
-    expect(Object.keys(EQUIPMENT)).toHaveLength(81);
+    // 区域/珍品商店 81 件 + 定向装备副本 80 件。
+    expect(Object.keys(EQUIPMENT)).toHaveLength(161);
     expect(Object.keys(LOOT_TABLES)).toHaveLength(30);
   });
 
@@ -428,12 +429,12 @@ describe('区域 1–2 内容完整性', () => {
     }
   });
 
-  it('四职业纸娃娃底模与两区主要装备层全部透明对齐', async () => {
+  it('四职业纸娃娃底模、两区与装备副本外观全部透明对齐', async () => {
     const layerAssets = Object.values(EQUIPMENT_APPEARANCES)
-      .filter((appearance) => appearance.renderMode === 'layer')
+      .filter((appearance) => appearance.renderMode !== 'slot-only')
       .flatMap((appearance) => Object.values(appearance.assets));
     const assets = [...new Set([...Object.values(CHARACTER_BASE_ASSETS), ...layerAssets])];
-    expect(assets).toHaveLength(76);
+    expect(assets).toHaveLength(140);
 
     for (const asset of assets) {
       const assetPath = resolve('public', asset);

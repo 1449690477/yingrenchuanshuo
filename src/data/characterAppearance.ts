@@ -10,6 +10,11 @@ import {
 import { forgeStageAt } from '@/core/equipment';
 import { requireEquipment } from './equipment';
 import { BOUTIQUE_THEME_LIST, BOUTIQUE_THEMES, boutiqueAppearanceId } from './boutique';
+import {
+  EQUIPMENT_DUNGEON_TIERS,
+  equipmentDungeonAppearanceId,
+  type EquipmentDungeonTierId,
+} from './equipmentDungeonGear';
 
 export type CharacterAction =
   | 'idle'
@@ -62,7 +67,17 @@ interface SlotOnlyAppearance {
   renderMode: 'slot-only';
 }
 
-export type EquipmentAppearance = LayerAppearance | SlotOnlyAppearance;
+interface ReplacementAppearance {
+  id: string;
+  slot: 'body';
+  renderMode: 'replacement';
+  assets: Record<ClassId, string>;
+}
+
+export type EquipmentAppearance =
+  | LayerAppearance
+  | ReplacementAppearance
+  | SlotOnlyAppearance;
 
 const classAssets = (fileName: string): Record<ClassId, string> => ({
   swordsman: `assets/characters/modular/swordsman/${fileName}.png`,
@@ -120,6 +135,46 @@ function buildBoutiqueAppearances(): Record<string, EquipmentAppearance> {
     }
     for (const slot of ['necklace', 'bracelet', 'ring', 'belt'] as const) {
       const id = boutiqueAppearanceId(theme.id, slot);
+      out[id] = { id, slot, renderMode: 'slot-only' };
+    }
+  }
+  return out;
+}
+
+function dungeonClassAssets(
+  tierId: EquipmentDungeonTierId,
+  slot: 'body' | 'head' | 'shoes' | 'weapon',
+): Record<ClassId, string> {
+  return {
+    swordsman: `assets/characters/modular/dungeon/${tierId}/swordsman-${slot}.png`,
+    witch: `assets/characters/modular/dungeon/${tierId}/witch-${slot}.png`,
+    shaman: `assets/characters/modular/dungeon/${tierId}/shaman-${slot}.png`,
+    catkin: `assets/characters/modular/dungeon/${tierId}/catkin-${slot}.png`,
+  };
+}
+
+function buildEquipmentDungeonAppearances(): Record<string, EquipmentAppearance> {
+  const out: Record<string, EquipmentAppearance> = {};
+  for (const tier of EQUIPMENT_DUNGEON_TIERS) {
+    const bodyId = equipmentDungeonAppearanceId(tier.id, 'body');
+    out[bodyId] = {
+      id: bodyId,
+      slot: 'body',
+      renderMode: 'replacement',
+      assets: dungeonClassAssets(tier.id, 'body'),
+    };
+    for (const slot of ['head', 'shoes', 'weapon'] as const) {
+      const id = equipmentDungeonAppearanceId(tier.id, slot);
+      out[id] = {
+        id,
+        slot,
+        renderMode: 'layer',
+        assets: dungeonClassAssets(tier.id, slot),
+        transforms: alignedTransforms,
+      };
+    }
+    for (const slot of ['necklace', 'bracelet', 'ring', 'belt'] as const) {
+      const id = equipmentDungeonAppearanceId(tier.id, slot);
       out[id] = { id, slot, renderMode: 'slot-only' };
     }
   }
@@ -187,6 +242,7 @@ export const EQUIPMENT_APPEARANCES: Readonly<Record<string, EquipmentAppearance>
   'r2-belt': { id: 'r2-belt', slot: 'belt', renderMode: 'slot-only' },
   'r2-shoes': { id: 'r2-shoes', slot: 'shoes', renderMode: 'slot-only' },
   ...buildBoutiqueAppearances(),
+  ...buildEquipmentDungeonAppearances(),
 };
 
 export const CHARACTER_BASE_ASSETS: Readonly<Record<ClassId, string>> = {
@@ -234,6 +290,7 @@ export interface ResolvedCharacterAppearance {
   highestVisibleQuality: Quality;
   activeBoutiqueTheme: BoutiqueThemeId | null;
   boutiqueEffectAsset: string | null;
+  activeDungeonTier: EquipmentDungeonTierId | null;
   forgeStage: ForgeStage;
   weaponForgeStage: ForgeStage;
   signature: string;
@@ -267,6 +324,11 @@ export function resolveCharacterAppearance(
   let highestVisibleEnhance = 0;
   let weaponEnhance = 0;
   let activeBoutiqueTheme: BoutiqueThemeId | null = null;
+  let activeDungeonTier: EquipmentDungeonTierId | null = null;
+  let replacementBaseAsset: string | null = null;
+  let replacementId: string | null = null;
+  let visibleEquippedCount = 0;
+  const visibleNames: string[] = [];
 
   if (equipped) {
     for (const [slot, instance] of Object.entries(equipped) as [
@@ -289,6 +351,17 @@ export function resolveCharacterAppearance(
       ) {
         activeBoutiqueTheme = equipment.boutiqueTheme;
       }
+      const dungeonTier = EQUIPMENT_DUNGEON_TIERS.find(
+        (tier) => tier.setId === equipment.setId,
+      );
+      if (
+        dungeonTier &&
+        (!activeDungeonTier ||
+          EQUIPMENT_DUNGEON_TIERS.findIndex((tier) => tier.id === dungeonTier.id) >
+            EQUIPMENT_DUNGEON_TIERS.findIndex((tier) => tier.id === activeDungeonTier))
+      ) {
+        activeDungeonTier = dungeonTier.id;
+      }
       if (appearance.renderMode === 'slot-only') continue;
       if (QUALITY_RANK[equipment.quality] > QUALITY_RANK[highestVisibleQuality]) {
         highestVisibleQuality = equipment.quality;
@@ -297,9 +370,19 @@ export function resolveCharacterAppearance(
       if (slot === 'weapon') weaponEnhance = instance.enhance;
 
       const asset = appearance.assets[classId];
-      const transform = appearance.transforms[classId];
-      if (!asset || !transform) {
+      if (!asset) {
         throw new Error(`[配置错误] ${classId} 缺少装备外观：${appearance.id}`);
+      }
+      visibleEquippedCount += 1;
+      visibleNames.push(equipment.name);
+      if (appearance.renderMode === 'replacement') {
+        replacementBaseAsset = asset;
+        replacementId = appearance.id;
+        continue;
+      }
+      const transform = appearance.transforms[classId];
+      if (!transform) {
+        throw new Error(`[配置错误] ${classId} 缺少装备外观变换：${appearance.id}`);
       }
       layers.push({
         id: appearance.id,
@@ -327,31 +410,49 @@ export function resolveCharacterAppearance(
   layers.sort((a, b) => slotOrder[a.slot] - slotOrder[b.slot]);
 
   const growthTier = growthTierFor(level);
-  const visibleNames = layers.map((layer) => layer.name);
   return {
     classId,
-    baseAsset: CHARACTER_BASE_ASSETS[classId],
+    baseAsset: replacementBaseAsset ?? CHARACTER_BASE_ASSETS[classId],
     growthTier,
     layers,
     equippedCount,
-    visibleEquippedCount: layers.length,
+    visibleEquippedCount,
     highestVisibleQuality,
     activeBoutiqueTheme,
     boutiqueEffectAsset: activeBoutiqueTheme
       ? BOUTIQUE_THEMES[activeBoutiqueTheme].attackEffects[classId]
       : null,
+    activeDungeonTier,
     forgeStage: forgeStageAt(highestVisibleEnhance),
     weaponForgeStage: forgeStageAt(weaponEnhance),
     signature: [
-      layers.map((layer) => `${layer.slot}:${layer.id}`).join('|') || 'base',
+      [
+        replacementId ? `body:${replacementId}` : '',
+        layers.map((layer) => `${layer.slot}:${layer.id}`).join('|'),
+      ]
+        .filter(Boolean)
+        .join('|') || 'base',
       activeBoutiqueTheme ? `theme:${activeBoutiqueTheme}` : '',
+      activeDungeonTier ? `dungeon:${activeDungeonTier}` : '',
     ]
       .filter(Boolean)
       .join('|'),
     ariaLabel: visibleNames.length
       ? `${growthTier.label}角色，当前可见外观：${visibleNames.join('、')}${
           activeBoutiqueTheme ? `，激活${BOUTIQUE_THEMES[activeBoutiqueTheme].name}特效` : ''
+        }${
+          activeDungeonTier
+            ? `，激活${requireDungeonTier(activeDungeonTier).setName}共鸣外观`
+            : ''
         }`
-      : `${growthTier.label}角色，当前为基础训练装`,
+      : activeDungeonTier
+        ? `${growthTier.label}角色，首饰激活${requireDungeonTier(activeDungeonTier).setName}共鸣外观`
+        : `${growthTier.label}角色，当前为基础训练装`,
   };
+}
+
+function requireDungeonTier(tierId: EquipmentDungeonTierId) {
+  const tier = EQUIPMENT_DUNGEON_TIERS.find((candidate) => candidate.id === tierId);
+  if (!tier) throw new Error(`[配置错误] 装备副本外观档不存在：${tierId}`);
+  return tier;
 }

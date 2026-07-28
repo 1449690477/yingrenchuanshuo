@@ -19,6 +19,9 @@
     "broadcast": "node scripts/broadcast.mjs",
     "broadcast:start": "cmd /c scripts\\start-broadcast.bat",
     "assets:catkin": "node scripts/build-catkin-portraits.mjs && node scripts/align-catkin-layers.mjs && node scripts/build-catkin-boutique-assets.mjs && node scripts/build-catkin-skill-assets.mjs && node scripts/validate-catkin-assets.mjs",
+    "assets:equipment-dungeon": "node scripts/build-equipment-dungeon-assets.mjs && node scripts/validate-equipment-dungeon-assets.mjs",
+    "assets:equipment-dungeon:check": "node scripts/validate-equipment-dungeon-assets.mjs",
+    "balance:equipment-dungeon": "tsx scripts/equipment-dungeon-balance.mts",
     "typecheck": "vue-tsc --noEmit",
     "verify": "npm run lint && npm run typecheck && npm run test",
     "sim": "tsx scripts/simulate.ts"

@@ -11,6 +11,10 @@
 
 import { z } from 'zod';
 import type { EncounterState } from '@/core/encounters';
+import {
+  createEquipmentDungeonState,
+  type EquipmentDungeonState,
+} from '@/core/equipmentDungeon';
 import { CLASS_IDS, type ClassId, type EquipmentInstance, type EquipSlot, type Quality } from '@/core/types';
 import {
   CLASS_BASE_STATS,
@@ -22,9 +26,14 @@ import {
   STAMINA_BASE_MAX,
 } from '@/data/constants';
 import { FIRST_STAGE_ID } from '@/data/stages';
+import { EQUIPMENT_DUNGEON_RULES } from '@/data/equipmentDungeonRules';
+import {
+  EQUIPMENT_DUNGEON_STAGES,
+  EQUIPMENT_DUNGEON_STAGE_LIST,
+} from '@/data/equipmentDungeons';
 
 /** 当前存档版本。加字段就 +1。 */
-export const SAVE_VERSION = 6;
+export const SAVE_VERSION = 7;
 
 export const SAVE_KEY = 'main';
 
@@ -103,6 +112,8 @@ export interface SaveData {
   shop: ShopSave;
   /** 不打断挂机的待处理奇遇与累计进度。 */
   encounters: EncounterState;
+  /** 8 个定向装备副本共享的日次数与永久通关记录。 */
+  equipmentDungeon: EquipmentDungeonState;
 }
 
 export function emptyEquipped(): Record<EquipSlot, EquipmentInstance | null> {
@@ -154,6 +165,7 @@ export function createSave(name: string, classId: ClassId, seed: number, now: nu
     stats: { totalKills: 0, totalPlaySec: 0, bossKills: {} },
     shop: { purchasedOfferIds: [] },
     encounters: { progressSec: 0, generatedCount: 0, resolvedCount: 0, pending: [] },
+    equipmentDungeon: createEquipmentDungeonState(now),
   };
 }
 
@@ -191,6 +203,12 @@ const finiteNumber = z.number().finite();
 const nonNegativeNumber = finiteNumber.nonnegative();
 const nonNegativeInteger = z.number().int().nonnegative();
 const timestamp = nonNegativeInteger;
+const equipmentDungeonStageIds = new Set(
+  EQUIPMENT_DUNGEON_STAGE_LIST.map((stage) => stage.id),
+);
+const equipmentDungeonStageIdSchema = z
+  .string()
+  .refine((stageId) => equipmentDungeonStageIds.has(stageId), '装备副本关卡不存在');
 
 const affixSchema = z
   .object({
@@ -324,6 +342,27 @@ export const saveDataSchema = z
           .max(3),
       })
       .strict(),
+    equipmentDungeon: z
+      .object({
+        dayKey: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        clearsToday: z
+          .number()
+          .int()
+          .min(0)
+          .max(EQUIPMENT_DUNGEON_RULES.dailyClears),
+        totalClears: nonNegativeInteger,
+        records: z.record(
+          equipmentDungeonStageIdSchema,
+          z
+            .object({
+              clears: z.number().int().positive(),
+              firstClearedAt: timestamp,
+              bestDurationMs: z.number().int().positive(),
+            })
+            .strict(),
+        ),
+      })
+      .strict(),
   })
   .strict()
   .superRefine((save, ctx) => {
@@ -366,6 +405,35 @@ export const saveDataSchema = z
         path: ['nextUid'],
         message: `nextUid 必须大于现有最大装备编号 e${maxNumericUid}`,
       });
+    }
+
+    const recordedClears = Object.values(save.equipmentDungeon.records).reduce(
+      (sum, record) => sum + record.clears,
+      0,
+    );
+    if (save.equipmentDungeon.totalClears !== recordedClears) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['equipmentDungeon', 'totalClears'],
+        message: `totalClears 应为通关记录合计 ${recordedClears}`,
+      });
+    }
+    if (save.equipmentDungeon.clearsToday > save.equipmentDungeon.totalClears) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['equipmentDungeon', 'clearsToday'],
+        message: '今日通关次数不能超过历史总通关次数',
+      });
+    }
+    for (const stageId of Object.keys(save.equipmentDungeon.records)) {
+      const previousStageId = EQUIPMENT_DUNGEON_STAGES[stageId]?.previousStageId;
+      if (previousStageId && !save.equipmentDungeon.records[previousStageId]) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['equipmentDungeon', 'records', stageId],
+          message: `缺少前置关卡记录 ${previousStageId}`,
+        });
+      }
     }
   });
 

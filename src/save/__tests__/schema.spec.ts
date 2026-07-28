@@ -8,6 +8,12 @@ describe('save schema', () => {
     const save = createSave('小樱', 'swordsman', 2026, 1_800_000_000_000);
     expect(parseSave(save)).toEqual(save);
     expect(save.version).toBe(SAVE_VERSION);
+    expect(save.equipmentDungeon).toEqual({
+      dayKey: '2027-01-15',
+      clearsToday: 0,
+      totalClears: 0,
+      records: {},
+    });
   });
 
   it('喵喵使用稳定 catkin ID 创建并通过严格校验', () => {
@@ -115,5 +121,49 @@ describe('save schema', () => {
 
     save.nextUid = 2;
     expect(looksLikeSave(save)).toBe(true);
+  });
+
+  it('装备副本次数、日期和通关合计必须自洽', () => {
+    const badDay = createSave('小樱', 'witch', 4, 1_800_000_000_000);
+    badDay.equipmentDungeon.dayKey = '2027/01/15';
+    expect(looksLikeSave(badDay)).toBe(false);
+
+    const tooManyToday = createSave('小樱', 'witch', 4, 1_800_000_000_000);
+    tooManyToday.equipmentDungeon.clearsToday = 4;
+    expect(looksLikeSave(tooManyToday)).toBe(false);
+
+    const mismatchedTotal = createSave('小樱', 'witch', 4, 1_800_000_000_000);
+    mismatchedTotal.equipmentDungeon.records.equipment_weapon_azure = {
+      clears: 2,
+      firstClearedAt: 1_800_000_000_000,
+      bestDurationMs: 18_200,
+    };
+    mismatchedTotal.equipmentDungeon.totalClears = 1;
+    expect(looksLikeSave(mismatchedTotal)).toBe(false);
+
+    mismatchedTotal.equipmentDungeon.totalClears = 2;
+    expect(looksLikeSave(mismatchedTotal)).toBe(true);
+
+    const todayExceedsHistory = createSave('小樱', 'witch', 4, 1_800_000_000_000);
+    todayExceedsHistory.equipmentDungeon.clearsToday = 1;
+    expect(looksLikeSave(todayExceedsHistory)).toBe(false);
+
+    const unknownStage = createSave('小樱', 'witch', 4, 1_800_000_000_000);
+    unknownStage.equipmentDungeon.records.equipment_unknown_azure = {
+      clears: 1,
+      firstClearedAt: 1_800_000_000_000,
+      bestDurationMs: 18_200,
+    };
+    unknownStage.equipmentDungeon.totalClears = 1;
+    expect(looksLikeSave(unknownStage)).toBe(false);
+
+    const missingPrevious = createSave('小樱', 'witch', 4, 1_800_000_000_000);
+    missingPrevious.equipmentDungeon.records.equipment_body_violet = {
+      clears: 1,
+      firstClearedAt: 1_800_000_000_000,
+      bestDurationMs: 18_200,
+    };
+    missingPrevious.equipmentDungeon.totalClears = 1;
+    expect(looksLikeSave(missingPrevious)).toBe(false);
   });
 });

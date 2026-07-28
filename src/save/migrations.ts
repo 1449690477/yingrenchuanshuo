@@ -12,6 +12,7 @@
 
 import { SAVE_VERSION, parseSave, type SaveData } from './schema';
 import { ENHANCE_MAX, ENHANCE_PER_LEVEL } from '@/data/constants';
+import { createEquipmentDungeonState } from '@/core/equipmentDungeon';
 
 /** 迁移函数接收上一版本的存档（结构未知，故用宽类型），返回下一版本 */
 export type Migration = (save: Record<string, unknown>) => Record<string, unknown>;
@@ -87,6 +88,20 @@ export const migrations: Record<number, Migration> = {
     ...save,
     version: 6,
   }),
+  6: (save) => {
+    if (
+      typeof save.lastActiveAt !== 'number' ||
+      !Number.isFinite(save.lastActiveAt) ||
+      save.lastActiveAt < 0
+    ) {
+      throw new MigrationError(6, 'lastActiveAt 缺失或格式错误');
+    }
+    return {
+      ...save,
+      version: 7,
+      equipmentDungeon: createEquipmentDungeonState(save.lastActiveAt),
+    };
+  },
 };
 
 export class SaveTooNewError extends Error {
