@@ -25,6 +25,7 @@ import {
   LUCK_FULL,
   STAMINA_BASE_MAX,
 } from '@/data/constants';
+import { ENCOUNTERS } from '@/data/encounters';
 import { FIRST_STAGE_ID } from '@/data/stages';
 import { EQUIPMENT_DUNGEON_RULES } from '@/data/equipmentDungeonRules';
 import {
@@ -379,6 +380,34 @@ export const saveDataSchema = z
   })
   .strict()
   .superRefine((save, ctx) => {
+    for (const [index, entry] of save.encounters.pending.entries()) {
+      if (!entry.storyChoiceId) continue;
+      const storyChoices = ENCOUNTERS[entry.encounterId]?.storyArc?.storyChoices;
+      if (!storyChoices?.some((choice) => choice.id === entry.storyChoiceId)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['encounters', 'pending', index, 'storyChoiceId'],
+          message: `剧情回答 ${entry.storyChoiceId} 不属于奇遇 ${entry.encounterId}`,
+        });
+      }
+    }
+
+    for (const [characterId, progress] of Object.entries(save.encounters.characters)) {
+      for (const [encounterId, choiceId] of Object.entries(progress.choiceHistory)) {
+        const arc = ENCOUNTERS[encounterId]?.storyArc;
+        if (
+          arc?.characterId !== characterId ||
+          !arc.storyChoices.some((choice) => choice.id === choiceId)
+        ) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['encounters', 'characters', characterId, 'choiceHistory', encounterId],
+            message: `剧情记忆 ${encounterId}/${choiceId} 与角色 ${characterId} 不匹配`,
+          });
+        }
+      }
+    }
+
     const seenUids = new Set<string>();
     let maxNumericUid = 0;
     const instances: { instance: EquipmentInstance; path: (string | number)[] }[] = [

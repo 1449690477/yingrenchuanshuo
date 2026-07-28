@@ -200,7 +200,14 @@ export type EnhanceBatchActionResult =
 
 export type EncounterResolveResult =
   | { ok: true; outcome: string; rewards: ResourceBundle }
-  | { ok: false; reason: 'not-found' | 'insufficient-resource' | 'story-choice-required' };
+  | {
+      ok: false;
+      reason:
+        | 'not-found'
+        | 'insufficient-resource'
+        | 'story-choice-required'
+        | 'invalid-story-choice';
+    };
 
 export type EncounterStoryChoiceActionResult =
   | { ok: true }

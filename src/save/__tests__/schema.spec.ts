@@ -123,6 +123,30 @@ describe('save schema', () => {
     };
     expect(looksLikeSave(emptyChoice)).toBe(false);
   });
+
+  it('v8 拒绝与奇遇配置不匹配的待处理回答和角色剧情记忆', () => {
+    const invalidPending = createSave('小樱', 'witch', 8, 1);
+    invalidPending.encounters.pending.push({
+      uid: 'enc_bad',
+      encounterId: 'enc_r1_petalsmith',
+      regionId: 'r1',
+      storyChoiceId: 'deleted_choice',
+    });
+    expect(looksLikeSave(invalidPending)).toBe(false);
+
+    const invalidHistory = createSave('小樱', 'witch', 8, 1);
+    invalidHistory.encounters.characters.char_akane = {
+      bond: 1,
+      completedEncounterIds: ['enc_r1_petalsmith'],
+      choiceHistory: { enc_r1_petalsmith: 'deleted_choice' },
+    };
+    expect(looksLikeSave(invalidHistory)).toBe(false);
+
+    invalidHistory.encounters.characters.char_akane!.choiceHistory.enc_r1_petalsmith =
+      'lasting_grip';
+    expect(looksLikeSave(invalidHistory)).toBe(true);
+  });
+
   it('装备 UID 必须全局唯一，nextUid 必须大于已存在编号', () => {
     const save = createSave('小樱', 'witch', 3, 1);
     const instance = {

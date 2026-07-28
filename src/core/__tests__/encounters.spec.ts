@@ -192,6 +192,35 @@ describe('idle encounters', () => {
     expect(state.characters).toEqual({});
   });
 
+  it('拒绝结算存档中不属于当前奇遇的剧情回答，且不推进资源与随机序列', () => {
+    const definition = ENCOUNTERS.enc_r1_petalsmith!;
+    const state = emptyState();
+    state.pending.push({
+      uid: 'enc_story_invalid',
+      encounterId: definition.id,
+      regionId: 'r1',
+      storyChoiceId: 'deleted_choice',
+    });
+    const wallet = { gold: 0, items: {} };
+    const rewardRng = new Rng(9);
+    const rngState = rewardRng.getState();
+
+    expect(
+      resolveStoryEncounter(
+        state,
+        'enc_story_invalid',
+        definition,
+        definition.choices[1],
+        wallet,
+        rewardRng,
+      ),
+    ).toEqual({ ok: false, reason: 'invalid-story-choice' });
+    expect(state.pending[0]?.storyChoiceId).toBe('deleted_choice');
+    expect(state.characters).toEqual({});
+    expect(wallet).toEqual({ gold: 0, items: {} });
+    expect(rewardRng.getState()).toBe(rngState);
+  });
+
   it('后续篇章按旧回答追加记忆对白，关系值仅映射为定性阶段', () => {
     const state = emptyState();
     state.characters.char_akane = {

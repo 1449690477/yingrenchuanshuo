@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, nextTick, onUnmounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { ChevronLeft, ChevronRight, Sparkles, X } from '@lucide/vue';
+import { createFocusTrap, type FocusTrap } from 'focus-trap';
 import {
   canAfford,
   characterProgress,
@@ -28,7 +29,10 @@ const feedback = ref<EncounterFeedback | null>(null);
 const selectedUid = ref<string | null>(stage.pendingEncounters[0]?.uid ?? null);
 const lineIndex = ref(0);
 const typedCount = ref(0);
+const sheetRef = ref<HTMLElement | null>(null);
+const closeButtonRef = ref<HTMLButtonElement | null>(null);
 let typeTimer = 0;
+let dialogFocusTrap: FocusTrap | null = null;
 
 const entry = computed(() => {
   if (!selectedUid.value) return null;
@@ -141,7 +145,39 @@ watch(
   },
 );
 watch(currentLine, startTyping, { immediate: true });
-onUnmounted(stopTyping);
+
+onMounted(async () => {
+  await nextTick();
+  const sheet = sheetRef.value;
+  if (!sheet) return;
+  dialogFocusTrap = createFocusTrap(sheet, {
+    initialFocus: () => closeButtonRef.value ?? sheet,
+    fallbackFocus: () => sheet,
+    clickOutsideDeactivates: true,
+    isolateSubtrees: 'aria-hidden',
+    onDeactivate: () => emit('close'),
+  });
+  dialogFocusTrap.activate();
+});
+
+onUnmounted(() => {
+  stopTyping();
+  if (dialogFocusTrap?.active) {
+    dialogFocusTrap.deactivate({
+      returnFocus: true,
+      onDeactivate: () => undefined,
+    });
+  }
+  dialogFocusTrap = null;
+});
+
+function requestClose(): void {
+  if (dialogFocusTrap?.active) {
+    dialogFocusTrap.deactivate();
+    return;
+  }
+  emit('close');
+}
 
 function resourceText(bundle: ResourceBundle | undefined, emptyLabel = '无需材料'): string {
   if (!bundle) return emptyLabel;
@@ -186,6 +222,8 @@ function choose(choice: EncounterChoice): void {
           ? '手头的材料还不够。先去挂机收集吧，这段故事会为你保留。'
           : result.reason === 'story-choice-required'
             ? '先回应她，再决定是否伸出援手。'
+            : result.reason === 'invalid-story-choice'
+              ? '这段回答已与当前剧情配置不一致，请重新载入有效存档。'
             : '这段奇遇已经结束了。',
       tone: 'notice',
     };
@@ -202,8 +240,15 @@ function choose(choice: EncounterChoice): void {
 </script>
 
 <template>
-  <div class="overlay encounter-overlay" @click.self="emit('close')" @keydown.esc="emit('close')">
-    <section class="sheet" role="dialog" aria-modal="true" aria-label="旅途奇遇">
+  <div class="overlay encounter-overlay">
+    <section
+      ref="sheetRef"
+      class="sheet"
+      role="dialog"
+      aria-modal="true"
+      aria-label="旅途奇遇"
+      tabindex="-1"
+    >
       <header class="head">
         <span class="sigil"><Sparkles :size="20" aria-hidden="true" /></span>
         <span>
@@ -217,7 +262,9 @@ function choose(choice: EncounterChoice): void {
           </small>
           <strong>{{ encounter?.title ?? '奇遇已处理' }}</strong>
         </span>
-        <button class="close" aria-label="稍后处理" @click="emit('close')"><X :size="18" /></button>
+        <button ref="closeButtonRef" class="close" aria-label="稍后处理" @click="requestClose">
+          <X :size="18" />
+        </button>
       </header>
 
       <template v-if="encounter">
@@ -329,7 +376,7 @@ function choose(choice: EncounterChoice): void {
           <p>{{ feedback?.text || '旅途恢复了平静。' }}</p>
           <button
             class="btn btn-pink"
-            @click="stage.pendingEncounters.length > 0 ? showNextPending() : emit('close')"
+            @click="stage.pendingEncounters.length > 0 ? showNextPending() : requestClose()"
           >
             {{
               stage.pendingEncounters.length > 0

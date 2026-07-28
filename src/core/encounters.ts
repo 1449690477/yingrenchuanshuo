@@ -133,7 +133,14 @@ export type StoryEncounterResolveResult =
       rewards: ResourceBundle;
       relationship: EncounterRelationshipStage;
     }
-  | { ok: false; reason: 'not-found' | 'story-choice-required' | 'insufficient-resource' };
+  | {
+      ok: false;
+      reason:
+        | 'not-found'
+        | 'story-choice-required'
+        | 'invalid-story-choice'
+        | 'insufficient-resource';
+    };
 
 export function createEncounterState(): EncounterState {
   return {
@@ -239,6 +246,9 @@ export function resolveStoryEncounter(
     return { ok: false, reason: 'not-found' };
   }
   if (!entry.storyChoiceId) return { ok: false, reason: 'story-choice-required' };
+  if (!definition.storyArc.storyChoices.some((choice) => choice.id === entry.storyChoiceId)) {
+    return { ok: false, reason: 'invalid-story-choice' };
+  }
   const settlement = resolveEncounterChoice(settlementChoice, wallet, rewardRng);
   if (!settlement.ok) return settlement;
 
