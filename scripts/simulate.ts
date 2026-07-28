@@ -846,20 +846,16 @@ function reforgeAcceptance() {
 }
 
 /*
- * 词条验收分成两组，因为它们的责任方不同。
+ * 词条与成长曲线验收，全部为硬门禁。
  *
- * 【硬门禁】词条系统自己该负责的：整套战力涨跌、全 T5 的成长空间。
- *   这些只受品阶系数与槽位数影响，出问题就是词条数值配错了，必须挡住。
+ * 【历史】TTK 带宽与承伤效率 η 曾因成长曲线缺陷长期报红，一度被降级为
+ * 「已知待办」以免阻断开发。根因是 ADR-005 把怪物血量指数对齐到 ITEM_POW，
+ * 却漏了装备战力还要再乘 QUALITY_MUL（普通 1.0 → 神圣 15.0），
+ * 那一整段增长怪物没有跟上，TTK 从 Lv10 的 7.9 秒掉到 Lv120 的 0.41 秒。
  *
- * 【已知待办】成长曲线本来就存在、词条系统只是让它显形的：
- *   TTK 全程带宽（Lv10 约 12 秒、Lv90 不到 1 秒）与由它派生的承伤效率 η。
- *   根因是玩家战力增速快于怪物血量增速（CP 从 L10 到 L70 涨约 52 倍，
- *   怪物血量只涨约 17 倍），属于 M3-13「用模拟器复验成长曲线」的范围，
- *   不是洗练能修的。这里如实打印但不阻断，否则所有后续开发都会被
- *   一个早于本系统存在的问题卡死。
- *
- * ⚠ 不要把「已知待办」悄悄删掉或改成通过 —— 它必须一直显眼地报红，
- *   直到成长曲线真正被重做。
+ * 现已由 progression.ts 的 expectedGearFactor 补上品质增长并同步下调
+ * MONSTER_ATK_BASE，两项恢复为硬门禁 —— **不要再把它们降级**，
+ * 它们现在是真的能过。
  *
  * 四职业平衡不在这里判：docs/13 的【四职业挂机效率】表用的是真实
  * killsPerSecond（已含 η），是唯一权威口径，重复判会得出互相矛盾的结论。
@@ -868,7 +864,7 @@ function assertReforgeAcceptance(result: ReturnType<typeof reforgeAcceptance>): 
   const minRepresentativeTtk = Math.min(...result.representativeTtks);
   const maxRepresentativeTtk = Math.max(...result.representativeTtks);
 
-  const pending = [
+  const checks = [
     {
       ok:
         minRepresentativeTtk >= MIN_REPRESENTATIVE_TTK &&
@@ -883,17 +879,6 @@ function assertReforgeAcceptance(result: ReturnType<typeof reforgeAcceptance>): 
         result.maxT5Efficiency <= MAX_NORMAL_COMBAT_EFFICIENCY,
       detail: `普通关卡 η 新掉落 ${result.minFreshEfficiency.toFixed(3)}~${result.maxFreshEfficiency.toFixed(3)}、全 T5 ${result.minT5Efficiency.toFixed(3)}~${result.maxT5Efficiency.toFixed(3)}（目标 ${MIN_NORMAL_COMBAT_EFFICIENCY.toFixed(2)}~${MAX_NORMAL_COMBAT_EFFICIENCY.toFixed(2)}）`,
     },
-  ];
-  const pendingViolations = pending.filter((check) => !check.ok).map((check) => check.detail);
-  if (pendingViolations.length > 0) {
-    console.log('');
-    console.log('⚠ 成长曲线已知待办（M3-13，早于词条系统存在，不阻断构建）：');
-    for (const detail of pendingViolations) console.log(`  ✘ ${detail}`);
-    console.log('  根因：玩家战力增速远快于怪物血量增速，需重做成长曲线指数。');
-    console.log('');
-  }
-
-  const checks = [
     {
       ok:
         result.minFreshCpChange >= MIN_FRESH_CP_CHANGE &&

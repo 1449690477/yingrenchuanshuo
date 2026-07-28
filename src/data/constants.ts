@@ -93,8 +93,16 @@ export const EXP_POW = 3.25;
 export const MONSTER_HP_BASE = 60;
 export const MONSTER_HP_POW = 1.45;
 
-/** 怪物攻击。同理贴合玩家生命与防御的成长。 */
-export const MONSTER_ATK_BASE = 10;
+/**
+ * 怪物攻击。同理贴合玩家生命与防御的成长。
+ *
+ * ⚠ 由 10 下调到 5.5：怪物血量补上品质增长后 TTK 拉长到 5 秒左右，
+ * 同一场战斗里怪物的出手次数随之变多，承伤效率 η 掉到 0.56
+ * （目标 0.75~1.00）。docs/45 第 2.4 节已预判这一步：
+ * η 大面积偏低时优先下调本常数，而不是抬玩家生命 ——
+ * 抬生命会连带抬战力，污染推荐战力判定。
+ */
+export const MONSTER_ATK_BASE = 5.5;
 export const MONSTER_ATK_POW = 1.35;
 
 /** 怪物经验 */

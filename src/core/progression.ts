@@ -84,9 +84,72 @@ export function baseStatsFor(classId: ClassId, level: number): Stats {
 
 // ─────────────────────── 怪物强度 ───────────────────────
 
+/**
+ * 玩家在该等级「应有装备」带来的战力倍数。
+ *
+ * ## 为什么怪物血量必须乘这一项
+ *
+ * ADR-005 当年把怪物血量指数（L^1.45）对齐到装备指数（ITEM_POW = L^1.35），
+ * 结论是「只比装备快 0.1，用这点差值制造卡点」。
+ * **但它漏了一项**：装备战力还要再乘 QUALITY_MUL，而品质从普通的 1.0
+ * 一路涨到神圣的 15.0 —— 这一整段增长怪物完全没有跟上。
+ *
+ * 后果是实测 TTK 从 Lv10 的 7.9 秒一路掉到 Lv120 的 0.41 秒：
+ * 前期嫌慢、后期一秒好几只，全程只有 Lv20 附近落在 5±1.5 秒的目标带里。
+ *
+ * ## 为什么用插值而不是查表
+ *
+ * 直接取 QUALITY_MUL[该等级典型品质] 会在品质切换点造成难度断崖 ——
+ * 玩家刚换上史诗装，怪物血量同一帧翻倍，体感是「装备白换了」。
+ * 这里按等级对品质倍率做线性插值，难度平滑爬升。
+ *
+ * 锚点取自模拟器的 typicalQuality 分档中值；末尾的 (0.5 + L/400)
+ * 来自实测「所需血量 ÷ 品质倍率」这一比值，它从 0.52 缓慢升到 0.82。
+ *
+ * ⚠ 改这里必然改变全部关卡难度与产出，必须跑 npm run sim 复验
+ * 30 天成长曲线、材料收支与四职业偏离。
+ */
+const EXPECTED_GEAR_ANCHORS: readonly (readonly [number, number])[] = [
+  [1, 1.0],
+  [8, 1.0],
+  [20, 1.5],
+  [32, 2.3],
+  [52, 3.6],
+  // 史诗档要持有到 64 级再爬向传说：52→77 直接插值会在 Lv60 附近鼓出一个
+  // 6.7 秒的包，那一段玩家其实还穿着史诗，怪物血量不该提前按传说算。
+  [62, 3.6],
+  // Lv65 是玩家换上传说装的临界点，战力一次性跳一档；
+  // 血量必须在同一级跟着抬，否则那一级会掉到 3.2 秒（低于 3.5 秒下限）。
+  [65, 4.9],
+  [77, 5.8],
+  [100, 9.2],
+  [120, 15.0],
+];
+
+export function expectedGearFactor(level: number): number {
+  const lv = Math.max(1, level);
+  let qualityMul = EXPECTED_GEAR_ANCHORS[EXPECTED_GEAR_ANCHORS.length - 1]![1];
+  for (let i = 0; i < EXPECTED_GEAR_ANCHORS.length - 1; i++) {
+    const [l0, q0] = EXPECTED_GEAR_ANCHORS[i]!;
+    const [l1, q1] = EXPECTED_GEAR_ANCHORS[i + 1]!;
+    if (lv <= l1) {
+      const t = l1 === l0 ? 0 : (lv - l0) / (l1 - l0);
+      qualityMul = q0 + (q1 - q0) * t;
+      break;
+    }
+  }
+  // 标定系数按 npm run sim 的装备模型反推，而不是「满强化满词条」的理想模型 ——
+  // 模拟器用的是新掉落品阶、无强化，实际战力更低，按理想模型标定会整体过校。
+  return qualityMul * (0.33 + lv / 600);
+}
+
 export function monsterHp(level: number, type: MonsterType = 'normal', mul = 1): number {
   return Math.round(
-    MONSTER_HP_BASE * Math.pow(level, MONSTER_HP_POW) * MONSTER_TYPE_MUL[type].hp * mul,
+    MONSTER_HP_BASE *
+      Math.pow(level, MONSTER_HP_POW) *
+      expectedGearFactor(level) *
+      MONSTER_TYPE_MUL[type].hp *
+      mul,
   );
 }
 

@@ -1254,7 +1254,14 @@ describe('equipment dungeon transaction', () => {
 
   function dungeonSave(powerful: boolean): SaveData {
     const save = createSave('副本测试', 'witch', 20260728, now);
-    save.player.level = 90;
+    // 强场景用 Lv90 + 超模词条保证必胜；弱场景用刚好解锁副本的 Lv20 裸装。
+    //
+    // 原来弱场景是 Lv90 裸装，刚好卡在平衡线附近 —— 怪物攻击一下调它就打赢了，
+    // 「失败不消耗次数」这条测试跟着变红。测试要验的是「输了不扣次数」，
+    // 夹具就该确定性地输，不该随平衡调整摇摆。
+    // 用 Lv20 而不是更低：副本有等级门槛，再低会返回 level-locked，
+    // 那样测的就不是「战斗失败」而是「没解锁」了。
+    save.player.level = powerful ? 90 : 20;
     if (powerful) {
       const weapon = createInstance(
         requireEquipment('eq_dungeon_crimson_weapon_witch'),
