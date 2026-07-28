@@ -33,8 +33,24 @@ export interface BattleBeat {
   crit: boolean;
   /** 展示用伤害数字（非真实结算值） */
   damage: number;
-  /** 'player-skill' 专有：技能在已解锁列表中的下标 */
-  skillIndex: number | null;
+  /**
+   * `player-skill` 专有：稳定技能 ID。
+   *
+   * 不能使用数组下标。职业升级、补技能或重新排序配置后，下标会变化，
+   * 进而让表现层把旧冷却和拍子错认成另一张技能卡。
+   */
+  skillId: string | null;
+}
+
+/** 视觉节奏生产器需要的最小技能配置。 */
+export interface RhythmSkillSpec {
+  skillId: string;
+  cooldownSec: number;
+  /**
+   * 只决定同一帧内多个视觉技能同时就绪时的演出先后。
+   * 它不是 M3-4 的真实战斗技能调度，也不参与挂机收益。
+   */
+  priority: number;
 }
 
 export interface RhythmState {
@@ -43,8 +59,45 @@ export interface RhythmState {
   playerCd: number;
   /** 距离下一次怪物攻击的剩余秒数 */
   monsterCd: number;
-  /** 各技能的剩余冷却秒数，长度与已解锁技能数一致 */
-  skillCds: number[];
+  /** 稳定技能 ID → 剩余冷却秒数。 */
+  skillCds: Readonly<Record<string, number>>;
+}
+
+export interface RhythmActionSnapshot {
+  cooldownSec: number;
+  remainingSec: number;
+  ratio: number;
+  lastCastSeq: number | null;
+}
+
+export interface RhythmSkillSnapshot extends RhythmActionSnapshot {
+  skillId: string;
+}
+
+/**
+ * 给表现层消费的只读节奏快照。
+ *
+ * source 明示它是挂机视觉投影，避免 UI 把展示冷却误报成真实技能结算。
+ */
+export interface BattleRhythmSnapshot {
+  source: 'visual-projection';
+  /** 当前生产者上下文，Store 使用职业 ID；切职业时用于拒绝旧快照。 */
+  contextId: string;
+  epoch: number;
+  seq: number;
+  running: boolean;
+  basic: RhythmActionSnapshot;
+  skills: readonly RhythmSkillSnapshot[];
+}
+
+export interface RhythmSnapshotParams {
+  contextId: string;
+  epoch: number;
+  running: boolean;
+  playerCooldownSec: number;
+  skills: readonly RhythmSkillSpec[];
+  lastBasicCastSeq: number | null;
+  lastCastBySkillId: Readonly<Record<string, number | null>>;
 }
 
 /**
@@ -129,8 +182,8 @@ export interface RhythmParams {
   playerInterval: number;
   /** 怪物攻击间隔（秒） */
   monsterInterval: number;
-  /** 各技能冷却（秒），顺序与 skillCds 对应 */
-  skillCooldowns: readonly number[];
+  /** 本轮可进入可信攻击演出的技能。 */
+  skills: readonly RhythmSkillSpec[];
   /** 暴击率，0~1 */
   critRate: number;
   /** 玩家一次普攻的展示伤害基准 */
@@ -151,27 +204,98 @@ const MAX_BEATS_PER_ADVANCE = 12;
 /** 时间步进的下限，避免 0 或负的间隔造成死循环 */
 const MIN_INTERVAL = 0.05;
 
-export function createRhythmState(skillCount: number): RhythmState {
-  if (!Number.isSafeInteger(skillCount) || skillCount < 0) {
-    throw new Error(`[战斗节奏] 技能数量必须是非负整数：${skillCount}`);
-  }
+export function createRhythmState(skills: readonly RhythmSkillSpec[] = []): RhythmState {
+  validateSkillSpecs(skills);
   return {
     seq: 0,
     playerCd: 0,
     monsterCd: 0,
     // 技能一开始就错峰，避免所有技能在同一拍同时炸开
-    skillCds: Array.from({ length: skillCount }, (_, i) => i * 0.7),
+    skillCds: Object.fromEntries(skills.map((skill, index) => [skill.skillId, index * 0.7])),
   };
 }
 
-/** 技能数量变化时（升级解锁了新技能）重建冷却数组，保留已有进度 */
-export function resizeSkillCds(state: RhythmState, skillCount: number): RhythmState {
-  if (state.skillCds.length === skillCount) return state;
-  const next = Array.from(
-    { length: skillCount },
-    (_, i) => state.skillCds[i] ?? i * 0.7,
-  );
-  return { ...state, skillCds: next };
+/**
+ * 升级解锁技能或切换职业时同步运行时冷却。
+ *
+ * 已存在技能按稳定 ID 保留进度；新增技能错峰入场；离开列表的技能立即移除，
+ * 不用数组位置猜测身份。
+ */
+export function syncRhythmSkills(
+  state: RhythmState,
+  skills: readonly RhythmSkillSpec[],
+): RhythmState {
+  validateSkillSpecs(skills);
+  const currentIds = Object.keys(state.skillCds);
+  const nextIds = skills.map((skill) => skill.skillId);
+  if (
+    currentIds.length === nextIds.length &&
+    nextIds.every((skillId) => Object.hasOwn(state.skillCds, skillId))
+  ) {
+    return state;
+  }
+  return {
+    ...state,
+    skillCds: Object.fromEntries(
+      skills.map((skill, index) => [skill.skillId, state.skillCds[skill.skillId] ?? index * 0.7]),
+    ),
+  };
+}
+
+/** 把生产器的真实运行时冷却投影成 UI 可直接读取的不可变快照。 */
+export function createBattleRhythmSnapshot(
+  state: Readonly<RhythmState>,
+  params: Readonly<RhythmSnapshotParams>,
+): BattleRhythmSnapshot {
+  validateSkillSpecs(params.skills);
+  if (!params.contextId.trim()) {
+    throw new Error('[战斗节奏] 快照上下文 ID 不能为空');
+  }
+  if (!Number.isSafeInteger(params.epoch) || params.epoch < 0) {
+    throw new Error(`[战斗节奏] 纪元必须是非负安全整数：${params.epoch}`);
+  }
+  if (!Number.isFinite(params.playerCooldownSec) || params.playerCooldownSec < MIN_INTERVAL) {
+    throw new Error(`[战斗节奏] 普攻冷却必须是 >= ${MIN_INTERVAL} 秒的有限数`);
+  }
+
+  const action = (
+    remainingSec: number,
+    cooldownSec: number,
+    lastCastSeq: number | null,
+  ): RhythmActionSnapshot => {
+    if (
+      lastCastSeq !== null &&
+      (!Number.isSafeInteger(lastCastSeq) || lastCastSeq < 1 || lastCastSeq > state.seq)
+    ) {
+      throw new Error(`[战斗节奏] 最近施放序号非法：${String(lastCastSeq)}`);
+    }
+    const remaining = Math.min(cooldownSec, Math.max(0, remainingSec));
+    return {
+      cooldownSec,
+      remainingSec: remaining,
+      ratio: cooldownSec > 0 ? remaining / cooldownSec : 0,
+      lastCastSeq,
+    };
+  };
+
+  return {
+    source: 'visual-projection',
+    contextId: params.contextId,
+    epoch: params.epoch,
+    seq: state.seq,
+    running: params.running,
+    basic: action(state.playerCd, params.playerCooldownSec, params.lastBasicCastSeq),
+    skills: params.skills.map((skill) => {
+      const remaining = state.skillCds[skill.skillId];
+      if (!Number.isFinite(remaining)) {
+        throw new Error(`[战斗节奏] 快照缺少技能冷却：${skill.skillId}`);
+      }
+      return {
+        skillId: skill.skillId,
+        ...action(remaining, skill.cooldownSec, params.lastCastBySkillId[skill.skillId] ?? null),
+      };
+    }),
+  };
 }
 
 export interface RhythmAdvance {
@@ -204,7 +328,9 @@ export function advanceRhythm(
   let seq = state.seq;
   let playerCd = state.playerCd - dt;
   let monsterCd = state.monsterCd - dt;
-  const skillCds = state.skillCds.map((cd) => cd - dt);
+  const skillCds: Record<string, number> = Object.fromEntries(
+    params.skills.map((skill) => [skill.skillId, state.skillCds[skill.skillId]! - dt]),
+  );
 
   const beats: BattleBeat[] = [];
   let dropped = 0;
@@ -225,25 +351,28 @@ export function advanceRhythm(
       kind: 'player-attack',
       crit,
       damage: rollDamage(params.playerHit, crit, rng),
-      skillIndex: null,
+      skillId: null,
     });
     playerCd += playerInterval;
   }
 
   // ── 技能 ──
-  for (let i = 0; i < skillCds.length; i++) {
-    const cooldown = params.skillCooldowns[i]!;
+  const orderedSkills = [...params.skills].sort(
+    (a, b) => b.priority - a.priority || a.skillId.localeCompare(b.skillId),
+  );
+  for (const skill of orderedSkills) {
+    const cooldown = skill.cooldownSec;
     let g = 0;
-    while (skillCds[i]! <= 0 && g++ < 50) {
+    while (skillCds[skill.skillId]! <= 0 && g++ < 50) {
       const crit = rng.chance(params.critRate);
       push({
         kind: 'player-skill',
         crit,
         // 技能伤害比普攻高，视觉上要能区分出来
         damage: rollDamage(params.playerHit * 2.4, crit, rng),
-        skillIndex: i,
+        skillId: skill.skillId,
       });
-      skillCds[i] = skillCds[i]! + cooldown;
+      skillCds[skill.skillId] = skillCds[skill.skillId]! + cooldown;
     }
   }
 
@@ -254,7 +383,7 @@ export function advanceRhythm(
       kind: 'monster-attack',
       crit: false,
       damage: rollDamage(params.monsterHit, false, rng),
-      skillIndex: null,
+      skillId: null,
     });
     monsterCd += monsterInterval;
   }
@@ -277,12 +406,19 @@ function rollDamage(base: number, crit: boolean, rng: Rng): number {
 }
 
 function validateRhythmInputs(state: RhythmState, params: RhythmParams): void {
-  if (params.skillCooldowns.length !== state.skillCds.length) {
+  validateSkillSpecs(params.skills);
+  const stateSkillIds = Object.keys(state.skillCds);
+  if (
+    params.skills.length !== stateSkillIds.length ||
+    params.skills.some((skill) => !Object.hasOwn(state.skillCds, skill.skillId))
+  ) {
     throw new Error(
-      `[战斗节奏] 技能冷却数量 ${params.skillCooldowns.length} 与状态数量 ${state.skillCds.length} 不一致`,
+      `[战斗节奏] 技能配置与状态 ID 不一致：${params.skills
+        .map((skill) => skill.skillId)
+        .join(',')} / ${stateSkillIds.join(',')}`,
     );
   }
-  if (state.skillCds.some((cooldown) => !Number.isFinite(cooldown))) {
+  if (Object.values(state.skillCds).some((cooldown) => !Number.isFinite(cooldown))) {
     throw new Error('[战斗节奏] 状态中的技能冷却必须全部是有限数');
   }
   for (const [label, interval] of [
@@ -293,13 +429,6 @@ function validateRhythmInputs(state: RhythmState, params: RhythmParams): void {
       throw new Error(`[战斗节奏] ${label}必须是 >= ${MIN_INTERVAL} 秒的有限数`);
     }
   }
-  if (
-    params.skillCooldowns.some(
-      (cooldown) => !Number.isFinite(cooldown) || cooldown < MIN_INTERVAL,
-    )
-  ) {
-    throw new Error(`[战斗节奏] 技能冷却必须全部是 >= ${MIN_INTERVAL} 秒的有限数`);
-  }
   if (!Number.isFinite(params.critRate) || params.critRate < 0 || params.critRate > 1) {
     throw new Error('[战斗节奏] 暴击率必须在 0~1');
   }
@@ -308,5 +437,24 @@ function validateRhythmInputs(state: RhythmState, params: RhythmParams): void {
   }
   if (!Number.isFinite(params.monsterHit) || params.monsterHit <= 0) {
     throw new Error('[战斗节奏] 怪物展示伤害必须是正有限数');
+  }
+}
+
+function validateSkillSpecs(skills: readonly RhythmSkillSpec[]): void {
+  const seen = new Set<string>();
+  for (const skill of skills) {
+    if (!skill.skillId.trim()) {
+      throw new Error('[战斗节奏] 技能 ID 不能为空');
+    }
+    if (seen.has(skill.skillId)) {
+      throw new Error(`[战斗节奏] 技能 ID 重复：${skill.skillId}`);
+    }
+    seen.add(skill.skillId);
+    if (!Number.isFinite(skill.cooldownSec) || skill.cooldownSec < MIN_INTERVAL) {
+      throw new Error(`[战斗节奏] 技能冷却必须是 >= ${MIN_INTERVAL} 秒的有限数`);
+    }
+    if (!Number.isFinite(skill.priority)) {
+      throw new Error(`[战斗节奏] 技能演出优先级必须是有限数：${skill.skillId}`);
+    }
   }
 }

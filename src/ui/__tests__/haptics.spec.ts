@@ -13,6 +13,7 @@ describe('affection haptics', () => {
     expect(triggerHaptic('shy', true, false)).toBe(true);
     expect(vibrate).toHaveBeenCalledWith([10, 48, 10]);
     expect(hapticPattern('prismatic-drop')).toEqual([18, 30, 18, 38, 46]);
+    expect(hapticPattern('skill-card')).toEqual([10]);
   });
 
   it('关闭触觉或减弱动效时绝不调用设备振动', () => {

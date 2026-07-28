@@ -103,10 +103,13 @@ import { countStageMonsterKills, mergeLootResults } from '@/core/stageLoot';
 import { advanceBattleVisualCursor, battleMonsterIdAt } from '@/core/battleVisual';
 import {
   advanceRhythm,
+  createBattleRhythmSnapshot,
   createRhythmState,
-  resizeSkillCds,
+  syncRhythmSkills,
   type BattleBeat,
+  type BattleRhythmSnapshot,
   type RhythmState,
+  type RhythmSkillSpec,
 } from '@/core/battleRhythm';
 import { accumulateIdle, killsPerSecond, recoverStamina, settleOffline } from '@/core/idle';
 import { trimBag } from '@/core/bag';
@@ -146,10 +149,7 @@ import {
   eligibleAffectionEquipmentIds,
   requireAffectionEquipment,
 } from '@/data/affectionEquipment';
-import {
-  getEquipmentDungeonStage,
-  type EquipmentDungeonStage,
-} from '@/data/equipmentDungeons';
+import { getEquipmentDungeonStage, type EquipmentDungeonStage } from '@/data/equipmentDungeons';
 
 import { createSave, type SaveData } from '@/save/schema';
 import { clearSave, loadSave, saveSave } from '@/save/storage';
@@ -229,10 +229,7 @@ export type EncounterResolveResult =
   | {
       ok: false;
       reason:
-        | 'not-found'
-        | 'insufficient-resource'
-        | 'story-choice-required'
-        | 'invalid-story-choice';
+        'not-found' | 'insufficient-resource' | 'story-choice-required' | 'invalid-story-choice';
     };
 
 export type EncounterStoryChoiceActionResult =
@@ -284,8 +281,7 @@ export type AffectionInteractionActionResult =
     });
 
 export type AffectionStoryChoiceActionResult =
-  | { ok: false; reason: 'no-save' }
-  | AffectionStoryResult;
+  { ok: false; reason: 'no-save' } | AffectionStoryResult;
 
 const AUTO_SAVE_INTERVAL_MS = 3_000;
 const LOOT_LOG_MAX = 40;
@@ -336,6 +332,8 @@ export const useGameStore = defineStore('game', () => {
   const battlePulse = ref<BattlePulse | null>(null);
   /** 持续战斗演出的拍子流，由 core/battleRhythm 产生 */
   const battleBeats = ref<BattleBeat[]>([]);
+  /** 卡片栏只读的同源冷却快照；绝不参与真实挂机收益。 */
+  const battleRhythmSnapshot = ref<BattleRhythmSnapshot | null>(null);
   /** 已通关普通关不再保存击杀余数，这里只维护其画面循环游标。 */
   const battleVisualCursor = ref(0);
   /** 只在好感业务日切变化时更新，避免每个动画帧触发派生数据重算。 */
@@ -344,7 +342,10 @@ export const useGameStore = defineStore('game', () => {
   let rng = new Rng(1);
   let lootLogSeq = 0;
   let battlePulseSeq = 0;
-  let rhythmState: RhythmState = createRhythmState(0);
+  let rhythmState: RhythmState = createRhythmState();
+  let rhythmEpoch = 0;
+  let rhythmLastBasicCastSeq: number | null = null;
+  let rhythmLastCastBySkillId: Record<string, number | null> = {};
   const rhythmRng = new Rng(0x5a6b7c8d);
   let battlePulseRemainingSec = 0;
   let battlePulseCooldownSec = 0;
@@ -511,7 +512,82 @@ export const useGameStore = defineStore('game', () => {
     battlePulseRemainingSec = 0;
     battlePulseCooldownSec = 0;
     battleBeats.value = [];
-    rhythmState = createRhythmState(0);
+    rhythmEpoch++;
+    rhythmLastBasicCastSeq = null;
+    rhythmLastCastBySkillId = {};
+    if (!save.value) {
+      rhythmState = createRhythmState();
+      battleRhythmSnapshot.value = null;
+      return;
+    }
+    const classId = save.value.player.classId;
+    const skills = battleRhythmSkills(classId, save.value.player.level);
+    const skillSpecs = rhythmSkillSpecs(skills);
+    const playerInterval = 1 / Math.max(0.2, finalStats.value.spd);
+    rhythmState = createRhythmState(skillSpecs);
+    battleRhythmSnapshot.value = createBattleRhythmSnapshot(rhythmState, {
+      contextId: classId,
+      epoch: rhythmEpoch,
+      running: Boolean(rafId && canIdle.value),
+      playerCooldownSec: playerInterval,
+      skills: skillSpecs,
+      lastBasicCastSeq: null,
+      lastCastBySkillId: {},
+    });
+  }
+
+  function rhythmSkillSpecs(
+    skills: ReturnType<typeof battleRhythmSkills>,
+  ): readonly RhythmSkillSpec[] {
+    return skills.map((skill) => ({
+      skillId: skill.id,
+      cooldownSec: skill.cooldownSec,
+      priority: skill.priority,
+    }));
+  }
+
+  function publishRhythmRunning(running: boolean): void {
+    if (!battleRhythmSnapshot.value || battleRhythmSnapshot.value.running === running) return;
+    battleRhythmSnapshot.value = {
+      ...battleRhythmSnapshot.value,
+      running,
+    };
+  }
+
+  /**
+   * 角色升级可能在同一帧解锁新技能。节奏状态、卡片定义与发布快照必须在
+   * level 写入后同步完成，不能等下一次 250ms tick，否则 UI 会短暂读到
+   * “新等级卡片 + 旧等级快照”这一组不可能成立的状态。
+   */
+  function syncBattleRhythmProjectionAfterLevelUp(): void {
+    if (!save.value) return;
+    const previousSnapshot = battleRhythmSnapshot.value;
+    if (!previousSnapshot) {
+      throw new Error('[挂机演出] 角色已存在时缺少节奏快照');
+    }
+
+    const classId = save.value.player.classId;
+    if (previousSnapshot.contextId !== classId) {
+      throw new Error(
+        `[挂机演出] 升级同步时职业上下文不一致：${previousSnapshot.contextId}/${classId}`,
+      );
+    }
+
+    const skills = battleRhythmSkills(classId, save.value.player.level);
+    const skillSpecs = rhythmSkillSpecs(skills);
+    rhythmState = syncRhythmSkills(rhythmState, skillSpecs);
+    rhythmLastCastBySkillId = Object.fromEntries(
+      skillSpecs.map((skill) => [skill.skillId, rhythmLastCastBySkillId[skill.skillId] ?? null]),
+    );
+    battleRhythmSnapshot.value = createBattleRhythmSnapshot(rhythmState, {
+      contextId: classId,
+      epoch: rhythmEpoch,
+      running: previousSnapshot.running,
+      playerCooldownSec: 1 / Math.max(0.2, finalStats.value.spd),
+      skills: skillSpecs,
+      lastBasicCastSeq: rhythmLastBasicCastSeq,
+      lastCastBySkillId: rhythmLastCastBySkillId,
+    });
   }
 
   function refreshAffectionClock(now = Date.now()): void {
@@ -680,11 +756,13 @@ export const useGameStore = defineStore('game', () => {
       tick(dt);
     };
     rafId = requestAnimationFrame(loop);
+    publishRhythmRunning(canIdle.value);
   }
 
   function stopLoop(): void {
     if (rafId) cancelAnimationFrame(rafId);
     rafId = 0;
+    publishRhythmRunning(false);
   }
 
   /** 进入后台时停止实时循环，并把离线计时起点立即写入存档。 */
@@ -712,12 +790,18 @@ export const useGameStore = defineStore('game', () => {
    * 这里产生的伤害数字仅供飘字展示，不参与任何真实结算。
    */
   function advanceBattleRhythm(dt: number, ctx: IdleContext): void {
-    const skills = battleRhythmSkills(save.value!.player.classId, save.value!.player.level);
+    const classId = save.value!.player.classId;
+    const skills = battleRhythmSkills(classId, save.value!.player.level);
+    const skillSpecs = rhythmSkillSpecs(skills);
 
-    rhythmState = resizeSkillCds(rhythmState, skills.length);
+    rhythmState = syncRhythmSkills(rhythmState, skillSpecs);
+    rhythmLastCastBySkillId = Object.fromEntries(
+      skillSpecs.map((skill) => [skill.skillId, rhythmLastCastBySkillId[skill.skillId] ?? null]),
+    );
 
     const playerStats = ctx.player.stats;
     const monsterStats = ctx.monster.stats;
+    const playerInterval = 1 / Math.max(0.2, playerStats.spd);
     // 展示伤害取「一次普攻的期望值」量级，让飘字和血条掉速看起来自洽
     const perHit = Math.max(1, playerStats.atk * (ctx.skillMultiplier ?? 1) * 0.6);
 
@@ -725,9 +809,9 @@ export const useGameStore = defineStore('game', () => {
       rhythmState,
       dt,
       {
-        playerInterval: 1 / Math.max(0.2, playerStats.spd),
+        playerInterval,
         monsterInterval: 1 / Math.max(0.2, monsterStats.spd),
-        skillCooldowns: skills.map((skill) => skill.cooldownSec),
+        skills: skillSpecs,
         critRate: playerStats.critRate / 100,
         playerHit: perHit,
         monsterHit: Math.max(1, monsterStats.atk * 0.35),
@@ -736,6 +820,25 @@ export const useGameStore = defineStore('game', () => {
     );
 
     rhythmState = advance.state;
+    for (const beat of advance.beats) {
+      if (beat.kind === 'player-attack') {
+        rhythmLastBasicCastSeq = beat.seq;
+      } else if (beat.kind === 'player-skill') {
+        if (!beat.skillId) {
+          throw new Error('[挂机演出] 技能拍缺少稳定 skillId');
+        }
+        rhythmLastCastBySkillId[beat.skillId] = beat.seq;
+      }
+    }
+    battleRhythmSnapshot.value = createBattleRhythmSnapshot(rhythmState, {
+      contextId: classId,
+      epoch: rhythmEpoch,
+      running: true,
+      playerCooldownSec: playerInterval,
+      skills: skillSpecs,
+      lastBasicCastSeq: rhythmLastBasicCastSeq,
+      lastCastBySkillId: rhythmLastCastBySkillId,
+    });
     if (advance.beats.length === 0) return;
 
     // 只保留最近若干拍，UI 用 TransitionGroup 播完即弃
@@ -797,6 +900,7 @@ export const useGameStore = defineStore('game', () => {
       // 战力不足时不能把等待时间攒着，切回低级图后一次性领取。
       idleCarrySec = 0;
       battleProgress.value = 0;
+      publishRhythmRunning(false);
     }
     save.value.stats.totalPlaySec += dt;
     save.value.lastActiveAt = Date.now();
@@ -938,11 +1042,13 @@ export const useGameStore = defineStore('game', () => {
   function levelUpIfPossible(): void {
     if (!save.value) return;
     const p = save.value.player;
+    const previousLevel = p.level;
     let guard = 0;
     while (p.exp >= expToNext(p.level) && guard++ < 500) {
       p.exp -= expToNext(p.level);
       p.level++;
     }
+    if (p.level !== previousLevel) syncBattleRhythmProjectionAfterLevelUp();
   }
 
   /**
@@ -1395,11 +1501,7 @@ export const useGameStore = defineStore('game', () => {
       // 否则坏配置会留下“保底已消费、图鉴已点亮、装备却没进包”的半事务。
       const definition = requireAffectionEquipment(result.gearReward.defId).definition;
       rewardDefinition = definition;
-      instance = createInstance(
-        definition,
-        new Rng(result.gearReward.rewardSeed),
-        `e${s.nextUid}`,
-      );
+      instance = createInstance(definition, new Rng(result.gearReward.rewardSeed), `e${s.nextUid}`);
       instance.locked = true;
     }
 
@@ -1407,13 +1509,7 @@ export const useGameStore = defineStore('game', () => {
     if (instance && rewardDefinition) {
       s.nextUid += 1;
       s.bag.equipment.push(instance);
-      pushLog(
-        rewardDefinition.id,
-        rewardDefinition.name,
-        1,
-        rewardDefinition.quality,
-        true,
-      );
+      pushLog(rewardDefinition.id, rewardDefinition.name, 1, rewardDefinition.quality, true);
       enforceBagCapacity();
     }
 
@@ -1855,6 +1951,7 @@ export const useGameStore = defineStore('game', () => {
     battleProgress,
     battlePulse,
     battleBeats,
+    battleRhythmSnapshot,
     battleTargetId,
     // 派生
     player,

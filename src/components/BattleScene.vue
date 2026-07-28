@@ -30,6 +30,7 @@ import {
 import { requireMonsterVisual } from '@/data/monsterVisuals';
 import { battleRhythmSkills, type ActiveVisualSkill } from '@/data/skills';
 import { useGameStore } from '@/stores/game';
+import AutoSkillDeck from '@/components/AutoSkillDeck.vue';
 import CharacterAppearance from '@/components/CharacterAppearance.vue';
 import MonsterArtwork from '@/components/MonsterArtwork.vue';
 
@@ -56,8 +57,8 @@ const props = defineProps<{
 }>();
 
 const game = useGameStore();
-const reduceMotionEnabled = computed(
-  () => Boolean(props.reduceMotion || game.save?.settings.reduceMotion),
+const reduceMotionEnabled = computed(() =>
+  Boolean(props.reduceMotion || game.save?.settings.reduceMotion),
 );
 const basicEffectUrl = computed(
   () => `${import.meta.env.BASE_URL}${BASIC_ATTACK_EFFECTS[props.classId]}`,
@@ -96,7 +97,7 @@ interface LiveBeat {
   kind: BattleBeat['kind'];
   crit: boolean;
   damage: number;
-  skillIndex: number | null;
+  skillId: string | null;
   /** 飘字的横向偏移，避免多个数字完全重叠 */
   offset: number;
   /** 打击强度档位，决定飘字字号与配色 */
@@ -184,7 +185,11 @@ function consumeBeatGate(mode = currentBeatGateMode()): void {
   for (const beat of advance.consume) addLiveBeat(beat);
 }
 
-watch(() => props.beats, () => consumeBeatGate(), { deep: false });
+watch(
+  () => props.beats,
+  () => consumeBeatGate(),
+  { deep: false },
+);
 
 watch(
   () => props.classId,
@@ -194,19 +199,16 @@ watch(
   },
 );
 
-watch(
-  reduceMotionEnabled,
-  (enabled) => {
-    if (!enabled) return;
-    clearTimeout(hitstopTimer);
-    clearTimeout(shakeTimer);
-    hitstop.value = false;
-    shakeTier.value = null;
-  },
-);
+watch(reduceMotionEnabled, (enabled) => {
+  if (!enabled) return;
+  clearTimeout(hitstopTimer);
+  clearTimeout(shakeTimer);
+  hitstop.value = false;
+  shakeTier.value = null;
+});
 
 function addLiveBeat(beat: BattleBeat): void {
-  const beatSkill = beat.kind === 'player-skill' ? requireRhythmSkill(beat.skillIndex) : null;
+  const beatSkill = beat.kind === 'player-skill' ? requireRhythmSkill(beat.skillId) : null;
   if (beat.kind === 'monster-attack') {
     triggerMonsterAttack(beat.seq);
   } else {
@@ -246,7 +248,7 @@ function appendLiveBeat(beat: BattleBeat, visualSeq: number, damage: number): vo
     kind: beat.kind,
     crit: beat.crit,
     damage,
-    skillIndex: beat.skillIndex,
+    skillId: beat.skillId,
     // 用序号做伪随机偏移，无需引入随机源，且同一拍每次渲染位置稳定
     offset: ((visualSeq * 37) % 46) - 23,
     tier: impactTierFor({ kind: beat.kind, crit: beat.crit }),
@@ -316,25 +318,28 @@ const latestPlayerBeat = computed(() =>
 );
 
 /**
- * 与 core/battleRhythm 使用完全相同的主动技能顺序。
- * 拍子只保存稳定的 skillIndex，视图在这里把它还原为技能和专属动作。
+ * 与 core/battleRhythm 使用完全相同的主动技能集合。
+ * 拍子保存稳定 skillId，新增或重新排序技能配置也不会把动作串给另一张卡。
  */
 const rhythmSkills = computed<readonly ActiveVisualSkill[]>(() =>
   battleRhythmSkills(props.classId, props.level),
 );
+const rhythmSkillsById = computed(
+  () => new Map(rhythmSkills.value.map((skill) => [skill.id, skill])),
+);
 
 function skillForBeat(beat: LiveBeat): ActiveVisualSkill | null {
   if (beat.kind !== 'player-skill') return null;
-  return requireRhythmSkill(beat.skillIndex);
+  return requireRhythmSkill(beat.skillId);
 }
 
-function requireRhythmSkill(skillIndex: number | null): ActiveVisualSkill {
-  if (!Number.isSafeInteger(skillIndex) || skillIndex === null || skillIndex < 0) {
-    throw new Error(`[战斗演出] 技能拍缺少合法索引：${String(skillIndex)}`);
+function requireRhythmSkill(skillId: string | null): ActiveVisualSkill {
+  if (!skillId) {
+    throw new Error(`[战斗演出] 技能拍缺少稳定 ID：${String(skillId)}`);
   }
-  const skill = rhythmSkills.value[skillIndex];
+  const skill = rhythmSkillsById.value.get(skillId);
   if (!skill) {
-    throw new Error(`[战斗演出] 技能拍索引越界：${skillIndex}/${rhythmSkills.value.length}`);
+    throw new Error(`[战斗演出] 技能拍引用了当前职业未登记的技能：${skillId}`);
   }
   return skill;
 }
@@ -459,202 +464,218 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div
-    class="battle-scene"
-    :class="[
-      `target-${monster.type}`,
-      shakeTier ? `shake-${shakeTier}` : null,
-      {
-        active,
-        casting: heroAction === 'cast',
-        'hero-catkin': classId === 'catkin',
-        'player-low': playerHpPercent <= 25,
-        'is-hitstop': hitstop,
-        'reduced-motion': reduceMotionEnabled,
-      },
-    ]"
-    :style="{
-      '--impact-delay': latestRhythmSkill ? '300ms' : '110ms',
-      '--monster-impact-delay': `${monsterImpactDelay}ms`,
-      '--shake-key': shakeSeq,
-    }"
-    :aria-label="`${playerName}正在与${monster.name}战斗`"
-  >
-    <Transition name="bg-fade">
-      <img
-        :key="backgroundUrl"
-        class="scene-background"
-        :src="backgroundUrl"
-        alt=""
-        aria-hidden="true"
-      />
-    </Transition>
-    <span class="scene-haze" aria-hidden="true" />
-    <span class="scene-glow" aria-hidden="true" />
-
-    <div class="ambient-particles" aria-hidden="true">
-      <i v-for="n in 9" :key="n" />
-    </div>
-
-    <div class="battle-status">
-      <span class="status-dot" />
-      <span>{{ statusText }}</span>
-      <strong class="num">{{ progressText }}</strong>
-      <span v-if="waveRatio !== undefined" class="wave-track" aria-hidden="true">
-        <i :style="{ transform: `scaleX(${Math.min(1, Math.max(0, waveRatio))})` }" />
-      </span>
-    </div>
-
-    <div class="enemy-hud">
-      <div class="enemy-line">
-        <span v-if="monster.type !== 'normal'" class="enemy-rank">
-          {{ monster.type === 'boss' ? 'BOSS' : '精英' }}
-        </span>
-        <strong>{{ monster.name }}</strong>
-        <span class="num">Lv.{{ monster.level }}</span>
-      </div>
-      <div class="hp-readout">
-        <span>生命</span>
-        <strong class="num">
-          {{ abbr(vitals.monster.currentHp) }} / {{ abbr(vitals.monster.maxHp) }}
-        </strong>
-      </div>
-      <div
-        class="hpbar"
-        :class="{ low: monsterHpPercent <= 25 }"
-        role="meter"
-        aria-label="目标生命"
-        aria-valuemin="0"
-        :aria-valuemax="vitals.monster.maxHp"
-        :aria-valuenow="vitals.monster.currentHp"
-        :aria-valuetext="`${vitals.monster.currentHp} / ${vitals.monster.maxHp}`"
-      >
-        <span class="hp-ghost" :style="{ width: `${monsterHpPercent}%` }" />
-        <span class="hpbar-fill" :style="{ width: `${monsterHpPercent}%` }" />
-        <span class="hp-shine" />
-      </div>
-    </div>
-
-    <div class="hero-hud">
-      <div class="hp-readout hero-hp-line">
-        <strong>{{ playerName }}</strong>
-        <span class="num">
-          {{ abbr(vitals.player.currentHp) }} / {{ abbr(vitals.player.maxHp) }}
-        </span>
-      </div>
-      <div
-        class="hpbar hero-hpbar"
-        :class="{ low: playerHpPercent <= 25 }"
-        role="meter"
-        aria-label="玩家生命"
-        aria-valuemin="0"
-        :aria-valuemax="vitals.player.maxHp"
-        :aria-valuenow="vitals.player.currentHp"
-        :aria-valuetext="`${vitals.player.currentHp} / ${vitals.player.maxHp}`"
-      >
-        <span class="hp-ghost" :style="{ width: `${playerHpPercent}%` }" />
-        <span class="hpbar-fill" :style="{ width: `${playerHpPercent}%` }" />
-        <span class="hp-shine" />
-      </div>
-    </div>
-
-    <div :key="heroUnitKey" class="hero-unit" :class="{ hurt: heroHurt }">
-      <span class="actor-shadow" aria-hidden="true" />
-      <div class="hero-actor">
-        <CharacterAppearance
-          :key="heroActorKey"
-          :class-id="classId"
-          :level="level"
-          :equipped="equipped"
-          variant="battle"
-          :action="heroAction"
-          :reduce-motion="reduceMotionEnabled"
+  <section class="battle-performance">
+    <div
+      class="battle-scene"
+      :class="[
+        `target-${monster.type}`,
+        shakeTier ? `shake-${shakeTier}` : null,
+        {
+          active,
+          casting: heroAction === 'cast',
+          'hero-catkin': classId === 'catkin',
+          'player-low': playerHpPercent <= 25,
+          'is-hitstop': hitstop,
+          'reduced-motion': reduceMotionEnabled,
+        },
+      ]"
+      :style="{
+        '--impact-delay': latestRhythmSkill ? '300ms' : '110ms',
+        '--monster-impact-delay': `${monsterImpactDelay}ms`,
+        '--shake-key': shakeSeq,
+      }"
+      :aria-label="`${playerName}正在与${monster.name}战斗`"
+    >
+      <Transition name="bg-fade">
+        <img
+          :key="backgroundUrl"
+          class="scene-background"
+          :src="backgroundUrl"
+          alt=""
+          aria-hidden="true"
         />
+      </Transition>
+      <span class="scene-haze" aria-hidden="true" />
+      <span class="scene-glow" aria-hidden="true" />
+
+      <div class="ambient-particles" aria-hidden="true">
+        <i v-for="n in 9" :key="n" />
       </div>
-    </div>
 
-    <div
-      v-for="(support, index) in supportMonsters.slice(0, 2)"
-      :key="support.id"
-      class="support-unit"
-      :class="`support-${index + 1}`"
-      aria-hidden="true"
-    >
-      <span class="actor-shadow" />
-      <MonsterArtwork :monster="support" />
-    </div>
-
-    <div
-      :key="`${monster.id}:${pulse?.id ?? 'active'}`"
-      class="enemy-unit"
-      :class="{ spawn: spawning }"
-    >
-      <span class="actor-shadow" aria-hidden="true" />
-      <div class="enemy-actor">
-        <MonsterArtwork :key="enemyActorKey" :monster="monster" :action="enemyAction" />
+      <div class="battle-status">
+        <span class="status-dot" />
+        <span>{{ statusText }}</span>
+        <strong class="num">{{ progressText }}</strong>
+        <span v-if="waveRatio !== undefined" class="wave-track" aria-hidden="true">
+          <i :style="{ transform: `scaleX(${Math.min(1, Math.max(0, waveRatio))})` }" />
+        </span>
       </div>
-      <span class="actor-name enemy-name">{{ monster.name }}</span>
-    </div>
 
-    <span v-if="pulse" :key="pulse.id" class="damage num">
-      -{{ abbr(pulse.damage) }}
-      <small v-if="pulse.kills > 1">×{{ pulse.kills }}</small>
-    </span>
+      <div class="enemy-hud">
+        <div class="enemy-line">
+          <span v-if="monster.type !== 'normal'" class="enemy-rank">
+            {{ monster.type === 'boss' ? 'BOSS' : '精英' }}
+          </span>
+          <strong>{{ monster.name }}</strong>
+          <span class="num">Lv.{{ monster.level }}</span>
+        </div>
+        <div class="hp-readout">
+          <span>生命</span>
+          <strong class="num">
+            {{ abbr(vitals.monster.currentHp) }} / {{ abbr(vitals.monster.maxHp) }}
+          </strong>
+        </div>
+        <div
+          class="hpbar"
+          :class="{ low: monsterHpPercent <= 25 }"
+          role="meter"
+          aria-label="目标生命"
+          aria-valuemin="0"
+          :aria-valuemax="vitals.monster.maxHp"
+          :aria-valuenow="vitals.monster.currentHp"
+          :aria-valuetext="`${vitals.monster.currentHp} / ${vitals.monster.maxHp}`"
+        >
+          <span class="hp-ghost" :style="{ width: `${monsterHpPercent}%` }" />
+          <span class="hpbar-fill" :style="{ width: `${monsterHpPercent}%` }" />
+          <span class="hp-shine" />
+        </div>
+      </div>
 
-    <!-- 持续战斗飘字：每一拍一个数字，暴击更大更亮 -->
-    <TransitionGroup name="beat-float" tag="div" class="beat-layer" aria-hidden="true">
-      <span
-        v-for="b in liveBeats"
-        :key="b.seq"
-        class="beat-damage num"
-        :class="[
-          b.kind === 'monster-attack' ? 'to-hero' : 'to-enemy',
-          `tier-${b.tier}`,
-          { crit: b.crit },
-        ]"
-        :style="{ '--beat-offset': b.offset + 'px' }"
-      >
-        <template v-if="b.kind === 'monster-attack'">-{{ abbr(b.damage) }}</template>
-        <template v-else>{{ b.crit ? '暴击 ' : '' }}-{{ abbr(b.damage) }}</template>
-      </span>
-    </TransitionGroup>
+      <div class="hero-hud">
+        <div class="hp-readout hero-hp-line">
+          <strong>{{ playerName }}</strong>
+          <span class="num">
+            {{ abbr(vitals.player.currentHp) }} / {{ abbr(vitals.player.maxHp) }}
+          </span>
+        </div>
+        <div
+          class="hpbar hero-hpbar"
+          :class="{ low: playerHpPercent <= 25 }"
+          role="meter"
+          aria-label="玩家生命"
+          aria-valuemin="0"
+          :aria-valuemax="vitals.player.maxHp"
+          :aria-valuenow="vitals.player.currentHp"
+          :aria-valuetext="`${vitals.player.currentHp} / ${vitals.player.maxHp}`"
+        >
+          <span class="hp-ghost" :style="{ width: `${playerHpPercent}%` }" />
+          <span class="hpbar-fill" :style="{ width: `${playerHpPercent}%` }" />
+          <span class="hp-shine" />
+        </div>
+      </div>
 
-    <!-- 持续普攻特效：每次玩家出手闪一次 -->
-    <TransitionGroup name="swing" tag="div" class="swing-layer" aria-hidden="true">
+      <div :key="heroUnitKey" class="hero-unit" :class="{ hurt: heroHurt }">
+        <span class="actor-shadow" aria-hidden="true" />
+        <div class="hero-actor">
+          <CharacterAppearance
+            :key="heroActorKey"
+            :class-id="classId"
+            :level="level"
+            :equipped="equipped"
+            variant="battle"
+            :action="heroAction"
+            :reduce-motion="reduceMotionEnabled"
+          />
+        </div>
+      </div>
+
       <div
-        v-for="b in playerBeats"
-        :key="b.seq"
-        class="swing-fx"
-        :class="[
-          `swing-${classId}`,
-          skillForBeat(b) ? `kind-${skillForBeat(b)!.visualKind}` : 'kind-basic',
-          { 'is-skill': b.kind === 'player-skill', crit: b.crit },
-        ]"
+        v-for="(support, index) in supportMonsters.slice(0, 2)"
+        :key="support.id"
+        class="support-unit"
+        :class="`support-${index + 1}`"
+        aria-hidden="true"
       >
-        <img :src="effectUrlForBeat(b)" alt="" draggable="false" />
+        <span class="actor-shadow" />
+        <MonsterArtwork :monster="support" />
       </div>
-    </TransitionGroup>
 
-    <div
-      v-if="drop"
-      :key="`drop-${drop.id}`"
-      class="loot-burst"
-      :class="`drop-${drop.quality}`"
-      aria-hidden="true"
-    >
-      <span class="loot-ring" />
-      <span class="loot-orb">
-        <img :src="drop.assetUrl" alt="" draggable="false" />
+      <div
+        :key="`${monster.id}:${pulse?.id ?? 'active'}`"
+        class="enemy-unit"
+        :class="{ spawn: spawning }"
+      >
+        <span class="actor-shadow" aria-hidden="true" />
+        <div class="enemy-actor">
+          <MonsterArtwork :key="enemyActorKey" :monster="monster" :action="enemyAction" />
+        </div>
+        <span class="actor-name enemy-name">{{ monster.name }}</span>
+      </div>
+
+      <span v-if="pulse" :key="pulse.id" class="damage num">
+        -{{ abbr(pulse.damage) }}
+        <small v-if="pulse.kills > 1">×{{ pulse.kills }}</small>
       </span>
-      <strong>{{ drop.name }}</strong>
-      <i v-for="n in 6" :key="n" />
+
+      <!-- 持续战斗飘字：每一拍一个数字，暴击更大更亮 -->
+      <TransitionGroup name="beat-float" tag="div" class="beat-layer" aria-hidden="true">
+        <span
+          v-for="b in liveBeats"
+          :key="b.seq"
+          class="beat-damage num"
+          :class="[
+            b.kind === 'monster-attack' ? 'to-hero' : 'to-enemy',
+            `tier-${b.tier}`,
+            { crit: b.crit },
+          ]"
+          :style="{ '--beat-offset': b.offset + 'px' }"
+        >
+          <template v-if="b.kind === 'monster-attack'">-{{ abbr(b.damage) }}</template>
+          <template v-else>{{ b.crit ? '暴击 ' : '' }}-{{ abbr(b.damage) }}</template>
+        </span>
+      </TransitionGroup>
+
+      <!-- 持续普攻特效：每次玩家出手闪一次 -->
+      <TransitionGroup name="swing" tag="div" class="swing-layer" aria-hidden="true">
+        <div
+          v-for="b in playerBeats"
+          :key="b.seq"
+          class="swing-fx"
+          :class="[
+            `swing-${classId}`,
+            skillForBeat(b) ? `kind-${skillForBeat(b)!.visualKind}` : 'kind-basic',
+            { 'is-skill': b.kind === 'player-skill', crit: b.crit },
+          ]"
+        >
+          <img :src="effectUrlForBeat(b)" alt="" draggable="false" />
+        </div>
+      </TransitionGroup>
+
+      <div
+        v-if="drop"
+        :key="`drop-${drop.id}`"
+        class="loot-burst"
+        :class="`drop-${drop.quality}`"
+        aria-hidden="true"
+      >
+        <span class="loot-ring" />
+        <span class="loot-orb">
+          <img :src="drop.assetUrl" alt="" draggable="false" />
+        </span>
+        <strong>{{ drop.name }}</strong>
+        <i v-for="n in 6" :key="n" />
+      </div>
+
+      <span class="foreground-vignette" aria-hidden="true" />
     </div>
 
-    <span class="foreground-vignette" aria-hidden="true" />
-  </div>
+    <AutoSkillDeck
+      v-if="game.battleRhythmSnapshot"
+      :class-id="classId"
+      :level="level"
+      :active="active"
+      :snapshot="game.battleRhythmSnapshot"
+      :reduce-motion="reduceMotionEnabled"
+      :haptics-enabled="game.save?.settings.haptics ?? false"
+    />
+  </section>
 </template>
 
 <style scoped>
+.battle-performance {
+  width: 100%;
+}
+
 .battle-scene {
   isolation: isolate;
   position: relative;
@@ -1974,13 +1995,11 @@ onUnmounted(() => {
   transition: none !important;
 }
 
-.battle-scene.reduced-motion.is-hitstop
-  :is(.hero-unit, .hero-unit *, .enemy-unit, .enemy-unit *) {
+.battle-scene.reduced-motion.is-hitstop :is(.hero-unit, .hero-unit *, .enemy-unit, .enemy-unit *) {
   animation-play-state: running;
 }
 
-.battle-scene.reduced-motion[class*='shake-']
-  :is(.scene-background, .hero-unit, .enemy-unit) {
+.battle-scene.reduced-motion[class*='shake-'] :is(.scene-background, .hero-unit, .enemy-unit) {
   animation: none !important;
 }
 

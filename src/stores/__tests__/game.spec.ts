@@ -4,11 +4,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { battleMonsterIdAt } from '@/core/battleVisual';
 import { decomposeGold } from '@/core/economy';
 import { createInstance } from '@/core/equipment';
+import { expToNext } from '@/core/progression';
 import { CLASS_IDS, type EquipmentInstance } from '@/core/types';
 import { Rng } from '@/core/rng';
 import { ENHANCE_MAX, ENHANCE_MATERIAL_IDS, SLOT_ORDER } from '@/data/constants';
 import { requireEquipment } from '@/data/equipment';
 import { SHOP_OFFERS } from '@/data/shop';
+import { battleRhythmSkills } from '@/data/skills';
 import { ORDERED_STAGE_IDS, STAGES, nextStageId, totalMonsterCount } from '@/data/stages';
 import { createSave, SAVE_VERSION, type SaveData } from '@/save/schema';
 import { clearSave, loadSave } from '@/save/storage';
@@ -242,10 +244,50 @@ describe('shared-progress class switching', () => {
     // 既能进入主流程，又不会真的结算一只怪。
     clock += (0.9 / game.kps) * 1_000;
     firstFrame(clock);
-    game.stopLoop();
+
+    const liveRhythmSnapshot = game.battleRhythmSnapshot;
+    expect(liveRhythmSnapshot).not.toBeNull();
+    if (!liveRhythmSnapshot) throw new Error('实时循环没有发布技能节奏快照');
+    expect(liveRhythmSnapshot).toMatchObject({
+      source: 'visual-projection',
+      contextId: 'witch',
+      running: true,
+    });
+    expect(liveRhythmSnapshot.skills.map((skill) => skill.skillId)).toEqual(
+      battleRhythmSkills('witch', game.save!.player.level).map((skill) => skill.id),
+    );
+    const skillBeats = game.battleBeats.filter((beat) => beat.kind === 'player-skill');
+    expect(skillBeats.length).toBeGreaterThan(0);
+    expect(
+      skillBeats.every((beat) =>
+        liveRhythmSnapshot.skills.some((skill) => skill.skillId === beat.skillId),
+      ),
+    ).toBe(true);
+    expect(liveRhythmSnapshot.basic.lastCastSeq).toBe(
+      [...game.battleBeats].reverse().find((beat) => beat.kind === 'player-attack')?.seq ?? null,
+    );
+    for (const runtime of liveRhythmSnapshot.skills) {
+      expect(runtime.lastCastSeq).toBe(
+        [...skillBeats].reverse().find((beat) => beat.skillId === runtime.skillId)?.seq ?? null,
+      );
+    }
+    const rhythmEpochBeforeSwitch = liveRhythmSnapshot.epoch;
+    const snapshotBeforePause = jsonClone(liveRhythmSnapshot);
+
+    game.pauseForBackground();
+    expect(game.battleRhythmSnapshot).toEqual({
+      ...snapshotBeforePause,
+      running: false,
+    });
+    game.resumeFromBackground();
+    expect(game.battleRhythmSnapshot).toEqual({
+      ...snapshotBeforePause,
+      running: true,
+    });
 
     expect(game.battleProgress).toBeCloseTo(0.9, 5);
     expect(game.battleBeats.length).toBeGreaterThan(0);
+    expect(game.battleRhythmSnapshot?.running).toBe(true);
     const progressBefore = game.battleProgress;
     const killsBefore = game.save!.stats.totalKills;
     const stageKillsBefore = jsonClone(game.save!.progress.stageKills);
@@ -255,8 +297,111 @@ describe('shared-progress class switching', () => {
     expect(game.battleProgress).toBeCloseTo(progressBefore, 10);
     expect(game.battleBeats).toEqual([]);
     expect(game.battlePulse).toBeNull();
+    expect(game.battleRhythmSnapshot).toMatchObject({
+      contextId: 'swordsman',
+      running: true,
+      seq: 0,
+    });
+    expect(game.battleRhythmSnapshot?.skills.map((skill) => skill.skillId)).toEqual(
+      battleRhythmSkills('swordsman', game.save!.player.level).map((skill) => skill.id),
+    );
+    expect(game.battleRhythmSnapshot?.epoch).toBeGreaterThan(rhythmEpochBeforeSwitch);
     expect(game.save?.stats.totalKills).toBe(killsBefore);
     expect(game.save?.progress.stageKills).toEqual(stageKillsBefore);
+    game.stopLoop();
+  });
+
+  it('同职业切关会开启新节奏纪元，同时保留运行态和真实技能卡配置', () => {
+    const game = useGameStore();
+    game.loadFrom(classSwitchSave());
+
+    const frames: FrameRequestCallback[] = [];
+    let rafSequence = 0;
+    vi.stubGlobal(
+      'requestAnimationFrame',
+      vi.fn((callback: FrameRequestCallback) => {
+        frames.push(callback);
+        return ++rafSequence;
+      }),
+    );
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+    let clock = 4_000;
+    vi.spyOn(performance, 'now').mockImplementation(() => clock);
+
+    game.startLoop();
+    const firstFrame = frames.shift();
+    expect(firstFrame).toBeDefined();
+    if (!firstFrame) throw new Error('实时挂机循环没有登记首帧回调');
+    clock += 300;
+    firstFrame(clock);
+
+    const before = game.battleRhythmSnapshot;
+    expect(before?.seq).toBeGreaterThan(0);
+    expect(before?.basic.lastCastSeq).not.toBeNull();
+    if (!before) throw new Error('切关测试缺少旧节奏快照');
+
+    expect(game.selectStage(game.currentStage.id)).toBe(true);
+
+    const after = game.battleRhythmSnapshot;
+    expect(after).not.toBeNull();
+    expect(after).toMatchObject({
+      contextId: 'witch',
+      running: true,
+      seq: 0,
+    });
+    expect(after?.epoch).toBe(before.epoch + 1);
+    expect(after?.basic.lastCastSeq).toBeNull();
+    expect(after?.skills.map((skill) => skill.skillId)).toEqual(
+      battleRhythmSkills('witch', game.save!.player.level).map((skill) => skill.id),
+    );
+    expect(after?.skills.every((skill) => skill.lastCastSeq === null)).toBe(true);
+    expect(game.battleBeats).toEqual([]);
+    game.stopLoop();
+  });
+
+  it('单帧升级解锁技能时会原子同步节奏快照，不留下旧等级技能表', () => {
+    const game = useGameStore();
+    const save = createSave('技能解锁测试', 'swordsman', 317, Date.now() + 60_000);
+    save.player.level = 3;
+    save.player.exp = expToNext(3) - 1;
+    const weapon = createInstance(requireEquipment('eq_r1_weapon_common'), new Rng(19), 'e-unlock');
+    weapon.affixes = [{ key: 'atk', value: 1_000_000 }];
+    save.equipped.weapon = weapon;
+    save.nextUid = 2;
+    game.loadFrom(save);
+
+    expect(game.battleRhythmSnapshot?.skills).toHaveLength(0);
+
+    const frames: FrameRequestCallback[] = [];
+    let rafSequence = 0;
+    vi.stubGlobal(
+      'requestAnimationFrame',
+      vi.fn((callback: FrameRequestCallback) => {
+        frames.push(callback);
+        return ++rafSequence;
+      }),
+    );
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+    let clock = 8_000;
+    vi.spyOn(performance, 'now').mockImplementation(() => clock);
+
+    game.startLoop();
+    const firstFrame = frames.shift();
+    expect(firstFrame).toBeDefined();
+    if (!firstFrame) throw new Error('升级同步测试缺少实时挂机帧');
+    clock += (1.1 / game.kps) * 1_000;
+    firstFrame(clock);
+
+    expect(game.save?.player.level).toBe(4);
+    expect(game.battleRhythmSnapshot?.skills.map((skill) => skill.skillId)).toEqual(
+      battleRhythmSkills('swordsman', 4).map((skill) => skill.id),
+    );
+    expect(game.battleRhythmSnapshot?.skills[0]).toMatchObject({
+      skillId: 'skill_swordsman_attack',
+      lastCastSeq: null,
+    });
+    expect(game.battleRhythmSnapshot?.running).toBe(true);
+    game.stopLoop();
   });
 
   it('回刷已通关关卡时切换职业不会把当前波次目标倒退到第一只怪', async () => {

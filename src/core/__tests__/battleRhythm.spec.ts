@@ -2,18 +2,27 @@ import { describe, it, expect } from 'vitest';
 import {
   advanceBattleBeatGate,
   advanceRhythm,
+  createBattleRhythmSnapshot,
   createBattleBeatGateState,
   createRhythmState,
-  resizeSkillCds,
+  syncRhythmSkills,
   type BattleBeat,
   type RhythmParams,
+  type RhythmSkillSpec,
 } from '../battleRhythm';
 import { Rng } from '../rng';
+
+const rhythmSkills: readonly RhythmSkillSpec[] = [
+  { skillId: 'skill-a', cooldownSec: 4, priority: 10 },
+  { skillId: 'skill-b', cooldownSec: 8, priority: 20 },
+  { skillId: 'skill-c', cooldownSec: 12, priority: 30 },
+  { skillId: 'skill-d', cooldownSec: 16, priority: 40 },
+];
 
 const params: RhythmParams = {
   playerInterval: 1,
   monsterInterval: 1.5,
-  skillCooldowns: [4, 8],
+  skills: rhythmSkills.slice(0, 2),
   critRate: 0.25,
   playerHit: 100,
   monsterHit: 40,
@@ -24,7 +33,7 @@ const beat = (seq: number, kind: BattleBeat['kind'] = 'player-attack'): BattleBe
   kind,
   crit: false,
   damage: 10,
-  skillIndex: null,
+  skillId: null,
 });
 
 describe('BattleScene 拍子门控', () => {
@@ -72,38 +81,44 @@ describe('BattleScene 拍子门控', () => {
   });
 
   it('非法游标直接报错，不用静默归零掩盖状态错误', () => {
-    expect(() =>
-      advanceBattleBeatGate({ cursor: -1, pending: [] }, [beat(1)], 'active'),
-    ).toThrow(/游标/);
+    expect(() => advanceBattleBeatGate({ cursor: -1, pending: [] }, [beat(1)], 'active')).toThrow(
+      /游标/,
+    );
   });
 });
 
 describe('createRhythmState', () => {
   it('技能冷却错峰，避免同一拍全部炸开', () => {
-    const s = createRhythmState(3);
-    expect(s.skillCds).toEqual([0, 0.7, 1.4]);
+    const s = createRhythmState(rhythmSkills.slice(0, 3));
+    expect(s.skillCds).toEqual({
+      'skill-a': 0,
+      'skill-b': 0.7,
+      'skill-c': 1.4,
+    });
   });
 
-  it('技能数非法时报错', () => {
-    expect(() => createRhythmState(-1)).toThrow();
-    expect(() => createRhythmState(1.5)).toThrow();
+  it('技能 ID 重复或冷却非法时报错', () => {
+    expect(() => createRhythmState([rhythmSkills[0]!, rhythmSkills[0]!])).toThrow(/重复/);
+    expect(() => createRhythmState([{ skillId: 'broken', cooldownSec: 0, priority: 1 }])).toThrow(
+      /技能冷却/,
+    );
   });
 });
 
 describe('advanceRhythm', () => {
   it('dt 为 0 或负数时不产生拍子', () => {
-    const s = createRhythmState(2);
+    const s = createRhythmState(params.skills);
     expect(advanceRhythm(s, 0, params, new Rng(1)).beats).toEqual([]);
     expect(advanceRhythm(s, -5, params, new Rng(1)).beats).toEqual([]);
   });
 
   it('按攻速持续产生普攻，不依赖击杀', () => {
-    let s = createRhythmState(0);
+    let s = createRhythmState();
     const rng = new Rng(7);
     let attacks = 0;
     // 模拟 10 秒，每帧 0.25 秒
     for (let i = 0; i < 40; i++) {
-      const r = advanceRhythm(s, 0.25, { ...params, skillCooldowns: [] }, rng);
+      const r = advanceRhythm(s, 0.25, { ...params, skills: [] }, rng);
       s = r.state;
       attacks += r.beats.filter((b) => b.kind === 'player-attack').length;
     }
@@ -114,16 +129,11 @@ describe('advanceRhythm', () => {
 
   it('攻速越快普攻越密集', () => {
     const run = (interval: number) => {
-      let s = createRhythmState(0);
+      let s = createRhythmState();
       const rng = new Rng(3);
       let n = 0;
       for (let i = 0; i < 40; i++) {
-        const r = advanceRhythm(
-          s,
-          0.25,
-          { ...params, playerInterval: interval, skillCooldowns: [] },
-          rng,
-        );
+        const r = advanceRhythm(s, 0.25, { ...params, playerInterval: interval, skills: [] }, rng);
         s = r.state;
         n += r.beats.filter((b) => b.kind === 'player-attack').length;
       }
@@ -133,27 +143,27 @@ describe('advanceRhythm', () => {
   });
 
   it('技能按各自冷却轮转释放', () => {
-    let s = createRhythmState(2);
+    let s = createRhythmState(params.skills);
     const rng = new Rng(11);
-    const fired: number[] = [];
+    const fired: string[] = [];
     for (let i = 0; i < 80; i++) {
       const r = advanceRhythm(s, 0.25, params, rng);
       s = r.state;
       for (const b of r.beats) {
-        if (b.kind === 'player-skill') fired.push(b.skillIndex!);
+        if (b.kind === 'player-skill') fired.push(b.skillId!);
       }
     }
-    // 20 秒内：技能0（4s CD）约 5 次，技能1（8s CD）约 2-3 次
-    expect(fired.filter((i) => i === 0).length).toBeGreaterThanOrEqual(4);
-    expect(fired.filter((i) => i === 1).length).toBeGreaterThanOrEqual(2);
+    // 20 秒内：skill-a（4s CD）约 5 次，skill-b（8s CD）约 2-3 次
+    expect(fired.filter((id) => id === 'skill-a').length).toBeGreaterThanOrEqual(4);
+    expect(fired.filter((id) => id === 'skill-b').length).toBeGreaterThanOrEqual(2);
   });
 
   it('怪物也会持续反击', () => {
-    let s = createRhythmState(0);
+    let s = createRhythmState();
     const rng = new Rng(5);
     let n = 0;
     for (let i = 0; i < 40; i++) {
-      const r = advanceRhythm(s, 0.25, { ...params, skillCooldowns: [] }, rng);
+      const r = advanceRhythm(s, 0.25, { ...params, skills: [] }, rng);
       s = r.state;
       n += r.beats.filter((b) => b.kind === 'monster-attack').length;
     }
@@ -163,17 +173,13 @@ describe('advanceRhythm', () => {
   });
 
   it('技能伤害显著高于普攻', () => {
-    let s = createRhythmState(1);
+    const oneSkillParams = { ...params, skills: rhythmSkills.slice(0, 1) };
+    let s = createRhythmState(oneSkillParams.skills);
     const rng = new Rng(20260727);
     const atk: number[] = [];
     const skill: number[] = [];
     for (let i = 0; i < 200; i++) {
-      const r = advanceRhythm(
-        s,
-        0.25,
-        { ...params, critRate: 0, skillCooldowns: [4] },
-        rng,
-      );
+      const r = advanceRhythm(s, 0.25, { ...oneSkillParams, critRate: 0 }, rng);
       s = r.state;
       for (const b of r.beats) {
         if (b.kind === 'player-attack') atk.push(b.damage);
@@ -186,11 +192,11 @@ describe('advanceRhythm', () => {
 
   it('暴击率为 0 时永不暴击，为 1 时必定暴击', () => {
     const collect = (critRate: number) => {
-      let s = createRhythmState(0);
+      let s = createRhythmState();
       const rng = new Rng(9);
       const crits: boolean[] = [];
       for (let i = 0; i < 40; i++) {
-        const r = advanceRhythm(s, 0.5, { ...params, critRate, skillCooldowns: [] }, rng);
+        const r = advanceRhythm(s, 0.5, { ...params, critRate, skills: [] }, rng);
         s = r.state;
         for (const b of r.beats) if (b.kind === 'player-attack') crits.push(b.crit);
       }
@@ -201,10 +207,10 @@ describe('advanceRhythm', () => {
   });
 
   it('怪物攻击永不标记暴击', () => {
-    let s = createRhythmState(0);
+    let s = createRhythmState();
     const rng = new Rng(1);
     for (let i = 0; i < 40; i++) {
-      const r = advanceRhythm(s, 0.5, { ...params, critRate: 1, skillCooldowns: [] }, rng);
+      const r = advanceRhythm(s, 0.5, { ...params, critRate: 1, skills: [] }, rng);
       s = r.state;
       for (const b of r.beats) {
         if (b.kind === 'monster-attack') expect(b.crit).toBe(false);
@@ -213,7 +219,7 @@ describe('advanceRhythm', () => {
   });
 
   it('序号严格递增，UI 可以安全当动画 key', () => {
-    let s = createRhythmState(2);
+    let s = createRhythmState(params.skills);
     const rng = new Rng(42);
     let last = 0;
     for (let i = 0; i < 60; i++) {
@@ -227,7 +233,7 @@ describe('advanceRhythm', () => {
   });
 
   it('切后台回来的超长 dt 会被截断，不会吐出上千拍', () => {
-    const s = createRhythmState(2);
+    const s = createRhythmState(params.skills);
     // 模拟切后台 10 分钟
     const r = advanceRhythm(s, 600, params, new Rng(1));
     expect(r.beats.length).toBeLessThanOrEqual(12);
@@ -236,7 +242,7 @@ describe('advanceRhythm', () => {
 
   it('同种子结果可复现', () => {
     const run = () => {
-      let s = createRhythmState(2);
+      let s = createRhythmState(params.skills);
       const rng = new Rng(31337);
       const out: number[] = [];
       for (let i = 0; i < 30; i++) {
@@ -250,47 +256,133 @@ describe('advanceRhythm', () => {
   });
 
   it('不修改传入的 state', () => {
-    const s = createRhythmState(2);
+    const s = createRhythmState(params.skills);
     const snapshot = JSON.parse(JSON.stringify(s));
     advanceRhythm(s, 5, params, new Rng(1));
     expect(s).toEqual(snapshot);
   });
 
-  it('技能冷却数量不匹配时直接报错', () => {
-    const state = createRhythmState(2);
+  it('技能 ID 与状态不匹配时直接报错', () => {
+    const state = createRhythmState(params.skills);
     expect(() =>
-      advanceRhythm(state, 0.25, { ...params, skillCooldowns: [4] }, new Rng(1)),
-    ).toThrow(/数量/);
+      advanceRhythm(
+        state,
+        0.25,
+        { ...params, skills: [{ skillId: 'other', cooldownSec: 4, priority: 1 }] },
+        new Rng(1),
+      ),
+    ).toThrow(/ID 不一致/);
   });
 
   it.each([
-    ['零冷却', [0]],
-    ['NaN 冷却', [Number.NaN]],
-  ])('%s 配置直接报错', (_label, skillCooldowns) => {
-    const state = createRhythmState(1);
-    expect(() =>
-      advanceRhythm(state, 0.25, { ...params, skillCooldowns }, new Rng(1)),
-    ).toThrow(/技能冷却/);
+    ['零冷却', 0],
+    ['NaN 冷却', Number.NaN],
+  ])('%s 配置直接报错', (_label, cooldownSec) => {
+    const skills = [{ skillId: 'broken', cooldownSec, priority: 1 }];
+    const state = { ...createRhythmState(), skillCds: { broken: 0 } };
+    expect(() => advanceRhythm(state, 0.25, { ...params, skills }, new Rng(1))).toThrow(/技能冷却/);
+  });
+
+  it('同一帧多个技能就绪时只按视觉优先级决定拍子顺序', () => {
+    const skills = [
+      { skillId: 'low', cooldownSec: 4, priority: 10 },
+      { skillId: 'high', cooldownSec: 4, priority: 90 },
+    ];
+    const state = {
+      ...createRhythmState(skills),
+      skillCds: { low: 0, high: 0 },
+    };
+    const result = advanceRhythm(state, 0.25, { ...params, skills }, new Rng(8));
+    expect(
+      result.beats.filter((entry) => entry.kind === 'player-skill').map((entry) => entry.skillId),
+    ).toEqual(['high', 'low']);
   });
 });
 
-describe('resizeSkillCds', () => {
-  it('技能数不变时返回原对象', () => {
-    const s = createRhythmState(2);
-    expect(resizeSkillCds(s, 2)).toBe(s);
+describe('syncRhythmSkills', () => {
+  it('技能 ID 集合不变时返回原对象', () => {
+    const skills = rhythmSkills.slice(0, 2);
+    const s = createRhythmState(skills);
+    expect(syncRhythmSkills(s, [...skills].reverse())).toBe(s);
   });
 
-  it('解锁新技能时保留已有冷却进度', () => {
-    let s = createRhythmState(2);
-    s = { ...s, skillCds: [1.2, 3.4] };
-    const next = resizeSkillCds(s, 3);
-    expect(next.skillCds[0]).toBe(1.2);
-    expect(next.skillCds[1]).toBe(3.4);
-    expect(next.skillCds).toHaveLength(3);
+  it('解锁新技能时按 ID 保留已有冷却进度', () => {
+    const firstTwo = rhythmSkills.slice(0, 2);
+    let s = createRhythmState(firstTwo);
+    s = { ...s, skillCds: { 'skill-a': 1.2, 'skill-b': 3.4 } };
+    const next = syncRhythmSkills(s, rhythmSkills.slice(0, 3));
+    expect(next.skillCds['skill-a']).toBe(1.2);
+    expect(next.skillCds['skill-b']).toBe(3.4);
+    expect(next.skillCds['skill-c']).toBe(1.4);
   });
 
-  it('技能变少时截断', () => {
-    const s = createRhythmState(4);
-    expect(resizeSkillCds(s, 2).skillCds).toHaveLength(2);
+  it('技能重新排序不会把冷却串给另一技能，离开列表的技能会移除', () => {
+    const s = {
+      ...createRhythmState(rhythmSkills.slice(0, 3)),
+      skillCds: { 'skill-a': 1, 'skill-b': 2, 'skill-c': 3 },
+    };
+    const next = syncRhythmSkills(s, [rhythmSkills[2]!, rhythmSkills[0]!]);
+    expect(next.skillCds).toEqual({ 'skill-c': 3, 'skill-a': 1 });
+  });
+});
+
+describe('createBattleRhythmSnapshot', () => {
+  it('发布与生产器同源的基础行动和技能冷却，不暴露可变状态', () => {
+    const skills = rhythmSkills.slice(0, 2);
+    const state = {
+      ...createRhythmState(skills),
+      seq: 9,
+      playerCd: 0.4,
+      skillCds: { 'skill-a': 1, 'skill-b': 20 },
+    };
+    const snapshot = createBattleRhythmSnapshot(state, {
+      contextId: 'catkin',
+      epoch: 3,
+      running: true,
+      playerCooldownSec: 1,
+      skills,
+      lastBasicCastSeq: 7,
+      lastCastBySkillId: { 'skill-a': 8, 'skill-b': 9 },
+    });
+
+    expect(snapshot.source).toBe('visual-projection');
+    expect(snapshot.contextId).toBe('catkin');
+    expect(snapshot.basic).toEqual({
+      cooldownSec: 1,
+      remainingSec: 0.4,
+      ratio: 0.4,
+      lastCastSeq: 7,
+    });
+    expect(snapshot.skills).toEqual([
+      {
+        skillId: 'skill-a',
+        cooldownSec: 4,
+        remainingSec: 1,
+        ratio: 0.25,
+        lastCastSeq: 8,
+      },
+      {
+        skillId: 'skill-b',
+        cooldownSec: 8,
+        remainingSec: 8,
+        ratio: 1,
+        lastCastSeq: 9,
+      },
+    ]);
+  });
+
+  it('技能快照缺少同 ID 冷却时直接报错，不用零值兜底', () => {
+    const skills = rhythmSkills.slice(0, 1);
+    expect(() =>
+      createBattleRhythmSnapshot(createRhythmState(), {
+        contextId: 'shaman',
+        epoch: 1,
+        running: true,
+        playerCooldownSec: 1,
+        skills,
+        lastBasicCastSeq: null,
+        lastCastBySkillId: {},
+      }),
+    ).toThrow(/缺少技能冷却/);
   });
 });

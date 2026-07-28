@@ -1,6 +1,6 @@
 import type { AffectionMood } from '@/core/affection';
 
-export type HapticCue = AffectionMood | 'prismatic-drop';
+export type HapticCue = AffectionMood | 'prismatic-drop' | 'skill-card';
 
 const HAPTIC_PATTERNS: Readonly<Record<HapticCue, readonly number[]>> = {
   calm: [12],
@@ -9,6 +9,8 @@ const HAPTIC_PATTERNS: Readonly<Record<HapticCue, readonly number[]>> = {
   moved: [26, 32, 26],
   playful: [10, 16, 10, 16, 14],
   'prismatic-drop': [18, 30, 18, 38, 46],
+  /** 只用于玩家点按查看技能卡；自动轮转绝不主动震动。 */
+  'skill-card': [10],
 };
 
 /**
@@ -17,11 +19,7 @@ const HAPTIC_PATTERNS: Readonly<Record<HapticCue, readonly number[]>> = {
  * 振动是可选硬件能力：不支持时返回 false，不改变任何游戏状态，
  * 也不会用视觉假反馈掩盖奖励主流程。
  */
-export function triggerHaptic(
-  cue: HapticCue,
-  enabled: boolean,
-  reduceMotion: boolean,
-): boolean {
+export function triggerHaptic(cue: HapticCue, enabled: boolean, reduceMotion: boolean): boolean {
   if (!enabled || reduceMotion || typeof navigator === 'undefined') return false;
   if (typeof navigator.vibrate !== 'function') return false;
   return navigator.vibrate([...HAPTIC_PATTERNS[cue]]);
