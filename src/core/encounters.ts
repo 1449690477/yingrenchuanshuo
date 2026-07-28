@@ -44,6 +44,18 @@ export interface EncounterMemoryCallback {
   choiceId: string;
   dialogue: EncounterLine[];
 }
+export interface EncounterDailyVariant {
+  id: string;
+  title: string;
+  story: string;
+  dialogue: EncounterLine[];
+  relationshipDialogue: Partial<Record<EncounterRelationshipStage, EncounterLine[]>>;
+}
+
+export interface EncounterSupportTier {
+  unlockChapterId: string;
+  choice: EncounterChoice;
+}
 
 export interface EncounterStoryArc {
   characterId: string;
@@ -66,6 +78,10 @@ export interface EncounterDefinition {
   choices: [EncounterChoice, EncounterChoice];
   /** 连续角色剧情；缺失时沿用普通奇遇的一步结算流程。 */
   storyArc?: EncounterStoryArc;
+  /** 可重复角色日常的稳定对白池；同一 pending UID 永远解析为同一项。 */
+  dailyVariants?: EncounterDailyVariant[];
+  /** 按历史最高章节递进的援助选项，顺序必须从早到晚。 */
+  supportTiers?: EncounterSupportTier[];
 
   // ── 演出相关（全部可选，缺失时 UI 会优雅降级）──
 
@@ -120,6 +136,28 @@ export type EncounterChoiceResult =
   | { ok: false; reason: 'insufficient-resource' };
 
 export type EncounterRelationshipStage = '初遇' | '熟悉' | '亲近' | '信赖';
+export interface EncounterPresentation {
+  title: string;
+  story: string;
+  dialogue: EncounterLine[];
+  variantId?: string;
+}
+
+export interface EncounterJournalEpisode {
+  encounterId: string;
+  title: string;
+  episodeLabel: string;
+  answerLabel: string;
+}
+
+export interface EncounterJournalCharacter {
+  characterId: string;
+  characterName: string;
+  glyph: string;
+  relationship: EncounterRelationshipStage;
+  completedEpisodes: EncounterJournalEpisode[];
+  hasPendingStory: boolean;
+}
 
 export type RememberStoryChoiceResult =
   | { ok: true; state: EncounterState }
@@ -180,6 +218,7 @@ export function availableEncounterIds(
   unlockedChapterIds: ReadonlySet<string>,
   characters: Readonly<Record<string, EncounterCharacterProgress>> = {},
   pendingEncounterIds: ReadonlySet<string> = new Set(),
+  pendingCharacterIds: ReadonlySet<string> = new Set(),
 ): string[] {
   return definitions
     .filter((encounter) => {
@@ -192,6 +231,7 @@ export function availableEncounterIds(
       }
       const arc = encounter.storyArc;
       if (!arc) return true;
+      if (pendingCharacterIds.has(arc.characterId)) return false;
       const completed = new Set(characters[arc.characterId]?.completedEncounterIds ?? []);
       if (!arc.repeatable && completed.has(encounter.id)) return false;
       return arc.requiredEncounterIds.every((id) => completed.has(id));
@@ -199,6 +239,115 @@ export function availableEncounterIds(
     .map((encounter) => encounter.id);
 }
 
+/** 同一待处理 UID 的日常展示可复现；关系阶段只追加文本，不参与抽取。 */
+export function encounterPresentation(
+  definition: EncounterDefinition,
+  state: EncounterState,
+  saveSeed: number,
+  pendingUid: string,
+): EncounterPresentation {
+  const variants = definition.dailyVariants;
+  if (!definition.storyArc?.repeatable || !variants || variants.length === 0) {
+    return {
+      title: definition.title,
+      story: definition.story,
+      dialogue: [...(definition.dialogue ?? [])],
+    };
+  }
+  const variantSeed = encounterRewardSeed(saveSeed, pendingUid, `daily:${definition.id}`);
+  const variant = variants[variantSeed % variants.length]!;
+  const stage = relationshipStage(state.characters[definition.storyArc.characterId]?.bond ?? 0);
+  return {
+    title: variant.title,
+    story: variant.story,
+    dialogue: [...(variant.relationshipDialogue[stage] ?? []), ...variant.dialogue],
+    variantId: variant.id,
+  };
+}
+
+/** UI 与最终结算共用同一章节档位，避免显示和扣除分叉。 */
+export function encounterChoicesForChapters(
+  definition: EncounterDefinition,
+  unlockedChapterIds: ReadonlySet<string>,
+): [EncounterChoice, EncounterChoice] {
+  let support = definition.choices[0];
+  for (const tier of definition.supportTiers ?? []) {
+    if (unlockedChapterIds.has(tier.unlockChapterId)) support = tier.choice;
+  }
+  return [cloneChoice(support), cloneChoice(definition.choices[1])];
+}
+
+/** 从既有完成记录和 pending 派生已遇见角色，不泄露未解锁篇章。 */
+export function encounterJournalCharacters(
+  definitions: readonly EncounterDefinition[],
+  state: EncounterState,
+): EncounterJournalCharacter[] {
+  const storyDefinitions = definitions.filter(
+    (definition) => definition.storyArc && !definition.storyArc.repeatable,
+  );
+  const pendingCharacterIds = new Set(
+    state.pending.flatMap((entry) => {
+      const arc = definitions.find((definition) => definition.id === entry.encounterId)?.storyArc;
+      return arc ? [arc.characterId] : [];
+    }),
+  );
+  const characterIds = new Set(
+    storyDefinitions.map((definition) => definition.storyArc!.characterId),
+  );
+  return [...characterIds].flatMap((characterId) => {
+    const definitionsForCharacter = storyDefinitions
+      .filter((definition) => definition.storyArc!.characterId === characterId)
+      .sort((left, right) => left.storyArc!.episode - right.storyArc!.episode);
+    const progress = state.characters[characterId];
+    const hasPendingStory = pendingCharacterIds.has(characterId);
+    const completed = new Set(progress?.completedEncounterIds ?? []);
+    if (completed.size === 0 && !hasPendingStory) return [];
+    const first = definitionsForCharacter[0]!;
+    return [
+      {
+        characterId,
+        characterName: first.storyArc!.characterName,
+        glyph: first.glyph ?? '✦',
+        relationship: relationshipStage(progress?.bond ?? 0),
+        completedEpisodes: definitionsForCharacter.flatMap((definition) => {
+          if (!completed.has(definition.id)) return [];
+          const choiceId = progress?.choiceHistory[definition.id];
+          const answerLabel =
+            definition.storyArc!.storyChoices.find((choice) => choice.id === choiceId)?.label ??
+            '那时的回答已随风模糊';
+          return [
+            {
+              encounterId: definition.id,
+              title: definition.title,
+              episodeLabel: definition.storyArc!.episodeLabel,
+              answerLabel,
+            },
+          ];
+        }),
+        hasPendingStory,
+      },
+    ];
+  });
+}
+
+/** 手札回顾只重建文本，不接触资源、队列或随机状态。 */
+export function replayDialogueForEncounter(
+  definition: EncounterDefinition,
+  state: EncounterState,
+): EncounterLine[] {
+  const arc = definition.storyArc;
+  if (!arc || arc.repeatable) return [];
+  const progress = state.characters[arc.characterId];
+  if (!progress?.completedEncounterIds.includes(definition.id)) return [];
+  const storyChoice = arc.storyChoices.find(
+    (choice) => choice.id === progress.choiceHistory[definition.id],
+  );
+  return [
+    ...memoryDialogueForEncounter(definition, state),
+    ...(definition.dialogue ?? []),
+    ...(storyChoice?.responseDialogue ?? []),
+  ];
+}
 export function memoryDialogueForEncounter(
   definition: EncounterDefinition,
   state: EncounterState,
@@ -382,6 +531,23 @@ function applyBundle(wallet: ResourceWallet, bundle: ResourceBundle | undefined,
   }
 }
 
+function cloneChoice(choice: EncounterChoice): EncounterChoice {
+  return {
+    ...choice,
+    costs: choice.costs ? { gold: choice.costs.gold, items: { ...choice.costs.items } } : undefined,
+    rewardPool: choice.rewardPool?.map((variant) => ({
+      weight: variant.weight,
+      rewards: {
+        gold: variant.rewards.gold ? { ...variant.rewards.gold } : undefined,
+        items: variant.rewards.items
+          ? Object.fromEntries(
+              Object.entries(variant.rewards.items).map(([id, range]) => [id, { ...range }]),
+            )
+          : undefined,
+      },
+    })),
+  };
+}
 function cloneState(state: EncounterState): EncounterState {
   return {
     ...state,

@@ -224,7 +224,7 @@ const DEFINITIONS: EncounterDefinition[] = [
   },
   {
     id: 'enc_r1_petalsmith_daily',
-    regionIds: ['r1'],
+    regionIds: ['r1', 'r2'],
     unlockChapterId: '1-5',
     title: '刀匠的例行试握',
     story: '茜又带着新的包柄样品来找她最信任的试握人。',
@@ -252,6 +252,152 @@ const DEFINITIONS: EncounterDefinition[] = [
         },
       ],
     },
+    dailyVariants: [
+      {
+        id: 'blind_grip',
+        title: '闭眼试握的新作',
+        story: '茜把两截新包柄藏到身后，等你只凭手感选出更好的一截。',
+        relationshipDialogue: {
+          初遇: [{ speaker: '刀匠·茜', text: '那个……还愿意帮我试一次吗？' }],
+          熟悉: [{ speaker: '刀匠·茜', text: '你上次说的手感，我一直记在草图边上。' }],
+          亲近: [{ speaker: '刀匠·茜', text: '这次我还没给师父看，想先听你的。' }],
+          信赖: [{ speaker: '刀匠·茜', text: '老搭档，手借我一下！只借一小会儿。' }],
+        },
+        dialogue: [
+          { speaker: '刀匠·茜', text: '闭上眼，只凭手感帮我挑一条。可不许偷看哦！' },
+          { text: '她把两截包柄藏在背后，神情已经比第一次见面时从容许多。' },
+        ],
+      },
+      {
+        id: 'rain_wrap',
+        title: '雨天也握得住',
+        story: '一场小雨让茜发现新刀柄太滑，她抱着三卷缠带追上了你。',
+        relationshipDialogue: {
+          初遇: [{ speaker: '刀匠·茜', text: '又、又见面了！这次不是坏掉，只是有点滑。' }],
+          熟悉: [{ speaker: '刀匠·茜', text: '我照你的办法改软了，可雨天又冒出新问题。' }],
+          亲近: [{ speaker: '刀匠·茜', text: '我知道你不会只说好听话，所以才来找你。' }],
+          信赖: [{ speaker: '刀匠·茜', text: '果然在这里！快来救救我这卷不争气的缠带。' }],
+        },
+        dialogue: [
+          { speaker: '刀匠·茜', text: '这三种缠法都不会吸水，你帮我看看哪一种更贴手？' },
+          { text: '细密的雨珠沿着刀鞘滑落，缠带却仍带着暖暖的工坊气息。' },
+        ],
+      },
+      {
+        id: 'small_hands',
+        title: '给小手客人的刀柄',
+        story: '茜接到一份特别订单：为手掌很小的客人做一把不会累的练习刀。',
+        relationshipDialogue: {
+          初遇: [{ speaker: '刀匠·茜', text: '你看起来很会替别人考虑……可以帮我想想吗？' }],
+          熟悉: [{ speaker: '刀匠·茜', text: '你说过握得久比看起来威风更重要，我没有忘。' }],
+          亲近: [{ speaker: '刀匠·茜', text: '这份订单让我想起第一次遇见你的那天。' }],
+          信赖: [{ speaker: '刀匠·茜', text: '这把刀的第一位试握人，当然还是你。' }],
+        },
+        dialogue: [
+          { speaker: '刀匠·茜', text: '我把重心往前挪了一点，手柄也收细了。你觉得会不会太软？' },
+          { text: '她小心托着那把未开刃的练习刀，像托着某个人刚刚萌芽的勇气。' },
+        ],
+      },
+    ],
+    supportTiers: [
+      {
+        unlockChapterId: '1-5',
+        choice: {
+          id: 'materials',
+          label: '留下些下次试作用的材料',
+          outcome: '茜记下你的评价，也塞来一小包工坊边角料。',
+          costs: { items: { petal_sakura: 3, grass_soft: 2 } },
+          rewardPool: [
+            {
+              weight: 90,
+              rewards: { gold: { min: 40, max: 90 }, items: { stone_enhance: { min: 2, max: 4 } } },
+            },
+            {
+              weight: 10,
+              rewards: {
+                gold: { min: 90, max: 140 },
+                items: { stone_reforge: { min: 1, max: 1 } },
+              },
+            },
+          ],
+        },
+      },
+      {
+        unlockChapterId: '2-2',
+        choice: {
+          id: 'materials',
+          label: '留些草原捆扎材料',
+          outcome: '茜把新材料收进工具袋，回赠了打磨时留下的好东西。',
+          costs: { items: { straw_sleepy: 3, jelly_cotton: 2 } },
+          rewardPool: [
+            {
+              weight: 90,
+              rewards: {
+                gold: { min: 60, max: 110 },
+                items: { stone_enhance: { min: 3, max: 5 } },
+              },
+            },
+            {
+              weight: 10,
+              rewards: {
+                gold: { min: 110, max: 170 },
+                items: { stone_reforge: { min: 1, max: 2 } },
+              },
+            },
+          ],
+        },
+      },
+      {
+        unlockChapterId: '2-3',
+        choice: {
+          id: 'materials',
+          label: '留些防潮的蜂巢材料',
+          outcome: '茜眼睛一亮，说这次终于能做出不怕雨的包柄了。',
+          costs: { items: { honey_bee: 1, jelly_cotton: 3 } },
+          rewardPool: [
+            {
+              weight: 88,
+              rewards: {
+                gold: { min: 80, max: 140 },
+                items: { stone_enhance: { min: 3, max: 6 } },
+              },
+            },
+            {
+              weight: 12,
+              rewards: {
+                gold: { min: 120, max: 190 },
+                items: { stone_reforge: { min: 1, max: 2 } },
+              },
+            },
+          ],
+        },
+      },
+      {
+        unlockChapterId: '2-5',
+        choice: {
+          id: 'materials',
+          label: '留下一枚祭坛结晶',
+          outcome: '结晶在刀柄里化成一线微光，茜郑重收好剩余的工坊回礼。',
+          costs: { items: { crystal_altar: 1, jelly_cotton: 2 } },
+          rewardPool: [
+            {
+              weight: 85,
+              rewards: {
+                gold: { min: 100, max: 180 },
+                items: { stone_enhance: { min: 10, max: 12 } },
+              },
+            },
+            {
+              weight: 15,
+              rewards: {
+                gold: { min: 100, max: 180 },
+                items: { stone_reforge: { min: 2, max: 3 } },
+              },
+            },
+          ],
+        },
+      },
+    ],
     dialogue: [
       { speaker: '刀匠·茜', text: '来得正好！闭上眼，只凭手感帮我挑一条。' },
       { text: '她把两截包柄藏在背后，神情已经比第一次见面时从容许多。' },
@@ -562,7 +708,7 @@ const DEFINITIONS: EncounterDefinition[] = [
   },
   {
     id: 'enc_r2_napper_daily',
-    regionIds: ['r2'],
+    regionIds: ['r1', 'r2'],
     unlockChapterId: '2-5',
     title: '准时路过的信使',
     story: '穗准时从路口经过，还特意停下来和你打了声招呼。',
@@ -592,6 +738,158 @@ const DEFINITIONS: EncounterDefinition[] = [
         },
       ],
     },
+    dailyVariants: [
+      {
+        id: 'morning_route',
+        title: '比晨风更早一步',
+        story: '晨雾还没散，穗已经带着整理整齐的信袋跑到了路口。',
+        relationshipDialogue: {
+          初遇: [{ speaker: '草原信使·穗', text: '早、早上好！我今天真的没有睡过头。' }],
+          熟悉: [{ speaker: '草原信使·穗', text: '你看，太阳才刚起来，我已经走完半段路啦。' }],
+          亲近: [{ speaker: '草原信使·穗', text: '我绕了一点点路。只是想让你第一个看到我准时。' }],
+          信赖: [{ speaker: '草原信使·穗', text: '早上好！你的专属准时信使前来报到！' }],
+        },
+        dialogue: [
+          { speaker: '草原信使·穗', text: '这次不是睡在路边，是专门停下来找你说话。' },
+          { text: '她身后的信袋整理得整整齐齐，最上面还别着一朵带露水的小花。' },
+        ],
+      },
+      {
+        id: 'windy_knot',
+        title: '大风天的绳结',
+        story: '草原风把信袋吹得鼓鼓作响，穗却得意地展示起自己新学的绳结。',
+        relationshipDialogue: {
+          初遇: [{ speaker: '草原信使·穗', text: '别担心！今天只有信袋乱，我本人没有迷路。' }],
+          熟悉: [{ speaker: '草原信使·穗', text: '上次你帮我扎过以后，我偷偷练了好多遍。' }],
+          亲近: [{ speaker: '草原信使·穗', text: '先说好，松开的那个结不是我打的……大概。' }],
+          信赖: [{ speaker: '草原信使·穗', text: '救命，我的绳结老师！这阵风也太不讲道理了。' }],
+        },
+        dialogue: [
+          { speaker: '草原信使·穗', text: '左边这个结跑得快，右边这个更稳。你觉得哪种适合长途？' },
+          { text: '她一边说一边按住快要飞走的帽子，仍没忘护住怀里的信。' },
+        ],
+      },
+      {
+        id: 'quiet_letter',
+        title: '不催促的那封信',
+        story: '今天的最后一封信没有写期限，穗反而比平时更加认真。',
+        relationshipDialogue: {
+          初遇: [{ speaker: '草原信使·穗', text: '奇怪吧？不着急的信，我却一点也不想耽搁。' }],
+          熟悉: [{ speaker: '草原信使·穗', text: '我现在明白了，准时不是因为别人催得凶。' }],
+          亲近: [{ speaker: '草原信使·穗', text: '有些话被人认真等着，就不该在路上多睡一觉。' }],
+          信赖: [{ speaker: '草原信使·穗', text: '陪我走到下个路口吧？这封信适合安安静静地送。' }],
+        },
+        dialogue: [
+          {
+            speaker: '草原信使·穗',
+            text: '寄信人只写了“等你方便时送到”。可我想让收信人今天就看见。',
+          },
+          { text: '信封很轻，边角却被她护得平平整整，像一件郑重的小事。' },
+        ],
+      },
+    ],
+    supportTiers: [
+      {
+        unlockChapterId: '2-2',
+        choice: {
+          id: 'supplies',
+          label: '补充些基础捆包材料',
+          outcome: '穗重新扎紧信袋，送给你几枚沿途收集的小石头。',
+          costs: { items: { straw_sleepy: 3, grass_soft: 2 } },
+          rewardPool: [
+            {
+              weight: 90,
+              rewards: {
+                gold: { min: 50, max: 100 },
+                items: { stone_enhance: { min: 2, max: 4 } },
+              },
+            },
+            {
+              weight: 10,
+              rewards: {
+                gold: { min: 100, max: 150 },
+                items: { stone_reforge: { min: 1, max: 1 } },
+              },
+            },
+          ],
+        },
+      },
+      {
+        unlockChapterId: '2-3',
+        choice: {
+          id: 'supplies',
+          label: '补充些防潮捆包材料',
+          outcome: '穗把柔软凝胶垫进信袋夹层，笑着分给你一袋沿途收获。',
+          costs: { items: { honey_bee: 1, jelly_cotton: 3 } },
+          rewardPool: [
+            {
+              weight: 88,
+              rewards: {
+                gold: { min: 80, max: 140 },
+                items: { stone_enhance: { min: 3, max: 6 } },
+              },
+            },
+            {
+              weight: 12,
+              rewards: {
+                gold: { min: 120, max: 190 },
+                items: { stone_reforge: { min: 1, max: 2 } },
+              },
+            },
+          ],
+        },
+      },
+      {
+        unlockChapterId: '2-4',
+        choice: {
+          id: 'supplies',
+          label: '补充些长途封包材料',
+          outcome: '穗把长途信件重新封好，认真向你行了一个信使礼。',
+          costs: { items: { honey_bee: 2, straw_sleepy: 2 } },
+          rewardPool: [
+            {
+              weight: 88,
+              rewards: {
+                gold: { min: 90, max: 150 },
+                items: { stone_enhance: { min: 4, max: 7 } },
+              },
+            },
+            {
+              weight: 12,
+              rewards: {
+                gold: { min: 140, max: 210 },
+                items: { stone_reforge: { min: 1, max: 2 } },
+              },
+            },
+          ],
+        },
+      },
+      {
+        unlockChapterId: '2-5',
+        choice: {
+          id: 'supplies',
+          label: '补充祭坛路段的护信材料',
+          outcome: '祭坛结晶化成一层薄光护住信袋，穗把珍藏的沿途收获送给了你。',
+          costs: { items: { crystal_altar: 1, jelly_cotton: 2 } },
+          rewardPool: [
+            {
+              weight: 85,
+              rewards: {
+                gold: { min: 100, max: 180 },
+                items: { stone_enhance: { min: 10, max: 12 } },
+              },
+            },
+            {
+              weight: 15,
+              rewards: {
+                gold: { min: 100, max: 180 },
+                items: { stone_reforge: { min: 2, max: 3 } },
+              },
+            },
+          ],
+        },
+      },
+    ],
     dialogue: [
       { speaker: '草原信使·穗', text: '早上好！这次不是睡在路边，是专门停下来找你说话。' },
       { text: '她身后的信袋整理得整整齐齐，最上面还别着一朵小花。' },
@@ -708,11 +1006,18 @@ export function encounterIdsForProgress(
   characters: Readonly<Record<string, EncounterCharacterProgress>> = {},
   pendingEncounterIds: ReadonlySet<string> = new Set(),
 ): string[] {
+  const pendingCharacterIds = new Set(
+    [...pendingEncounterIds].flatMap((encounterId) => {
+      const characterId = ENCOUNTERS[encounterId]?.storyArc?.characterId;
+      return characterId ? [characterId] : [];
+    }),
+  );
   return availableEncounterIds(
     DEFINITIONS,
     regionId,
     unlockedChapterIds,
     characters,
     pendingEncounterIds,
+    pendingCharacterIds,
   );
 }

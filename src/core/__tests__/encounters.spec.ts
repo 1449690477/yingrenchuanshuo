@@ -2,8 +2,12 @@ import { describe, expect, it } from 'vitest';
 import {
   advanceEncounterState,
   availableEncounterIds,
+  encounterChoicesForChapters,
+  encounterJournalCharacters,
+  encounterPresentation,
   encounterRewardSeed,
   memoryDialogueForEncounter,
+  replayDialogueForEncounter,
   relationshipStage,
   rememberEncounterStoryChoice,
   resolveEncounterChoice,
@@ -238,6 +242,101 @@ describe('idle encounters', () => {
       '信赖',
       '信赖',
     ]);
+  });
+  it('同一日常 UID 的对白变体稳定，不同 UID 样本能够产生变化', () => {
+    const definition = ENCOUNTERS.enc_r1_petalsmith_daily!;
+    const state = emptyState();
+    state.characters.char_akane = {
+      bond: 3,
+      completedEncounterIds: [
+        'enc_r1_petalsmith',
+        'enc_r1_petalsmith_doubt',
+        'enc_r1_petalsmith_first_blade',
+      ],
+      choiceHistory: {},
+    };
+    const first = encounterPresentation(definition, state, 2026, 'enc_daily_1');
+    expect(encounterPresentation(definition, state, 2026, 'enc_daily_1')).toEqual(first);
+    expect(first.variantId).toBeDefined();
+    const variants = new Set(
+      Array.from(
+        { length: 24 },
+        (_, index) =>
+          encounterPresentation(definition, state, 2026, `enc_daily_${index}`).variantId,
+      ),
+    );
+    expect(variants.size).toBeGreaterThan(1);
+  });
+
+  it('关系阶段只改变日常问候，不改变稳定变体和章节援助选项', () => {
+    const definition = ENCOUNTERS.enc_r1_petalsmith_daily!;
+    const earlyState = emptyState();
+    const trustedState = emptyState();
+    earlyState.characters.char_akane = {
+      bond: 0,
+      completedEncounterIds: [],
+      choiceHistory: {},
+    };
+    trustedState.characters.char_akane = {
+      bond: 3,
+      completedEncounterIds: [],
+      choiceHistory: {},
+    };
+    const early = encounterPresentation(definition, earlyState, 9, 'same_uid');
+    const trusted = encounterPresentation(definition, trustedState, 9, 'same_uid');
+    expect(early.variantId).toBe(trusted.variantId);
+    expect(early.dialogue[0]?.text).not.toBe(trusted.dialogue[0]?.text);
+    expect(encounterChoicesForChapters(definition, new Set(['1-5']))).toEqual(
+      encounterChoicesForChapters(definition, new Set(['1-5'])),
+    );
+  });
+
+  it('援助选项使用历史已解锁的最后档，免费结束选项始终不变', () => {
+    const definition = ENCOUNTERS.enc_r1_petalsmith_daily!;
+    const early = encounterChoicesForChapters(definition, new Set(['1-5']));
+    const middle = encounterChoicesForChapters(definition, new Set(['1-5', '2-1', '2-2', '2-3']));
+    const late = encounterChoicesForChapters(
+      definition,
+      new Set(['1-5', '2-1', '2-2', '2-3', '2-4', '2-5']),
+    );
+    expect(early[0].costs?.items).toEqual({ petal_sakura: 3, grass_soft: 2 });
+    expect(middle[0].costs?.items).toEqual({ honey_bee: 1, jelly_cotton: 3 });
+    expect(late[0].costs?.items).toEqual({ crystal_altar: 1, jelly_cotton: 2 });
+    expect(early[1]).toEqual(middle[1]);
+    expect(middle[1]).toEqual(late[1]);
+    expect(late[1].costs).toBeUndefined();
+  });
+
+  it('手札只显示已遇见角色，完成幕次记录回答且回顾完全只读', () => {
+    const state = emptyState();
+    state.pending.push({
+      uid: 'enc_pending_akane',
+      encounterId: 'enc_r1_petalsmith',
+      regionId: 'r1',
+    });
+    const firstJournal = encounterJournalCharacters(Object.values(ENCOUNTERS), state);
+    expect(firstJournal).toHaveLength(1);
+    expect(firstJournal[0]).toMatchObject({
+      characterId: 'char_akane',
+      relationship: '初遇',
+      completedEpisodes: [],
+      hasPendingStory: true,
+    });
+
+    state.pending = [];
+    state.characters.char_akane = {
+      bond: 1,
+      completedEncounterIds: ['enc_r1_petalsmith'],
+      choiceHistory: { enc_r1_petalsmith: 'lasting_grip' },
+    };
+    const before = structuredClone(state);
+    const journal = encounterJournalCharacters(Object.values(ENCOUNTERS), state);
+    expect(journal).toHaveLength(1);
+    expect(journal[0]?.completedEpisodes[0]?.answerLabel).toContain('握得更久');
+    const replay = replayDialogueForEncounter(ENCOUNTERS.enc_r1_petalsmith!, state);
+    expect(replay.at(-1)?.text).toContain('草图');
+    expect(state).toEqual(before);
+    expect(replayDialogueForEncounter(ENCOUNTERS.enc_r1_petalsmith_doubt!, state)).toEqual([]);
   });
   it('相同种子、序号和地区产生相同序列', () => {
     const a = advanceEncounterState(emptyState(), 1_260, 'r1', r1Ids, 77, ENCOUNTER_TIMING);

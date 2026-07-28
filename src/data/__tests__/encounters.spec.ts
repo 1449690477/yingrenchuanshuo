@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ENCOUNTERS, encounterIdsForProgress } from '../encounters';
 import { ALL_CHAPTERS, requireRegionOfChapter } from '../regions';
+import { getItem } from '../items';
 
 describe('奇遇章节开放配置', () => {
   it('区域 2 的三个奇遇按 2-2、2-3、2-5 逐步开放', () => {
@@ -50,6 +51,99 @@ describe('奇遇章节开放配置', () => {
         arcs.slice(1, 3).every((encounter) => encounter.storyArc!.memoryCallbacks?.length),
       ).toBe(true);
     }
+  });
+  it('角色日常有唯一对白变体、四档关系问候和递增援助章节', () => {
+    const dailyEncounters = Object.values(ENCOUNTERS).filter(
+      (encounter) => encounter.storyArc?.repeatable,
+    );
+    expect(dailyEncounters).toHaveLength(2);
+    for (const encounter of dailyEncounters) {
+      const variants = encounter.dailyVariants ?? [];
+      expect(variants.length, encounter.id).toBeGreaterThanOrEqual(3);
+      expect(new Set(variants.map((variant) => variant.id)).size).toBe(variants.length);
+      for (const variant of variants) {
+        expect(variant.dialogue.length, `${encounter.id}/${variant.id}`).toBeGreaterThan(0);
+        expect(Object.keys(variant.relationshipDialogue).sort()).toEqual([
+          '亲近',
+          '信赖',
+          '初遇',
+          '熟悉',
+        ]);
+      }
+
+      const tiers = encounter.supportTiers ?? [];
+      expect(tiers.length, encounter.id).toBeGreaterThanOrEqual(2);
+      const chapterIndexes = tiers.map((tier) =>
+        ALL_CHAPTERS.findIndex((chapter) => chapter.id === tier.unlockChapterId),
+      );
+      expect(chapterIndexes.every((index) => index >= 0)).toBe(true);
+      expect(chapterIndexes).toEqual([...chapterIndexes].sort((left, right) => left - right));
+      expect(new Set(chapterIndexes).size).toBe(chapterIndexes.length);
+      expect(tiers.every((tier) => tier.choice.id === encounter.choices[0].id)).toBe(true);
+    }
+  });
+
+  it('每个日常援助档位只使用当章已有材料且最低奖励价值不低于成本', () => {
+    for (const encounter of Object.values(ENCOUNTERS).filter(
+      (entry) => entry.supportTiers?.length,
+    )) {
+      for (const tier of encounter.supportTiers ?? []) {
+        const chapter = ALL_CHAPTERS.find((entry) => entry.id === tier.unlockChapterId);
+        expect(chapter, `${encounter.id}/${tier.unlockChapterId}`).toBeDefined();
+        if (!chapter) continue;
+        const region = requireRegionOfChapter(chapter.id);
+        expect(encounter.regionIds).toContain(region.id);
+        const chapterIndex = region.chapters.findIndex((entry) => entry.id === chapter.id);
+        const availableMaterials = new Set(
+          region.chapters.slice(0, chapterIndex + 1).flatMap((entry) => entry.materials),
+        );
+        for (const itemId of Object.keys(tier.choice.costs?.items ?? {})) {
+          expect(
+            availableMaterials.has(itemId),
+            `${encounter.id}/${tier.unlockChapterId} 提前使用 ${itemId}`,
+          ).toBe(true);
+        }
+        const costValue = Object.entries(tier.choice.costs?.items ?? {}).reduce(
+          (sum, [id, count]) => sum + getItem(id)!.sellPrice * count,
+          tier.choice.costs?.gold ?? 0,
+        );
+        for (const variant of tier.choice.rewardPool ?? []) {
+          const rewardValue = Object.entries(variant.rewards.items ?? {}).reduce(
+            (sum, [id, range]) => sum + getItem(id)!.sellPrice * range.min,
+            variant.rewards.gold?.min ?? 0,
+          );
+          expect(rewardValue, `${encounter.id}/${tier.unlockChapterId}`).toBeGreaterThanOrEqual(
+            costValue,
+          );
+        }
+      }
+    }
+  });
+
+  it('待处理角色会排除同角色其他事件，普通事件仍只按自身 ID 去重', () => {
+    const chapters = new Set(ALL_CHAPTERS.map((chapter) => chapter.id));
+    const characters = {
+      char_akane: {
+        bond: 3,
+        completedEncounterIds: [
+          'enc_r1_petalsmith',
+          'enc_r1_petalsmith_doubt',
+          'enc_r1_petalsmith_first_blade',
+        ],
+        choiceHistory: {},
+      },
+    };
+    expect(
+      encounterIdsForProgress(
+        'r2',
+        chapters,
+        characters,
+        new Set(['enc_r1_petalsmith_first_blade']),
+      ),
+    ).not.toContain('enc_r1_petalsmith_daily');
+    const ordinary = encounterIdsForProgress('r1', chapters, {}, new Set(['enc_r1_bell']));
+    expect(ordinary).not.toContain('enc_r1_bell');
+    expect(ordinary).toContain('enc_r1_barrier');
   });
   it('每项奇遇材料在开放章节或更早章节已有本地区来源', () => {
     for (const encounter of Object.values(ENCOUNTERS)) {

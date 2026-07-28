@@ -44,6 +44,7 @@ const activeIndex = computed(() =>
     : -1,
 );
 const encounter = computed(() => (entry.value ? requireEncounter(entry.value.encounterId) : null));
+const encounterView = computed(() => (entry.value ? stage.viewEncounter(entry.value.uid) : null));
 const storyArc = computed(() => encounter.value?.storyArc ?? null);
 const selectedStoryChoice = computed(
   () =>
@@ -54,7 +55,7 @@ const memoryLines = computed(() =>
 );
 const dialogue = computed(() => {
   if (selectedStoryChoice.value) return selectedStoryChoice.value.responseDialogue;
-  return [...memoryLines.value, ...(encounter.value?.dialogue ?? [])];
+  return [...memoryLines.value, ...(encounterView.value?.dialogue ?? [])];
 });
 const hasDialogue = computed(() => dialogue.value.length > 0);
 const currentLine = computed(() => dialogue.value[lineIndex.value] ?? null);
@@ -260,7 +261,7 @@ function choose(choice: EncounterChoice): void {
                 : `待处理 ${stage.pendingEncounters.length}/3`
             }}
           </small>
-          <strong>{{ encounter?.title ?? '奇遇已处理' }}</strong>
+          <strong>{{ encounterView?.title ?? encounter?.title ?? '奇遇已处理' }}</strong>
         </span>
         <button ref="closeButtonRef" class="close" aria-label="稍后处理" @click="requestClose">
           <X :size="18" />
@@ -333,7 +334,7 @@ function choose(choice: EncounterChoice): void {
           <span v-if="!isTyping && !isLastLine" class="tap-hint" aria-hidden="true">▼</span>
         </div>
 
-        <p v-else class="story">{{ encounter.story }}</p>
+        <p v-else class="story">{{ encounterView?.story ?? encounter.story }}</p>
         <div v-if="feedback" class="feedback" :class="`tone-${feedback.tone}`" role="status">
           {{ feedback.text }}
         </div>
@@ -353,7 +354,7 @@ function choose(choice: EncounterChoice): void {
           </template>
           <template v-else>
             <button
-              v-for="choice in encounter.choices"
+              v-for="choice in encounterView?.choices ?? encounter.choices"
               :key="choice.id"
               class="choice"
               :class="{ unavailable: !canAfford(choice.costs, wallet) }"
