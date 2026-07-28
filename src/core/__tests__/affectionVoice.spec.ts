@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   AFFECTION_VOICE_MANIFEST,
@@ -68,12 +70,21 @@ describe('A-4 语音框架：cueId 与显式清单', () => {
     );
   });
 
-  it('第一阶段清单为空：任何台词都查不到音频、不渲染控制项', () => {
-    expect(Object.keys(AFFECTION_VOICE_MANIFEST)).toHaveLength(0);
+  it('清单登记的每条 cue 都指向真实存在的音频文件，未登记的台词查不到音频', () => {
+    const entries = Object.entries(AFFECTION_VOICE_MANIFEST);
+    expect(entries.length).toBeGreaterThan(0);
+    for (const [cueId, src] of entries) {
+      // cueId 必须遵守 open/resp 约定，路径必须在好感语音目录内
+      expect(cueId, cueId).toMatch(/#(?:open-\d+|resp-[a-z0-9_]+-\d+)$/);
+      expect(src, cueId).toMatch(/^assets\/affection\/voice\//);
+      // 红线：不许 404 兜底——登记的文件必须真实存在于 public/
+      expect(existsSync(resolve('public', src)), cueId).toBe(true);
+    }
+    // 未登记的台词（含旁白行）依旧查不到音频，组件不渲染控制项
     expect(resolveAffectionVoice(affectionOpeningCueId('aff_swordsman_10_market', 0))).toBeNull();
-    expect(hasAffectionVoice(affectionResponseCueId('aff_catkin_12_night_train', 'wave_at_train', 1))).toBe(
-      false,
-    );
+    expect(
+      hasAffectionVoice(affectionResponseCueId('aff_catkin_12_night_train', 'wave_at_train', 1)),
+    ).toBe(false);
   });
 
   it('登记的 cue 必须能解析出显式路径', () =>

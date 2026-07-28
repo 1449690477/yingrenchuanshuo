@@ -10,8 +10,8 @@
  * - sfx 关闭时不播放：play() 前由调用方把静音/开关状态传给 setMuted；
  * - 没有合法真实音频的台词，组件端不渲染语音按钮（hasAffectionVoice 为 false）。
  *
- * 第一阶段清单为空：真实音频文件尚未制作，任何台词都不会出现语音控制项。
- * 后续配音落地时，只需把文件放进 public/assets/affection/voice/ 并在
+ * 首批真实语音已落地：剑姬第十幕五句角色台词（旁白不配音，符合 galgame
+ * 惯例）。后续配音只需把文件放进 public/assets/affection/voice/ 并在
  * AFFECTION_VOICE_MANIFEST 登记 cueId → 路径。
  */
 
@@ -29,7 +29,19 @@ export function affectionResponseCueId(
 }
 
 /** 显式清单：只有登记在册、且文件真实存在的 cueId 才会被组件渲染。 */
-export const AFFECTION_VOICE_MANIFEST: Readonly<Record<string, string>> = {} as const;
+export const AFFECTION_VOICE_MANIFEST: Readonly<Record<string, string>> = {
+  // 剑姬 · 第十幕「替她挑一条剑穗」（温暖中文女声；旁白不配音，符合 galgame 惯例）
+  'aff_swordsman_10_market#open-1':
+    'assets/affection/voice/aff_swordsman_10_market/open-1.mp3',
+  'aff_swordsman_10_market#resp-pick_quiet_color-1':
+    'assets/affection/voice/aff_swordsman_10_market/resp-pick_quiet_color-1.mp3',
+  'aff_swordsman_10_market#resp-pick_quiet_color-2':
+    'assets/affection/voice/aff_swordsman_10_market/resp-pick_quiet_color-2.mp3',
+  'aff_swordsman_10_market#resp-let_her_test_swing-1':
+    'assets/affection/voice/aff_swordsman_10_market/resp-let_her_test_swing-1.mp3',
+  'aff_swordsman_10_market#resp-ask_before_touch-1':
+    'assets/affection/voice/aff_swordsman_10_market/resp-ask_before_touch-1.mp3',
+} as const;
 
 export function resolveAffectionVoice(cueId: string): string | null {
   return AFFECTION_VOICE_MANIFEST[cueId] ?? null;

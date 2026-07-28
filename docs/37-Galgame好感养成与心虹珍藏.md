@@ -396,14 +396,16 @@ locked 显示具体原因（差心意或缺上一幕）、fresh 呼吸描边提�
 
 - cueId 约定：`${storyId}#open-${行号}` / `${storyId}#resp-${choiceId}-${行号}`。
 - `AFFECTION_VOICE_MANIFEST` 为显式 cueId → 路径清单，不许约定式拼路径、
-  不许 404 兜底；**第一阶段清单为空**，任何台词都不会出现语音控制项。
+  不许 404 兜底；测试强制登记的每个文件都真实存在于 `public/`。
 - `AffectionVoicePlayer` 单一实例负责播放/暂停/重播/停止/静音，可注入
   AudioFactory 供测试。
 - 剧情弹窗已挂好挂载点：切句、关弹窗必停；sfx 关闭经 `voiceMuted` 置静音；
   加载失败给出 `role="status"` 可访问提示；浏览器未收到用户手势前不出声
   （框架只提供手动播放）。
 
-后续配音落地时，只需把文件放进 `public/assets/affection/voice/` 并在清单登记。
+首批真实语音已落地：剑姬第十幕「替她挑一条剑穗」五句角色台词（TTS 温暖中文
+女声，mp3，经插件通道生成；旁白不配音，符合 galgame 惯例）。后续配音只需把
+文件放进 `public/assets/affection/voice/` 并在清单登记。
 
 ### 13.3 美术与场景适配
 
