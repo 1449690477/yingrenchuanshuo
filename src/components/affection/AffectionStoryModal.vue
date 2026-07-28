@@ -285,6 +285,13 @@ onUnmounted(() => {
             @click="advanceDialogue"
           >
             <img
+              :key="`fill-${sceneAsset}`"
+              class="scene-fill"
+              :src="sceneUrl"
+              alt=""
+              aria-hidden="true"
+            />
+            <img
               :key="sceneAsset"
               class="scene-art"
               :src="sceneUrl"
@@ -609,10 +616,27 @@ onUnmounted(() => {
   height: 100%;
 }
 
-.scene-art {
-  z-index: -4;
+/*
+ * 场景图是 3:2 横版，舞台是竖屏：直接 cover 会按高度放大到约 3 倍，
+ * 只剩中间一条，看起来像「缩放坏了」。改为底层同图高斯模糊铺满（无黑带），
+ * 上层 contain 完整呈现整张构图——视频信箱式处理，任何视口都不再裁切。
+ */
+.scene-fill {
+  position: absolute;
+  inset: 0;
+  z-index: -5;
+  width: 100%;
+  height: 100%;
   object-fit: cover;
   object-position: center 32%;
+  filter: blur(24px) brightness(0.78) saturate(1.1);
+  transform: scale(1.15);
+}
+
+.scene-art {
+  z-index: -4;
+  object-fit: contain;
+  object-position: center 40%;
   animation: scene-dip 0.55s ease-out;
   transition:
     opacity 0.35s var(--ease-soft),
