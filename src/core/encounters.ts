@@ -1,4 +1,5 @@
 import { Rng } from './rng';
+import type { AffectionMood } from './affection';
 
 export interface ResourceBundle {
   gold?: number;
@@ -45,6 +46,12 @@ export interface EncounterLine {
   speaker?: string;
   text: string;
   portraitCue?: EncounterPortraitCue | null;
+  /**
+   * R1 逐句心情 cue：该句台词期间人物立绘/表情应呈现的心情。
+   * 缺省时沿用上一情绪（开场为 calm、回应阶段为所选选项的 mood）。
+   * 只驱动演出，不影响任何结算。
+   */
+  mood?: AffectionMood;
 }
 
 export interface EncounterStoryChoice {

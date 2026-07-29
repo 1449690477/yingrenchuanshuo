@@ -149,4 +149,36 @@ describe('A-4 约会日程：四角色第十二批约会剧情', () => {
     expect(affectionDateOrder('aff_swordsman_01_dawn')).toBe(-1);
     expect(findAffectionDate('not_a_story')).toBeNull();
   });
+
+  it('R1 演出标注：每幕都有逐句心情 cue 与强调标记，且标记全部闭合', () => {
+    const VALID_MOODS = new Set(['calm', 'bright', 'shy', 'moved', 'playful']);
+    for (const story of AFFECTION_DATE_STORIES) {
+      const allLines = [
+        ...story.openingDialogue,
+        ...story.choices.flatMap((choice) => choice.responseDialogue),
+        ...(story.memoryCallbacks ?? []).flatMap((callback) => callback.dialogue),
+      ];
+      const moodLines = allLines.filter((line) => line.mood !== undefined);
+      expect(moodLines.length, story.id).toBeGreaterThanOrEqual(2);
+      for (const line of moodLines) {
+        expect(VALID_MOODS.has(line.mood!), `${story.id} ${line.mood}`).toBe(true);
+      }
+      // 每幕至少一处《…》强调，且全部成对闭合、内容非空
+      const emphasized = allLines.filter((line) => line.text.includes('《'));
+      expect(emphasized.length, story.id).toBeGreaterThanOrEqual(1);
+      for (const line of allLines) {
+        const opens = line.text.split('《').length - 1;
+        const closes = line.text.split('》').length - 1;
+        expect(opens, `${story.id}: ${line.text}`).toBe(closes);
+        expect(line.text, story.id).not.toContain('《》');
+      }
+      // 记忆回响保持纯文本：那是她说过的原话，不加演出
+      for (const callback of story.memoryCallbacks ?? []) {
+        for (const line of callback.dialogue) {
+          expect(line.text, `${story.id} memoryCallback`).not.toContain('《');
+          expect(line.mood, `${story.id} memoryCallback`).toBeUndefined();
+        }
+      }
+    }
+  });
 });

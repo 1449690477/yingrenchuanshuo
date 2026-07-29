@@ -1,9 +1,16 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
-import { ChevronDown, Heart, History, Pause, Play, Sparkles, Volume2, X } from '@lucide/vue';
+import { ChevronDown, EyeOff, Heart, History, Pause, Play, Sparkles, Volume2, X } from '@lucide/vue';
 import { createFocusTrap, type FocusTrap } from 'focus-trap';
 import type { AffectionMood } from '@/core/affection';
 import type { EncounterLine } from '@/core/encounters';
+import {
+  parseStoryEmphasis,
+  storyTypeDelayAfter,
+  stripStoryEmphasis,
+  STORY_TYPE_BASE_MS,
+} from '@/core/storyText';
+import StorySceneLayer from '@/components/StorySceneLayer.vue';
 import {
   AffectionVoicePlayer,
   affectionOpeningCueId,
@@ -61,6 +68,8 @@ const showBacklog = ref(false);
 const cgFlash = ref(false);
 /** 本场已播台词，回放面板的数据源 */
 const backlog = ref<readonly { speaker: string | null; text: string }[]>([]);
+/** R1 沉浸模式：藏起顶栏与对白框，纯享画面；点舞台任意处回来 */
+const immersive = ref(false);
 /** A-4 语音挂载点：单一实例负责当前句的播放/停止，无真实音频时按钮永不渲染 */
 const voicePlayer = new AffectionVoicePlayer();
 const voicePlaying = ref(false);
@@ -83,12 +92,26 @@ const dialogue = computed<readonly EncounterLine[]>(() =>
     : openingDialogue.value,
 );
 const currentLine = computed(() => dialogue.value[lineIndex.value] ?? null);
-const isTyping = computed(() => typedCount.value < (currentLine.value?.text.length ?? 0));
+/** 去掉演出标记的当前句纯文本：打字计数、读屏、回看都以此为准 */
+const currentPlainText = computed(() => stripStoryEmphasis(currentLine.value?.text ?? ''));
+const isTyping = computed(() => typedCount.value < currentPlainText.value.length);
 const isLastLine = computed(
   () => dialogue.value.length === 0 || lineIndex.value >= dialogue.value.length - 1,
 );
 const dialogueDone = computed(() => isLastLine.value && !isTyping.value);
-const typedText = computed(() => (currentLine.value?.text ?? '').slice(0, typedCount.value));
+/** R1 文字演出：把已打出的部分按《…》标记切成强调/纯文本分段渲染 */
+const typedSegments = computed(() => {
+  const segments = parseStoryEmphasis(currentLine.value?.text ?? '');
+  let remaining = typedCount.value;
+  const out: { text: string; emphasis: boolean }[] = [];
+  for (const segment of segments) {
+    if (remaining <= 0) break;
+    const take = Math.min(segment.text.length, remaining);
+    out.push({ text: segment.text.slice(0, take), emphasis: segment.emphasis });
+    remaining -= take;
+  }
+  return out;
+});
 const responseDone = computed(() => phase.value === 'response' && dialogueDone.value);
 const sceneAsset = computed(() =>
   selectedChoice.value && props.story.cgAsset ? props.story.cgAsset : props.story.backgroundAsset,
@@ -97,8 +120,9 @@ const sceneUrl = computed(() => `${import.meta.env.BASE_URL}${sceneAsset.value}`
 const hasMemoryEcho = computed(
   () => phase.value === 'opening' && props.memoryDialogue.length > 0,
 );
+/** R1 逐句心情 cue：当前句标注优先，缺省沿用选项心情，开场默认 calm */
 const activeMood = computed<AffectionMood>(
-  () => selectedChoice.value?.mood ?? 'calm',
+  () => currentLine.value?.mood ?? selectedChoice.value?.mood ?? 'calm',
 );
 
 /** 当前台词的语音 cueId；回响行（非本幕正文）没有 cue。 */
@@ -139,35 +163,36 @@ function stopVoice(): void {
   voiceError.value = null;
 }
 
-const TYPE_SPEED_MS = 32;
-
 function stopTyping(): void {
   if (!typeTimer) return;
-  clearInterval(typeTimer);
+  clearTimeout(typeTimer);
   typeTimer = 0;
 }
 
 function startTyping(): void {
   stopTyping();
   typedCount.value = 0;
-  const fullText = currentLine.value?.text ?? '';
+  const fullText = currentPlainText.value;
   if (!fullText) return;
   if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
     typedCount.value = fullText.length;
     return;
   }
-  typeTimer = window.setInterval(() => {
+  // R1 标点节奏：打完一个字后按标点决定停顿，打字机自己会读句子
+  const tick = (): void => {
     if (typedCount.value >= fullText.length) {
       stopTyping();
       return;
     }
     typedCount.value++;
-  }, TYPE_SPEED_MS);
+    typeTimer = window.setTimeout(tick, storyTypeDelayAfter(fullText[typedCount.value - 1]!));
+  };
+  typeTimer = window.setTimeout(tick, STORY_TYPE_BASE_MS);
 }
 
 function completeCurrentLine(): void {
   stopTyping();
-  typedCount.value = currentLine.value?.text.length ?? 0;
+  typedCount.value = currentPlainText.value.length;
 }
 
 function advanceDialogue(): void {
@@ -178,11 +203,20 @@ function advanceDialogue(): void {
   if (!isLastLine.value) lineIndex.value++;
 }
 
+/** R1 沉浸模式：舞台上的一次点击先把界面叫回来，再点才推进对白 */
+function onStageClick(): void {
+  if (immersive.value) {
+    immersive.value = false;
+    return;
+  }
+  advanceDialogue();
+}
+
 /** 自动播放调度：打完一句后按句长停顿再翻页，长句多停、短句快走 */
 function scheduleAutoAdvance(): void {
   clearTimeout(autoTimer);
   if (!autoMode.value || isTyping.value || !currentLine.value || isLastLine.value) return;
-  const wait = 1100 + currentLine.value.text.length * 45;
+  const wait = 1100 + currentPlainText.value.length * 45;
   autoTimer = window.setTimeout(() => {
     if (autoMode.value && !isTyping.value && !isLastLine.value) lineIndex.value++;
   }, wait);
@@ -221,6 +255,7 @@ function resetStory(): void {
   stopTyping();
   clearTimeout(autoTimer);
   stopVoice();
+  immersive.value = false;
   phase.value = 'opening';
   selectedChoice.value = null;
   lineIndex.value = 0;
@@ -244,21 +279,27 @@ watch(
   { immediate: true },
 );
 
-// 每播一句记一句，回放面板随时能翻看本场台词
+// 每播一句记一句，回放面板随时能翻看本场台词（演出标记在此剥掉，只留纯文本）
 watch(
   currentLine,
   (line) => {
     if (!line) return;
     const speaker = line.speaker ?? null;
+    const text = stripStoryEmphasis(line.text);
     const last = backlog.value[backlog.value.length - 1];
-    if (last && last.text === line.text && last.speaker === speaker) return;
-    backlog.value = [...backlog.value, { speaker, text: line.text }];
+    if (last && last.text === text && last.speaker === speaker) return;
+    backlog.value = [...backlog.value, { speaker, text }];
   },
   { immediate: true },
 );
 
 // 自动播放：打字完成 / 翻页 / 开关变化时重新评估是否要自动前进
 watch([isTyping, lineIndex, autoMode], scheduleAutoAdvance);
+
+// 沉浸模式安全绳：对白走完、选项出现时，界面必须自己回来，绝不藏住选择权
+watch(dialogueDone, (done) => {
+  if (done) immersive.value = false;
+});
 
 // 选定回应、场景从据点换成专属 CG 时，给一记白闪强调「这一刻值得定格」
 let cgFlashTimer = 0;
@@ -314,6 +355,7 @@ onUnmounted(() => {
         <section
           ref="dialogRef"
           class="story-dialog"
+          :class="{ immersive }"
           role="dialog"
           aria-modal="true"
           :aria-labelledby="`affection-story-title-${story.id}`"
@@ -344,22 +386,9 @@ onUnmounted(() => {
           <div
             class="story-stage"
             :class="[`mood-${activeMood}`, { response: selectedChoice }]"
-            @click="advanceDialogue"
+            @click="onStageClick"
           >
-            <img
-              :key="`fill-${sceneAsset}`"
-              class="scene-fill"
-              :src="sceneUrl"
-              alt=""
-              aria-hidden="true"
-            />
-            <img
-              :key="sceneAsset"
-              class="scene-art"
-              :src="sceneUrl"
-              alt=""
-              aria-hidden="true"
-            />
+            <StorySceneLayer :src="sceneUrl" :zoomed="Boolean(selectedChoice)" />
             <span class="scene-veil" aria-hidden="true" />
             <span class="scene-bloom" aria-hidden="true" />
             <span class="floating-hearts" aria-hidden="true">
@@ -414,6 +443,15 @@ onUnmounted(() => {
                 回放
               </button>
               <button
+                type="button"
+                class="tool-chip"
+                title="藏起界面，纯享这一刻的画面；点击画面任意处回来"
+                @click="immersive = true"
+              >
+                <EyeOff :size="12" aria-hidden="true" />
+                沉浸
+              </button>
+              <button
                 v-if="!dialogueDone"
                 type="button"
                 class="tool-chip"
@@ -423,6 +461,10 @@ onUnmounted(() => {
                 跳过
               </button>
             </div>
+
+            <span v-if="immersive" class="immersive-hint" aria-hidden="true">
+              点击画面任意处返回
+            </span>
           </div>
 
           <div class="dialogue-area">
@@ -455,7 +497,7 @@ onUnmounted(() => {
               <p v-if="voiceError" class="voice-error" role="status">{{ voiceError }}</p>
 
               <p :class="{ narration: !currentLine.speaker }">
-                {{ typedText }}<span v-if="isTyping" class="typing-caret" aria-hidden="true" />
+                <template v-for="(segment, segIndex) in typedSegments" :key="segIndex"><span v-if="segment.emphasis" class="em">{{ segment.text }}</span><template v-else>{{ segment.text }}</template></template><span v-if="isTyping" class="typing-caret" aria-hidden="true" />
               </p>
 
               <span class="line-progress" aria-hidden="true">
@@ -692,7 +734,6 @@ onUnmounted(() => {
   cursor: pointer;
 }
 
-.scene-art,
 .scene-veil,
 .scene-bloom {
   position: absolute;
@@ -702,38 +743,9 @@ onUnmounted(() => {
 }
 
 /*
- * 场景图是 3:2 横版，舞台是竖屏：直接 cover 会按高度放大到约 3 倍，
- * 只剩中间一条，看起来像「缩放坏了」。改为底层同图高斯模糊铺满（无黑带），
- * 上层 contain 完整呈现整张构图——视频信箱式处理，任何视口都不再裁切。
+ * 场景层已抽为共享组件 StorySceneLayer（模糊铺底 + contain + 呼吸 + 氛围粒子），
+ * 本文件只保留压暗、泛光、白闪与立绘站位。
  */
-.scene-fill {
-  position: absolute;
-  inset: 0;
-  z-index: -5;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center 32%;
-  filter: blur(24px) brightness(0.78) saturate(1.1);
-  transform: scale(1.15);
-}
-
-.scene-art {
-  z-index: -4;
-  object-fit: contain;
-  object-position: center 40%;
-  animation: scene-dip 0.55s ease-out;
-  transition:
-    opacity 0.35s var(--ease-soft),
-    transform 1.5s var(--ease-soft);
-}
-
-@keyframes scene-dip {
-  from {
-    opacity: 0;
-    transform: scale(1.04);
-  }
-}
 
 .cg-flash {
   position: absolute;
@@ -751,10 +763,6 @@ onUnmounted(() => {
   to {
     opacity: 0;
   }
-}
-
-.story-stage.response .scene-art {
-  transform: scale(1.025);
 }
 
 /* 底部压暗加重：对白框浮在场景上时，文字必须在任何 CG 上都读得清 */
@@ -991,6 +999,68 @@ onUnmounted(() => {
 .dialogue-box p.narration {
   color: rgb(255 255 255 / 74%);
   font-style: italic;
+}
+
+/* R1 文字演出：《…》里的词用角色主题色点亮 */
+.dialogue-box p .em {
+  font-weight: 800;
+  color: var(--story-glow);
+  text-shadow:
+    0 0 8px color-mix(in srgb, var(--story-accent) 55%, transparent),
+    0 1px 3px rgb(10 10 22 / 60%);
+}
+
+/* R1 沉浸模式：藏起全部界面层，只留画面与一句回得来提示 */
+.story-head,
+.dialogue-area,
+.stage-tools,
+.memory-echo {
+  transition:
+    opacity 0.3s var(--ease-soft),
+    transform 0.3s var(--ease-soft);
+}
+
+.story-dialog.immersive .story-head,
+.story-dialog.immersive .dialogue-area,
+.story-dialog.immersive .stage-tools,
+.story-dialog.immersive .memory-echo {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.story-dialog.immersive .story-head {
+  transform: translateY(-8px);
+}
+
+.story-dialog.immersive .dialogue-area {
+  transform: translateY(10px);
+}
+
+.immersive-hint {
+  position: absolute;
+  right: 0;
+  bottom: 14px;
+  left: 0;
+  z-index: 2;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: rgb(255 255 255 / 62%);
+  text-align: center;
+  text-shadow: 0 1px 4px rgb(10 10 22 / 80%);
+  animation: hint-breathe 2.4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes hint-breathe {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .immersive-hint {
+    animation: none;
+  }
 }
 
 .typing-caret {

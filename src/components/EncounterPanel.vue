@@ -13,6 +13,13 @@ import {
   type ResourceBundle,
 } from '@/core/encounters';
 import { abbr } from '@/core/format';
+import {
+  parseStoryEmphasis,
+  storyTypeDelayAfter,
+  stripStoryEmphasis,
+  STORY_TYPE_BASE_MS,
+} from '@/core/storyText';
+import StorySceneLayer from '@/components/StorySceneLayer.vue';
 import { requireEncounter } from '@/data/encounters';
 import { requireEncounterPortraitAsset } from '@/data/encounterVisuals';
 import { requireItem } from '@/data/items';
@@ -65,8 +72,22 @@ const currentLine = computed(() => dialogue.value[lineIndex.value] ?? null);
 const isLastLine = computed(
   () => !hasDialogue.value || lineIndex.value >= dialogue.value.length - 1,
 );
-const typedText = computed(() => (currentLine.value?.text ?? '').slice(0, typedCount.value));
-const isTyping = computed(() => typedCount.value < (currentLine.value?.text.length ?? 0));
+/** 去掉演出标记的当前句纯文本：打字计数与读屏以此为准 */
+const currentPlainText = computed(() => stripStoryEmphasis(currentLine.value?.text ?? ''));
+const isTyping = computed(() => typedCount.value < currentPlainText.value.length);
+/** R1 文字演出：已打出部分按《…》切成强调/纯文本分段 */
+const typedSegments = computed(() => {
+  const segments = parseStoryEmphasis(currentLine.value?.text ?? '');
+  let remaining = typedCount.value;
+  const out: { text: string; emphasis: boolean }[] = [];
+  for (const segment of segments) {
+    if (remaining <= 0) break;
+    const take = Math.min(segment.text.length, remaining);
+    out.push({ text: segment.text.slice(0, take), emphasis: segment.emphasis });
+    remaining -= take;
+  }
+  return out;
+});
 const dialogueDone = computed(() => isLastLine.value && !isTyping.value);
 const dialogueAriaLabel = computed(() => {
   const line = currentLine.value;
@@ -116,35 +137,36 @@ const portraitUrl = computed(() => {
   return `${import.meta.env.BASE_URL}${requireEncounterPortraitAsset(activePortraitCue.value)}`;
 });
 
-const TYPE_SPEED_MS = 34;
-
 function stopTyping(): void {
   if (!typeTimer) return;
-  clearInterval(typeTimer);
+  clearTimeout(typeTimer);
   typeTimer = 0;
 }
 
 function startTyping(): void {
   stopTyping();
   typedCount.value = 0;
-  const full = currentLine.value?.text ?? '';
+  const full = currentPlainText.value;
   if (!full) return;
   if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
     typedCount.value = full.length;
     return;
   }
-  typeTimer = window.setInterval(() => {
+  // R1 标点节奏：与好感弹窗同一套，打字机自己会读句子
+  const tick = (): void => {
     if (typedCount.value >= full.length) {
       stopTyping();
       return;
     }
     typedCount.value++;
-  }, TYPE_SPEED_MS);
+    typeTimer = window.setTimeout(tick, storyTypeDelayAfter(full[typedCount.value - 1]!));
+  };
+  typeTimer = window.setTimeout(tick, STORY_TYPE_BASE_MS);
 }
 
 function completeLine(): void {
   stopTyping();
-  typedCount.value = currentLine.value?.text.length ?? 0;
+  typedCount.value = currentPlainText.value.length;
 }
 
 function advanceDialogue(): void {
@@ -323,18 +345,9 @@ async function choose(choice: EncounterChoice): Promise<void> {
           <Sparkles :size="14" aria-hidden="true" />
           她还记得你上次说过的话。
         </p>
-        <!-- 场景舞台：背景 + 立绘 + 名牌 -->
+        <!-- 场景舞台：共享舞台层（模糊铺底+完整构图+呼吸+氛围粒子） + 立绘 + 名牌 -->
         <div class="stage-view" :class="{ tappable: !dialogueDone }" @click="advanceDialogue">
-          <Transition name="scene-swap">
-            <img
-              v-if="sceneUrl"
-              :key="sceneUrl"
-              class="scene-art"
-              :src="sceneUrl"
-              :alt="sceneAlt"
-              :aria-hidden="sceneAlt ? undefined : 'true'"
-            />
-          </Transition>
+          <StorySceneLayer v-if="sceneUrl" :src="sceneUrl" :alt="sceneAlt" />
           <span class="scene-veil" aria-hidden="true" />
 
           <Transition name="portrait-swap" mode="out-in">
@@ -368,7 +381,7 @@ async function choose(choice: EncounterChoice): Promise<void> {
           <span v-if="currentLine.speaker" class="nameplate">{{ currentLine.speaker }}</span>
 
           <p class="line" :class="{ narration: !currentLine.speaker }">
-            {{ typedText }}<span v-if="isTyping" class="caret" aria-hidden="true" />
+            <template v-for="(segment, segIndex) in typedSegments" :key="segIndex"><span v-if="segment.emphasis" class="em">{{ segment.text }}</span><template v-else>{{ segment.text }}</template></template><span v-if="isTyping" class="caret" aria-hidden="true" />
           </p>
 
           <span class="progress-dots" aria-hidden="true">
@@ -628,38 +641,7 @@ async function choose(choice: EncounterChoice): Promise<void> {
   cursor: pointer;
 }
 
-.scene-art {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center 40%;
-  /* 场景缓慢推近，静止画面也有呼吸感 */
-  animation: scene-drift 18s ease-in-out infinite alternate;
-}
-
-.scene-swap-enter-active,
-.scene-swap-leave-active {
-  transition:
-    opacity 0.36s ease,
-    filter 0.36s ease;
-}
-
-.scene-swap-enter-from,
-.scene-swap-leave-to {
-  opacity: 0;
-  filter: blur(3px);
-}
-
-@keyframes scene-drift {
-  from {
-    transform: scale(1.02) translateX(-1%);
-  }
-  to {
-    transform: scale(1.08) translateX(1%);
-  }
-}
+/* 场景呈现已抽为共享组件 StorySceneLayer（模糊铺底 + contain + 呼吸 + 氛围粒子）。 */
 
 .scene-veil {
   position: absolute;
@@ -790,6 +772,12 @@ async function choose(choice: EncounterChoice): Promise<void> {
   font-size: 13px;
   color: var(--text-mid);
   font-style: italic;
+}
+
+/* R1 文字演出：《…》里的词点亮，与好感弹窗同一语法 */
+.line .em {
+  font-weight: 800;
+  color: var(--pink-deep, #d4537e);
 }
 
 /* 打字机光标 */

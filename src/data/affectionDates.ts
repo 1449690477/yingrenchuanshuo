@@ -43,7 +43,7 @@ const SWORDSMAN_DATES: readonly AffectionDateDefinition[] = [
       backgroundAsset: 'assets/affection/scenes/swordsman-morning-market.webp',
       openingDialogue: [
         { text: '晨市刚开，剑穗铺子的丝绦在晓风里一排排晃。她停在摊前，看得比看剑谱还专注。' },
-        { speaker: '剑姬', text: '旧穗磨到起毛了。本来想随便换一条……既然你在，就认真挑一次。' },
+        { speaker: '剑姬', mood: 'shy', text: '旧穗磨到起毛了。本来想随便换一条……既然你在，就《认真挑一次》。' },
         { text: '她把你让到里侧，自己站在市声外面——像替你挡着一个看不见的队形。' },
       ],
       choices: [
@@ -53,8 +53,8 @@ const SWORDSMAN_DATES: readonly AffectionDateDefinition[] = [
           mood: 'moved',
           responseDialogue: [
             { text: '她把那条穗子贴在剑柄上比了比，耳根慢慢红了。' },
-            { speaker: '剑姬', text: '夸穗子就夸穗子……怎么连我也一起夸了。' },
-            { speaker: '剑姬', text: '那就它吧。以后每次收剑，都会看见。' },
+            { speaker: '剑姬', mood: 'shy', text: '夸穗子就夸穗子……怎么连我也一起夸了。' },
+            { speaker: '剑姬', mood: 'moved', text: '《那就它吧》。以后每次收剑，都会看见。' },
           ],
         },
         {
@@ -63,7 +63,7 @@ const SWORDSMAN_DATES: readonly AffectionDateDefinition[] = [
           mood: 'bright',
           responseDialogue: [
             { text: '她真的退开半步，在巷空里试了三式，穗尾划出的弧线一次比一次稳。' },
-            { speaker: '剑姬', text: '第三下最顺。你挑的位置，重心刚好。' },
+            { speaker: '剑姬', mood: 'bright', text: '《第三下最顺》。你挑的位置，重心刚好。' },
             { text: '摊主在旁边鼓掌，她难得没有反驳“我们不是那种关系”。' },
           ],
         },
@@ -73,7 +73,7 @@ const SWORDSMAN_DATES: readonly AffectionDateDefinition[] = [
           mood: 'shy',
           responseDialogue: [
             { text: '她怔了一下，把剑柄主动递过来一寸。' },
-            { speaker: '剑姬', text: '你总是先问。所以答案永远是——可以。' },
+            { speaker: '剑姬', mood: 'moved', text: '你总是先问。所以答案永远是——《可以》。' },
           ],
         },
       ],
@@ -102,7 +102,7 @@ const SWORDSMAN_DATES: readonly AffectionDateDefinition[] = [
       backgroundAsset: 'assets/affection/scenes/swordsman-lakeside-bento.webp',
       openingDialogue: [
         { text: '午后的湖风把荷叶吹得翻起银边。她打开两层的便当盒，摆得像是校阅阵型。' },
-        { speaker: '剑姬', text: '下层是你提过想吃的那几样。上层……是我坚持要做的。公平分配。' },
+        { speaker: '剑姬', mood: 'bright', text: '下层是你提过想吃的那几样。上层……是我坚持要做的。《公平分配》。' },
         { text: '筷子递到你手里时，她先把自己那双摆正了——连野餐都透着认真。' },
       ],
       choices: [
@@ -112,7 +112,7 @@ const SWORDSMAN_DATES: readonly AffectionDateDefinition[] = [
           mood: 'bright',
           responseDialogue: [
             { text: '她盯着你把玉子烧对半切开，终于忍不住笑出声。' },
-            { speaker: '剑姬', text: '行军打仗都没这么分配过……但这样，最好吃。' },
+            { speaker: '剑姬', mood: 'bright', text: '行军打仗都没这么分配过……但这样，《最好吃》。' },
           ],
         },
         {
@@ -121,8 +121,8 @@ const SWORDSMAN_DATES: readonly AffectionDateDefinition[] = [
           mood: 'moved',
           responseDialogue: [
             { text: '她假装看湖，却把“哪里好”三个字听得一字不落。' },
-            { speaker: '剑姬', text: '练剑有人看招式，做饭……第一次有人看火候。' },
-            { speaker: '剑姬', text: '下次还做。这句话不是客套，是预定。' },
+            { speaker: '剑姬', mood: 'moved', text: '练剑有人看招式，做饭……第一次有人看火候。' },
+            { speaker: '剑姬', mood: 'shy', text: '下次还做。这句话不是客套，是《预定》。' },
           ],
         },
         {
@@ -131,7 +131,7 @@ const SWORDSMAN_DATES: readonly AffectionDateDefinition[] = [
           mood: 'shy',
           responseDialogue: [
             { text: '她把甜点又推回来，推了三个回合，最后用小签把它分成了整齐的两半。' },
-            { speaker: '剑姬', text: '各退一步。这是我能接受的唯一战果。' },
+            { speaker: '剑姬', mood: 'shy', text: '各退一步。这是我能接受的《唯一战果》。' },
           ],
         },
       ],
@@ -162,7 +162,7 @@ const SWORDSMAN_DATES: readonly AffectionDateDefinition[] = [
       openingDialogue: [
         { text: '夜训结束，灯桥一串灯笼次第亮起。她没有走快，把回营的路让给了慢慢走。' },
         { speaker: '剑姬', text: '以前这条路是用来赶的。赶回去擦剑、复盘、睡够五个时辰。' },
-        { speaker: '剑姬', text: '现在我想让它长一点。就因为旁边多了一个人——这话我只说一遍。' },
+        { speaker: '剑姬', mood: 'shy', text: '现在我想让它长一点。就因为旁边多了一个人——这话我《只说一遍》。' },
       ],
       choices: [
         {
@@ -171,8 +171,8 @@ const SWORDSMAN_DATES: readonly AffectionDateDefinition[] = [
           mood: 'moved',
           responseDialogue: [
             { text: '她停下脚步看你换到外侧，灯笼的光在她眼里晃了一下。' },
-            { speaker: '剑姬', text: '被人护着……原来不是卸下责任，是多了一个想一起回去的人。' },
-            { speaker: '剑姬', text: '那就拜托你了。这一段路。' },
+            { speaker: '剑姬', mood: 'moved', text: '被人护着……原来不是卸下责任，是多了一个《想一起回去的人》。' },
+            { speaker: '剑姬', mood: 'shy', text: '那就拜托你了。这一段路。' },
           ],
         },
         {
@@ -181,7 +181,7 @@ const SWORDSMAN_DATES: readonly AffectionDateDefinition[] = [
           mood: 'shy',
           responseDialogue: [
             { text: '她看着两条穗子在桥灯下并排垂着，伸手替它们理齐了尾端。' },
-            { speaker: '剑姬', text: '旧的留着功勋，新的留着你。谁也不替谁。' },
+            { speaker: '剑姬', mood: 'moved', text: '旧的留着功勋，新的留着你。《谁也不替谁》。' },
             { text: '回营之后，她把这对穗子挂在了床头最顺手的位置。' },
           ],
         },
@@ -190,9 +190,9 @@ const SWORDSMAN_DATES: readonly AffectionDateDefinition[] = [
           label: '“明早晨钟前，我还来替你数剑。”',
           mood: 'bright',
           responseDialogue: [
-            { speaker: '剑姬', text: '那我今晚会早睡半个时辰。' },
+            { speaker: '剑姬', mood: 'bright', text: '那我今晚会早睡半个时辰。' },
             { text: '她说得郑重，像在签署一份只有两个人的军令。' },
-            { speaker: '剑姬', text: '违约的那一方，要负责带第二天的早餐。' },
+            { speaker: '剑姬', mood: 'playful', text: '违约的那一方，要负责带《第二天的早餐》。' },
           ],
         },
       ],
@@ -224,8 +224,8 @@ const WITCH_DATES: readonly AffectionDateDefinition[] = [
       backgroundAsset: 'assets/affection/scenes/witch-starcandy-atelier.webp',
       openingDialogue: [
         { text: '上午的工坊飘着焦糖香。她把一排星糖试管推成弧形，像你才是今天的主要实验。' },
-        { speaker: '魔女', text: '本次课题：两种口味的星糖，在“一起尝”的前提下会不会更甜。' },
-        { speaker: '魔女', text: '对照组早就做完了——我一个人吃的时候，答案是“还行”。' },
+        { speaker: '魔女', mood: 'playful', text: '本次课题：两种口味的星糖，在“一起尝”的前提下会不会更甜。' },
+        { speaker: '魔女', mood: 'shy', text: '对照组早就做完了——我一个人吃的时候，答案是《“还行”》。' },
       ],
       choices: [
         {
@@ -233,7 +233,7 @@ const WITCH_DATES: readonly AffectionDateDefinition[] = [
           label: '“我报名当唯一试吃员，记录交给你写。”',
           mood: 'bright',
           responseDialogue: [
-            { speaker: '魔女', text: '批准。试吃员的第一条记录是——表情不许作假。' },
+            { speaker: '魔女', mood: 'playful', text: '批准。试吃员的第一条记录是——《表情不许作假》。' },
             { text: '她盯着你的反应，笔尖却迟迟没有动，因为她也想先笑一会儿。' },
           ],
         },
@@ -243,8 +243,8 @@ const WITCH_DATES: readonly AffectionDateDefinition[] = [
           mood: 'moved',
           responseDialogue: [
             { text: '她把失败作倒进两个杯子，自己先喝了一大口。' },
-            { speaker: '魔女', text: '以前失败是要立刻销毁的。和你一起之后，它们改名叫“过程”。' },
-            { speaker: '魔女', text: '这杯不算好喝。但这一口，我想记下来。' },
+            { speaker: '魔女', mood: 'moved', text: '以前失败是要立刻销毁的。和你一起之后，它们改名叫《“过程”》。' },
+            { speaker: '魔女', mood: 'shy', text: '这杯不算好喝。但这一口，我想记下来。' },
           ],
         },
         {
@@ -253,7 +253,7 @@ const WITCH_DATES: readonly AffectionDateDefinition[] = [
           mood: 'calm',
           responseDialogue: [
             { text: '她明显松了口气，把三样危险品逐一点名，然后把其余的推到你面前。' },
-            { speaker: '魔女', text: '别人进门先碰再问，你是反过来……所以我才敢把工坊给你看。' },
+            { speaker: '魔女', mood: 'moved', text: '别人进门先碰再问，你是反过来……所以我才敢把工坊《给你看》。' },
           ],
         },
       ],
@@ -282,7 +282,7 @@ const WITCH_DATES: readonly AffectionDateDefinition[] = [
       backgroundAsset: 'assets/affection/scenes/witch-planetarium-repair.webp',
       openingDialogue: [
         { text: '午后，阁楼的旧星象仪卡在某个年代，投出的星星全歪向一边。她踩着梯子，回头看你。' },
-        { speaker: '魔女', text: '它是我小时候照着书做的。修得好就继续转，修不好……也不许笑。' },
+        { speaker: '魔女', mood: 'shy', text: '它是我小时候照着书做的。修得好就继续转，修不好……《也不许笑》。' },
         { text: '扳手递下来时，她先把可能夹手的部位包了一层软布。' },
       ],
       choices: [
@@ -292,7 +292,7 @@ const WITCH_DATES: readonly AffectionDateDefinition[] = [
           mood: 'moved',
           responseDialogue: [
             { text: '她低头确认你的手扶稳了，才继续往上够。' },
-            { speaker: '魔女', text: '奇怪。明明只是扶梯子，我却敢站到以前不敢站的高度。' },
+            { speaker: '魔女', mood: 'moved', text: '奇怪。明明只是扶梯子，我却敢站到《以前不敢站的高度》。' },
           ],
         },
         {
@@ -300,9 +300,9 @@ const WITCH_DATES: readonly AffectionDateDefinition[] = [
           label: '“星图我来对坐标，齿轮归你。”',
           mood: 'bright',
           responseDialogue: [
-            { speaker: '魔女', text: '成交。错了就一起重拧，谁也不甩锅。' },
+            { speaker: '魔女', mood: 'bright', text: '成交。错了就一起重拧，谁也不甩锅。' },
             { text: '半小时后，第一颗星星准确地落回它该有的位置，你们同时“哦”了一声。' },
-            { speaker: '魔女', text: '记一下：这是我们合力校准的第一颗星。编号……就用今天吧。' },
+            { speaker: '魔女', mood: 'moved', text: '记一下：这是我们合力校准的《第一颗星》。编号……就用今天吧。' },
           ],
         },
         {
@@ -311,8 +311,8 @@ const WITCH_DATES: readonly AffectionDateDefinition[] = [
           mood: 'shy',
           responseDialogue: [
             { text: '她愣在梯子上，好一会儿才小声笑出来。' },
-            { speaker: '魔女', text: '你居然给一台旧机器留“当年”……好，那就留一颗。' },
-            { speaker: '魔女', text: '最歪的那颗，从今天起叫“认识你之前”。' },
+            { speaker: '魔女', mood: 'shy', text: '你居然给一台旧机器留“当年”……好，那就留一颗。' },
+            { speaker: '魔女', mood: 'moved', text: '最歪的那颗，从今天起叫《“认识你之前”》。' },
           ],
         },
       ],
@@ -342,8 +342,8 @@ const WITCH_DATES: readonly AffectionDateDefinition[] = [
       cgAsset: 'assets/affection/cg/witch-meteor-journal.webp',
       openingDialogue: [
         { text: '夜台的望远镜已经架好，星图摊在两人中间，手边是两杯还冒热气的星糖饮。' },
-        { speaker: '魔女', text: '流星雨预报误差率三成。所以今晚无论有没有流星，观测都算成功——' },
-        { speaker: '魔女', text: '因为观测对象，已经就位了。' },
+        { speaker: '魔女', mood: 'playful', text: '流星雨预报误差率三成。所以今晚无论有没有流星，观测都算成功——' },
+        { speaker: '魔女', mood: 'shy', text: '因为《观测对象》，已经就位了。' },
       ],
       choices: [
         {
@@ -352,8 +352,8 @@ const WITCH_DATES: readonly AffectionDateDefinition[] = [
           mood: 'moved',
           responseDialogue: [
             { text: '她嗤了一声说“不科学”，却把星图往你那边挪了半寸。' },
-            { speaker: '魔女', text: '那如果出现两颗，我们一人一个。如果出现一颗……就一起许同一个。' },
-            { speaker: '魔女', text: '方案已锁定，不许改。' },
+            { speaker: '魔女', mood: 'moved', text: '那如果出现两颗，我们一人一个。如果出现一颗……就一起许《同一个》。' },
+            { speaker: '魔女', mood: 'playful', text: '方案已锁定，不许改。' },
           ],
         },
         {
@@ -362,7 +362,7 @@ const WITCH_DATES: readonly AffectionDateDefinition[] = [
           mood: 'bright',
           responseDialogue: [
             { text: '她把观测日志翻开到新的一页，页眉端端正正写了两个名字。' },
-            { speaker: '魔女', text: '从今天起，这本日志叫《联合观测》。以前的单人卷，归档。' },
+            { speaker: '魔女', mood: 'bright', text: '从今天起，这本日志叫“联合观测”。以前的单人卷，《归档》。' },
           ],
         },
         {
@@ -371,7 +371,7 @@ const WITCH_DATES: readonly AffectionDateDefinition[] = [
           mood: 'shy',
           responseDialogue: [
             { text: '夜风正好掠过台沿，她看了你一眼，把手套分了一只给你。' },
-            { speaker: '魔女', text: '一人一只。剩下的那只手……自己想办法靠近热源。' },
+            { speaker: '魔女', mood: 'shy', text: '一人一只。剩下的那只手……《自己想办法靠近热源》。' },
             { text: '她说完自己先笑了，星光落在她肩上，一动没动。' },
           ],
         },
@@ -404,7 +404,7 @@ const SHAMAN_DATES: readonly AffectionDateDefinition[] = [
       backgroundAsset: 'assets/affection/scenes/shaman-shrine-market.webp',
       openingDialogue: [
         { text: '神社下的早市刚醒，香火气和蒸饼的白雾混在一起。她拎着一只空篮，走得不急。' },
-        { speaker: '灵巫', text: '以前来早市，是采买清单上的东西。今天清单只有一行——和你慢慢走一遍。' },
+        { speaker: '灵巫', mood: 'shy', text: '以前来早市，是采买清单上的东西。今天清单只有一行——《和你慢慢走一遍》。' },
         { text: '她把你让到靠里的一侧，衣袖在人流里始终离你半拳的距离。' },
       ],
       choices: [
@@ -414,7 +414,7 @@ const SHAMAN_DATES: readonly AffectionDateDefinition[] = [
           mood: 'moved',
           responseDialogue: [
             { text: '她把篮子交给你时，顺手把最重的那袋米也放了进去——然后偷偷看你吃不吃力。' },
-            { speaker: '灵巫', text: '很重吧。重就对了，这样我才敢承认自己提了很久。' },
+            { speaker: '灵巫', mood: 'moved', text: '很重吧。重就对了，这样我才敢承认《自己提了很久》。' },
           ],
         },
         {
@@ -422,9 +422,9 @@ const SHAMAN_DATES: readonly AffectionDateDefinition[] = [
           label: '“早餐摊先停一下，我请客，你点。”',
           mood: 'bright',
           responseDialogue: [
-            { speaker: '灵巫', text: '那我要那份限量的。' },
+            { speaker: '灵巫', mood: 'playful', text: '那我要那份限量的。' },
             { text: '她点完才发现自己难得任性了一次，低头笑了很久。' },
-            { speaker: '灵巫', text: '原来被人请客，是可以不用想“回礼”两个字的。' },
+            { speaker: '灵巫', mood: 'moved', text: '原来被人请客，是可以不用想《“回礼”》两个字的。' },
           ],
         },
         {
@@ -433,7 +433,7 @@ const SHAMAN_DATES: readonly AffectionDateDefinition[] = [
           mood: 'calm',
           responseDialogue: [
             { text: '她点点头，两个人的脚步渐渐落在同一个节拍上。' },
-            { speaker: '灵巫', text: '和你走路，安静也有了去处。' },
+            { speaker: '灵巫', mood: 'calm', text: '和你走路，《安静》也有了去处。' },
           ],
         },
       ],
@@ -463,7 +463,7 @@ const SHAMAN_DATES: readonly AffectionDateDefinition[] = [
       openingDialogue: [
         { text: '午后将尽，渡口的萤火一盏盏醒来。木舟不大，船家说这趟只载两位。' },
         { speaker: '灵巫', text: '这条水路我巡过很多次，都是替别人引灯。' },
-        { speaker: '灵巫', text: '今天没有人要等接引。灯亮着，只是因为好看——这句话，只想在船上说给你听。' },
+        { speaker: '灵巫', mood: 'shy', text: '今天没有人要等接引。灯亮着，只是因为好看——这句话，《只想在船上说给你听》。' },
       ],
       choices: [
         {
@@ -472,7 +472,7 @@ const SHAMAN_DATES: readonly AffectionDateDefinition[] = [
           mood: 'calm',
           responseDialogue: [
             { text: '船身轻轻一晃又稳下来，她隔着一臂的距离看你，眼里落着水光。' },
-            { speaker: '灵巫', text: '平衡原来不是各坐一边，是两个人都愿意先稳住自己。' },
+            { speaker: '灵巫', mood: 'moved', text: '平衡原来不是各坐一边，是两个人都愿意《先稳住自己》。' },
           ],
         },
         {
@@ -481,8 +481,8 @@ const SHAMAN_DATES: readonly AffectionDateDefinition[] = [
           mood: 'bright',
           responseDialogue: [
             { text: '她把竹篙交给你，自己第一次在航程里做了乘客。' },
-            { speaker: '灵巫', text: '被渡的感觉……原来水声这么清楚。以前都是我听别人上岸。' },
-            { speaker: '灵巫', text: '慢一点撑。我想迟一点到。' },
+            { speaker: '灵巫', mood: 'moved', text: '被渡的感觉……原来水声这么清楚。以前都是我听别人上岸。' },
+            { speaker: '灵巫', mood: 'shy', text: '慢一点撑。我想《迟一点到》。' },
           ],
         },
         {
@@ -491,7 +491,7 @@ const SHAMAN_DATES: readonly AffectionDateDefinition[] = [
           mood: 'shy',
           responseDialogue: [
             { text: '她想了一会儿，亲手把灯点亮，却把它留在了船舱里。' },
-            { speaker: '灵巫', text: '愿意。但今天不放走它——就让它跟着船走，跟你我一样。' },
+            { speaker: '灵巫', mood: 'moved', text: '愿意。但今天不放走它——就让它《跟着船走》，跟你我一样。' },
           ],
         },
       ],
@@ -522,7 +522,7 @@ const SHAMAN_DATES: readonly AffectionDateDefinition[] = [
       openingDialogue: [
         { text: '夜雨敲着茶屋的檐角，屋里只有煮水的轻响。她把两只茶盏并排摆好，雾气在两人之间升起来。' },
         { speaker: '灵巫', text: '很多人找我，是为了把心里的话倒出来。' },
-        { speaker: '灵巫', text: '可今晚我什么都不想倒。只想和你把这一壶喝完——这也算一种倾诉，你懂吗？' },
+        { speaker: '灵巫', mood: 'shy', text: '可今晚我什么都不想倒。只想和你把这一壶喝完——《这也算一种倾诉》，你懂吗？' },
       ],
       choices: [
         {
@@ -531,7 +531,7 @@ const SHAMAN_DATES: readonly AffectionDateDefinition[] = [
           mood: 'moved',
           responseDialogue: [
             { text: '两轮茶下来，她捧着盏沿的手放松了许多。' },
-            { speaker: '灵巫', text: '被照顾和照顾人，原来可以在同一张桌上轮班。以前我总是一个人包场。' },
+            { speaker: '灵巫', mood: 'moved', text: '被照顾和照顾人，原来可以在同一张桌上《轮班》。以前我总是一个人包场。' },
           ],
         },
         {
@@ -540,8 +540,8 @@ const SHAMAN_DATES: readonly AffectionDateDefinition[] = [
           mood: 'calm',
           responseDialogue: [
             { text: '她顺着你的目光看向檐外，很久没有说话，肩膀却一点点松下来。' },
-            { speaker: '灵巫', text: '原来最像回答的声音，是两个人一起听见的那场雨。' },
-            { speaker: '灵巫', text: '今晚什么都不用解决。这样就够了。' },
+            { speaker: '灵巫', mood: 'calm', text: '原来最像回答的声音，是两个人一起听见的《那场雨》。' },
+            { speaker: '灵巫', mood: 'moved', text: '今晚什么都不用解决。这样就够了。' },
           ],
         },
         {
@@ -550,7 +550,7 @@ const SHAMAN_DATES: readonly AffectionDateDefinition[] = [
           mood: 'shy',
           responseDialogue: [
             { text: '她失笑，真的把两只空盏并排留在桌上，像留两位小小的客人。' },
-            { speaker: '灵巫', text: '好。让它们也听听雨。——你看，我也学会不讲道理了。' },
+            { speaker: '灵巫', mood: 'playful', text: '好。让它们也听听雨。——你看，我也学会《不讲道理》了。' },
           ],
         },
       ],
@@ -582,8 +582,8 @@ const CATKIN_DATES: readonly AffectionDateDefinition[] = [
       backgroundAsset: 'assets/affection/scenes/catkin-supply-market.webp',
       openingDialogue: [
         { text: '上午的补给市集吵吵闹闹，她已经列好了一张双人清单，左上角还盖了个小小的爪印章。' },
-        { speaker: '喵喵', text: '第一副队长！今天的远征目标是——把这张清单全部打勾！' },
-        { speaker: '喵喵', text: '规则照旧：我的格子我自己背，你的那份不许偷偷加码。' },
+        { speaker: '喵喵', mood: 'bright', text: '第一副队长！今天的远征目标是——把这张清单《全部打勾》！' },
+        { speaker: '喵喵', mood: 'playful', text: '规则照旧：我的格子我自己背，你的那份不许偷偷加码。' },
       ],
       choices: [
         {
@@ -592,7 +592,7 @@ const CATKIN_DATES: readonly AffectionDateDefinition[] = [
           mood: 'bright',
           responseDialogue: [
             { text: '她嗖地窜出去，又折返回来把清单撕成整齐的两半。' },
-            { speaker: '喵喵', text: '这样才公平！——不过终点要一起冲线，这是搭档条款！' },
+            { speaker: '喵喵', mood: 'bright', text: '这样才公平！——不过终点要《一起冲线》，这是搭档条款！' },
           ],
         },
         {
@@ -601,7 +601,7 @@ const CATKIN_DATES: readonly AffectionDateDefinition[] = [
           mood: 'moved',
           responseDialogue: [
             { text: '她把每包干粮举到光底下，和你一起看完才放进篮子，神情像在检阅武器。' },
-            { speaker: '喵喵', text: '以前我都是抓到就走……原来慢慢挑，挑到的都是好日子。' },
+            { speaker: '喵喵', mood: 'moved', text: '以前我都是抓到就走……原来慢慢挑，挑到的都是《好日子》。' },
           ],
         },
         {
@@ -610,7 +610,7 @@ const CATKIN_DATES: readonly AffectionDateDefinition[] = [
           mood: 'calm',
           responseDialogue: [
             { text: '她认真地在清单角落写下数字，又在旁边画了一个小小的“+惊喜额度”。' },
-            { speaker: '喵喵', text: '惊喜额度是搭档专用！用不用由你，准不准备由我。' },
+            { speaker: '喵喵', mood: 'playful', text: '惊喜额度是《搭档专用》！用不用由你，准不准备由我。' },
           ],
         },
       ],
@@ -639,7 +639,7 @@ const CATKIN_DATES: readonly AffectionDateDefinition[] = [
       backgroundAsset: 'assets/affection/scenes/catkin-workshop-coffee.webp',
       openingDialogue: [
         { text: '午后的纸箱工坊飘着咖啡香。她搬出两个杯子，一个是远征纪念款，一个是崭新的。' },
-        { speaker: '喵喵', text: '新杯子是给你定制的！把手朝左还是朝右，要你自己试出来才算数。' },
+        { speaker: '喵喵', mood: 'bright', text: '新杯子是给你《定制》的！把手朝左还是朝右，要你自己试出来才算数。' },
         { text: '她说完就退开半步，把挑选的位置完完整整留给你——这是她学来的礼貌。' },
       ],
       choices: [
@@ -649,7 +649,7 @@ const CATKIN_DATES: readonly AffectionDateDefinition[] = [
           mood: 'bright',
           responseDialogue: [
             { text: '她捧着本子一本正经地记录“握姿评估”，最后给你盖了个“合格”章。' },
-            { speaker: '喵喵', text: '结论：两只手都合格！所以杯子要做成两边都能拿的！' },
+            { speaker: '喵喵', mood: 'bright', text: '结论：两只手都合格！所以杯子要做成《两边都能拿》的！' },
           ],
         },
         {
@@ -657,9 +657,9 @@ const CATKIN_DATES: readonly AffectionDateDefinition[] = [
           label: '“咖啡吧台一起搭，图纸她出，力气我出。”',
           mood: 'moved',
           responseDialogue: [
-            { speaker: '喵喵', text: '批准！钉子你敲，验收我来。' },
+            { speaker: '喵喵', mood: 'playful', text: '批准！钉子你敲，验收我来。' },
             { text: '吧台搭好时她绕着走了三圈，最后在台面上并排摆了两个杯垫。' },
-            { speaker: '喵喵', text: '这个位置以后叫“搭档专席”。仅限两人，永久有效。' },
+            { speaker: '喵喵', mood: 'moved', text: '这个位置以后叫《“搭档专席”》。仅限两人，永久有效。' },
           ],
         },
         {
@@ -668,7 +668,7 @@ const CATKIN_DATES: readonly AffectionDateDefinition[] = [
           mood: 'shy',
           responseDialogue: [
             { text: '她愣了一下，自己先把毛巾接过去，又笑着把另一头递回你手里。' },
-            { speaker: '喵喵', text: '问得好！所以答案是——一人拿一头，一起叠好它。' },
+            { speaker: '喵喵', mood: 'shy', text: '问得好！所以答案是——《一人拿一头》，一起叠好它。' },
           ],
         },
       ],
@@ -699,7 +699,7 @@ const CATKIN_DATES: readonly AffectionDateDefinition[] = [
       openingDialogue: [
         { text: '夜班的列车从远处进站，灯光在轨道上一节节亮过来。她坐在月台屋顶的老位置，拍了拍身边。' },
         { speaker: '喵喵', text: '以前看夜车，是在数“大家都去多远的地方”。' },
-        { speaker: '喵喵', text: '现在数的是——有一班车进站的时候，我身边的人没有走。' },
+        { speaker: '喵喵', mood: 'moved', text: '现在数的是——有一班车进站的时候，《我身边的人没有走》。' },
       ],
       choices: [
         {
@@ -708,7 +708,7 @@ const CATKIN_DATES: readonly AffectionDateDefinition[] = [
           mood: 'moved',
           responseDialogue: [
             { text: '她把两张票对齐撕角，郑重地收进远征柜的共享格。' },
-            { speaker: '喵喵', text: '票根留着，不是为了走。是为了证明——想去的地方，已经有人陪我到了。' },
+            { speaker: '喵喵', mood: 'moved', text: '票根留着，不是为了走。是为了证明——想去的地方，《已经有人陪我到了》。' },
           ],
         },
         {
@@ -717,7 +717,7 @@ const CATKIN_DATES: readonly AffectionDateDefinition[] = [
           mood: 'bright',
           responseDialogue: [
             { text: '夜车缓缓进站，你们挥得像两个送行的孩子。她笑得差点从屋顶上滑下去。' },
-            { speaker: '喵喵', text: '司机刚刚闪了一下灯！那是回礼！我们的！' },
+            { speaker: '喵喵', mood: 'bright', text: '司机刚刚闪了一下灯！那是《回礼》！我们的！' },
           ],
         },
         {
@@ -726,8 +726,8 @@ const CATKIN_DATES: readonly AffectionDateDefinition[] = [
           mood: 'shy',
           responseDialogue: [
             { text: '她盯着你看了好一会儿，伸出尾巴尖轻轻碰了碰你的袖口——这是她主动的约定方式。' },
-            { speaker: '喵喵', text: '条款成立。违反的人，要在月台上等到被原谅为止。' },
-            { speaker: '喵喵', text: '不过我觉得……我们可能永远用不上这条。' },
+            { speaker: '喵喵', mood: 'shy', text: '条款成立。违反的人，要在月台上《等到被原谅为止》。' },
+            { speaker: '喵喵', mood: 'moved', text: '不过我觉得……我们可能永远用不上这条。' },
           ],
         },
       ],
