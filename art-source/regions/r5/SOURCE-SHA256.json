@@ -1,0 +1,85 @@
+{
+  "version": 1,
+  "algorithm": "sha256",
+  "sourceRepository": "yingrenchuanshuo-art-source-r5",
+  "sourceRoot": "scenes",
+  "assets": {
+    "r5": {
+      "callId": "call_DH9W3sCmAz4vxgaJcW3mY0hB",
+      "sourcePath": "scenes/maps/r5-source.png",
+      "sourceSha256": "0bb5b06c2df0a296e3072187048a2e94530e26da432f0954edb349df2de4dd8d",
+      "runtimePath": "public/assets/maps/r5.webp",
+      "runtimeSha256": "511f36834a2c1af54b27ce52d7e237a3e49c918f4f2dd758311902de33f71a7c"
+    },
+    "chapter-5-1": {
+      "callId": "exec-e9c7386b-b3ef-4a1b-bb8b-2e4c0241b945",
+      "sourcePath": "scenes/maps/chapter-5-1-source.png",
+      "sourceSha256": "810521fc61e482314a550247a6fbcccec48e42955159845f9ab78f2c36f38ee2",
+      "runtimePath": "public/assets/maps/chapter-5-1.webp",
+      "runtimeSha256": "7935138d28e4915600bb8fa690e90a91f7794ba4cd5b522ee7bce2d2589a5af5"
+    },
+    "chapter-5-2": {
+      "callId": "exec-69cfce4a-696e-4388-9ed2-a544a664a1d9",
+      "sourcePath": "scenes/maps/chapter-5-2-source.png",
+      "sourceSha256": "77110303574313a86745ba1c4056159df912412024ae6ebb5bec64e385265a12",
+      "runtimePath": "public/assets/maps/chapter-5-2.webp",
+      "runtimeSha256": "52eb51550e41fff80bd91b78321ad715225febc1baf5b65fcd987603a0de9654"
+    },
+    "chapter-5-3": {
+      "callId": "exec-8bd823b5-025a-44c6-92b7-0454d03d67b8",
+      "sourcePath": "scenes/maps/chapter-5-3-source.png",
+      "sourceSha256": "12896388984450467ace7b28166d8a5568e2fee0bc4899efbf00cef48829b2f2",
+      "runtimePath": "public/assets/maps/chapter-5-3.webp",
+      "runtimeSha256": "d22d3eaee7ace56b9eafc7f6d4245f0e6f1e7632641e29f16a454d70b10a0e3d"
+    },
+    "chapter-5-4": {
+      "callId": "exec-2cfe6ac1-376e-4fb8-ac30-0a2cb5ee4ae2",
+      "sourcePath": "scenes/maps/chapter-5-4-source.png",
+      "sourceSha256": "830658add40892278f06a60e319efccad5fb6522232809d486b2d600a6236ba8",
+      "runtimePath": "public/assets/maps/chapter-5-4.webp",
+      "runtimeSha256": "1166aab3ba4f88f81a6b07f0777443e05d2f4324bd199be7de297da2aab0f973"
+    },
+    "chapter-5-5": {
+      "callId": "exec-a986780c-d817-4f50-ae89-187e40d6db78",
+      "sourcePath": "scenes/maps/chapter-5-5-source.png",
+      "sourceSha256": "9ca00d7e35f42613d1bcc7bb71af1282173bc7c091919e95184426b93945edfa",
+      "runtimePath": "public/assets/maps/chapter-5-5.webp",
+      "runtimeSha256": "51eaf01e83939610fbe0813d05d54ab8470f59840aecacb8c195fa58009399b2"
+    },
+    "battlefield:chapter-5-1": {
+      "callId": "exec-27623f0e-ff7b-41c0-88f8-db3650aa9178",
+      "sourcePath": "scenes/battlefields/chapter-5-1-source.png",
+      "sourceSha256": "33580fed2766a3426b06a3cdc785ea1ad06e01fb16887a7ad6960efcc19a27d9",
+      "runtimePath": "public/assets/battlefields/chapter-5-1.webp",
+      "runtimeSha256": "a8694660d8c672878055a023762a62e4d1e024133c22e9fe154ae351af7d4ba7"
+    },
+    "battlefield:chapter-5-2": {
+      "callId": "exec-078d6c75-47c9-4db1-907f-4b07339ea0d0",
+      "sourcePath": "scenes/battlefields/chapter-5-2-source.png",
+      "sourceSha256": "e603d660af226f56698178df817eaf189ef1f390e47bdfc9324bcbb9c4b43766",
+      "runtimePath": "public/assets/battlefields/chapter-5-2.webp",
+      "runtimeSha256": "ec2fbce92ab2765aa4a9ae6f45044f753c748d09a63b8e9e87c31738b7488e1f"
+    },
+    "battlefield:chapter-5-3": {
+      "callId": "exec-75e96f80-b77c-4fe6-a3f8-0ca0c117f16a",
+      "sourcePath": "scenes/battlefields/chapter-5-3-source.png",
+      "sourceSha256": "43789c15f2eda04ee77cb2bd25a161b79a51723b27406cc926d0e029cba79be4",
+      "runtimePath": "public/assets/battlefields/chapter-5-3.webp",
+      "runtimeSha256": "61d9993f1e63ad0c368a41fb30746bb635ff8534a6dac5351022921abe60609b"
+    },
+    "battlefield:chapter-5-4": {
+      "callId": "exec-6e2fa776-8ffa-4540-8ada-a24fe4779a71",
+      "sourcePath": "scenes/battlefields/chapter-5-4-source.png",
+      "sourceSha256": "0134d36927cbdb04a327f18a3906e427d5e632aaf102f2477ee5db66b2014f26",
+      "runtimePath": "public/assets/battlefields/chapter-5-4.webp",
+      "runtimeSha256": "73ce527cbe4ea624d192cc6a0075bb9c5f8962cd1b1813d14b7d0185c219cb5f"
+    },
+    "battlefield:chapter-5-5": {
+      "callId": "exec-8fbc35ff-faef-4472-883c-c968464207e8",
+      "sourcePath": "scenes/battlefields/chapter-5-5-source.png",
+      "sourceSha256": "a5e9bf7ab114e70139e8b4e8cc35bfbfde728205e7c74571ba936244aaefb311",
+      "runtimePath": "public/assets/battlefields/chapter-5-5.webp",
+      "runtimeSha256": "9243b3e1d8723c9fddac22d31e52b1d4e51de57f8759a0e1e80d6b1398c321cc"
+    }
+  }
+}
