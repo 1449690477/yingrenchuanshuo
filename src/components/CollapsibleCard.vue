@@ -60,8 +60,10 @@ function toggle(): void {
             <small v-if="subtitle">{{ subtitle }}</small>
           </span>
         </span>
-        <!-- 折叠态速览：一行摘要，让收起的卡片依然有信息量 -->
-        <span v-if="!open" class="fold-peek"><slot name="peek" /></span>
+        <!-- 折叠态速览：一行摘要，让收起的卡片依然有信息量；淡入滑出而非生硬跳变 -->
+        <Transition name="fold-peek">
+          <span v-if="!open" class="fold-peek"><slot name="peek" /></span>
+        </Transition>
         <ChevronDown :size="15" class="fold-chev" :class="{ closed: !open }" aria-hidden="true" />
       </button>
       <!-- meta 放独立容器，允许嵌自己的按钮（按钮里套按钮是非法 HTML） -->
@@ -150,6 +152,36 @@ function toggle(): void {
   white-space: nowrap;
 }
 
+/* 速览条淡入滑出：折叠/展开不再是硬跳变 */
+.fold-peek-enter-from,
+.fold-peek-leave-to {
+  opacity: 0;
+  transform: translateX(7px);
+}
+
+.fold-peek-enter-active,
+.fold-peek-leave-active {
+  transition:
+    opacity var(--t-fast) ease,
+    transform var(--t-fast) var(--ease-soft);
+}
+
+/* 展开时标题小字点亮成品牌粉，给「这张卡是开着的」一个安静的状态信号 */
+.fold-title small {
+  transition: color var(--t-mid) var(--ease-soft);
+}
+
+.fold-card.open .fold-title small {
+  color: var(--pink-deep);
+}
+
+/* 有精确指针的设备（桌面/平板键鼠）给悬停反馈，触屏不受影响 */
+@media (hover: hover) and (pointer: fine) {
+  .fold-toggle:hover {
+    background: var(--panel-2);
+  }
+}
+
 .fold-meta {
   display: flex;
   align-items: center;
@@ -190,7 +222,10 @@ function toggle(): void {
 @media (prefers-reduced-motion: reduce) {
   .fold-body,
   .fold-chev,
-  .fold-card {
+  .fold-card,
+  .fold-title small,
+  .fold-peek-enter-active,
+  .fold-peek-leave-active {
     transition: none;
   }
 }
