@@ -34,6 +34,7 @@ import CharacterShowcase from '@/components/CharacterShowcase.vue';
 import CharacterAppearance from '@/components/CharacterAppearance.vue';
 import ClassSwitchModal from '@/components/ClassSwitchModal.vue';
 import EnhancePanel from '@/components/EnhancePanel.vue';
+import EquipmentSetStatus from '@/components/EquipmentSetStatus.vue';
 import ReforgeStudio from '@/components/reforge/ReforgeStudio.vue';
 import SkillIcon from '@/components/SkillIcon.vue';
 import AffectionPanel from '@/components/affection/AffectionPanel.vue';
@@ -512,6 +513,12 @@ onUnmounted(() => {
 
     <EnhancePanel class="row-in" style="--row-delay: 40ms" />
 
+    <EquipmentSetStatus
+      :sets="player.equipmentSetResolution.sets"
+      class="row-in"
+      style="--row-delay: 55ms"
+    />
+
     <section class="card reforge-entry row-in" style="--row-delay: 60ms">
       <div class="reforge-entry-art">
         <img
@@ -587,7 +594,6 @@ onUnmounted(() => {
       <div class="card-head"><span>后续养成</span></div>
       <div class="soon-list">
         <span class="chip">技能 · M3-5</span>
-        <span class="chip">套装 · M5-1</span>
         <span class="chip">宠物 · M6-1</span>
       </div>
     </section>

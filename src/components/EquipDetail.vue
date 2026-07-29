@@ -13,6 +13,7 @@ import type { EquipmentInstance, Stats } from '@/core/types';
 import { useInventoryStore } from '@/stores/inventory';
 import { usePlayerStore } from '@/stores/player';
 import { requireEquipment } from '@/data/equipment';
+import { requireEquipmentSet } from '@/data/equipmentSets';
 import { AFFIX_LABELS, QUALITY_LABELS, SLOT_LABELS, STAT_LABELS } from '@/data/constants';
 import { REFORGE_RESONANCE_MAX } from '@/data/reforgeRules';
 import { WEAPON_ELEMENT_LABELS } from '@/data/weaponElements';
@@ -26,6 +27,7 @@ import {
 } from '@/ui/affixPresentation';
 import EquipmentIcon from '@/components/EquipmentIcon.vue';
 import EquipmentAdvancementPanel from '@/components/EquipmentAdvancementPanel.vue';
+import EquipmentSetStatus from '@/components/EquipmentSetStatus.vue';
 import ReforgePanel from '@/components/ReforgePanel.vue';
 
 const props = defineProps<{ inst: EquipmentInstance; from: 'bag' | 'equipped' }>();
@@ -80,6 +82,19 @@ const canReforge = computed(
 const weaponElementLabel = computed(() =>
   def.value.slot === 'weapon' ? WEAPON_ELEMENT_LABELS[def.value.element] : null,
 );
+const equipmentSetStatus = computed(() => {
+  const setId = def.value.setId;
+  if (!setId) return null;
+  const current = player.equipmentSetResolution.sets.find((entry) => entry.definition.id === setId);
+  if (current) return current;
+  const definition = requireEquipmentSet(setId);
+  return {
+    definition,
+    equippedPieces: 0,
+    activeBonuses: [],
+    nextBonus: definition.bonuses[0] ?? null,
+  };
+});
 
 /** 与当前已穿戴的同部位装备对比 */
 const compare = computed(() => {
@@ -232,6 +247,13 @@ function doDecompose() {
           <span>{{ def.uniqueEffect }}</span>
           <small>当前为真实外观与演出换肤；战斗机制效果将在技能系统接通后单独标明。</small>
         </section>
+
+        <EquipmentSetStatus
+          v-if="equipmentSetStatus"
+          :sets="[equipmentSetStatus]"
+          compact
+          class="detail-set-status"
+        />
       </div>
 
       <footer class="foot">

@@ -1,9 +1,11 @@
 import { createSSRApp, h } from 'vue';
 import { renderToString } from 'vue/server-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { ActiveEquipmentSet } from '@/core/equipmentSets';
 import type { EquipmentInstance } from '@/core/types';
 import { equipmentAdvancementOption as resolveEquipmentAdvancementOption } from '@/data/equipmentAdvancement';
 import { requireEquipment } from '@/data/equipment';
+import { REGION_CRIMSON_SET } from '@/data/regionEquipmentSets';
 import EquipDetail from '../EquipDetail.vue';
 
 const inventory = vi.hoisted(() => ({
@@ -17,17 +19,22 @@ const inventory = vi.hoisted(() => ({
   equipmentAdvancementOption: vi.fn(),
 }));
 
+const playerStore = vi.hoisted(() => ({
+  player: {
+    level: 99,
+    classId: 'witch' as const,
+  },
+  equipmentSetResolution: {
+    sets: [] as ActiveEquipmentSet[],
+  },
+}));
+
 vi.mock('@/stores/inventory', () => ({
   useInventoryStore: () => inventory,
 }));
 
 vi.mock('@/stores/player', () => ({
-  usePlayerStore: () => ({
-    player: {
-      level: 99,
-      classId: 'witch',
-    },
-  }),
+  usePlayerStore: () => playerStore,
 }));
 
 function instance(defId: string): EquipmentInstance {
@@ -58,6 +65,7 @@ async function render(
 beforeEach(() => {
   vi.clearAllMocks();
   inventory.equipmentAdvancementOption.mockReturnValue(undefined);
+  playerStore.equipmentSetResolution.sets = [];
 });
 
 describe('装备详情的武器元素来源', () => {
@@ -81,5 +89,23 @@ describe('装备详情的武器元素来源', () => {
 
     inventory.equipmentAdvancementOption.mockReturnValue(undefined);
     expect(await render('eq_r1_weapon_common', 'equipped')).not.toContain('跨区升阶');
+  });
+
+  it('绯焰件详情展示当前穿戴进度和真实 2/4/6 件效果，未穿戴时也不隐藏来源', async () => {
+    playerStore.equipmentSetResolution.sets = [
+      {
+        definition: REGION_CRIMSON_SET,
+        equippedPieces: 2,
+        activeBonuses: REGION_CRIMSON_SET.bonuses.slice(0, 1),
+        nextBonus: REGION_CRIMSON_SET.bonuses[1]!,
+      },
+    ];
+
+    const html = await render('eq_set_region_crimson_weapon');
+    expect(html).toContain('绯焰套');
+    expect(html).toContain('攻击 +8%');
+    expect(html).toContain('暴击率 +6%，炎属性伤害 +12%');
+    expect(html).toContain('15% 概率追加 120% 攻击力');
+    expect(html).toContain('再穿 2 件');
   });
 });
