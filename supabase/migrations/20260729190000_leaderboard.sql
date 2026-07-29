@@ -65,6 +65,9 @@ create table if not exists public.milestones (
 alter table public.profiles     enable row level security;
 alter table public.trial_scores enable row level security;
 alter table public.milestones   enable row level security;
+-- ⚠ seasons 也必须开。Supabase 默认把 public schema 的表授权给 anon，
+-- 没开 RLS 的表等于完全敞开：任何人都能改甚至删掉赛季行，直接搞坏榜单。
+alter table public.seasons      enable row level security;
 
 -- 所有人可读（排行榜是公开的）
 drop policy if exists "profiles readable" on public.profiles;
@@ -75,6 +78,10 @@ create policy "trial readable" on public.trial_scores for select using (true);
 
 drop policy if exists "milestones readable" on public.milestones;
 create policy "milestones readable" on public.milestones for select using (true);
+
+-- 赛季只读：客户端要读它算当前周次，但不该能写
+drop policy if exists "seasons readable" on public.seasons;
+create policy "seasons readable" on public.seasons for select using (true);
 
 -- 只能写自己的档案（成绩表不给任何客户端写策略 → 只能走 Edge Function）
 drop policy if exists "own profile upsert" on public.profiles;
