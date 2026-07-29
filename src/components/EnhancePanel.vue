@@ -17,6 +17,7 @@ import {
   SLOT_ORDER,
 } from '@/data/constants';
 import { requireEquipment } from '@/data/equipment';
+import { equipmentDisplayPresentation } from '@/data/equipmentPresentation';
 import {
   FORGE_STAGE_ORDER,
   FORGE_STAGE_VISUALS,
@@ -63,6 +64,13 @@ const STAGE_NODES = FORGE_STAGE_ORDER.map((stage) => FORGE_STAGE_VISUALS[stage])
 
 const inventory = useInventoryStore();
 const player = usePlayerStore();
+const activeClassId = computed(() => {
+  const classId = player.player?.classId;
+  if (!classId) throw new Error('[强化台错误] 存档未载入，无法解析装备职业外观');
+  return classId;
+});
+const equipmentName = (definition: EquipmentDef): string =>
+  equipmentDisplayPresentation(definition, activeClassId.value).name;
 
 const selectedUid = ref<string | null>(null);
 const pickerOpen = ref(false);
@@ -92,7 +100,7 @@ const peekCopy = computed(() => {
   if (!selected.value) return '尚未选择装备';
   const { definition, instance } = selected.value;
   const plus = instance.enhance > 0 ? ` +${instance.enhance}` : '';
-  return `${definition.name}${plus} 在强化台上`;
+  return `${equipmentName(definition)}${plus} 在强化台上`;
 });
 
 const candidates = computed<EnhanceCandidate[]>(() => {
@@ -561,6 +569,7 @@ onUnmounted(() => {
         <div v-if="selected" :key="selected.instance.uid" class="selected-equipment">
           <EquipmentIcon
             :def="selected.definition"
+            :class-id="activeClassId"
             :enhance="selected.instance.enhance"
             :locked="selected.instance.locked"
             size="lg"
@@ -568,7 +577,7 @@ onUnmounted(() => {
           />
           <span class="selected-copy">
             <strong :class="`q-${selected.definition.quality}`">
-              {{ selected.definition.name }}
+              {{ equipmentName(selected.definition) }}
               <b v-if="selected.instance.enhance > 0">+{{ selected.instance.enhance }}</b>
             </strong>
             <span>
@@ -868,6 +877,7 @@ onUnmounted(() => {
             >
               <EquipmentIcon
                 :def="candidate.definition"
+                :class-id="activeClassId"
                 :enhance="candidate.instance.enhance"
                 :locked="candidate.instance.locked"
                 size="md"
@@ -875,7 +885,7 @@ onUnmounted(() => {
               />
               <span class="picker-copy">
                 <strong :class="`q-${candidate.definition.quality}`">
-                  {{ candidate.definition.name }}
+                  {{ equipmentName(candidate.definition) }}
                   <b v-if="candidate.instance.enhance > 0">+{{ candidate.instance.enhance }}</b>
                 </strong>
                 <small>
@@ -941,6 +951,12 @@ onUnmounted(() => {
 
 .panel-head {
   justify-content: space-between;
+}
+
+/* 标题吃掉中间剩余空间，把「更换装备 + 折叠钮」一起顶到右缘 */
+.panel-head > span:first-child {
+  flex: 1;
+  min-width: 0;
 }
 
 /* 折叠开关：贴在「更换装备」右侧的小圆钮，不占标题空间 */

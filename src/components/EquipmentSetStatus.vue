@@ -25,7 +25,13 @@ const { open: foldOpen, toggle: toggleFold } = useFold('growth.sets', !prefersCo
 
 <template>
   <section class="set-status" :class="{ compact }" :aria-labelledby="titleId">
-    <header class="set-status-head">
+    <button
+      type="button"
+      class="set-status-head"
+      :aria-expanded="props.compact ? undefined : foldOpen"
+      :aria-label="props.compact ? undefined : foldOpen ? '收起套装共鸣' : '展开套装共鸣'"
+      @click="props.compact ? undefined : toggleFold()"
+    >
       <span class="set-status-sigil" aria-hidden="true">
         <Sparkles :size="17" :stroke-width="1.9" />
       </span>
@@ -34,22 +40,14 @@ const { open: foldOpen, toggle: toggleFold } = useFold('growth.sets', !prefersCo
         <strong :id="titleId">套装共鸣</strong>
       </span>
       <em v-if="sets.length > 0">{{ sets.length }} 套进行中</em>
-      <button
+      <ChevronDown
         v-if="!props.compact"
-        class="set-fold-button"
-        type="button"
-        :aria-expanded="foldOpen"
-        :aria-label="foldOpen ? '收起套装共鸣' : '展开套装共鸣'"
-        @click="toggleFold"
-      >
-        <ChevronDown
-          :size="14"
-          class="set-fold-chev"
-          :class="{ closed: !foldOpen }"
-          aria-hidden="true"
-        />
-      </button>
-    </header>
+        :size="14"
+        class="set-fold-chev"
+        :class="{ closed: !foldOpen }"
+        aria-hidden="true"
+      />
+    </button>
 
     <div class="set-fold" :class="{ closed: !props.compact && !foldOpen }">
       <div class="set-fold-inner">
@@ -144,25 +142,21 @@ const { open: foldOpen, toggle: toggleFold } = useFold('growth.sets', !prefersCo
   grid-template-columns: auto minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 8px;
-}
-
-/* 折叠开关：小圆钮贴在「N 套进行中」右侧 */
-.set-fold-button {
-  display: grid;
-  width: 26px;
-  height: 26px;
-  place-items: center;
-  color: #9a6278;
-  background: rgb(255 237 244 / 76%);
-  border-radius: 50%;
+  width: 100%;
+  padding: 4px;
+  margin: -4px;
+  text-align: left;
+  border-radius: 14px;
   transition: background-color var(--t-fast) var(--ease-soft);
 }
 
-.set-fold-button:active {
-  background: rgb(255 214 228 / 90%);
+/* 整行标题都是热区：按下去有反馈，而不是只有一个小圆钮 */
+.set-status-head:active {
+  background: rgb(255 237 244 / 60%);
 }
 
 .set-fold-chev {
+  color: #9a6278;
   transition: transform var(--t-mid) var(--ease-soft);
 }
 

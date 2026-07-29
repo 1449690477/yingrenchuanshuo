@@ -22,6 +22,7 @@ import {
 import { abbr } from '@/core/format';
 import { CLASS_INFO, QUALITY_LABELS, SLOT_LABELS } from '@/data/constants';
 import { requireEquipment } from '@/data/equipment';
+import { equipmentDisplayPresentation } from '@/data/equipmentPresentation';
 import {
   EQUIPMENT_DUNGEON_PORTALS,
   equipmentDungeonDropsForClass,
@@ -91,7 +92,11 @@ const stage = computed(() =>
   slotStages.value.find((candidate) => candidate.tierId === selectedTierId.value)!,
 );
 const playerLevel = computed(() => game.player?.level ?? 1);
-const classId = computed(() => game.player?.classId ?? 'swordsman');
+const classId = computed(() => {
+  const currentClassId = game.player?.classId;
+  if (!currentClassId) throw new Error('[装备副本错误] 存档未载入，无法解析装备职业外观');
+  return currentClassId;
+});
 const dungeonState = computed(() => game.save?.equipmentDungeon ?? null);
 const equipped = computed(() => game.save?.equipped ?? emptyEquipped());
 const reduceMotion = computed(() => game.save?.settings.reduceMotion ?? false);
@@ -181,7 +186,12 @@ function challenge(): void {
   }
   battleResult.value = result;
   pendingNotice.value = result.win
-    ? `获得 ${result.instances.map((instance) => requireEquipment(instance.defId).name).join('、')}`
+    ? `获得 ${result.instances
+        .map(
+          (instance) =>
+            equipmentDisplayPresentation(requireEquipment(instance.defId), classId.value).name,
+        )
+        .join('、')}`
     : '挑战失败：次数、保底与随机序列均未消耗';
 }
 
@@ -488,9 +498,9 @@ onUnmounted(() => {
             <div class="fold-inner">
               <div class="drop-list">
                 <article v-for="definition in drops" :key="definition.id">
-                  <EquipmentIcon :def="definition" size="lg" decorative />
+                  <EquipmentIcon :def="definition" :class-id="classId" size="lg" decorative />
                   <span>
-                    <strong>{{ definition.name }}</strong>
+                    <strong>{{ equipmentDisplayPresentation(definition, classId).name }}</strong>
                     <small>{{ definition.uniqueEffect }}</small>
                   </span>
                 </article>
@@ -545,7 +555,12 @@ onUnmounted(() => {
 
 <style scoped>
 .dungeon {
-  height: 100%;
+  /*
+   * main 才是页面滚动容器。锁死 height: 100% 会让 overflow:hidden 的子卡
+   * 在内容超高时被 flex 负空间压扁裁断（部位网格曾因此只剩一行半）；
+   * 用 min-height 保底撑满一屏，装不下的交给 main 滚动。
+   */
+  min-height: 100%;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -857,6 +872,16 @@ onUnmounted(() => {
   background: #fff;
   border: 1px solid color-mix(in srgb, var(--quality) 18%, #e4e7f0);
   border-radius: 13px;
+  transition:
+    transform var(--t-fast) var(--ease-spring),
+    box-shadow var(--t-fast),
+    border-color var(--t-fast),
+    filter var(--t-fast),
+    opacity var(--t-fast);
+}
+
+.tier-tab:active {
+  transform: scale(0.94);
 }
 
 .tier-tab.quality-epic {
@@ -1490,7 +1515,15 @@ onUnmounted(() => {
 }
 
 .dungeon.reduced-motion
-  :is(.portal-button, .attempts i, .power-track i, .challenge-button, .fold-grid, .toggle-chev) {
+  :is(
+    .portal-button,
+    .tier-tab,
+    .attempts i,
+    .power-track i,
+    .challenge-button,
+    .fold-grid,
+    .toggle-chev
+  ) {
   transition: none;
 }
 
@@ -1503,6 +1536,7 @@ onUnmounted(() => {
   }
 
   .portal-button,
+  .tier-tab,
   .attempts i,
   .power-track i,
   .challenge-button,

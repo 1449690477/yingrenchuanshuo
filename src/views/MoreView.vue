@@ -233,7 +233,8 @@ function say(text: string, ok: boolean) {
 
 <style scoped>
 .more {
-  height: 100%;
+  /* 同 .dungeon：锁高会被 flex 负空间压扁子卡，min-height 保底、交给 main 滚动 */
+  min-height: 100%;
   display: flex;
   flex-direction: column;
   gap: 10px;

@@ -32,10 +32,7 @@ import { AFFECTION_CHARACTERS } from '@/data/affection';
 import { CLASS_VISUALS } from '@/data/classVisuals';
 import { ELEMENT_LABELS } from '@/data/trialRules';
 import { useGameStore } from '@/stores/game';
-import {
-  useLeaderboardStore,
-  type TrialChallengeOutcome,
-} from '@/stores/leaderboard';
+import { useLeaderboardStore, type TrialChallengeOutcome } from '@/stores/leaderboard';
 import type { TrialSubmitResult } from '@/net/leaderboard';
 
 const game = useGameStore();
@@ -189,7 +186,9 @@ onUnmounted(() => {
 
       <header class="boss-head">
         <span class="boss-title"><Sparkles :size="13" aria-hidden="true" />周常试炼</span>
-        <span class="countdown-chip"><Timer :size="11" aria-hidden="true" />{{ remainingText }}</span>
+        <span class="countdown-chip"
+          ><Timer :size="11" aria-hidden="true" />{{ remainingText }}</span
+        >
       </header>
 
       <div class="boss-body">
@@ -254,7 +253,11 @@ onUnmounted(() => {
     <!-- ═══ 榜单卡 ═══ -->
     <section class="card board">
       <div class="seg" role="tablist" aria-label="榜单切换">
-        <span class="seg-pill" :style="{ '--seg-x': BOARD_TABS.findIndex((t) => t.key === boardTab) }" aria-hidden="true" />
+        <span
+          class="seg-pill"
+          :style="{ '--seg-x': BOARD_TABS.findIndex((t) => t.key === boardTab) }"
+          aria-hidden="true"
+        />
         <button
           v-for="tab in BOARD_TABS"
           :key="tab.key"
@@ -386,7 +389,8 @@ onUnmounted(() => {
 
 <style scoped>
 .rank {
-  height: 100%;
+  /* 同 .dungeon：锁高会被 flex 负空间压扁子卡，min-height 保底、交给 main 滚动 */
+  min-height: 100%;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -465,18 +469,78 @@ onUnmounted(() => {
   animation: mote-rise var(--mdur) linear infinite;
   pointer-events: none;
 }
-.mote-1 { --mx: 6%; --mdur: 6.4s; --msize: 3px; animation-delay: -1.2s; }
-.mote-2 { --mx: 14%; --mdur: 8.2s; --msize: 5px; animation-delay: -4.6s; }
-.mote-3 { --mx: 23%; --mdur: 7.1s; --msize: 3px; animation-delay: -2.8s; }
-.mote-4 { --mx: 32%; --mdur: 9s; --msize: 4px; animation-delay: -6.1s; }
-.mote-5 { --mx: 41%; --mdur: 6.8s; --msize: 3px; animation-delay: -0.6s; }
-.mote-6 { --mx: 50%; --mdur: 8.6s; --msize: 5px; animation-delay: -5.2s; }
-.mote-7 { --mx: 59%; --mdur: 7.4s; --msize: 3px; animation-delay: -3.3s; }
-.mote-8 { --mx: 68%; --mdur: 6.2s; --msize: 4px; animation-delay: -1.8s; }
-.mote-9 { --mx: 76%; --mdur: 8.9s; --msize: 3px; animation-delay: -7s; }
-.mote-10 { --mx: 84%; --mdur: 7.8s; --msize: 5px; animation-delay: -4s; }
-.mote-11 { --mx: 91%; --mdur: 6.6s; --msize: 3px; animation-delay: -2.2s; }
-.mote-12 { --mx: 96%; --mdur: 9.4s; --msize: 4px; animation-delay: -5.8s; }
+.mote-1 {
+  --mx: 6%;
+  --mdur: 6.4s;
+  --msize: 3px;
+  animation-delay: -1.2s;
+}
+.mote-2 {
+  --mx: 14%;
+  --mdur: 8.2s;
+  --msize: 5px;
+  animation-delay: -4.6s;
+}
+.mote-3 {
+  --mx: 23%;
+  --mdur: 7.1s;
+  --msize: 3px;
+  animation-delay: -2.8s;
+}
+.mote-4 {
+  --mx: 32%;
+  --mdur: 9s;
+  --msize: 4px;
+  animation-delay: -6.1s;
+}
+.mote-5 {
+  --mx: 41%;
+  --mdur: 6.8s;
+  --msize: 3px;
+  animation-delay: -0.6s;
+}
+.mote-6 {
+  --mx: 50%;
+  --mdur: 8.6s;
+  --msize: 5px;
+  animation-delay: -5.2s;
+}
+.mote-7 {
+  --mx: 59%;
+  --mdur: 7.4s;
+  --msize: 3px;
+  animation-delay: -3.3s;
+}
+.mote-8 {
+  --mx: 68%;
+  --mdur: 6.2s;
+  --msize: 4px;
+  animation-delay: -1.8s;
+}
+.mote-9 {
+  --mx: 76%;
+  --mdur: 8.9s;
+  --msize: 3px;
+  animation-delay: -7s;
+}
+.mote-10 {
+  --mx: 84%;
+  --mdur: 7.8s;
+  --msize: 5px;
+  animation-delay: -4s;
+}
+.mote-11 {
+  --mx: 91%;
+  --mdur: 6.6s;
+  --msize: 3px;
+  animation-delay: -2.2s;
+}
+.mote-12 {
+  --mx: 96%;
+  --mdur: 9.4s;
+  --msize: 4px;
+  animation-delay: -5.8s;
+}
 
 @keyframes mote-rise {
   0% {
@@ -848,9 +912,15 @@ onUnmounted(() => {
   font-variant-numeric: tabular-nums;
 }
 
-.row.podium .rank-no[data-rank='1'] { color: #e8a91f; }
-.row.podium .rank-no[data-rank='2'] { color: #9aa8b5; }
-.row.podium .rank-no[data-rank='3'] { color: #c98a5e; }
+.row.podium .rank-no[data-rank='1'] {
+  color: #e8a91f;
+}
+.row.podium .rank-no[data-rank='2'] {
+  color: #9aa8b5;
+}
+.row.podium .rank-no[data-rank='3'] {
+  color: #c98a5e;
+}
 
 .row.podium .rank-no[data-rank='1'],
 .row.podium .rank-no[data-rank='2'],
@@ -931,13 +1001,23 @@ onUnmounted(() => {
   animation: sk-shimmer 1.4s linear infinite;
 }
 
-.sk-rank { width: 26px; }
-.sk-name { flex: 1; }
-.sk-damage { width: 54px; }
+.sk-rank {
+  width: 26px;
+}
+.sk-name {
+  flex: 1;
+}
+.sk-damage {
+  width: 54px;
+}
 
 @keyframes sk-shimmer {
-  from { background-position: 180% 0; }
-  to { background-position: -20% 0; }
+  from {
+    background-position: 180% 0;
+  }
+  to {
+    background-position: -20% 0;
+  }
 }
 
 .fair-note {
@@ -1030,14 +1110,46 @@ onUnmounted(() => {
   animation: burst-fly 1.15s var(--ease-soft) 0.15s both;
 }
 
-.burst-1 { --bx: -88px; --by: -52px; animation-delay: 0.10s; }
-.burst-2 { --bx: 76px; --by: -64px; animation-delay: 0.18s; }
-.burst-3 { --bx: -64px; --by: 46px; animation-delay: 0.24s; }
-.burst-4 { --bx: 92px; --by: 38px; animation-delay: 0.12s; }
-.burst-5 { --bx: -30px; --by: -84px; animation-delay: 0.28s; }
-.burst-6 { --bx: 36px; --by: 74px; animation-delay: 0.20s; }
-.burst-7 { --bx: -104px; --by: 6px; animation-delay: 0.32s; }
-.burst-8 { --bx: 108px; --by: -12px; animation-delay: 0.26s; }
+.burst-1 {
+  --bx: -88px;
+  --by: -52px;
+  animation-delay: 0.1s;
+}
+.burst-2 {
+  --bx: 76px;
+  --by: -64px;
+  animation-delay: 0.18s;
+}
+.burst-3 {
+  --bx: -64px;
+  --by: 46px;
+  animation-delay: 0.24s;
+}
+.burst-4 {
+  --bx: 92px;
+  --by: 38px;
+  animation-delay: 0.12s;
+}
+.burst-5 {
+  --bx: -30px;
+  --by: -84px;
+  animation-delay: 0.28s;
+}
+.burst-6 {
+  --bx: 36px;
+  --by: 74px;
+  animation-delay: 0.2s;
+}
+.burst-7 {
+  --bx: -104px;
+  --by: 6px;
+  animation-delay: 0.32s;
+}
+.burst-8 {
+  --bx: 108px;
+  --by: -12px;
+  animation-delay: 0.26s;
+}
 
 @keyframes burst-fly {
   0% {

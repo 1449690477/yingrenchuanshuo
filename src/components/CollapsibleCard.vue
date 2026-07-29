@@ -78,6 +78,13 @@ function toggle(): void {
 <style scoped>
 .fold-card {
   overflow: hidden;
+
+  /*
+   * 绝不接受 flex 挤压：固定高度 flex 列（如副本页）里，
+   * overflow:hidden 的卡片自动最小高度为 0，会被兄弟内容压到裁断；
+   * 折叠卡自己管理高度（0fr ↔ 1fr），兄弟装不下就让主滚动区滚。
+   */
+  flex-shrink: 0;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--r);
