@@ -1,0 +1,479 @@
+{
+  "version": 1,
+  "algorithm": "sha256",
+  "sourceRepository": "yingrenchuanshuo-art-source-r5",
+  "sourceRoot": "modular",
+  "chromaRemoval": "remove_chroma_key.py --auto-key border --soft-matte --transparent-threshold 12 --opaque-threshold 220 --despill --edge-contract 1 --force",
+  "assets": {
+    "swordsman:r5:body": {
+      "callId": "call_shgbg8QPORVI15MbsK5mb82o",
+      "provenance": "parent task recovered / verbatim prompt unavailable",
+      "referencePath": "public/assets/characters/modular/swordsman/base.png",
+      "referenceSha256": "fe4ad0de6afed2685ccb662dfb9305f17728fe70bb82c045bf2db33f52f59a13",
+      "sourcePath": "modular/swordsman/r5/body-chroma.png",
+      "sourceSha256": "3be430d0567de40732bfa7d19334a2e5ebeac03a7d92dd3117befd28a3019a14",
+      "alphaPath": "modular/swordsman/r5/body-alpha.png",
+      "alphaSha256": "17504548f20296a84fd023387e77586d3a1011c01f07b9415e64de07fcee754f",
+      "runtimePath": "public/assets/characters/modular/swordsman/r5-body.png",
+      "runtimeSha256": "af9f2f9b44ca914a4c1f0aee7999dceadcc25c3542c11e832da3d1b9f3c01ee1",
+      "alignment": {
+        "x": 150,
+        "y": 150,
+        "width": 340,
+        "height": 505
+      }
+    },
+    "swordsman:r5:head": {
+      "callId": "exec-60bcb9e0-f78b-4a1a-8f52-bd4afbbf94e9",
+      "provenance": "current task imagegen call",
+      "referencePath": "public/assets/characters/modular/swordsman/base.png",
+      "referenceSha256": "fe4ad0de6afed2685ccb662dfb9305f17728fe70bb82c045bf2db33f52f59a13",
+      "sourcePath": "modular/swordsman/r5/head-chroma.png",
+      "sourceSha256": "c1d8f5beb4809bedc686cc36dfbe110fd0746585d473c914950930493d0836a2",
+      "alphaPath": "modular/swordsman/r5/head-alpha.png",
+      "alphaSha256": "b4b92ce73f3635a7aa9a42b0643c0adfd382d9afd01c4955ac77c70bdd481592",
+      "runtimePath": "public/assets/characters/modular/swordsman/r5-head.png",
+      "runtimeSha256": "0d28b5d6b79cc004332d4215560a4fad48d6fdafc72d427c021513ae30e4c844",
+      "alignment": {
+        "x": 225,
+        "y": 40,
+        "width": 190,
+        "height": 100
+      }
+    },
+    "swordsman:r5:weapon": {
+      "callId": "exec-82d33636-719b-467d-8a0a-91b9d6f7bf5c",
+      "provenance": "current task imagegen call",
+      "referencePath": "public/assets/characters/modular/swordsman/base.png",
+      "referenceSha256": "fe4ad0de6afed2685ccb662dfb9305f17728fe70bb82c045bf2db33f52f59a13",
+      "sourcePath": "modular/swordsman/r5/weapon-chroma.png",
+      "sourceSha256": "4ea8892df9381f3f3daf30ee6ef94662cf8303428e4aced531acc76604affc81",
+      "alphaPath": "modular/swordsman/r5/weapon-alpha.png",
+      "alphaSha256": "e5eb26bda9072fcdb41659130c553f2ced3c64de1c6db7f54cb01dba174b162b",
+      "runtimePath": "public/assets/characters/modular/swordsman/r5-weapon.png",
+      "runtimeSha256": "39e6ad40aeb57031a7f30668e18809a10e6d80aeb5ab44f12af524b882430267",
+      "alignment": {
+        "x": 35,
+        "y": 150,
+        "width": 185,
+        "height": 305
+      }
+    },
+    "swordsman:r5-crimson:body": {
+      "callId": "exec-cf186453-1c73-4ea0-a740-4b37d37e7c7b",
+      "provenance": "current task imagegen call",
+      "referencePath": "public/assets/characters/modular/swordsman/base.png",
+      "referenceSha256": "fe4ad0de6afed2685ccb662dfb9305f17728fe70bb82c045bf2db33f52f59a13",
+      "sourcePath": "modular/swordsman/r5-crimson/body-chroma.png",
+      "sourceSha256": "3b7343b819c34480d5f6f6e15192b0cb93dffc2737a87a823247d67e0b8b0d61",
+      "alphaPath": "modular/swordsman/r5-crimson/body-alpha.png",
+      "alphaSha256": "dd1b95426cc20360020c437a306fdb1c44409778c9ab8e18a738e8bca5cb6f93",
+      "runtimePath": "public/assets/characters/modular/swordsman/r5-crimson-body.png",
+      "runtimeSha256": "5ca46ac4acbc5e784b6d8332b3f94d468b484012953ac15a5e3afc666bed21a4",
+      "alignment": {
+        "x": 125,
+        "y": 140,
+        "width": 390,
+        "height": 560
+      },
+      "sourceEdits": {
+        "eraseRects": [
+          {
+            "left": 258,
+            "top": 537,
+            "width": 121,
+            "height": 190
+          },
+          {
+            "left": 680,
+            "top": 485,
+            "width": 125,
+            "height": 95
+          }
+        ]
+      }
+    },
+    "swordsman:r5-crimson:head": {
+      "callId": "exec-8e1b84b0-3c0e-4774-8f3f-7578f7da1672",
+      "provenance": "current task imagegen call",
+      "referencePath": "public/assets/characters/modular/swordsman/base.png",
+      "referenceSha256": "fe4ad0de6afed2685ccb662dfb9305f17728fe70bb82c045bf2db33f52f59a13",
+      "sourcePath": "modular/swordsman/r5-crimson/head-chroma.png",
+      "sourceSha256": "78479dc91b2f23d395eb5e740a613d7a91948279f5f8765bc0e56035b04c70cf",
+      "alphaPath": "modular/swordsman/r5-crimson/head-alpha.png",
+      "alphaSha256": "84b201b2b326093b32279f778471d5cc8849010ec5bf65ba865e44200f183014",
+      "runtimePath": "public/assets/characters/modular/swordsman/r5-crimson-head.png",
+      "runtimeSha256": "c38b57cf387652291986b7745475f7d6e3a53158bc92bd60f0d1af27c630e58f",
+      "alignment": {
+        "x": 190,
+        "y": 10,
+        "width": 260,
+        "height": 150
+      }
+    },
+    "swordsman:r5-crimson:weapon": {
+      "callId": "exec-6a84ddc6-c53d-4941-98db-3799374a86f7",
+      "provenance": "current task imagegen call",
+      "referencePath": "public/assets/characters/modular/swordsman/base.png",
+      "referenceSha256": "fe4ad0de6afed2685ccb662dfb9305f17728fe70bb82c045bf2db33f52f59a13",
+      "sourcePath": "modular/swordsman/r5-crimson/weapon-chroma.png",
+      "sourceSha256": "ca95865d64fd8a27c6376a9ae5be4c7fae549292e9f2c495c75afffc339689e2",
+      "alphaPath": "modular/swordsman/r5-crimson/weapon-alpha.png",
+      "alphaSha256": "2063f8d53a9a07626cd4c73b64c138170fd41b0df1038bb10242752125dc9e39",
+      "runtimePath": "public/assets/characters/modular/swordsman/r5-crimson-weapon.png",
+      "runtimeSha256": "5339788e7ee8be063fde8830b3ee1fd72e8793069a8085f5c5c4abca9af1d374",
+      "alignment": {
+        "x": 15,
+        "y": 115,
+        "width": 225,
+        "height": 350
+      }
+    },
+    "witch:r5:body": {
+      "callId": "exec-22feabf1-316b-437e-9e03-8613971fd5f7",
+      "provenance": "current task imagegen call",
+      "referencePath": "public/assets/characters/modular/witch/base.png",
+      "referenceSha256": "02568ef4ec7f580f6722d314233e62fd661054c6a69580496e90bd93498f514b",
+      "sourcePath": "modular/witch/r5/body-chroma.png",
+      "sourceSha256": "3a6b1ec30032f455d88deab9b23a7468ce7147839890d5065541250b9924f468",
+      "alphaPath": "modular/witch/r5/body-alpha.png",
+      "alphaSha256": "0f62a8a50eeaaf2b06f95ee48099980b2d153b4ef491fd3ee34e3c815a81e64e",
+      "runtimePath": "public/assets/characters/modular/witch/r5-body.png",
+      "runtimeSha256": "536caaad2b5c4db2d34a4c2136f216a83f29a69fcffd3b48fbc071dbd4cf367d",
+      "alignment": {
+        "x": 140,
+        "y": 145,
+        "width": 360,
+        "height": 430
+      }
+    },
+    "witch:r5:head": {
+      "callId": "exec-a5adbce4-e13d-4d8a-a91e-7e2e277c3755",
+      "provenance": "current task imagegen call",
+      "referencePath": "public/assets/characters/modular/witch/base.png",
+      "referenceSha256": "02568ef4ec7f580f6722d314233e62fd661054c6a69580496e90bd93498f514b",
+      "sourcePath": "modular/witch/r5/head-chroma.png",
+      "sourceSha256": "63c2a85f2f2644e1f989005f272d850b1cda2b415855484d0c95d81965162fbd",
+      "alphaPath": "modular/witch/r5/head-alpha.png",
+      "alphaSha256": "530201ea305597452d8708c9fbb06c6c977313432c5970721ad21e60e0360d8c",
+      "runtimePath": "public/assets/characters/modular/witch/r5-head.png",
+      "runtimeSha256": "778f2a84c056bdf8c730150d152fac44368f5712310ac0765b1239c7b211b77d",
+      "alignment": {
+        "x": 230,
+        "y": 30,
+        "width": 180,
+        "height": 95
+      }
+    },
+    "witch:r5:weapon": {
+      "callId": "exec-1f80fb87-bc3c-458e-a0ce-3c2094b109de",
+      "provenance": "current task imagegen call",
+      "referencePath": "public/assets/characters/modular/witch/base.png",
+      "referenceSha256": "02568ef4ec7f580f6722d314233e62fd661054c6a69580496e90bd93498f514b",
+      "sourcePath": "modular/witch/r5/weapon-chroma.png",
+      "sourceSha256": "22e318634f208db5f748e4f81264397d878449d8a3c9f231536bc67d965c9024",
+      "alphaPath": "modular/witch/r5/weapon-alpha.png",
+      "alphaSha256": "8448530b6d43d0dbc020d856ecac5193ed01ee80ea8e12c639c66171718d14a2",
+      "runtimePath": "public/assets/characters/modular/witch/r5-weapon.png",
+      "runtimeSha256": "ebf7b19478bbdf0cd5c47565bacad85dcec5f455802a2b69e2bee387bef498cc",
+      "alignment": {
+        "x": 105,
+        "y": 115,
+        "width": 160,
+        "height": 245,
+        "flip": true
+      }
+    },
+    "witch:r5-crimson:body": {
+      "callId": "exec-05d6bbde-e700-4dea-8658-0d2ce9a1413d",
+      "provenance": "current task imagegen call",
+      "referencePath": "public/assets/characters/modular/witch/base.png",
+      "referenceSha256": "02568ef4ec7f580f6722d314233e62fd661054c6a69580496e90bd93498f514b",
+      "sourcePath": "modular/witch/r5-crimson/body-chroma.png",
+      "sourceSha256": "51a7fa72ae9cdc947090e0e413f81f0a05704db38d645e513f044a07e350fa5f",
+      "alphaPath": "modular/witch/r5-crimson/body-alpha.png",
+      "alphaSha256": "111e569e53a106fcf00f89ebc5798d84b763d7bb8cc18898372c5714731ab344",
+      "runtimePath": "public/assets/characters/modular/witch/r5-crimson-body.png",
+      "runtimeSha256": "9806fb5357785ba97d67bc2167329c1966c099177b397107029b427981a06af6",
+      "alignment": {
+        "x": 110,
+        "y": 150,
+        "width": 420,
+        "height": 560
+      }
+    },
+    "witch:r5-crimson:head": {
+      "callId": "exec-9456a301-93a9-491c-8e04-8973ed950d9b",
+      "provenance": "current task imagegen call",
+      "referencePath": "public/assets/characters/modular/witch/base.png",
+      "referenceSha256": "02568ef4ec7f580f6722d314233e62fd661054c6a69580496e90bd93498f514b",
+      "sourcePath": "modular/witch/r5-crimson/head-chroma.png",
+      "sourceSha256": "3ef0e9ab8b87a4afb8ad3365e019d3f3ea83a661ececa77a1e004d971aeebef0",
+      "alphaPath": "modular/witch/r5-crimson/head-alpha.png",
+      "alphaSha256": "2894f80e4517c5daf69fc92f9a496b99baad7b8487f6f588b41f9266cd972f3f",
+      "runtimePath": "public/assets/characters/modular/witch/r5-crimson-head.png",
+      "runtimeSha256": "e0ce720a50fbbfaa1c95313b16ecac417ab48a14fcbb0449e69e6f42462fe97b",
+      "alignment": {
+        "x": 225,
+        "y": 8,
+        "width": 190,
+        "height": 85
+      }
+    },
+    "witch:r5-crimson:weapon": {
+      "callId": "exec-6f33b405-3af1-446e-aa95-d6a163901613",
+      "provenance": "current task imagegen call",
+      "referencePath": "public/assets/characters/modular/witch/base.png",
+      "referenceSha256": "02568ef4ec7f580f6722d314233e62fd661054c6a69580496e90bd93498f514b",
+      "sourcePath": "modular/witch/r5-crimson/weapon-chroma.png",
+      "sourceSha256": "30a4c446c5913d12241cfd718eab074ce56bf34e891992f6303b3a5de1ecb5b3",
+      "alphaPath": "modular/witch/r5-crimson/weapon-alpha.png",
+      "alphaSha256": "8d4d42830b9311907405a6ee58cf00ab3cb0e2b12887867fa30bbfe24a7718bf",
+      "runtimePath": "public/assets/characters/modular/witch/r5-crimson-weapon.png",
+      "runtimeSha256": "1ca2d3b836c3348c3740df62c87d92b9d6b76696dff017eecfcde2bfd9afc1fb",
+      "alignment": {
+        "x": 65,
+        "y": 55,
+        "width": 230,
+        "height": 340,
+        "flip": true
+      }
+    },
+    "shaman:r5:body": {
+      "callId": "exec-fba44470-26e7-44c0-9b35-f26532bfd809",
+      "provenance": "current task imagegen call",
+      "referencePath": "public/assets/characters/modular/shaman/base.png",
+      "referenceSha256": "931ccfc3f1ac5bf7f8c19ca4ac253f829f682fb6cb9316ceb02a584825f67ab1",
+      "sourcePath": "modular/shaman/r5/body-chroma.png",
+      "sourceSha256": "11e737cd2029d7b9dfdacaa5bec35f3bd97c143b7869eca5c7a646734df0b8f4",
+      "alphaPath": "modular/shaman/r5/body-alpha.png",
+      "alphaSha256": "4121c3bd989377c3fa232bc9729103b6ccb0fb84d1552749919e00ea2f939bb6",
+      "runtimePath": "public/assets/characters/modular/shaman/r5-body.png",
+      "runtimeSha256": "5a3c320940e71539f1d0cbd2c4089997f9fa5bc258a30a03b717b74eefbf8dad",
+      "alignment": {
+        "x": 145,
+        "y": 155,
+        "width": 350,
+        "height": 470
+      }
+    },
+    "shaman:r5:head": {
+      "callId": "exec-19c72cfe-9d97-4914-ab9e-30778a0771cb",
+      "provenance": "current task imagegen call",
+      "referencePath": "public/assets/characters/modular/shaman/base.png",
+      "referenceSha256": "931ccfc3f1ac5bf7f8c19ca4ac253f829f682fb6cb9316ceb02a584825f67ab1",
+      "sourcePath": "modular/shaman/r5/head-chroma.png",
+      "sourceSha256": "692e964ce3486c7b3b825f820226291dee2be54236a746bb508cd02b8de07f10",
+      "alphaPath": "modular/shaman/r5/head-alpha.png",
+      "alphaSha256": "6508d812533168c665ce3cd7743522f133a9ae6e030fe2ad09f8c77ee65d4234",
+      "runtimePath": "public/assets/characters/modular/shaman/r5-head.png",
+      "runtimeSha256": "08f687a1462b0153a60f358449cbc6aad2db928a09e69e7495b1138de9254560",
+      "alignment": {
+        "x": 220,
+        "y": 35,
+        "width": 200,
+        "height": 90
+      }
+    },
+    "shaman:r5:weapon": {
+      "callId": "exec-564e71d5-56fc-49f4-97b1-2e2f2fd88c0b",
+      "provenance": "current task imagegen call",
+      "referencePath": "public/assets/characters/modular/shaman/base.png",
+      "referenceSha256": "931ccfc3f1ac5bf7f8c19ca4ac253f829f682fb6cb9316ceb02a584825f67ab1",
+      "sourcePath": "modular/shaman/r5/weapon-chroma.png",
+      "sourceSha256": "b4311dbf8c96b4b6b2adc56f47fca64d76354c2aadd6e0c02656d05cd4b3ab30",
+      "alphaPath": "modular/shaman/r5/weapon-alpha.png",
+      "alphaSha256": "bd159a160f68527c336564043fef5705d11411f7f755b07b86c22e90f3011eca",
+      "runtimePath": "public/assets/characters/modular/shaman/r5-weapon.png",
+      "runtimeSha256": "e2ae8c303bc0a2ef79a68a20317c85249c29c09906bd87dff49fdbb533b66b0e",
+      "alignment": {
+        "x": 300,
+        "y": 185,
+        "width": 170,
+        "height": 150
+      }
+    },
+    "shaman:r5-crimson:body": {
+      "callId": "exec-54e5eeaa-d83a-4b5d-a27a-d1876b12e360",
+      "provenance": "current task imagegen call",
+      "referencePath": "public/assets/characters/modular/shaman/base.png",
+      "referenceSha256": "931ccfc3f1ac5bf7f8c19ca4ac253f829f682fb6cb9316ceb02a584825f67ab1",
+      "sourcePath": "modular/shaman/r5-crimson/body-chroma.png",
+      "sourceSha256": "9430752664112fdae78d620c977553cf1fc95f91dd66066edd2e0c6d6d77edd2",
+      "alphaPath": "modular/shaman/r5-crimson/body-alpha.png",
+      "alphaSha256": "5ad7b3ac9fe15bf5031b0ca02b7b6dd75757828194b886df2922ca04918392b5",
+      "runtimePath": "public/assets/characters/modular/shaman/r5-crimson-body.png",
+      "runtimeSha256": "70ae88ea1cb8b753dd12e3d4f379deaa30ecbd6bf8b1151ff6222946daf6520b",
+      "alignment": {
+        "x": 115,
+        "y": 150,
+        "width": 410,
+        "height": 570
+      }
+    },
+    "shaman:r5-crimson:head": {
+      "callId": "exec-61eabca4-665e-40f6-93b1-5c1862397a70",
+      "provenance": "current task imagegen call",
+      "referencePath": "public/assets/characters/modular/shaman/base.png",
+      "referenceSha256": "931ccfc3f1ac5bf7f8c19ca4ac253f829f682fb6cb9316ceb02a584825f67ab1",
+      "sourcePath": "modular/shaman/r5-crimson/head-chroma.png",
+      "sourceSha256": "7d10125c907f6edc918abe409fcca9b9d1842ccb40e8ff6bcc3ca47f3d0171e6",
+      "alphaPath": "modular/shaman/r5-crimson/head-alpha.png",
+      "alphaSha256": "d19b4e5f4ea4be17bf6a010568cc0eb7302797b060f78e38f886682dec93d1bd",
+      "runtimePath": "public/assets/characters/modular/shaman/r5-crimson-head.png",
+      "runtimeSha256": "cb89358e27440e286c4daed0350e958334917f30fd2c3d82646c9b328cd8e42c",
+      "alignment": {
+        "x": 205,
+        "y": 5,
+        "width": 230,
+        "height": 110
+      }
+    },
+    "shaman:r5-crimson:weapon": {
+      "callId": "exec-07a478d0-f1a5-4fbf-b15e-1855ab65fc39",
+      "provenance": "current task imagegen call",
+      "referencePath": "public/assets/characters/modular/shaman/base.png",
+      "referenceSha256": "931ccfc3f1ac5bf7f8c19ca4ac253f829f682fb6cb9316ceb02a584825f67ab1",
+      "sourcePath": "modular/shaman/r5-crimson/weapon-chroma.png",
+      "sourceSha256": "b70a8611da6a39ce3a2a12e1552e63e382f877778a5659e934cfb4c67d730a30",
+      "alphaPath": "modular/shaman/r5-crimson/weapon-alpha.png",
+      "alphaSha256": "d5caf2391e497debec5f2acb9ca6cea6b72a75b9f578ae72ea707656e4a5435f",
+      "runtimePath": "public/assets/characters/modular/shaman/r5-crimson-weapon.png",
+      "runtimeSha256": "0b9d54acedf95d0d8aaa60a775951658b166f0c8b6cf885a53586c7256757951",
+      "alignment": {
+        "x": 190,
+        "y": 195,
+        "width": 180,
+        "height": 160
+      }
+    },
+    "catkin:r5:body": {
+      "callId": "exec-d7eb0660-d238-48c5-b623-4ddc5b5d1dac",
+      "provenance": "current task imagegen call",
+      "referencePath": "public/assets/characters/modular/catkin/base.png",
+      "referenceSha256": "0dd22c3f0b5d10d5335f8afddfdc67acde890f2f107e3fdcedf271a2c3964b92",
+      "sourcePath": "modular/catkin/r5/body-chroma.png",
+      "sourceSha256": "ba7b9dcdf39e242686b1bdab423fd46785d4fb8d9df4f74e1fa9856430d6e6ef",
+      "alphaPath": "modular/catkin/r5/body-alpha.png",
+      "alphaSha256": "01f27873e0e231a65780310a151d16c5ea8e5e94c60d4cc74170821afaee6cd6",
+      "runtimePath": "public/assets/characters/modular/catkin/r5-body.png",
+      "runtimeSha256": "4cdf47f689e7860cedc60d102a5818e8dce002202d0e69d020856529890e5e2c",
+      "alignment": {
+        "x": 140,
+        "y": 160,
+        "width": 360,
+        "height": 455
+      }
+    },
+    "catkin:r5:head": {
+      "callId": "exec-162199d2-cf80-405f-8549-12a5ab2f86e7",
+      "provenance": "current task imagegen call",
+      "referencePath": "public/assets/characters/modular/catkin/base.png",
+      "referenceSha256": "0dd22c3f0b5d10d5335f8afddfdc67acde890f2f107e3fdcedf271a2c3964b92",
+      "sourcePath": "modular/catkin/r5/head-chroma.png",
+      "sourceSha256": "1cb9b14395fca2073b8c4f7b78e18f6b98b6fd85520b64f488ce391e50e86929",
+      "alphaPath": "modular/catkin/r5/head-alpha.png",
+      "alphaSha256": "28a3e990d44e9b1df11a81dea22346c9ecbefcd025d68be050865aa81ec3a6c2",
+      "runtimePath": "public/assets/characters/modular/catkin/r5-head.png",
+      "runtimeSha256": "a755df67b502d2857044840a16640ea462c8bd9eee312eae73445c1b328f618c",
+      "alignment": {
+        "x": 260,
+        "y": 70,
+        "width": 120,
+        "height": 50
+      }
+    },
+    "catkin:r5:weapon": {
+      "callId": "exec-20646b6b-2775-444f-8e95-da5031687bd1",
+      "provenance": "current task imagegen call",
+      "referencePath": "public/assets/characters/modular/catkin/base.png",
+      "referenceSha256": "0dd22c3f0b5d10d5335f8afddfdc67acde890f2f107e3fdcedf271a2c3964b92",
+      "sourcePath": "modular/catkin/r5/weapon-chroma.png",
+      "sourceSha256": "98dbdc59014e18c7063f5d06d6b1c6807c344db07874e4d3c153b5628fb13f9c",
+      "alphaPath": "modular/catkin/r5/weapon-alpha.png",
+      "alphaSha256": "7d815a01654b0219876c32fa0abcbe408d7b10d938d1f2172576fbd621e7817d",
+      "runtimePath": "public/assets/characters/modular/catkin/r5-weapon.png",
+      "runtimeSha256": "8ca10f67b46f1beff268ff858c6e4792db9d0e828a8368129e677086e48d9355",
+      "alignment": [
+        {
+          "side": "left",
+          "x": 125,
+          "y": 350,
+          "width": 115,
+          "height": 130
+        },
+        {
+          "side": "right",
+          "x": 455,
+          "y": 270,
+          "width": 135,
+          "height": 130
+        }
+      ]
+    },
+    "catkin:r5-crimson:body": {
+      "callId": "exec-90a7d133-1809-4a8e-abf9-e5b8cafb3ee0",
+      "provenance": "current task imagegen call",
+      "referencePath": "public/assets/characters/modular/catkin/base.png",
+      "referenceSha256": "0dd22c3f0b5d10d5335f8afddfdc67acde890f2f107e3fdcedf271a2c3964b92",
+      "sourcePath": "modular/catkin/r5-crimson/body-chroma.png",
+      "sourceSha256": "5c9048304ccdd682be1f9240ff72152d0bf2aaa78649a2e06d05a3ced5e9b8df",
+      "alphaPath": "modular/catkin/r5-crimson/body-alpha.png",
+      "alphaSha256": "332e8e3699535994ac9534dc05e110e93a950e8cfcd898159efecc4d2b3c4745",
+      "runtimePath": "public/assets/characters/modular/catkin/r5-crimson-body.png",
+      "runtimeSha256": "4130427ec3d8f5ceb47ebd4788839e33a0e253a284eb89b45ffbebb768be5654",
+      "alignment": {
+        "x": 115,
+        "y": 125,
+        "width": 410,
+        "height": 560
+      }
+    },
+    "catkin:r5-crimson:head": {
+      "callId": "exec-eb11d061-4c86-43a8-9e79-e8c5482045e4",
+      "provenance": "current task imagegen call",
+      "referencePath": "public/assets/characters/modular/catkin/base.png",
+      "referenceSha256": "0dd22c3f0b5d10d5335f8afddfdc67acde890f2f107e3fdcedf271a2c3964b92",
+      "sourcePath": "modular/catkin/r5-crimson/head-chroma.png",
+      "sourceSha256": "5b36c1c7ae8824c6c6e146f4305e3521b101ab19525d4fa626738c2ca744d141",
+      "alphaPath": "modular/catkin/r5-crimson/head-alpha.png",
+      "alphaSha256": "afc4c473653404be43355b13e84a2a81b8ed7aa45ede8014321ca81d8edc3067",
+      "runtimePath": "public/assets/characters/modular/catkin/r5-crimson-head.png",
+      "runtimeSha256": "7e683393a9ef53d4bedc21b3dfd46575d3407cf10bcc700488a334adade78245",
+      "alignment": {
+        "x": 235,
+        "y": 55,
+        "width": 170,
+        "height": 90
+      }
+    },
+    "catkin:r5-crimson:weapon": {
+      "callId": "exec-2c56b506-1986-471c-b6a6-cc60874134d2",
+      "provenance": "current task imagegen call",
+      "referencePath": "public/assets/characters/modular/catkin/base.png",
+      "referenceSha256": "0dd22c3f0b5d10d5335f8afddfdc67acde890f2f107e3fdcedf271a2c3964b92",
+      "sourcePath": "modular/catkin/r5-crimson/weapon-chroma.png",
+      "sourceSha256": "96f5faeb637ddc43afc0377de4bb7acbae04054cedbe814a037cd7e2ae6520de",
+      "alphaPath": "modular/catkin/r5-crimson/weapon-alpha.png",
+      "alphaSha256": "d0d16637ddb86eefb8fbb707c39a8005622c02c4a98755e2d3c2c8839bbc00c9",
+      "runtimePath": "public/assets/characters/modular/catkin/r5-crimson-weapon.png",
+      "runtimeSha256": "2f4f22e228bdcc98bd3b93395640d117f9237a74a2a2ca4f0f07e3316378a4ef",
+      "alignment": [
+        {
+          "side": "left",
+          "x": 90,
+          "y": 330,
+          "width": 155,
+          "height": 170
+        },
+        {
+          "side": "right",
+          "x": 435,
+          "y": 240,
+          "width": 165,
+          "height": 170
+        }
+      ]
+    }
+  }
+}
