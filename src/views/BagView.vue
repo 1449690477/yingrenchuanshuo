@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
-import { Backpack, Coins, PackageOpen, ShieldCheck, X } from '@lucide/vue';
-import { planBulkDecompose } from '@/core/bag';
+import { Backpack, Coins, Lock, LockOpen, PackageOpen, ShieldCheck, X } from '@lucide/vue';
+import { planBulkDecompose, planBulkLock } from '@/core/bag';
 import { decomposeGold } from '@/core/economy';
 import { abbr } from '@/core/format';
 import type { EquipmentInstance, Quality } from '@/core/types';
@@ -27,6 +27,15 @@ const highRiskConfirmed = ref(false);
 const decomposeSheet = ref<HTMLElement | null>(null);
 const decomposeCloseButton = ref<HTMLButtonElement | null>(null);
 let decomposeReturnFocus: HTMLElement | null = null;
+
+const lockOpen = ref(false);
+const lockSnapshot = ref<EquipmentInstance[]>([]);
+const lockMode = ref<'lock' | 'unlock'>('lock');
+// 默认对齐新的自动上锁门槛（传说及以上），玩家最常做的就是补锁或清理这一档
+const lockQualities = ref<Quality[]>(['legendary', 'mythic']);
+const lockSheet = ref<HTMLElement | null>(null);
+const lockCloseButton = ref<HTMLButtonElement | null>(null);
+let lockReturnFocus: HTMLElement | null = null;
 
 const QUALITY_OPTIONS: readonly {
   quality: Quality;
@@ -204,6 +213,74 @@ function toggleDecomposeQuality(quality: Quality): void {
     : [...selectedQualities.value, quality];
 }
 
+/** 穿戴中的 uid，用于批量解锁时跳过身上的装备。 */
+const equippedUids = computed(() => {
+  const set = new Set<string>();
+  for (const inst of Object.values(inventory.equipped ?? {})) {
+    if (inst) set.add(inst.uid);
+  }
+  return set;
+});
+
+const lockQualityCounts = computed<Record<Quality, number>>(() => {
+  const counts = Object.fromEntries(
+    QUALITY_OPTIONS.map((option) => [option.quality, 0]),
+  ) as Record<Quality, number>;
+  for (const inst of lockSnapshot.value) {
+    counts[requireEquipment(inst.defId).quality]++;
+  }
+  return counts;
+});
+
+const lockPlan = computed(() =>
+  planBulkLock(
+    lockSnapshot.value,
+    lockQualities.value,
+    lockMode.value === 'lock',
+    (inst) => requireEquipment(inst.defId).quality,
+    (inst) => equippedUids.value.has(inst.uid),
+  ),
+);
+
+function openLock(event: MouseEvent): void {
+  lockReturnFocus = event.currentTarget as HTMLElement;
+  // 与批量分解同理：打开时固定快照，之后新掉落不会混进本次确认
+  lockSnapshot.value = [...(inventory.bag?.equipment ?? [])];
+  lockOpen.value = true;
+}
+
+function closeLock(): void {
+  lockOpen.value = false;
+}
+
+function toggleLockQuality(quality: Quality): void {
+  lockQualities.value = lockQualities.value.includes(quality)
+    ? lockQualities.value.filter((entry) => entry !== quality)
+    : [...lockQualities.value, quality];
+}
+
+function confirmLock(): void {
+  const plan = lockPlan.value;
+  if (plan.targets.length === 0) return;
+  const wantLocked = lockMode.value === 'lock';
+  const changed = inventory.setLockBulk(
+    plan.targets.map((inst) => inst.uid),
+    wantLocked,
+  );
+  closeLock();
+  show(`已${wantLocked ? '锁定' : '解锁'} ${changed} 件装备`);
+}
+
+function onLockKeydown(event: KeyboardEvent): void {
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    closeLock();
+    return;
+  }
+  if (event.key !== 'Tab' || !lockSheet.value) return;
+  trapTab(event, lockSheet.value);
+}
+
 function confirmDecompose(): void {
   if (!canConfirmDecompose.value) return;
 
@@ -224,16 +301,10 @@ function confirmDecompose(): void {
   show(`分解 ${result.count} 件，获得 ${abbr(result.gold)} 金币`);
 }
 
-function onDecomposeKeydown(event: KeyboardEvent): void {
-  if (event.key === 'Escape') {
-    event.preventDefault();
-    closeDecompose();
-    return;
-  }
-  if (event.key !== 'Tab' || !decomposeSheet.value) return;
-
+/** 把 Tab 焦点圈在弹窗内。批量分解与批量锁定共用一份实现。 */
+function trapTab(event: KeyboardEvent, sheet: HTMLElement): void {
   const focusable = [
-    ...decomposeSheet.value.querySelectorAll<HTMLElement>(
+    ...sheet.querySelectorAll<HTMLElement>(
       'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
     ),
   ].filter((element) => !element.hasAttribute('hidden'));
@@ -245,13 +316,23 @@ function onDecomposeKeydown(event: KeyboardEvent): void {
   }
 
   const active = document.activeElement;
-  if (event.shiftKey && (active === first || !decomposeSheet.value.contains(active))) {
+  if (event.shiftKey && (active === first || !sheet.contains(active))) {
     event.preventDefault();
     last.focus();
   } else if (!event.shiftKey && active === last) {
     event.preventDefault();
     first.focus();
   }
+}
+
+function onDecomposeKeydown(event: KeyboardEvent): void {
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    closeDecompose();
+    return;
+  }
+  if (event.key !== 'Tab' || !decomposeSheet.value) return;
+  trapTab(event, decomposeSheet.value);
 }
 
 function equipBest() {
@@ -277,6 +358,17 @@ function playSalvageBurst() {
     effectTimer = window.setTimeout(() => (salvageBurst.value = false), 1250);
   });
 }
+
+watch(lockOpen, async (open, wasOpen) => {
+  if (open) {
+    await nextTick();
+    lockCloseButton.value?.focus();
+  } else if (wasOpen) {
+    await nextTick();
+    lockReturnFocus?.focus();
+    lockReturnFocus = null;
+  }
+});
 
 watch(decomposeOpen, async (open, wasOpen) => {
   if (open) {
@@ -311,6 +403,7 @@ onUnmounted(() => {
 
     <div v-if="tab === 'equip'" class="actions">
       <button class="btn btn-pink sm" @click="equipBest">一键穿戴最优</button>
+      <button class="btn btn-plain sm" @click="openLock">批量锁定</button>
       <button class="btn btn-plain sm" @click="openDecompose">批量分解</button>
     </div>
 
@@ -518,6 +611,118 @@ onUnmounted(() => {
                     : hasHighRiskSelection && !highRiskConfirmed
                       ? '请先确认高品质风险'
                       : `确认分解 ${decomposePlan.targets.length} 件`
+                }}
+              </button>
+            </footer>
+          </section>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <Teleport to="body">
+      <Transition name="fade">
+        <div v-if="lockOpen" class="decompose-mask" @click.self="closeLock">
+          <section
+            ref="lockSheet"
+            class="decompose-sheet"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="lock-title"
+            aria-describedby="lock-note"
+            @keydown="onLockKeydown"
+          >
+            <header class="decompose-head">
+              <SystemArtwork kind="salvage" class="decompose-art" />
+              <span>
+                <small>装备保护</small>
+                <h2 id="lock-title">批量锁定 / 解锁</h2>
+              </span>
+              <button
+                ref="lockCloseButton"
+                class="decompose-close"
+                aria-label="关闭批量锁定"
+                @click="closeLock"
+              >
+                <X :size="18" aria-hidden="true" />
+              </button>
+            </header>
+
+            <p id="lock-note" class="decompose-note">
+              锁定的装备不会被批量分解，也不会被背包满时的自动清理带走。
+            </p>
+
+            <div class="lock-mode" role="group" aria-label="选择操作">
+              <button
+                type="button"
+                :class="{ active: lockMode === 'lock' }"
+                :aria-pressed="lockMode === 'lock'"
+                @click="lockMode = 'lock'"
+              >
+                <Lock :size="15" aria-hidden="true" />
+                批量锁定
+              </button>
+              <button
+                type="button"
+                :class="{ active: lockMode === 'unlock' }"
+                :aria-pressed="lockMode === 'unlock'"
+                @click="lockMode = 'unlock'"
+              >
+                <LockOpen :size="15" aria-hidden="true" />
+                批量解锁
+              </button>
+            </div>
+
+            <div class="quality-picker" aria-label="选择品质">
+              <button
+                v-for="option in QUALITY_OPTIONS"
+                :key="option.quality"
+                type="button"
+                class="quality-choice"
+                :class="[
+                  `quality-${option.quality}`,
+                  { selected: lockQualities.includes(option.quality) },
+                ]"
+                :aria-pressed="lockQualities.includes(option.quality)"
+                @click="toggleLockQuality(option.quality)"
+              >
+                <i class="quality-dot" aria-hidden="true" />
+                <span>
+                  <strong>{{ option.colorLabel }}装</strong>
+                  <small>{{ option.hint }}</small>
+                </span>
+                <em class="num">{{ lockQualityCounts[option.quality] }}</em>
+              </button>
+            </div>
+
+            <div class="protection-copy">
+              <ShieldCheck :size="17" aria-hidden="true" />
+              <span>
+                传说及以上掉落时已自动锁定
+                <small>
+                  本次跳过 {{ lockPlan.alreadyInState }} 件已是该状态的装备<template
+                    v-if="lockPlan.skippedEquipped > 0"
+                  >
+                    、{{ lockPlan.skippedEquipped }} 件穿戴中的装备</template
+                  >
+                </small>
+              </span>
+            </div>
+
+            <footer class="decompose-preview">
+              <span>
+                <small>本次{{ lockMode === 'lock' ? '锁定' : '解锁' }}</small>
+                <strong class="num">{{ lockPlan.targets.length }} 件</strong>
+              </span>
+              <button
+                type="button"
+                class="confirm-decompose"
+                :disabled="lockPlan.targets.length === 0"
+                @click="confirmLock"
+              >
+                {{
+                  lockPlan.targets.length === 0
+                    ? '没有需要改动的装备'
+                    : `确认${lockMode === 'lock' ? '锁定' : '解锁'} ${lockPlan.targets.length} 件`
                 }}
               </button>
             </footer>
@@ -1000,6 +1205,33 @@ onUnmounted(() => {
 
 .quality-choice:active {
   transform: scale(0.96);
+}
+
+.lock-mode {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.lock-mode button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 6px;
+  color: var(--text-mid);
+  font-size: 12px;
+  font-weight: 700;
+  background: rgb(255 255 255 / 70%);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+}
+
+.lock-mode button.active {
+  color: #8d4770;
+  background: linear-gradient(160deg, #fff0f7, #f2f8ff);
+  border-color: #edb8d3;
 }
 
 .quality-choice.selected {

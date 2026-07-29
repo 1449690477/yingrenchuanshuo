@@ -16,6 +16,42 @@
  */
 
 import type { EquipmentInstance, EquipSlot, Quality } from './types';
+import { QUALITY_RANK } from '@/data/constants';
+
+/**
+ * 掉落时自动上锁的品质门槛。
+ *
+ * ## 原规则错在哪
+ *
+ * 原来只看胚子等级：`locked: baseRoll.grade === 'miracle'`，完全不看品质。
+ * 两个方向都是反的：
+ *
+ * 1. **白装摇到奇迹会被永久锁死。** 锁定是 `trimBag` 的硬保护，
+ *    这些装备再也无法被容量裁剪清掉。奇迹胚子约 2%，而白装又是掉落大头，
+ *    背包里会持续沉淀清不掉的白垃圾，容量系统被慢慢腐蚀。
+ *    而一件奇迹白装的属性仍然不如一件普通蓝装 —— 留着毫无意义。
+ * 2. **传说、神话只要胚子普通就不上锁。** 这恰恰是玩家最怕误删的东西：
+ *    它们虽然不会被自动裁剪（见 AUTO_DECOMPOSE_QUALITIES），
+ *    但玩家在批量分解里勾中该品质时没有任何保护。
+ *
+ * ## 现规则
+ *
+ * 锁定应当对齐「玩家在追什么」，也就是品质：
+ * - 传说（legendary）及以上一律上锁 —— 这是追求的目标，绝不能悄悄没了
+ * - 奇迹胚子把门槛下调一档到史诗，让真正的惊喜掉落也受保护
+ * - 蓝装及以下一律不上锁 —— 它们是消耗品，堆几千件毫无意义
+ *
+ * 配套提供批量解锁（planBulkLock），后期想清理旧橙装时一键放开即可。
+ */
+const AUTO_LOCK_MIN_RANK = QUALITY_RANK.legendary;
+const MIRACLE_AUTO_LOCK_MIN_RANK = QUALITY_RANK.epic;
+
+/** 一件新掉落的装备是否应当自动上锁。 */
+export function shouldAutoLock(quality: Quality, isMiracleRoll: boolean): boolean {
+  const rank = QUALITY_RANK[quality];
+  if (rank >= AUTO_LOCK_MIN_RANK) return true;
+  return isMiracleRoll && rank >= MIRACLE_AUTO_LOCK_MIN_RANK;
+}
 
 /**
  * 自动分解会碰的品质。
@@ -97,6 +133,52 @@ export function planBulkDecompose(
   }
 
   return { targets, protectedPending, protectedLocked, protectedEnhanced };
+}
+
+export interface BulkLockPlan {
+  /** 本次会被改变锁定状态的装备 */
+  targets: EquipmentInstance[];
+  /** 已经是目标状态、无需改动的数量 */
+  alreadyInState: number;
+  /** 穿戴中因此被跳过的数量（仅解锁时统计） */
+  skippedEquipped: number;
+}
+
+/**
+ * 按品质生成批量上锁 / 解锁计划。
+ *
+ * 与批量分解一样，这里只筛选、不改背包，由调用方拿 uid 快照交给 store。
+ *
+ * 解锁时会跳过穿戴中的装备：玩家解锁通常是为了紧接着批量分解，
+ * 把身上正穿的一起放开等于给自己挖坑。想脱下来处理仍可单件解锁。
+ */
+export function planBulkLock(
+  equipment: readonly EquipmentInstance[],
+  selectedQualities: readonly Quality[],
+  locked: boolean,
+  qualityOf: (inst: EquipmentInstance) => Quality | undefined,
+  isEquipped: (inst: EquipmentInstance) => boolean = () => false,
+): BulkLockPlan {
+  const selected = new Set(selectedQualities);
+  const targets: EquipmentInstance[] = [];
+  let alreadyInState = 0;
+  let skippedEquipped = 0;
+
+  for (const inst of equipment) {
+    const quality = qualityOf(inst);
+    if (!quality || !selected.has(quality)) continue;
+    if (inst.locked === locked) {
+      alreadyInState++;
+      continue;
+    }
+    if (!locked && isEquipped(inst)) {
+      skippedEquipped++;
+      continue;
+    }
+    targets.push(inst);
+  }
+
+  return { targets, alreadyInState, skippedEquipped };
 }
 
 /**

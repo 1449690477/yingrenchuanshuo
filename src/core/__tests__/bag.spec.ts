@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { isOverCapacity, planBulkDecompose, trimBag, type TrimContext } from '../bag';
+import {
+  isOverCapacity,
+  planBulkDecompose,
+  planBulkLock,
+  shouldAutoLock,
+  trimBag,
+  type TrimContext,
+} from '../bag';
 import type { EquipmentInstance, EquipSlot, Quality } from '../types';
 
 /** 造一件测试装备。value 直接当战力用，方便断言。 */
@@ -252,5 +259,56 @@ describe('planBulkDecompose', () => {
 
     expect(plan.targets.map((item) => item.uid)).toEqual(['known']);
     expect(list).toEqual(before);
+  });
+});
+
+describe('自动上锁门槛', () => {
+  it('传说及以上一律上锁，奇迹胚子把门槛下调到史诗', () => {
+    expect(shouldAutoLock('legendary', false)).toBe(true);
+    expect(shouldAutoLock('mythic', false)).toBe(true);
+    expect(shouldAutoLock('divine', false)).toBe(true);
+    expect(shouldAutoLock('epic', true)).toBe(true);
+    expect(shouldAutoLock('epic', false)).toBe(false);
+  });
+
+  it('蓝装及以下即使摇到奇迹胚子也不上锁', () => {
+    // 原规则会把它们永久锁死：锁定是 trimBag 的硬保护，背包再也清不掉
+    expect(shouldAutoLock('common', true)).toBe(false);
+    expect(shouldAutoLock('fine', true)).toBe(false);
+    expect(shouldAutoLock('rare', true)).toBe(false);
+  });
+});
+
+describe('批量锁定 / 解锁', () => {
+  const qualityOf = (inst: EquipmentInstance) =>
+    (inst as EquipmentInstance & { _q: Quality })._q;
+
+  it('只挑选中品质里状态需要改变的装备', () => {
+    const bag = [
+      mk('a', { quality: 'legendary', locked: false }),
+      mk('b', { quality: 'legendary', locked: true }),
+      mk('c', { quality: 'rare', locked: false }),
+    ];
+    const plan = planBulkLock(bag, ['legendary'], true, qualityOf);
+    expect(plan.targets.map((inst) => inst.uid)).toEqual(['a']);
+    expect(plan.alreadyInState).toBe(1);
+  });
+
+  it('解锁会跳过穿戴中的装备', () => {
+    const bag = [
+      mk('worn', { quality: 'legendary', locked: true }),
+      mk('spare', { quality: 'legendary', locked: true }),
+    ];
+    // 解锁通常是为了紧接着批量分解，把身上正穿的一起放开等于给自己挖坑
+    const plan = planBulkLock(bag, ['legendary'], false, qualityOf, (inst) => inst.uid === 'worn');
+    expect(plan.targets.map((inst) => inst.uid)).toEqual(['spare']);
+    expect(plan.skippedEquipped).toBe(1);
+  });
+
+  it('上锁不跳过穿戴中的装备', () => {
+    const bag = [mk('worn', { quality: 'legendary', locked: false })];
+    const plan = planBulkLock(bag, ['legendary'], true, qualityOf, () => true);
+    expect(plan.targets.map((inst) => inst.uid)).toEqual(['worn']);
+    expect(plan.skippedEquipped).toBe(0);
   });
 });

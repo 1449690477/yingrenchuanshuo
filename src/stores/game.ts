@@ -2152,6 +2152,25 @@ export const useGameStore = defineStore('game', () => {
     void persist();
   }
 
+  /**
+   * 批量设置锁定状态，返回实际改动的件数。
+   *
+   * ⚠ 和 decompose 一样必须是 O(n)：对每个 uid 单独 find 在 1.5 万件背包上
+   * 是 O(n²)，会把页面卡死。这里一次 Set 查表 + 一次遍历。
+   */
+  function setLockBulk(uids: readonly string[], locked: boolean): number {
+    if (!save.value) return 0;
+    const targets = new Set(uids);
+    let changed = 0;
+    for (const inst of save.value.bag.equipment) {
+      if (!targets.has(inst.uid) || inst.locked === locked) continue;
+      inst.locked = locked;
+      changed++;
+    }
+    if (changed > 0) void persist();
+    return changed;
+  }
+
   /** 开关只影响玩家主动触发的好感互动短震，不振动后台挂机或自动战斗。 */
   function setHaptics(enabled: boolean): boolean {
     if (!save.value) return false;
@@ -2272,6 +2291,7 @@ export const useGameStore = defineStore('game', () => {
     assessShopOfferById,
     purchaseShopOffer,
     toggleLock,
+    setLockBulk,
     setHaptics,
     equipmentCandidateCp,
     equipmentCpDelta,

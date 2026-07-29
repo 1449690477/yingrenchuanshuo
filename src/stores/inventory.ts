@@ -39,6 +39,10 @@ export const useInventoryStore = defineStore('inventory', () => {
     game.toggleLock(uid);
   }
 
+  function setLockBulk(uids: readonly string[], locked: boolean): number {
+    return game.setLockBulk(uids, locked);
+  }
+
   function candidateCp(inst: EquipmentInstance): number {
     return game.equipmentCandidateCp(inst);
   }
@@ -92,6 +96,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     equipBest,
     decompose,
     toggleLock,
+    setLockBulk,
     candidateCp,
     cpDelta,
     contributionCp,

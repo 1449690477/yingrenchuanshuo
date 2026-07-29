@@ -18,6 +18,7 @@ import type {
 } from './types';
 import type { Rng } from './rng';
 import { addStats, zeroStats } from './formula';
+import { shouldAutoLock } from './bag';
 import {
   AFFIX_ELEMENT_OPTIONS,
   AFFIX_POOL,
@@ -521,8 +522,8 @@ export function createInstance(
     enhanceLuck: {},
     affixes: rollAffixes(def, rng, classId),
     reforgeResonance: 0,
-    // 奇迹胚子自动锁定，避免一键分解白绿装时误删惊喜掉落。
-    locked: baseRoll.grade === 'miracle',
+    // 自动上锁看品质而不只看胚子，理由见 core/bag.ts 的 shouldAutoLock
+    locked: shouldAutoLock(def.quality, baseRoll.grade === 'miracle'),
   };
 }
 

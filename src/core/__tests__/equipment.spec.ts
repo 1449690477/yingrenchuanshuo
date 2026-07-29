@@ -726,16 +726,30 @@ describe('随机词条', () => {
     expect(() => enhanceGainGrade(100)).toThrow('未配置');
   });
 
-  it('奇迹胚子会自动锁定，确定珍品则保持固定 100% 胚子', () => {
+  it('自动锁定按品质而非只按胚子，确定珍品则保持固定 100% 胚子', () => {
     let miracleSeed = 0;
+    let plainSeed = 0;
     for (let seed = 1; seed < 10_000; seed++) {
-      if (rollBasePermille(new Rng(seed)).grade === 'miracle') {
-        miracleSeed = seed;
-        break;
-      }
+      const grade = rollBasePermille(new Rng(seed)).grade;
+      if (!miracleSeed && grade === 'miracle') miracleSeed = seed;
+      if (!plainSeed && grade !== 'miracle') plainSeed = seed;
+      if (miracleSeed && plainSeed) break;
     }
     expect(miracleSeed).toBeGreaterThan(0);
-    expect(createInstance(def(), new Rng(miracleSeed), 'miracle', 'swordsman').locked).toBe(true);
+    expect(plainSeed).toBeGreaterThan(0);
+
+    const lockedOf = (quality: Quality, seed: number) =>
+      createInstance(def({ quality }), new Rng(seed), 'u', 'swordsman').locked;
+
+    // 传说及以上一律上锁 —— 这是玩家最怕误删的东西，胚子普通也要保护
+    expect(lockedOf('legendary', plainSeed)).toBe(true);
+    expect(lockedOf('mythic', plainSeed)).toBe(true);
+    // 奇迹胚子把门槛下调一档到史诗
+    expect(lockedOf('epic', miracleSeed)).toBe(true);
+    expect(lockedOf('epic', plainSeed)).toBe(false);
+    // 蓝装及以下一律不上锁：原规则会把奇迹白装永久锁死，再也清不掉
+    expect(lockedOf('common', miracleSeed)).toBe(false);
+    expect(lockedOf('rare', miracleSeed)).toBe(false);
 
     const fixedDefinition = def({
       quality: 'common',
