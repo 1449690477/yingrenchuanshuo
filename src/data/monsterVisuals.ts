@@ -1,5 +1,6 @@
 import type { MonsterMotionProfile } from './battleMotions';
 import { REGION_34_MONSTER_MOTIONS } from './region34';
+import { REGION_5_MONSTER_MOTIONS } from './region5';
 
 export interface MonsterVisual {
   asset: string;
@@ -32,6 +33,17 @@ function buildRegion34MonsterVisuals(): Record<string, MonsterVisual> {
  */
 export const REGION_34_MONSTER_VISUALS: Readonly<Record<string, MonsterVisual>> =
   buildRegion34MonsterVisuals();
+
+export const REGION_5_MONSTER_VISUALS: Readonly<Record<string, MonsterVisual>> =
+  Object.fromEntries(
+    Object.entries(REGION_5_MONSTER_MOTIONS).map(([id, motion]) => [
+      id,
+      {
+        asset: `assets/monsters/r5/${id}.webp`,
+        motion,
+      },
+    ]),
+  );
 
 /**
  * 已完成制作和校验的怪物素材注册表。
