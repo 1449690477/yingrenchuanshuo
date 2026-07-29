@@ -279,3 +279,238 @@ node scripts/validate-region5-scene-assets.mjs --with-sources
 - 11 张源图 SHA、运行图 SHA 与像素唯一性全部通过；联系表为不透明压缩 WebP，
   233,270 B。
 - `npm run verify`：78 个测试文件 / 987 项测试、模拟与既有四套资产门禁全绿。
+---
+
+# R5「熔岩神殿」怪物素材生产记录
+
+本批只覆盖 `scripts/region5-assets-manifest.mjs` 中的 24 个怪物 stable key：
+20 个普通怪、3 个精英、1 个 BOSS。每个 key 都使用一次独立的最终 ImageGen
+调用，不复用旧怪、不换色、不复制像素。所有可玩运行图位于
+`public/assets/monsters/r5/`；绿幕源图与 alpha 母版只保存在外置 Git LFS 源仓：
+
+`C:/Users/Administrator/Desktop/二次元传奇项目/yingrenchuanshuo-art-source-r5/monsters/`
+
+ImageGen 原始调用结果继续原样保留在：
+
+`C:/Users/Administrator/.codex/generated_images/019facc1-1101-76d3-9d68-d5d1870b3f4d/`
+
+## 统一视觉与构图约束
+
+- 用途：二次元竖版放置手游的挂机战斗怪物立绘。
+- 风格：清新可爱的日系手游 2D 插画，圆润轮廓、柔和厚涂赛璐璐、清楚描边，
+  缩小到战斗窗口仍可辨认。
+- 区域配色：珊瑚红、鎏金、暖白、深海军蓝；主体禁止任何绿色、青绿色或翠色。
+- 构图：严格一个完整主体，居中，3/4 朝左，所有肢体、武器、尾巴、翅膀、
+  流苏均在画面内并保留安全边距。
+- 绿幕：整帧边到边纯色 `#00ff00`，无渐变、纹理、暗角或色差。生成端的轻微
+  采样偏色会在保留原始调用图后，用官方 alpha 母版重建成严格纯绿源图。
+- 禁止：地面、接触阴影、投影、光环、外发光、烟雾、散落粒子、漂浮火星、
+  场景、文字、Logo、UI、边框、重复主体。火焰只能是与主体相连的实色造型。
+- 成年女性敌人：端庄、成熟、全覆盖、非性化；禁止裸露胸口、腰腹或大腿，
+  禁止幼态比例与现实宗教符号。
+
+最终统一追加的英文提示尾段：
+
+> Premium clean 2D anime mobile RPG illustration, soft painterly cel shading,
+> crisp readable edges. Exactly one connected full-body subject, centered,
+> three-quarter view facing left, generous padding, no crop. Exact uniform solid
+> chroma green #00ff00 edge-to-edge. No floor, shadow, halo, glow, particles,
+> smoke, scenery, text, logo, UI, border, duplicate or second subject.
+
+## mon_5-1_0 · 灰烬团子
+
+ImageGen call: `call_6WTs7sAvZeNdMW6oxZ8rfyqY`
+
+主体提示：单只暖白糯米团般的灰烬精灵，珊瑚红实色火苗冠、珊瑚红灰烬裂纹、
+海军蓝小脚、胸前鎏金护符；调皮笑脸，弹跳预备姿势，所有装饰与身体连接。
+
+## mon_5-1_1 · 熔壳蜥灵
+
+ImageGen call: `call_LLen4jFg0uDQ8rIT5AocMtVx`
+
+主体提示：单只矮胖火山蜥灵，四足和一条完整卷尾；深蓝圆石甲壳、珊瑚红熔纹、
+暖白腹部、金色额饰与眼睛，朝左跃动，禁止额外头尾。
+
+## mon_5-1_2 · 火星飞蛾
+
+ImageGen call: `call_CgdsEnkhTB76srPaoeKJhjGJ`
+
+主体提示：单只非人飞蛾，暖白绒胸、深蓝头腹、四片完整不透明珊瑚红翅，
+金色星火嵌纹、两根金触角和六足；无半透明翅光与散落火星。
+
+## mon_5-1_3 · 焦岩甲虫
+
+ImageGen call: `call_ac4PvqvyIQiuSxVs6aKXamHU`
+
+主体提示：单只重甲甲虫，深蓝焦岩甲壳、珊瑚红裂缝镶纹、暖白面甲、
+短金角与金眼；矮壮防守轮廓，无独立武器、碎石或多余主体。
+
+## mon_5-2_0 · 岩浆史莱姆
+
+ImageGen call: `call_mw3CYf2rf5u6aS1Oe17q8JQG`
+
+主体提示：单只完全不透明的圆润岩浆史莱姆，珊瑚红软体、深蓝冷却岩壳帽、
+暖白腹部、胸前封闭金色心核和深蓝小脚；无水洼、滴液和透明胶质。
+
+## mon_5-2_1 · 火羽蝠灵
+
+ImageGen call: `call_QDH5XPY0onKzdSf12J2X5TqZ`
+
+主体提示：单只暖白绒毛火羽蝠灵，深蓝身体和耳朵，两片完整珊瑚红羽状实色翅，
+金色火纹与爪，短尾完整；无额外翅膀、光效或第二只蝙蝠。
+
+## mon_5-2_2 · 红晶守卫
+
+ImageGen call: `call_27luVEWVFg4RkOjZbwsMWCNK`
+
+主体提示：单只矮胖红晶魔像，珊瑚红晶甲、深蓝关节、暖白面甲、鎏金框边，
+双臂为一体式晶石拳套，双腿站稳；晶体只用实色高光，不发光不掉碎片。
+
+## mon_5-2_3 · 链桥火铃
+
+ImageGen call: `call_n7xMg3rlFgpzxpt4gutOgtkk`
+
+主体提示：单只活化寺铃，金色钟体和暖白表情面板，连接式深蓝桥形吊架与短链，
+珊瑚红火纹和下挂流苏、两只深蓝小脚；所有部件连接，只能有一个钟。
+
+## mon_5-2_elite · 熔岩卫娘
+
+ImageGen call: `call_6bUBUKvj3EPxhzzld4kWC8Mf`
+
+主体提示：单名成年熔岩桥守卫，暖白高领内袍、珊瑚红/深蓝全覆盖层甲和长裙、
+金色护边、封闭手套与靴；双手持一把完整短戟，成熟端庄、防守姿态。
+
+## mon_5-3_0 · 祈火灯灵
+
+ImageGen call: `call_1wtofe2iu1BKvU9GARVj3WyN`
+
+主体提示：单只浮空祈火灯灵，圆润金框、暖白灯面、深蓝上下帽、两片连接小翼、
+下挂珊瑚红流苏；窗口内是一枚不透明珊瑚红火形，无光晕光束。
+
+## mon_5-3_1 · 赤纹石像
+
+ImageGen call: `call_qqLTfXffpsJEh7tpC6PmLpI5`
+
+主体提示：单只原创四足守护石兽，暖灰石身、深蓝背甲和眉甲、珊瑚红抽象纹带、
+金眼与小金饰、暖白口鼻；无基座、碎石和现实宗教造型。
+
+## mon_5-3_2 · 香灰狐灵
+
+ImageGen call: `call_BKEUz77oGJFVafMgycDdsXTg`
+
+主体提示：单只暖白绒毛狐灵，深蓝耳尖和唯一一条大尾尖，珊瑚红香灰旋纹、
+深蓝颈带与连接式金铃、金瞳；四爪与整条单尾完整入框。
+
+## mon_5-3_3 · 金焰甲兵
+
+ImageGen call: `call_EVMYZeedvUclx5bR58NOUNxB`
+
+主体提示：单只非人机关甲兵，鎏金重甲、深蓝关节、暖白封闭面罩、
+珊瑚红实色头盔火冠，粗壮双臂作为一体式防具；无皮肤与独立盾剑。
+
+## mon_5-4_0 · 火纱侍从
+
+ImageGen call: `call_R3VXpJScRTFRLSwG8xsUFGtE`
+
+主体提示：单只非人活化火纱，暖白面具、深蓝软帽和内褶、珊瑚红实色纱身，
+全部结扣铃饰为纯金，袖口流苏和下摆均连接；禁止任何绿色宝石。
+
+## mon_5-4_1 · 祭盘精灵
+
+ImageGen call: `call_e2SBYxRXG0yNGzSoIWWG239m`
+
+主体提示：单只活化圆祭盘，金色圆框、暖白珐琅表情面、珊瑚红火瓣嵌纹、
+深蓝底壳、两只连接式金把手、深蓝小脚与下缘红结；盘上无食物或供品。
+
+## mon_5-4_2 · 烛冠火灵
+
+ImageGen call: `call_E6aZzi6Sx76UIdPbrL6XPSS6`
+
+主体提示：单只暖白实色蜡烛精灵，深蓝鎏金冠、仅一枚连接式珊瑚红实色火苗、
+珊瑚红蜡纹、深蓝小手小脚；无烛台、蜡池、滴液、烟或发光。
+
+## mon_5-4_3 · 赤绸舞灵
+
+ImageGen call: `call_AEnUug9oqq4YF8GqnKKzfVfr`
+
+主体提示：单只非人活化赤绸舞灵，暖白面具居中，宽阔珊瑚红实色绸带形成一体
+旋舞轮廓，深蓝内褶和金色包边结扣；全部带尾连接，不出现人体皮肤。
+
+## mon_5-4_elite · 赤红神官
+
+ImageGen call: `call_qJn3MYOcvJfv0TrpZVrhz2Ws`
+
+主体提示：单名成年赤红神官，高领长袖、珊瑚红/深蓝/暖白落地礼袍、金色火冠；
+仅持一把完整金色礼仪杖，所有珠饰限红金白蓝，成熟端庄且全覆盖。
+
+## mon_5-5_0 · 熔心守卫
+
+ImageGen call: `call_9eqcBltIyOBgPeMBrKDSb1BF`
+
+主体提示：单只高大熔心重魔像，深蓝火山重甲、金色接缝、暖白面甲、
+胸口封闭珊瑚红心晶，双巨拳和双重足；前压防守，无独立武器与晶体光。
+
+## mon_5-5_1 · 焰羽圣灵
+
+ImageGen call: `call_PmMSLILQ6qHNhvwmUy56JpB7`
+
+主体提示：单只原创凤凰型圣灵，暖白胸脸、珊瑚红实色翼尾羽、金色羽缘冠羽、
+深蓝次级羽与双足；双翼、尾羽全部入框，无光环、散羽或第二只鸟。
+
+## mon_5-5_2 · 金瞳火蛇
+
+ImageGen call: `call_mNM9ewOCTZYjUSjtfRKW9Z1Y`
+
+主体提示：单只单头火蛇，完整盘卷身体与尾尖，深蓝圆鳞、珊瑚红腹鳞和侧火纹、
+暖白鬃毛、巨大金瞳和小金额鳞；无翼、四肢、多头或第二条蛇。
+
+## mon_5-5_3 · 誓火侍女
+
+ImageGen call: `call_22a9JTlzJtlhzQlFxp1qQ4Sb`
+
+主体提示：单名成年誓火侍女，暖白/珊瑚红高领长袖落地裙、深蓝披肩、
+纯金火纹与发饰；双手持唯一一盏封闭珊瑚红礼灯，所有珠饰限红金白蓝。
+
+## mon_5-5_elite · 熔心圣侍
+
+ImageGen call: `call_oX3XclYl6hR93EGX9LrVju7B`
+
+主体提示：单名全封闭甲胄圣侍，不露皮肤；深蓝与珊瑚红板甲、暖白战袍、
+金色护边、胸前实色心纹；右手一把短矛、左手一面心形盾，全部入框。
+
+## mon_5-5_boss · 炎神官长·维斯塔
+
+ImageGen call: `call_vJ2Gi8toOmZgEhsuP6YUlW8p`
+
+主体提示：单名成年 BOSS 维斯塔，高大庄重；暖白高领落地内袍、深蓝礼甲、
+宽珊瑚红披帛、繁复但端庄的金色护边、红金高火冠与深蓝长发；仅持一把完整
+心焰权杖，另一手发令。珠宝只用红金白蓝，全覆盖、非性化、无现实宗教符号。
+
+## 抠图与运行时构建
+
+每张最终调用图先复制为 `<id>-chroma.png`，再逐张运行官方工具：
+
+```powershell
+python C:\Users\Administrator\.codex\skills\.system\imagegen\scripts\remove_chroma_key.py `
+  --input <id>-chroma.png `
+  --out <id>-alpha.png `
+  --auto-key border `
+  --soft-matte `
+  --transparent-threshold 12 `
+  --opaque-threshold 220 `
+  --edge-contract 1 `
+  --despill `
+  --force
+```
+
+随后执行：
+
+```powershell
+node scripts/build-region5-monsters.mjs
+node scripts/build-region5-monsters-contact-sheet.mjs
+node scripts/validate-region5-monsters.mjs
+```
+
+构建规则：alpha 阈值 8 紧裁，主体等比缩入 `480×480`，置于 `512×512`
+透明画布，水平居中且最后可见像素固定 `y=503`；WebP 从 `quality=88`
+向下按 2 调整，保持 `alphaQuality=100`，单图不得超过 `120 KiB`。
