@@ -58,6 +58,8 @@ export interface EquipmentAssessment {
   worthScore: number;
   /** 当前词条组评分 0~100。 */
   affixScore: number;
+  /** 相关度 0~1：这件装备玩家到底还会不会穿。0 表示已被淘汰。 */
+  relevance: number;
   affixes: AffixAssessment[];
   recommendation: ReforgeRecommendation | null;
 }
@@ -110,6 +112,50 @@ export function assessAffix(affix: Affix, index: number, classId: ClassId): Affi
     status,
     statusLabel,
   };
+}
+
+/**
+ * 参考等级 = 玩家当前真正在用的装备等级。
+ *
+ * 优先取穿戴中的最高等级；一件都没穿时退回全部候选的最高等级。
+ * 背包里远低于这个等级的装备，词条洗得再漂亮也不会上身，
+ * 不该占推荐位、更不该让玩家往里砸材料。
+ */
+export function referenceLevelOf(entries: ReforgeAdvisorInput['entries']): number {
+  const equipped = entries.filter((entry) => entry.source === 'equipped');
+  const pool = equipped.length > 0 ? equipped : entries;
+  return pool.reduce((max, entry) => Math.max(max, entry.definition.level), 1);
+}
+
+/**
+ * 相关度：这件装备值不值得为它花材料。
+ *
+ * 之前的排序只看「哪条规则更紧急」（死词条 108 分 > 同调 78 分），
+ * 而等级只以 level/10 计入 worthScore 再乘 0.2 —— Lv20 和 Lv80 只差
+ * 一分多，于是背包里的低级史诗永远压过身上穿的高级装备。
+ * 相关度把「会不会穿」这件事重新提到和「多紧急」同一个量级上。
+ */
+export function relevanceOf(
+  definition: EquipmentDef,
+  source: 'equipped' | 'bag',
+  referenceLevel: number,
+  equippedInSlot: EquipmentDef | null,
+): number {
+  if (source === 'equipped') return 1;
+
+  // 同部位穿着的那件不比它差 —— 这件永远不会上身
+  if (equippedInSlot) {
+    const rankHere = QUALITY_RANK[definition.quality];
+    const rankWorn = QUALITY_RANK[equippedInSlot.quality];
+    const outclassed =
+      rankWorn > rankHere || (rankWorn === rankHere && equippedInSlot.level >= definition.level);
+    if (outclassed) return 0;
+  }
+
+  // 比在用装备低一大截的，等同废铁
+  const ratio = definition.level / Math.max(1, referenceLevel);
+  if (ratio < 0.7) return 0;
+  return Math.min(1, 0.45 + ratio * 0.35);
 }
 
 export function worthScoreOf(
@@ -252,6 +298,7 @@ export function assessEquipment(
   definition: EquipmentDef,
   source: 'equipped' | 'bag',
   classId: ClassId,
+  relevance = 1,
 ): EquipmentAssessment {
   const affixes = instance.affixes.map((affix, index) => assessAffix(affix, index, classId));
   const affixScore =
@@ -267,15 +314,26 @@ export function assessEquipment(
     slot: definition.slot,
     worthScore,
     affixScore,
+    relevance,
     affixes,
-    recommendation: buildRecommendation(
-      definition,
-      source,
-      affixes,
-      worthScore,
-      affixScore,
-    ),
+    // 已被淘汰的装备仍可手动选中洗练，但绝不主动建议玩家往里投材料
+    recommendation:
+      relevance <= 0
+        ? null
+        : buildRecommendation(definition, source, affixes, worthScore, affixScore),
   };
+}
+
+/**
+ * 排序分：紧急程度先乘相关度，再给穿戴中的装备一个固定加成。
+ *
+ * 这样「身上那件需要同调」(78×1+40=118) 会排在
+ * 「背包里一件同级备选有死词条」(108×0.6≈65) 前面 ——
+ * 先把正在生效的装备修好，才轮到备选。
+ */
+export function sortScoreOf(assessment: EquipmentAssessment): number {
+  const priority = assessment.recommendation?.priority ?? -1;
+  return priority * assessment.relevance + (assessment.source === 'equipped' ? 40 : 0);
 }
 
 /**
@@ -283,17 +341,31 @@ export function assessEquipment(
  * 固定珍品与没有随机词条的装备直接过滤掉。
  */
 export function adviseReforge(input: ReforgeAdvisorInput): EquipmentAssessment[] {
-  return input.entries
-    .filter(
-      ({ instance, definition }) => !definition.fixedTemplate && instance.affixes.length > 0,
-    )
+  const candidates = input.entries.filter(
+    ({ instance, definition }) => !definition.fixedTemplate && instance.affixes.length > 0,
+  );
+  const referenceLevel = referenceLevelOf(candidates);
+
+  // 每个部位当前穿着的那件，用来判断背包里的同部位装备是否已被淘汰
+  const wornBySlot = new Map<EquipSlot, EquipmentDef>();
+  for (const { definition, source } of candidates) {
+    if (source === 'equipped') wornBySlot.set(definition.slot, definition);
+  }
+
+  return candidates
     .map(({ instance, definition, source }) =>
-      assessEquipment(instance, definition, source, input.classId),
+      assessEquipment(
+        instance,
+        definition,
+        source,
+        input.classId,
+        relevanceOf(definition, source, referenceLevel, wornBySlot.get(definition.slot) ?? null),
+      ),
     )
     .sort((a, b) => {
-      const pa = a.recommendation?.priority ?? -1;
-      const pb = b.recommendation?.priority ?? -1;
-      if (pa !== pb) return pb - pa;
+      const sa = sortScoreOf(a);
+      const sb = sortScoreOf(b);
+      if (sa !== sb) return sb - sa;
       return b.worthScore - a.worthScore;
     });
 }

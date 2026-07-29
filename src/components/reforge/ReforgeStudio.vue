@@ -112,6 +112,16 @@ const assessments = computed<EquipmentAssessment[]>(() => {
 
 const topPick = computed(() => topRecommendation(assessments.value));
 
+/**
+ * 值得洗练的件数。
+ *
+ * 背包里几百件早已淘汰的装备也「能」洗，但报一个「188 件装备可以洗练」
+ * 只会让玩家无从下手。这里只数还会上身的那些。
+ */
+const advisableCount = computed(
+  () => assessments.value.filter((entry) => entry.relevance > 0).length,
+);
+
 const selectedAssessment = computed(
   () => assessments.value.find((entry) => entry.uid === selectedUid.value) ?? null,
 );
@@ -196,10 +206,12 @@ const operationOptions: readonly {
   name: string;
   desc: string;
 }[] = [
-  { id: 'reforge', name: '重铸', desc: '随机一条：类型与品阶都变' },
-  { id: 'temper', name: '淬炼', desc: '随机一条：保留类型，只洗品阶' },
-  { id: 'inscribe', name: '铭刻', desc: '随机一条：必出当前职业专属' },
-  { id: 'resonate', name: '同调', desc: '指定一条：直接提升一个品阶' },
+  // 四张卡在 375px 上各只有约 85px 宽，描述必须短到两行内 ——
+  // 完整解释在下方洗练台的说明里，这里只做区分
+  { id: 'reforge', name: '重铸', desc: '类型品阶全随机' },
+  { id: 'temper', name: '淬炼', desc: '保留类型洗品阶' },
+  { id: 'inscribe', name: '铭刻', desc: '必出本职专属' },
+  { id: 'resonate', name: '同调', desc: '指定一条升品阶' },
 ];
 const activeOperationName = computed(() => {
   const selected = operationOptions.find((entry) => entry.id === operation.value);
@@ -466,7 +478,12 @@ onBeforeUnmount(() => {
         <div class="head-copy">
           <small>星辉洗练坊</small>
           <h2>让每一件装备都回应你的心意</h2>
-          <p>{{ assessments.length }} 件装备可以洗练</p>
+          <p>
+            {{ advisableCount }} 件值得洗练
+            <template v-if="assessments.length > advisableCount">
+              · 另有 {{ assessments.length - advisableCount }} 件已淘汰
+            </template>
+          </p>
         </div>
         <button
           ref="closeButtonRef"
@@ -523,7 +540,11 @@ onBeforeUnmount(() => {
                 v-for="entry in assessments"
                 :key="entry.uid"
                 class="gear-card"
-                :class="{ active: entry.uid === selectedUid, advised: Boolean(entry.recommendation) }"
+                :class="{
+                  active: entry.uid === selectedUid,
+                  advised: Boolean(entry.recommendation),
+                  retired: entry.relevance <= 0,
+                }"
                 :style="{ '--gear-q': `var(--q-${requireEquipment(entry.defId).quality})` }"
                 role="option"
                 :aria-selected="entry.uid === selectedUid"
@@ -541,6 +562,7 @@ onBeforeUnmount(() => {
                 <span v-if="entry.recommendation" class="gear-advice">
                   建议{{ operationName(entry.recommendation.operation) }}
                 </span>
+                <span v-else-if="entry.relevance <= 0" class="gear-advice retired-tag">已淘汰</span>
               </button>
             </div>
           </section>
@@ -913,6 +935,16 @@ onBeforeUnmount(() => {
 }
 
 /* ── 主体滚动区 ── */
+/*
+ * 滚动区里的每一块都不许被压缩。
+ * 关键在带 overflow:hidden 的块（如 .advisor-banner）：overflow 不是
+ * visible 时，flex item 的 min-height:auto 会解析成 0，于是它能被压到
+ * 远低于内容高度再自行裁掉 —— 推荐横幅曾因此只剩一行标题。
+ */
+.studio-body > * {
+  flex-shrink: 0;
+}
+
 .studio-body {
   display: flex;
   flex: 1;
@@ -1132,6 +1164,17 @@ onBeforeUnmount(() => {
   background: #ffeaf4;
   border: 1px solid #f3c9dd;
   border-radius: 999px;
+}
+
+/* 已被同部位在穿装备淘汰的：压暗但仍可手动选中 */
+.gear-card.retired {
+  opacity: 0.5;
+}
+
+.gear-advice.retired-tag {
+  color: var(--text-mid);
+  background: rgb(0 0 0 / 4%);
+  border-color: var(--line);
 }
 
 /* ── 洗练台 ── */

@@ -201,8 +201,9 @@ describe('列表排序与过滤', () => {
           source: 'equipped',
         },
         {
+          // 同级、且该部位没穿东西 —— 是真正的候选装备，紧急度才有意义
           instance: instance('urgent', [dead(), atk(1)]),
-          definition: def('urgent', 'body', 'rare', 12),
+          definition: def('urgent', 'body', 'epic', 30),
           source: 'bag',
         },
         {
@@ -220,5 +221,72 @@ describe('列表排序与过滤', () => {
 
   it('没有可洗练装备时首推为空', () => {
     expect(topRecommendation([])).toBeNull();
+  });
+
+  it('背包里等级远低于在用装备的，判为已淘汰且不给建议', () => {
+    const result = adviseReforge({
+      classId: 'witch',
+      entries: [
+        {
+          instance: instance('worn', [atk(2), wit(2)]),
+          definition: def('worn', 'weapon', 'epic', 60),
+          source: 'equipped',
+        },
+        {
+          // Lv20 只有在用等级的三分之一，词条再烂也不值得投材料
+          instance: instance('junk', [dead(), dead()]),
+          definition: def('junk', 'body', 'epic', 20),
+          source: 'bag',
+        },
+      ],
+    });
+    const junk = result.find((entry) => entry.defId === 'junk')!;
+    expect(junk.relevance).toBe(0);
+    expect(junk.recommendation).toBeNull();
+    // 死词条最紧急，但淘汰装备不该因此登上首推
+    expect(topRecommendation(result)?.assessment.defId).not.toBe('junk');
+  });
+
+  it('同部位已穿着不更差的装备时，背包那件判为已淘汰', () => {
+    const result = adviseReforge({
+      classId: 'witch',
+      entries: [
+        {
+          instance: instance('worn', [atk(2), wit(2)]),
+          definition: def('worn', 'weapon', 'legendary', 40),
+          source: 'equipped',
+        },
+        {
+          // 同级但品质更低，永远不会换上去
+          instance: instance('spare', [dead(), atk(1)]),
+          definition: def('spare', 'weapon', 'epic', 40),
+          source: 'bag',
+        },
+      ],
+    });
+    expect(result.find((entry) => entry.defId === 'spare')!.relevance).toBe(0);
+    expect(result[0]!.defId).toBe('worn');
+  });
+
+  it('穿戴中的装备排在背包候选之前', () => {
+    const result = adviseReforge({
+      classId: 'witch',
+      entries: [
+        {
+          // 身上这件只需同调，紧急度低于死词条
+          instance: instance('worn', [atk(4), wit(4)]),
+          definition: def('worn', 'weapon', 'epic', 40),
+          source: 'equipped',
+        },
+        {
+          // 背包这件有死词条，规则上更「紧急」，但毕竟还没上身
+          instance: instance('candidate', [dead(), atk(1)]),
+          definition: def('candidate', 'body', 'epic', 40),
+          source: 'bag',
+        },
+      ],
+    });
+    expect(result[0]!.defId).toBe('worn');
+    expect(topRecommendation(result)?.assessment.defId).toBe('worn');
   });
 });
