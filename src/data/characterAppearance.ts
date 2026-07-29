@@ -229,6 +229,38 @@ export const REGION_34_EQUIPMENT_APPEARANCES: Readonly<
   Record<string, EquipmentAppearance>
 > = buildRegionAppearances(['r3', 'r4']);
 
+function buildRegion5SetAppearances(): Record<string, EquipmentAppearance> {
+  const out: Record<string, EquipmentAppearance> = {};
+  for (const slot of ['body', 'head', 'weapon'] as const) {
+    const id = `r5-set-${slot}`;
+    out[id] = {
+      id,
+      slot,
+      renderMode: 'layer',
+      assets: classAssets(id),
+      transforms: alignedTransforms,
+    };
+  }
+  for (const slot of ['necklace', 'bracelet', 'ring'] as const) {
+    const id = `r5-set-${slot}`;
+    out[id] = { id, slot, renderMode: 'slot-only' };
+  }
+  return out;
+}
+
+/**
+ * R5 普通八部位与绯焰六件套的完整外观注册表。
+ *
+ * 普通装和套装各自使用独立的 body / head / weapon 图层；首饰继续在装备槽
+ * 显示，避免小尺寸人物上叠加不可辨认的装饰噪点。
+ */
+export const REGION_5_EQUIPMENT_APPEARANCES: Readonly<
+  Record<string, EquipmentAppearance>
+> = {
+  ...buildRegionAppearances(['r5']),
+  ...buildRegion5SetAppearances(),
+};
+
 /**
  * 装备定义到运行时外观的显式注册表。
  *
@@ -309,6 +341,7 @@ export const EQUIPMENT_APPEARANCES: Readonly<Record<string, EquipmentAppearance>
       ]),
     ]),
   ),
+  ...REGION_5_EQUIPMENT_APPEARANCES,
 
   ...buildBoutiqueAppearances(),
   ...buildEquipmentDungeonAppearances(),
