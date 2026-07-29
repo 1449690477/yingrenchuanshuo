@@ -12,6 +12,7 @@ export const REGION_WEAPON_ELEMENTS = {
   r2: 'fire',
   r3: 'fire',
   r4: 'none',
+  r5: 'fire',
 } as const satisfies Readonly<Record<string, Element>>;
 
 /**

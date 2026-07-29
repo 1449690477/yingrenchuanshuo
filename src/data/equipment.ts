@@ -21,6 +21,15 @@ import { AFFECTION_EQUIPMENT_LIST } from './affectionEquipment';
 import { BOUTIQUE_THEME_LIST, boutiqueAppearanceId, boutiqueEquipmentId } from './boutique';
 import { EQUIPMENT_DUNGEON_GEAR_LIST } from './equipmentDungeonGear';
 import { REGION_34_EQUIPMENT_THEMES } from './region34';
+import {
+  REGION_5_EQUIPMENT_THEME,
+  REGION_5_SET_ID,
+  REGION_5_SET_LEVEL,
+  REGION_5_SET_NAMES,
+  REGION_5_SET_QUALITY,
+  REGION_5_SET_SLOTS,
+  region5SetEquipmentId,
+} from './region5';
 import { BOUTIQUE_WEAPON_ELEMENTS, REGION_WEAPON_ELEMENTS } from './weaponElements';
 
 /** 每个区域一套命名主题：8 个槽位各一个词根 */
@@ -105,6 +114,16 @@ const THEMES: NamingTheme[] = [
     ) as Record<EquipSlot, string>,
     names: theme.names,
   })),
+  {
+    regionId: REGION_5_EQUIPMENT_THEME.regionId,
+    level: REGION_5_EQUIPMENT_THEME.level,
+    weaponElement: REGION_WEAPON_ELEMENTS.r5,
+    qualities: [...REGION_5_EQUIPMENT_THEME.qualities],
+    icons: Object.fromEntries(
+      SLOT_ORDER.map((slot) => [slot, `assets/equipment/r5/${slot}.png`]),
+    ) as Record<EquipSlot, string>,
+    names: REGION_5_EQUIPMENT_THEME.names,
+  },
 ];
 
 /** 品质前缀，让同名装备在背包里能区分开 */
@@ -152,6 +171,23 @@ function buildEquipment(): Record<string, EquipmentDef> {
             : { ...common, slot };
       }
     }
+  }
+
+  for (const slot of REGION_5_SET_SLOTS) {
+    const id = region5SetEquipmentId(slot);
+    const common = {
+      id,
+      name: REGION_5_SET_NAMES[slot],
+      quality: REGION_5_SET_QUALITY,
+      level: REGION_5_SET_LEVEL,
+      setId: REGION_5_SET_ID,
+      icon: `assets/equipment/r5-set/${slot}.png`,
+      appearanceId: `r5-set-${slot}`,
+    } as const;
+    out[id] =
+      slot === 'weapon'
+        ? { ...common, slot, element: REGION_WEAPON_ELEMENTS.r5 }
+        : { ...common, slot };
   }
 
   for (const theme of BOUTIQUE_THEME_LIST) {
