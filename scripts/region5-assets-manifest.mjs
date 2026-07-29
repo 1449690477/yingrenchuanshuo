@@ -54,7 +54,7 @@ export const REGION5_EQUIPMENT = REGION5_SLOTS.map((slot) => ({
 }));
 
 export const REGION5_SET_EQUIPMENT = REGION5_SET_SLOTS.map((slot) => ({
-  id: `r5-set-${slot}`,
+  id: `r5-crimson-${slot}`,
   family: 'set',
   slot,
 }));
@@ -100,7 +100,7 @@ export const REGION5_SET_MODULAR_LAYERS = REGION5_CLASSES.flatMap((classId) =>
     classId,
     family: 'set',
     slot,
-    id: `${classId}-r5-set-${slot}`,
+    id: `${classId}-r5-crimson-${slot}`,
   })),
 );
 
@@ -117,4 +117,3 @@ export const REGION5_COUNTS = Object.freeze({
   regionSetRuntime: 18,
   runtimeTotal: 78,
 });
-

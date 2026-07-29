@@ -237,7 +237,12 @@ function buildRegion5SetAppearances(): Record<string, EquipmentAppearance> {
       id,
       slot,
       renderMode: 'layer',
-      assets: classAssets(id),
+      assets: Object.fromEntries(
+        CLASS_IDS.map((classId) => [
+          classId,
+          `assets/characters/modular/${classId}/r5-crimson-${slot}.png`,
+        ]),
+      ) as Record<ClassId, string>,
       transforms: alignedTransforms,
     };
   }

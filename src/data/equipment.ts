@@ -181,7 +181,7 @@ function buildEquipment(): Record<string, EquipmentDef> {
       quality: REGION_5_SET_QUALITY,
       level: REGION_5_SET_LEVEL,
       setId: REGION_5_SET_ID,
-      icon: `assets/equipment/r5-set/${slot}.png`,
+      icon: `assets/equipment/sets/r5-crimson/${slot}.png`,
       appearanceId: `r5-set-${slot}`,
     } as const;
     out[id] =

@@ -20,8 +20,9 @@ describe('R5 纸娃娃外观注册', () => {
         if (appearance?.renderMode !== 'layer') continue;
         expect(Object.keys(appearance.assets).sort()).toEqual([...CLASS_IDS].sort());
         for (const classId of CLASS_IDS) {
+          const assetFamily = family === 'r5-set' ? 'r5-crimson' : family;
           expect(appearance.assets[classId]).toBe(
-            `assets/characters/modular/${classId}/${family}-${slot}.png`,
+            `assets/characters/modular/${classId}/${assetFamily}-${slot}.png`,
           );
           expect(appearance.transforms[classId]).toEqual({
             scale: 1,
