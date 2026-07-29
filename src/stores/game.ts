@@ -180,6 +180,7 @@ import {
   equipmentAdvancementOption as resolveEquipmentAdvancementOption,
   type EquipmentAdvancementOption,
 } from '@/data/equipmentAdvancement';
+import { getEquipmentSet } from '@/data/equipmentSets';
 
 import { createSave, type SaveData } from '@/save/schema';
 import { clearSave, loadSave, saveSave } from '@/save/storage';
@@ -478,6 +479,7 @@ export const useGameStore = defineStore('game', () => {
     resolveEquipmentSetBonuses(
       SLOT_ORDER.map((slot) => save.value?.equipped[slot] ?? null),
       getEquipment,
+      getEquipmentSet,
     ),
   );
 
@@ -1553,7 +1555,11 @@ export const useGameStore = defineStore('game', () => {
     if (!save.value) return 0;
     const { classId, level } = save.value.player;
     const base = baseStatsFor(classId, level);
-    const setResolution = resolveEquipmentSetBonuses(equipped, getEquipment);
+    const setResolution = resolveEquipmentSetBonuses(
+      equipped,
+      getEquipment,
+      getEquipmentSet,
+    );
     const combined = applyEquipmentSetStats(
       addStats(base, totalEquipStats(equipped, getEquipment, classId)),
       setResolution,

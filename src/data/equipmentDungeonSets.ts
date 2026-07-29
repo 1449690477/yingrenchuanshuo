@@ -1,26 +1,11 @@
-import type { Stats } from '@/core/types';
+import type { EquipmentSetDefinition } from '@/core/equipmentSets';
 import type { EquipmentDungeonTierId } from './equipmentDungeonGear';
 
-export interface EquipmentSetBonus {
-  pieces: 2 | 4 | 6 | 8;
-  label: string;
-  description: string;
-  statPercent?: Partial<Stats>;
-  statFlat?: Partial<Stats>;
-  /** 加到技能倍率上的绝对值，例如 0.08 表示平均技能倍率 +0.08。 */
-  skillMultiplierBonus?: number;
-}
-
-export interface EquipmentSetDefinition {
-  id: string;
+export interface EquipmentDungeonSetDefinition extends EquipmentSetDefinition {
   tierId: EquipmentDungeonTierId;
-  name: string;
-  bonuses: readonly EquipmentSetBonus[];
 }
 
-export const EQUIPMENT_DUNGEON_SETS: Readonly<
-  Record<string, EquipmentSetDefinition>
-> = {
+export const EQUIPMENT_DUNGEON_SETS: Readonly<Record<string, EquipmentDungeonSetDefinition>> = {
   set_dungeon_azure: {
     id: 'set_dungeon_azure',
     tierId: 'azure',
@@ -151,7 +136,7 @@ export const EQUIPMENT_DUNGEON_SETS: Readonly<
   },
 } as const;
 
-export function requireEquipmentDungeonSet(id: string): EquipmentSetDefinition {
+export function requireEquipmentDungeonSet(id: string): EquipmentDungeonSetDefinition {
   const definition = EQUIPMENT_DUNGEON_SETS[id];
   if (!definition) throw new Error(`[配置错误] 装备套装不存在：${id}`);
   return definition;

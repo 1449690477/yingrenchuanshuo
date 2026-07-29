@@ -1,10 +1,28 @@
 import type { EquipmentDef, EquipmentInstance, Stats } from './types';
 import { zeroStats } from './formula';
-import {
-  EQUIPMENT_DUNGEON_SETS,
-  type EquipmentSetBonus,
-  type EquipmentSetDefinition,
-} from '@/data/equipmentDungeonSets';
+
+export interface EquipmentSetBonus {
+  pieces: 2 | 4 | 6 | 8;
+  label: string;
+  description: string;
+  statPercent?: Partial<Stats>;
+  statFlat?: Partial<Stats>;
+  /** 加到技能倍率上的绝对值，例如 0.08 表示平均技能倍率 +0.08。 */
+  skillMultiplierBonus?: number;
+}
+
+/**
+ * 核心层只关心结算所需的通用套装契约。
+ *
+ * 装备副本档位、区域来源等内容字段由各自 data 表扩展，不能反向写进核心逻辑。
+ */
+export interface EquipmentSetDefinition {
+  id: string;
+  name: string;
+  bonuses: readonly EquipmentSetBonus[];
+}
+
+export type EquipmentSetDefinitionResolver = (setId: string) => EquipmentSetDefinition | undefined;
 
 export interface ActiveEquipmentSet {
   definition: EquipmentSetDefinition;
@@ -28,6 +46,7 @@ export interface EquipmentSetResolution {
 export function resolveEquipmentSetBonuses(
   equipped: readonly (EquipmentInstance | null)[],
   defOf: (defId: string) => EquipmentDef | undefined,
+  setDefOf: EquipmentSetDefinitionResolver,
 ): EquipmentSetResolution {
   const counts = new Map<string, number>();
   for (const instance of equipped) {
@@ -46,15 +65,12 @@ export function resolveEquipmentSetBonuses(
   const sets: ActiveEquipmentSet[] = [];
 
   for (const [setId, equippedPieces] of counts) {
-    const definition = EQUIPMENT_DUNGEON_SETS[setId];
+    const definition = setDefOf(setId);
     if (!definition) {
       throw new Error(`[配置错误] 装备引用了未登记套装：${setId}`);
     }
-    const activeBonuses = definition.bonuses.filter(
-      (bonus) => equippedPieces >= bonus.pieces,
-    );
-    const nextBonus =
-      definition.bonuses.find((bonus) => equippedPieces < bonus.pieces) ?? null;
+    const activeBonuses = definition.bonuses.filter((bonus) => equippedPieces >= bonus.pieces);
+    const nextBonus = definition.bonuses.find((bonus) => equippedPieces < bonus.pieces) ?? null;
     for (const bonus of activeBonuses) {
       addPartialStats(statPercent, bonus.statPercent);
       addPartialStats(statFlat, bonus.statFlat);
@@ -68,22 +84,15 @@ export function resolveEquipmentSetBonuses(
 }
 
 /** 百分比先作用于原属性，再加固定值；暴击率等百分点只走固定值。 */
-export function applyEquipmentSetStats(
-  stats: Stats,
-  resolution: EquipmentSetResolution,
-): Stats {
+export function applyEquipmentSetStats(stats: Stats, resolution: EquipmentSetResolution): Stats {
   return {
     atk: stats.atk * (1 + resolution.statPercent.atk) + resolution.statFlat.atk,
     def: stats.def * (1 + resolution.statPercent.def) + resolution.statFlat.def,
     hp: stats.hp * (1 + resolution.statPercent.hp) + resolution.statFlat.hp,
     acc: stats.acc * (1 + resolution.statPercent.acc) + resolution.statFlat.acc,
     eva: stats.eva * (1 + resolution.statPercent.eva) + resolution.statFlat.eva,
-    critRate:
-      stats.critRate * (1 + resolution.statPercent.critRate) +
-      resolution.statFlat.critRate,
-    critDmg:
-      stats.critDmg * (1 + resolution.statPercent.critDmg) +
-      resolution.statFlat.critDmg,
+    critRate: stats.critRate * (1 + resolution.statPercent.critRate) + resolution.statFlat.critRate,
+    critDmg: stats.critDmg * (1 + resolution.statPercent.critDmg) + resolution.statFlat.critDmg,
     spd: stats.spd * (1 + resolution.statPercent.spd) + resolution.statFlat.spd,
   };
 }
