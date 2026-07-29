@@ -56,6 +56,10 @@ import {
   planEquipmentAdvancement,
   type EquipmentAdvancementResult,
 } from '@/core/equipmentAdvancement';
+import {
+  planEquipmentSetCrafting,
+  type EquipmentSetCraftingResult,
+} from '@/core/equipmentSetCrafting';
 import { planClassSwitch } from '@/core/classSwitch';
 import {
   applyClassMods,
@@ -180,6 +184,7 @@ import {
   equipmentAdvancementOption as resolveEquipmentAdvancementOption,
   type EquipmentAdvancementOption,
 } from '@/data/equipmentAdvancement';
+import { getEquipmentSetCraftingRecipe } from '@/data/equipmentSetCrafting';
 import { getEquipmentSet } from '@/data/equipmentSets';
 
 import { createSave, type SaveData } from '@/save/schema';
@@ -325,6 +330,25 @@ export type EquipmentAdvancementActionResult =
       /** 返回存档中同一个响应式实例，详情页无需重开即可刷新。 */
       equipment: EquipmentInstance;
       cpDelta: number;
+    });
+
+type EquipmentSetCraftingCoreFailure = Extract<EquipmentSetCraftingResult, { ok: false }>;
+type EquipmentSetCraftingCoreSuccess = Extract<EquipmentSetCraftingResult, { ok: true }>;
+
+export type EquipmentSetCraftingActionResult =
+  | EquipmentSetCraftingCoreFailure
+  | {
+      ok: false;
+      reason:
+        | 'no-save'
+        | 'no-recipe'
+        | 'persistence-pending'
+        | 'persistence-conflict'
+        | 'persistence-failed';
+    }
+  | (EquipmentSetCraftingCoreSuccess & {
+      /** 返回已经进入响应式背包的实例。 */
+      equipment: EquipmentInstance;
     });
 
 export type EncounterResolveResult =
@@ -2033,6 +2057,87 @@ export const useGameStore = defineStore('game', () => {
   }
 
   /**
+   * 套装通用碎片自选合成耐久事务。
+   *
+   * 配方、消耗和目标定义只从 data 注册表读取；纯函数使用克隆钱包与本地 RNG
+   * 生成完整实例。Store 先暂停实时产出，再一次性写入碎片、装备、nextUid 与
+   * RNG，只有 IndexedDB revision/CAS 真提交后才返回成功。
+   */
+  async function craftEquipmentSetPiece(
+    recipeId: string,
+    targetSlot: EquipSlot,
+  ): Promise<EquipmentSetCraftingActionResult> {
+    if (!save.value) return { ok: false, reason: 'no-save' };
+    if (storageConflict) return { ok: false, reason: 'persistence-conflict' };
+    if (paidPersistencePending) return { ok: false, reason: 'persistence-pending' };
+
+    const recipe = getEquipmentSetCraftingRecipe(recipeId);
+    if (!recipe) return { ok: false, reason: 'no-recipe' };
+    const targetDefId = recipe.targetDefIds[targetSlot];
+    // unsupported-slot 是玩家选择结果，不应通过 requireEquipment 伪装成配置错误。
+    if (!targetDefId) {
+      return {
+        ok: false,
+        reason: 'unsupported-slot',
+        recipeId: recipe.id,
+        targetSlot,
+      };
+    }
+
+    const result = planEquipmentSetCrafting({
+      recipe,
+      targetSlot,
+      targetDefinition: requireEquipment(targetDefId),
+      classId: save.value.player.classId,
+      uid: `e${save.value.nextUid}`,
+      wallet: { items: save.value.bag.items },
+      rngState: rng.getState(),
+    });
+    if (!result.ok) return result;
+
+    const previousItems = { ...save.value.bag.items };
+    const previousEquipmentCount = save.value.bag.equipment.length;
+    const previousNextUid = save.value.nextUid;
+    const previousRngState = rng.getState();
+    const previousSavedRngState = save.value.rngState;
+    const resumeRealtime = rafId !== 0;
+
+    paidPersistencePending = true;
+    stopLoop();
+    try {
+      save.value.bag.items = { ...result.wallet.items };
+      save.value.bag.equipment.push(result.equipment);
+      save.value.nextUid += 1;
+      rng.setState(result.nextRngState);
+      const created = save.value.bag.equipment[previousEquipmentCount]!;
+
+      try {
+        await persistStrict();
+      } catch (error) {
+        save.value.bag.items = previousItems;
+        save.value.bag.equipment.splice(previousEquipmentCount);
+        save.value.nextUid = previousNextUid;
+        rng.setState(previousRngState);
+        save.value.rngState = previousSavedRngState;
+        if (error instanceof SaveConflictError) {
+          return { ok: false, reason: 'persistence-conflict' };
+        }
+        if (error instanceof SaveWriteError) {
+          return { ok: false, reason: 'persistence-failed' };
+        }
+        throw error;
+      }
+
+      return {
+        ...result,
+        equipment: created,
+      };
+    } finally {
+      finishPaidPersistenceTransaction(resumeRealtime);
+    }
+  }
+
+  /**
    * 开始洗练：纯逻辑层先在克隆钱包/RNG/装备上生成完整候选，
    * 成功后才一次性扣材料并写入可持久化 pending；原词条此时绝不覆盖。
    */
@@ -2674,6 +2779,7 @@ export const useGameStore = defineStore('game', () => {
     equipmentContributionCp,
     equipmentAdvancementOption,
     advanceEquipment,
+    craftEquipmentSetPiece,
     startAffixChange,
     resolveAffixChange,
     quoteEnhance,

@@ -8,6 +8,7 @@ import {
   type AffixChangeActionResult,
   type DecomposeResult,
   type EquipmentAdvancementActionResult,
+  type EquipmentSetCraftingActionResult,
   type EnhanceBatchActionResult,
   type EnhanceEquipmentResult,
   type EnhanceQuote,
@@ -68,6 +69,13 @@ export const useInventoryStore = defineStore('inventory', () => {
     return game.advanceEquipment(uid, expectedSourceDefId);
   }
 
+  function craftEquipmentSetPiece(
+    recipeId: string,
+    targetSlot: EquipSlot,
+  ): Promise<EquipmentSetCraftingActionResult> {
+    return game.craftEquipmentSetPiece(recipeId, targetSlot);
+  }
+
   function startAffixChange(
     uid: string,
     operation: AffixChangeOperation,
@@ -115,6 +123,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     contributionCp,
     equipmentAdvancementOption,
     advanceEquipment,
+    craftEquipmentSetPiece,
     startAffixChange,
     resolveAffixChange,
     quoteEnhance,
