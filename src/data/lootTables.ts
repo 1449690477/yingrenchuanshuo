@@ -22,6 +22,7 @@ import {
   type RegionMaterialTier,
 } from './materialSources';
 import { regionLootProfile } from './regionLootProfiles';
+import { region5FragmentLootForTable } from './region5Loot';
 
 const REFORGE_DROP = {
   temper: 'sand_crystal',
@@ -117,7 +118,12 @@ function buildTable(spec: ChapterSpec, type: MonsterType): LootTable {
     });
   }
 
+  // R5 套装碎片使用独立来源表，只向真实精英 / BOSS 对应的表注入。
+  const region5Fragment = region5FragmentLootForTable(id);
+  if (region5Fragment) entries.push(region5Fragment);
+
   // ── 装备 ──
+  let pityGroups: LootTable['pityGroups'];
   if (region) {
     const profile = regionLootProfile(region.id);
     for (const [quality, weight] of Object.entries(profile.qualityWeights[type]) as [
@@ -136,6 +142,23 @@ function buildTable(spec: ChapterSpec, type: MonsterType): LootTable {
         });
       }
     }
+
+    const qualityPity = profile.bossQualityPity;
+    if (type === 'boss' && spec.boss && qualityPity) {
+      const itemIds = equipIdsOf(region.id, qualityPity.quality);
+      if (itemIds.length === 0) {
+        throw new Error(
+          `[配置错误] ${region.id} 的 ${qualityPity.quality} 品质组保底没有候选装备`,
+        );
+      }
+      pityGroups = [
+        {
+          id: qualityPity.groupId,
+          pityCount: qualityPity.pityCount,
+          itemIds,
+        },
+      ];
+    }
   }
 
   // ── BOSS 珍品直掉：商店同款也必须有「靠打获得」路径 ──
@@ -153,7 +176,13 @@ function buildTable(spec: ChapterSpec, type: MonsterType): LootTable {
     }
   }
 
-  return { id, rolls: ROLLS[type], entries, ...(guaranteed.length > 0 ? { guaranteed } : {}) };
+  return {
+    id,
+    rolls: ROLLS[type],
+    entries,
+    ...(guaranteed.length > 0 ? { guaranteed } : {}),
+    ...(pityGroups ? { pityGroups } : {}),
+  };
 }
 
 function buildAll(): Record<string, LootTable> {
