@@ -1,5 +1,6 @@
 import type { EquipmentSetDefinition } from '@/core/equipmentSets';
 import type { EquipmentDungeonTierId } from './equipmentDungeonGear';
+import { SLOT_ORDER } from './constants';
 
 export interface EquipmentDungeonSetDefinition extends EquipmentSetDefinition {
   tierId: EquipmentDungeonTierId;
@@ -10,6 +11,7 @@ export const EQUIPMENT_DUNGEON_SETS: Readonly<Record<string, EquipmentDungeonSet
     id: 'set_dungeon_azure',
     tierId: 'azure',
     name: '晴蓝茶会',
+    pieceSlots: SLOT_ORDER,
     bonuses: [
       {
         pieces: 2,
@@ -42,6 +44,7 @@ export const EQUIPMENT_DUNGEON_SETS: Readonly<Record<string, EquipmentDungeonSet
     id: 'set_dungeon_violet',
     tierId: 'violet',
     name: '月紫星宴',
+    pieceSlots: SLOT_ORDER,
     bonuses: [
       {
         pieces: 2,
@@ -74,6 +77,7 @@ export const EQUIPMENT_DUNGEON_SETS: Readonly<Record<string, EquipmentDungeonSet
     id: 'set_dungeon_auric',
     tierId: 'auric',
     name: '琥珀蔷薇王庭',
+    pieceSlots: SLOT_ORDER,
     bonuses: [
       {
         pieces: 2,
@@ -106,6 +110,7 @@ export const EQUIPMENT_DUNGEON_SETS: Readonly<Record<string, EquipmentDungeonSet
     id: 'set_dungeon_crimson',
     tierId: 'crimson',
     name: '绯樱典藏',
+    pieceSlots: SLOT_ORDER,
     bonuses: [
       {
         pieces: 2,

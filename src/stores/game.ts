@@ -73,6 +73,7 @@ import {
   staminaMaxForLevel,
 } from '@/core/progression';
 import {
+  addCombatBonuses,
   createFixedInstance,
   createInstance,
   hasFullyFixedAffixes,
@@ -529,16 +530,6 @@ export const useGameStore = defineStore('game', () => {
     );
   });
 
-  /** 不进入八项 Stats 的装备战斗词条，统一从当前穿戴聚合。 */
-  const equipCombatBonuses = computed(() => {
-    if (!save.value) return zeroCombatBonuses();
-    return totalEquipCombatBonuses(
-      SLOT_ORDER.map((slot) => save.value?.equipped[slot] ?? null),
-      getEquipment,
-      save.value.player.classId,
-    );
-  });
-
   /** 基础攻击属性只来自当前武器；词条只能加成，不能反向赋予属性。 */
   const playerCombatElement = computed(() => {
     const weapon = save.value?.equipped.weapon;
@@ -553,6 +544,17 @@ export const useGameStore = defineStore('game', () => {
       getEquipmentSet,
     ),
   );
+
+  /** 不进入八项 Stats 的装备词条与套装战斗修正，统一从当前穿戴聚合。 */
+  const equipCombatBonuses = computed(() => {
+    if (!save.value) return zeroCombatBonuses();
+    const affixBonuses = totalEquipCombatBonuses(
+      SLOT_ORDER.map((slot) => save.value?.equipped[slot] ?? null),
+      getEquipment,
+      save.value.player.classId,
+    );
+    return addCombatBonuses(affixBonuses, equipmentSetResolution.value.combatBonuses);
+  });
 
   /**
    * 当前玩家唯一的最终技能倍率入口。
@@ -693,6 +695,7 @@ export const useGameStore = defineStore('game', () => {
       lootTable: requireLootTable(stage.lootTableId),
       maxKillsPerSec: stage.maxKillsPerSec,
       skillMultiplier: playerSkillMultiplier.value,
+      onHitTriggers: equipmentSetResolution.value.onHitTriggers,
     };
   }
 
@@ -1581,6 +1584,7 @@ export const useGameStore = defineStore('game', () => {
       ),
       classId: s.player.classId,
       playerSkillMultiplier: playerSkillMultiplier.value,
+      playerOnHitTriggers: equipmentSetResolution.value.onHitTriggers,
       rngState: rng.getState(),
       now,
     });

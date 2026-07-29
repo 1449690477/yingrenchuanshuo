@@ -10,9 +10,11 @@ import {
   type EquipmentDungeonState,
 } from '../equipmentDungeon';
 import { requireEquipmentDungeonStage } from '@/data/equipmentDungeons';
+import { REGION_CRIMSON_SET } from '@/data/regionEquipmentSets';
 import type { Stats } from '../types';
 
 const NOW = Date.parse('2026-07-28T04:30:00+08:00');
+const FLAMEBURST = REGION_CRIMSON_SET.bonuses.flatMap((bonus) => bonus.onHitTriggers ?? [])[0]!;
 
 function stats(overrides: Partial<Stats> = {}): Stats {
   return {
@@ -74,9 +76,7 @@ describe('装备副本业务日期与次数', () => {
     // 这一关此前已通关（records 里有 firstClearedAt），属于日常重复刷取，照常扣次数
     expect(result.state.clearsToday).toBe(1);
     expect(result.state.totalClears).toBe(10);
-    expect(result.state.records.equipment_weapon_azure?.firstClearedAt).toBe(
-      NOW - 86_400_000,
-    );
+    expect(result.state.records.equipment_weapon_azure?.firstClearedAt).toBe(NOW - 86_400_000);
   });
 
   it('每天第 4 次成功领取会被拒绝（首通除外）', () => {
@@ -184,6 +184,35 @@ describe('装备副本解锁与战斗事务', () => {
     expect(resolveEquipmentDungeonChallenge(input())).toEqual(
       resolveEquipmentDungeonChallenge(input()),
     );
+  });
+
+  it('副本逐击真实结算炎爆并向表现层返回同源事件', () => {
+    const result = resolveEquipmentDungeonChallenge(
+      input({
+        player: makePlayer('绯焰测试少女', 90, stats({ atk: 100, critRate: 100 }), 'fire', {
+          damageReduction: 0,
+          lifesteal: 0,
+          elementDamage: { fire: 12, ice: 0, thunder: 0 },
+        }),
+        playerOnHitTriggers: [{ ...FLAMEBURST, chance: 1 }],
+      }),
+    );
+
+    expect(result.ok && result.win).toBe(true);
+    if (!result.ok || !result.win) return;
+    const timeline = result.waves.flatMap((wave) => wave.result.events);
+    const bursts = timeline.filter((event) => event.event.kind === 'on-hit-elemental-damage');
+    expect(bursts.length).toBeGreaterThan(0);
+    expect(bursts.every((event) => event.source === 'player')).toBe(true);
+    expect(bursts.every((event) => event.event.damage > 0)).toBe(true);
+    for (const wave of result.waves) {
+      expect(wave.result.damageDealt).toBeCloseTo(
+        wave.result.events
+          .filter((event) => event.source === 'player')
+          .reduce((sum, event) => sum + event.event.damage, 0),
+        8,
+      );
+    }
   });
 
   it('通用双款连续缺失触发补偿双掉', () => {

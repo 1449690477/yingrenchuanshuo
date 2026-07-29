@@ -8,6 +8,9 @@ import {
 import { combatPressure } from '../combat';
 import { makeMonster, makePlayer } from '../progression';
 import type { Combatant, Stage, Stats, Wave } from '../types';
+import { REGION_CRIMSON_SET } from '@/data/regionEquipmentSets';
+
+const FLAMEBURST = REGION_CRIMSON_SET.bonuses.flatMap((bonus) => bonus.onHitTriggers ?? [])[0]!;
 
 function visualStage(id: string, waves: Wave[]): Pick<Stage, 'id' | 'waves'> {
   return { id, waves };
@@ -186,6 +189,29 @@ describe('battleVitalsAtProgress', () => {
 
     expect(withSet.player.currentHp).toBeGreaterThan(withoutSet.player.currentHp);
     expect(withSet.monster).toEqual(withoutSet.monster);
+  });
+
+  it('绯焰逐击期望缩短 TTK 后，血条读取触发器而不是伪造技能倍率', () => {
+    const player = visualPlayer();
+    player.element = 'fire';
+    const monster = makePlayer(
+      '炎爆投影目标',
+      30,
+      stats({ atk: 800, def: 0, hp: 12_000, eva: 0, critRate: 0, spd: 1 }),
+      'ice',
+    );
+
+    const withoutBurst = battleVitalsAtProgress(player, monster, 1, 1);
+    const withBurst = battleVitalsAtProgress(player, monster, 1, 1, [FLAMEBURST]);
+    const pressure = combatPressure(player, monster, 1, {
+      playerOnHitTriggers: [FLAMEBURST],
+    });
+
+    expect(withBurst.player.currentHp).toBeGreaterThan(withoutBurst.player.currentHp);
+    expect(withBurst.player.currentHp).toBe(
+      Math.max(0, Math.ceil(Math.floor(player.stats.hp) - pressure.damagePerFight)),
+    );
+    expect(withBurst.monster).toEqual(withoutBurst.monster);
   });
 
   it('遭遇推进时玩家生命单调不增且始终位于合法范围', () => {

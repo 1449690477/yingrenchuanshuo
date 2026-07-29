@@ -28,6 +28,7 @@ export const usePlayerStore = defineStore('player', () => {
   const equipCombatBonuses = computed(() => game.equipCombatBonuses);
   const playerCombatElement = computed(() => game.playerCombatElement);
   const playerSkillMultiplier = computed(() => game.playerSkillMultiplier);
+  const playerOnHitTriggers = computed(() => game.equipmentSetResolution.onHitTriggers);
   const affectionState = computed(() => game.affectionState);
   const affectionProgress = computed(() => game.affectionProgress);
   const affectionTier = computed(() => game.affectionTier);
@@ -77,6 +78,7 @@ export const usePlayerStore = defineStore('player', () => {
     equipCombatBonuses,
     playerCombatElement,
     playerSkillMultiplier,
+    playerOnHitTriggers,
     affectionState,
     affectionProgress,
     affectionTier,

@@ -27,6 +27,7 @@ import {
   equipmentDungeonGearFor,
   type EquipmentDungeonTierId,
 } from '../src/data/equipmentDungeonGear';
+import { getEquipmentSet } from '../src/data/equipmentSets';
 
 const NOW = Date.parse('2026-07-28T12:00:00+08:00');
 const RUNS = 120;
@@ -76,7 +77,11 @@ function entryInstances(
 function playerFor(tierId: EquipmentDungeonTierId, classId: ClassId) {
   const tier = EQUIPMENT_DUNGEON_TIERS.find((candidate) => candidate.id === tierId)!;
   const equipment = entryInstances(tierId, classId);
-  const setResolution = resolveEquipmentSetBonuses(equipment, (id) => EQUIPMENT[id]);
+  const setResolution = resolveEquipmentSetBonuses(
+    equipment,
+    (id) => EQUIPMENT[id],
+    getEquipmentSet,
+  );
   const stats = applyClassMods(
     classId,
     applyEquipmentSetStats(

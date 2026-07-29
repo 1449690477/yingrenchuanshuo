@@ -33,10 +33,22 @@ const baseStats: Stats = {
   spd: 1,
 };
 
+const ALL_SLOTS = [
+  'weapon',
+  'head',
+  'body',
+  'necklace',
+  'bracelet',
+  'ring',
+  'belt',
+  'shoes',
+] as const;
+
 const TEST_SETS: Readonly<Record<string, EquipmentSetDefinition>> = {
   set_alpha: {
     id: 'set_alpha',
     name: '测试甲套',
+    pieceSlots: ALL_SLOTS,
     bonuses: [
       {
         pieces: 2,
@@ -49,6 +61,7 @@ const TEST_SETS: Readonly<Record<string, EquipmentSetDefinition>> = {
         label: '甲四件',
         description: '生命 +20%',
         statPercent: { hp: 0.2 },
+        combatBonuses: { elementDamage: { fire: 5 } },
       },
       {
         pieces: 6,
@@ -56,6 +69,15 @@ const TEST_SETS: Readonly<Record<string, EquipmentSetDefinition>> = {
         description: '防御 +15%，暴击率 +3%',
         statPercent: { def: 0.15 },
         statFlat: { critRate: 3 },
+        onHitTriggers: [
+          {
+            id: 'set_alpha:burst',
+            kind: 'elemental-damage',
+            chance: 0.25,
+            atkMultiplier: 1.1,
+            element: 'fire',
+          },
+        ],
       },
       {
         pieces: 8,
@@ -68,6 +90,7 @@ const TEST_SETS: Readonly<Record<string, EquipmentSetDefinition>> = {
   set_beta: {
     id: 'set_beta',
     name: '测试乙套',
+    pieceSlots: ALL_SLOTS,
     bonuses: [
       {
         pieces: 2,
@@ -121,6 +144,8 @@ describe('通用装备套装共鸣', () => {
       nextBonus: { pieces: 6 },
     });
     expect(four.statPercent).toMatchObject({ atk: 0.1, hp: 0.2, def: 0 });
+    expect(four.combatBonuses.elementDamage.fire).toBe(5);
+    expect(four.onHitTriggers).toEqual([]);
     expect(four.skillMultiplierBonus).toBe(0);
 
     const eight = resolveEquipmentSetBonuses(
@@ -132,6 +157,20 @@ describe('通用装备套装共鸣', () => {
     expect(eight.sets[0]?.nextBonus).toBeNull();
     expect(eight.statPercent).toMatchObject({ atk: 0.1, hp: 0.2, def: 0.15 });
     expect(eight.statFlat.critRate).toBe(3);
+    expect(eight.combatBonuses).toEqual({
+      damageReduction: 0,
+      lifesteal: 0,
+      elementDamage: { fire: 5, ice: 0, thunder: 0 },
+    });
+    expect(eight.onHitTriggers).toEqual([
+      {
+        id: 'set_alpha:burst',
+        kind: 'elemental-damage',
+        chance: 0.25,
+        atkMultiplier: 1.1,
+        element: 'fire',
+      },
+    ]);
     expect(eight.skillMultiplierBonus).toBe(0.12);
   });
 
@@ -196,6 +235,47 @@ describe('通用装备套装共鸣', () => {
         () => undefined,
       ),
     ).toThrow('未登记套装');
+  });
+
+  it('套装部位与逐击触发配置非法时直接报错', () => {
+    const limitedSet: EquipmentSetDefinition = {
+      id: 'set_limited',
+      name: '双槽套装',
+      pieceSlots: ['weapon', 'head'],
+      bonuses: [
+        {
+          pieces: 2,
+          label: '非法触发',
+          description: '测试',
+          onHitTriggers: [
+            {
+              id: 'bad-trigger',
+              kind: 'elemental-damage',
+              chance: 1.01,
+              atkMultiplier: 1,
+              element: 'fire',
+            },
+          ],
+        },
+      ],
+    };
+    const disallowed = equipmentDef('limited_ring', 'set_limited');
+    expect(() =>
+      resolveEquipmentSetBonuses(
+        [instance(disallowed.id, 'e1')],
+        () => disallowed,
+        () => limitedSet,
+      ),
+    ).toThrow('不包含部位');
+
+    const allowed = { ...disallowed, slot: 'weapon', element: 'fire' } as EquipmentDef;
+    expect(() =>
+      resolveEquipmentSetBonuses(
+        [instance(allowed.id, 'e1'), instance(allowed.id, 'e2')],
+        () => allowed,
+        () => limitedSet,
+      ),
+    ).toThrow('触发概率');
   });
 
   it('核心实现不依赖任何具体 data 表', () => {

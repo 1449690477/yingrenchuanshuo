@@ -1,4 +1,5 @@
 import { combatPressure } from './combat';
+import type { OnHitElementalDamageTrigger } from './equipmentSets';
 import type { Combatant, Stage } from './types';
 
 type BattleVisualStage = Pick<Stage, 'id' | 'waves'>;
@@ -108,6 +109,7 @@ export function battleVitalsAtProgress(
   monster: Combatant,
   progress: number,
   playerSkillMultiplier = 1,
+  playerOnHitTriggers: readonly OnHitElementalDamageTrigger[] = [],
 ): BattleVitals {
   assertPositiveHp(player, '玩家');
   assertPositiveHp(monster, '怪物');
@@ -134,7 +136,9 @@ export function battleVitalsAtProgress(
    */
   const playerMaxHp = Math.max(1, Math.floor(player.stats.hp));
   const monsterMaxHp = Math.max(1, Math.floor(monster.stats.hp));
-  const pressure = combatPressure(player, monster, playerSkillMultiplier);
+  const pressure = combatPressure(player, monster, playerSkillMultiplier, {
+    playerOnHitTriggers,
+  });
   const incomingDamage = progress === 0 ? 0 : pressure.damagePerFight * progress;
   const playerCurrentHp = Number.isFinite(incomingDamage)
     ? Math.min(playerMaxHp, Math.max(0, Math.ceil(playerMaxHp - incomingDamage)))

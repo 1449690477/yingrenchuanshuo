@@ -5,7 +5,7 @@
  * 本文件是纯函数，无状态，随机性一律通过参数传入 Rng。
  */
 
-import type { Combatant, DamageResult, Element, Stats } from './types';
+import type { Combatant, CombatBonuses, DamageResult, Element, Stats } from './types';
 import type { Rng } from './rng';
 import {
   CRIT_BASE,
@@ -64,9 +64,27 @@ export function elementMultiplier(attacker: Element, defender: Element): number 
  * 百分点换算成小数后直接加在基础克制系数上。
  */
 export function effectiveElementMultiplier(attacker: Combatant, defender: Combatant): number {
-  const base = elementMultiplier(attacker.element, defender.element);
-  if (attacker.element === 'none') return base;
-  const bonusPoints = attacker.combatBonuses?.elementDamage[attacker.element] ?? 0;
+  return effectiveElementMultiplierFor(
+    attacker.element,
+    defender.element,
+    attacker.combatBonuses?.elementDamage,
+  );
+}
+
+/**
+ * 指定本伤害段元素时的实际属性系数。
+ *
+ * 追加炎爆等伤害段必须读取它自己的元素，而不是偷用当前武器元素；这样即使
+ * 未来玩家切换武器，固定为 fire 的触发仍会正确吃炎伤与属性克制。
+ */
+export function effectiveElementMultiplierFor(
+  attackerElement: Element,
+  defenderElement: Element,
+  elementDamage?: Partial<CombatBonuses['elementDamage']>,
+): number {
+  const base = elementMultiplier(attackerElement, defenderElement);
+  if (attackerElement === 'none') return base;
+  const bonusPoints = elementDamage?.[attackerElement] ?? 0;
   return base + Math.max(0, bonusPoints) / 100;
 }
 
@@ -94,17 +112,21 @@ export function calcDamage(
 
   const crit = rng.chance(clamp(attacker.stats.critRate / 100, 0, 1));
 
-  const base = attacker.stats.atk * skillMultiplier;
-  const reduction = damageReduction(defender.stats.def, attacker.level);
-  const bonusDamageMul = combatBonusDamageMultiplier(defender);
   const variance = rng.float(DAMAGE_VARIANCE_MIN, DAMAGE_VARIANCE_MAX);
   const critMul = crit ? critMultiplier(attacker.stats.critDmg) : 1;
-  const elemMul = effectiveElementMultiplier(attacker, defender);
 
-  const raw = base * (1 - reduction) * bonusDamageMul * variance * critMul * elemMul;
-  const floor = attacker.stats.atk * MIN_DAMAGE_RATIO;
-
-  return { damage: Math.max(floor, raw), hit: true, crit };
+  return {
+    damage: damageAfterConfirmedHit(
+      attacker,
+      defender,
+      skillMultiplier,
+      attacker.element,
+      variance,
+      critMul,
+    ),
+    hit: true,
+    crit,
+  };
 }
 
 /**
@@ -120,17 +142,47 @@ export function expectedDamage(
   const hitP = hitChance(attacker.stats.acc, defender.stats.eva);
   const critP = clamp(attacker.stats.critRate / 100, 0, 1);
 
-  const base = attacker.stats.atk * skillMultiplier;
-  const reduction = damageReduction(defender.stats.def, attacker.level);
-  const bonusDamageMul = combatBonusDamageMultiplier(defender);
   const avgVariance = (DAMAGE_VARIANCE_MIN + DAMAGE_VARIANCE_MAX) / 2;
   const avgCritMul = 1 + critP * (critMultiplier(attacker.stats.critDmg) - 1);
-  const elemMul = effectiveElementMultiplier(attacker, defender);
+  return (
+    hitP *
+    damageAfterConfirmedHit(
+      attacker,
+      defender,
+      skillMultiplier,
+      attacker.element,
+      avgVariance,
+      avgCritMul,
+    )
+  );
+}
 
-  const raw = base * (1 - reduction) * bonusDamageMul * avgVariance * avgCritMul * elemMul;
-  const floor = attacker.stats.atk * MIN_DAMAGE_RATIO;
+/**
+ * 已由一个直接伤害段确认命中后，结算一段不暴击的追加元素伤害。
+ *
+ * 不再进行命中或暴击判定，只推进一次浮动 RNG；调用方也不得给这段伤害吸血
+ * 或再次送进 on-hit 管线。防御、目标减伤、属性克制与同系元素伤害仍完整生效。
+ */
+export function calcConfirmedElementalDamage(
+  attacker: Combatant,
+  defender: Combatant,
+  atkMultiplier: number,
+  element: Exclude<Element, 'none'>,
+  rng: Rng,
+): number {
+  const variance = rng.float(DAMAGE_VARIANCE_MIN, DAMAGE_VARIANCE_MAX);
+  return damageAfterConfirmedHit(attacker, defender, atkMultiplier, element, variance, 1);
+}
 
-  return hitP * Math.max(floor, raw);
+/** calcConfirmedElementalDamage 的无随机期望值版本，供挂机与实战共用同一数学。 */
+export function expectedConfirmedElementalDamage(
+  attacker: Combatant,
+  defender: Combatant,
+  atkMultiplier: number,
+  element: Exclude<Element, 'none'>,
+): number {
+  const avgVariance = (DAMAGE_VARIANCE_MIN + DAMAGE_VARIANCE_MAX) / 2;
+  return damageAfterConfirmedHit(attacker, defender, atkMultiplier, element, avgVariance, 1);
 }
 
 /**
@@ -170,4 +222,25 @@ export function addStats(a: Stats, b: Partial<Stats>): Stats {
     critDmg: a.critDmg + (b.critDmg ?? 0),
     spd: a.spd + (b.spd ?? 0),
   };
+}
+
+function damageAfterConfirmedHit(
+  attacker: Combatant,
+  defender: Combatant,
+  atkMultiplier: number,
+  element: Element,
+  variance: number,
+  critMul: number,
+): number {
+  const base = attacker.stats.atk * atkMultiplier;
+  const reduction = damageReduction(defender.stats.def, attacker.level);
+  const bonusDamageMul = combatBonusDamageMultiplier(defender);
+  const elemMul = effectiveElementMultiplierFor(
+    element,
+    defender.element,
+    attacker.combatBonuses?.elementDamage,
+  );
+  const raw = base * (1 - reduction) * bonusDamageMul * variance * critMul * elemMul;
+  const floor = attacker.stats.atk * MIN_DAMAGE_RATIO;
+  return Math.max(floor, raw);
 }

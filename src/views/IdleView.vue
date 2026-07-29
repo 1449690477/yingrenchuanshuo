@@ -132,6 +132,7 @@ const battleVitals = computed(() => {
     makeMonster(target.value),
     stage.battleProgress,
     player.playerSkillMultiplier,
+    player.playerOnHitTriggers,
   );
 });
 

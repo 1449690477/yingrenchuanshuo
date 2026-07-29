@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   addStats,
+  calcConfirmedElementalDamage,
   calcDamage,
   clamp,
   combatBonusDamageMultiplier,
@@ -8,8 +9,10 @@ import {
   critMultiplier,
   damageReduction,
   effectiveElementMultiplier,
+  effectiveElementMultiplierFor,
   elementMultiplier,
   expectedDamage,
+  expectedConfirmedElementalDamage,
   hitChance,
   zeroStats,
 } from '../formula';
@@ -139,6 +142,9 @@ describe('装备战斗修正系数', () => {
     expect(effectiveElementMultiplier(fire, defender)).toBeCloseTo(1.35, 8);
     expect(effectiveElementMultiplier(mismatch, defender)).toBeCloseTo(1.25, 8);
     expect(effectiveElementMultiplier(neutral, defender)).toBe(1);
+    expect(
+      effectiveElementMultiplierFor('fire', defender.element, fire.combatBonuses?.elementDamage),
+    ).toBeCloseTo(1.35, 8);
   });
 
   it('词条减伤使用百分点并限制在 0%~100%', () => {
@@ -152,6 +158,67 @@ describe('装备战斗修正系数', () => {
         makePlayer('目标', 10, stats(), 'none', bonuses({ damageReduction: 999 })),
       ),
     ).toBe(0);
+  });
+});
+
+describe('确认命中后的追加元素伤害', () => {
+  it('不进行第二次命中或暴击判定，只使用 seeded 浮动', () => {
+    const defender = makePlayer('冰目标', 10, stats({ def: 0, eva: 999_999 }), 'ice');
+    const alwaysCrit = makePlayer(
+      '低命中高暴击攻击者',
+      10,
+      stats({ atk: 1_000, acc: 0, critRate: 100, critDmg: 999 }),
+      'none',
+      bonuses({ elementDamage: { fire: 12 } }),
+    );
+    const neverCrit = makePlayer(
+      '低命中零暴击攻击者',
+      10,
+      stats({ atk: 1_000, acc: 0, critRate: 0, critDmg: 0 }),
+      'none',
+      bonuses({ elementDamage: { fire: 12 } }),
+    );
+
+    const highCritDamage = calcConfirmedElementalDamage(
+      alwaysCrit,
+      defender,
+      1.2,
+      'fire',
+      new Rng(901),
+    );
+    const noCritDamage = calcConfirmedElementalDamage(
+      neverCrit,
+      defender,
+      1.2,
+      'fire',
+      new Rng(901),
+    );
+
+    expect(highCritDamage).toBeGreaterThan(0);
+    expect(highCritDamage).toBe(noCritDamage);
+  });
+
+  it('完整经过防御、目标减伤、炎克冰与炎伤加成', () => {
+    const attacker = makePlayer(
+      '炎爆攻击者',
+      10,
+      stats({ atk: 1_000 }),
+      'none',
+      bonuses({ elementDamage: { fire: 12 } }),
+    );
+    const defender = makePlayer(
+      '冰目标',
+      10,
+      stats({ def: K_DEF * 10 }),
+      'ice',
+      bonuses({ damageReduction: 20 }),
+    );
+
+    // 防御 50% × 目标减伤 80% × (炎克冰 1.25 + 炎伤 0.12)。
+    expect(expectedConfirmedElementalDamage(attacker, defender, 1.2, 'fire')).toBeCloseTo(
+      1_000 * 1.2 * 0.5 * 0.8 * 1.37,
+      8,
+    );
   });
 });
 

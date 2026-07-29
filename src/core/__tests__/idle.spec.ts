@@ -10,9 +10,13 @@ import {
 } from '../idle';
 import type { IdleContext } from '../idle';
 import { makeMonster, makePlayer } from '../progression';
+import { estimateDps } from '../combat';
 import { Rng } from '../rng';
 import type { LootTable } from '../types';
 import { OFFLINE_CAP_SECONDS, STAMINA_RECOVER_SECONDS } from '@/data/constants';
+import { REGION_CRIMSON_SET } from '@/data/regionEquipmentSets';
+
+const FLAMEBURST = REGION_CRIMSON_SET.bonuses.flatMap((bonus) => bonus.onHitTriggers ?? [])[0]!;
 
 const lootTable: LootTable = {
   id: 'loot_idle',
@@ -65,6 +69,30 @@ describe('killsPerSecond', () => {
     const strong = ctx();
     strong.player.stats.atk = weak.player.stats.atk * 3;
     expect(killsPerSecond(strong)).toBeGreaterThan(killsPerSecond(weak));
+  });
+
+  it('逐击炎爆用同一期望伤害进入挂机与离线，不另写平均技能倍率', () => {
+    const plain = ctx({ maxKillsPerSec: 999 });
+    const withBurst = ctx({ maxKillsPerSec: 999, onHitTriggers: [FLAMEBURST] });
+    for (const context of [plain, withBurst]) {
+      context.player.element = 'fire';
+      context.player.combatBonuses = {
+        damageReduction: 0,
+        lifesteal: 0,
+        elementDamage: { fire: 12, ice: 0, thunder: 0 },
+      };
+      context.monster.element = 'ice';
+    }
+
+    const expectedKps =
+      (estimateDps(withBurst.player, withBurst.monster, 1, [FLAMEBURST]) /
+        withBurst.monster.stats.hp) *
+      idleCombatEfficiency(withBurst);
+    expect(killsPerSecond(withBurst)).toBeCloseTo(expectedKps, 10);
+    expect(killsPerSecond(withBurst)).toBeGreaterThan(killsPerSecond(plain));
+    expect(settleOffline(withBurst, 0, 3_600_000).yield.kills).toBeGreaterThan(
+      settleOffline(plain, 0, 3_600_000).yield.kills,
+    );
   });
 
   it('同等输出下防御和生命通过承伤效率提高真实击杀产出', () => {

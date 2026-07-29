@@ -3,15 +3,20 @@ import {
   canSustain,
   combatEfficiency,
   combatPressure,
+  expectedDamageSegment,
   estimateDps,
   estimateIncomingDps,
   estimateLifestealPerSecond,
+  resolveDamageSegment,
   simulateFight,
   timeToKill,
 } from '../combat';
 import { makeMonster, makePlayer } from '../progression';
 import { Rng } from '../rng';
 import type { Combatant, Stats } from '../types';
+import { REGION_CRIMSON_SET } from '@/data/regionEquipmentSets';
+
+const FLAMEBURST = REGION_CRIMSON_SET.bonuses.flatMap((bonus) => bonus.onHitTriggers ?? [])[0]!;
 
 const s = (o: Partial<Stats> = {}): Stats => ({
   atk: 500,
@@ -115,6 +120,108 @@ describe('simulateFight', () => {
     simulateFight(player, target, new Rng(92));
     expect(player.currentHp).toBe(1_000);
   });
+
+  it('炎爆事件使用实际伤害，且追加段不产生吸血或递归触发', () => {
+    const player = makePlayer(
+      'p',
+      20,
+      s({ atk: 1_000, hp: 100_000, acc: 99_999, critRate: 0, spd: 1 }),
+      'fire',
+      {
+        damageReduction: 0,
+        lifesteal: 100,
+        elementDamage: { fire: 12, ice: 0, thunder: 0 },
+      },
+    );
+    player.currentHp = 100;
+    const target = makePlayer(
+      'm',
+      20,
+      s({ atk: 0, hp: 100_000, def: 0, eva: 0, critRate: 0, spd: 0.01 }),
+      'ice',
+    );
+    const guaranteed = { ...FLAMEBURST, chance: 1 };
+
+    const result = simulateFight(player, target, new Rng(902), {
+      maxSeconds: 0.1,
+      playerOnHitTriggers: [guaranteed],
+    });
+    const playerEvents = result.events.filter((event) => event.source === 'player');
+    const direct = playerEvents.find((event) => event.event.kind === 'direct-damage');
+    const burst = playerEvents.find((event) => event.event.kind === 'on-hit-elemental-damage');
+
+    expect(direct?.event.damage).toBeGreaterThan(0);
+    expect(burst?.event).toMatchObject({
+      kind: 'on-hit-elemental-damage',
+      triggerId: FLAMEBURST.id,
+      element: 'fire',
+    });
+    expect(playerEvents).toHaveLength(2);
+    // 100% 吸血只回复直接段；炎爆即使造成真实伤害也不再吸一次。
+    expect(player.currentHp).toBeCloseTo(100 + direct!.event.damage, 8);
+    expect(result.damageDealt).toBeCloseTo(
+      playerEvents.reduce((sum, event) => sum + event.event.damage, 0),
+      8,
+    );
+  });
+});
+
+describe('逐伤害段 on-hit 解析', () => {
+  it('直接段未命中时不判定炎爆，命中后每一段各有一次机会', () => {
+    const missAttacker = makePlayer('p', 20, s({ acc: 0, critRate: 0 }), 'fire');
+    const untouchable = makePlayer('m', 20, s({ eva: 999_999, def: 0 }), 'ice');
+    const miss = resolveDamageSegment(missAttacker, untouchable, 1, new Rng(1), [
+      { ...FLAMEBURST, chance: 1 },
+    ]);
+    expect(miss.direct.hit).toBe(false);
+    expect(miss.events).toEqual([miss.direct]);
+
+    const attacker = makePlayer('p', 20, s({ acc: 99_999, critRate: 0 }), 'fire');
+    const target = makePlayer('m', 20, s({ eva: 0, def: 0 }), 'ice');
+    const rng = new Rng(904);
+    const first = resolveDamageSegment(attacker, target, 0.5, rng, [{ ...FLAMEBURST, chance: 1 }]);
+    const second = resolveDamageSegment(attacker, target, 0.5, rng, [{ ...FLAMEBURST, chance: 1 }]);
+    expect(first.events.filter((event) => event.kind === 'on-hit-elemental-damage')).toHaveLength(
+      1,
+    );
+    expect(second.events.filter((event) => event.kind === 'on-hit-elemental-damage')).toHaveLength(
+      1,
+    );
+  });
+
+  it('15% seeded 逐击采样与挂机期望使用同一数学', () => {
+    const attacker = makePlayer('p', 50, s({ atk: 2_000, acc: 99_999, critRate: 35 }), 'fire', {
+      damageReduction: 0,
+      lifesteal: 0,
+      elementDamage: { fire: 12, ice: 0, thunder: 0 },
+    });
+    const target = makePlayer('m', 50, s({ hp: 1e12, def: 1_000, eva: 0, critRate: 0 }), 'ice', {
+      damageReduction: 10,
+      lifesteal: 0,
+      elementDamage: { fire: 0, ice: 0, thunder: 0 },
+    });
+    const rng = new Rng(905);
+    const samples = 40_000;
+    let total = 0;
+    let triggers = 0;
+    for (let index = 0; index < samples; index++) {
+      const segment = resolveDamageSegment(attacker, target, 1.4, rng, [FLAMEBURST]);
+      total += segment.events.reduce((sum, event) => sum + event.damage, 0);
+      triggers += segment.events.filter((event) => event.kind === 'on-hit-elemental-damage').length;
+    }
+
+    expect(triggers / samples).toBeCloseTo(0.15, 2);
+    const expected = expectedDamageSegment(attacker, target, 1.4, [FLAMEBURST]);
+    expect(Math.abs(total / samples - expected) / expected).toBeLessThan(0.02);
+  });
+
+  it('拒绝越界触发配置，不用概率 clamp 掩盖数据错误', () => {
+    const attacker = makePlayer('p', 20, s({ acc: 0 }), 'fire');
+    const target = makePlayer('m', 20, s({ eva: 999_999 }), 'ice');
+    expect(() =>
+      resolveDamageSegment(attacker, target, 1, new Rng(906), [{ ...FLAMEBURST, chance: -0.1 }]),
+    ).toThrow('触发概率');
+  });
 });
 
 describe('estimateDps / timeToKill', () => {
@@ -133,6 +240,17 @@ describe('estimateDps / timeToKill', () => {
   it('技能倍率提高则击杀更快', () => {
     const p = makePlayer('p', 20, s());
     expect(timeToKill(p, mon(20), 2.0)).toBeLessThan(timeToKill(p, mon(20), 1.0));
+  });
+
+  it('绯焰触发提高 DPS 与击杀速度，但不伪装成技能倍率', () => {
+    const p = makePlayer('p', 20, s(), 'fire', {
+      damageReduction: 0,
+      lifesteal: 0,
+      elementDamage: { fire: 12, ice: 0, thunder: 0 },
+    });
+    const target = mon(20);
+    expect(estimateDps(p, target, 1, [FLAMEBURST])).toBeGreaterThan(estimateDps(p, target, 1));
+    expect(timeToKill(p, target, 1, [FLAMEBURST])).toBeLessThan(timeToKill(p, target, 1));
   });
 
   it('模拟战斗耗时与期望击杀时间量级一致', () => {
@@ -202,8 +320,7 @@ describe('combatPressure / combatEfficiency', () => {
     const monster = mon(20);
     const pressure = combatPressure(player, monster);
 
-    const expected =
-      pressure.damageRatio <= 0.25 ? 1 : 1 / (1 + pressure.damageRatio - 0.25);
+    const expected = pressure.damageRatio <= 0.25 ? 1 : 1 / (1 + pressure.damageRatio - 0.25);
     expect(pressure.efficiency).toBeCloseTo(expected, 10);
     expect(combatEfficiency(player, monster)).toBeCloseTo(expected, 10);
   });

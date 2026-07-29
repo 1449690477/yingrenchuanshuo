@@ -5,11 +5,12 @@
  * 不读时间、不写 store、不发奖励。store 只在胜利后原子提交返回值。
  */
 
-import type { ClassId, Combatant, CombatResult, LootResult } from './types';
+import type { ClassId, Combatant, LootResult } from './types';
 import type { PityCounters } from './loot';
 import { Rng } from './rng';
 import { rollLoot } from './loot';
-import { simulateFight } from './combat';
+import { simulateFight, type SimulatedFightResult } from './combat';
+import type { OnHitElementalDamageTrigger } from './equipmentSets';
 import { makeMonster } from './progression';
 import { mergeLootResults } from './stageLoot';
 import type { EquipmentDungeonStage } from '@/data/equipmentDungeons';
@@ -38,13 +39,10 @@ export interface EquipmentDungeonWaveResult {
   playerHpBefore: number;
   playerHpAfter: number;
   enemyMaxHp: number;
-  result: CombatResult;
+  result: SimulatedFightResult;
 }
 
-export type EquipmentDungeonBlockReason =
-  | 'level-locked'
-  | 'previous-tier-locked'
-  | 'daily-limit';
+export type EquipmentDungeonBlockReason = 'level-locked' | 'previous-tier-locked' | 'daily-limit';
 
 export type EquipmentDungeonChallengeResult =
   | {
@@ -80,6 +78,7 @@ export interface EquipmentDungeonChallengeInput {
   player: Combatant;
   classId: ClassId;
   playerSkillMultiplier: number;
+  playerOnHitTriggers?: readonly OnHitElementalDamageTrigger[];
   rngState: number;
   now: number;
 }
@@ -179,6 +178,7 @@ export function resolveEquipmentDungeonChallenge(
     const playerHpBefore = player.currentHp;
     const result = simulateFight(player, monster, challengeRng, {
       playerSkillMultiplier: input.playerSkillMultiplier,
+      playerOnHitTriggers: input.playerOnHitTriggers,
       maxSeconds: EQUIPMENT_DUNGEON_RULES.maxFightSeconds,
     });
     waves.push({

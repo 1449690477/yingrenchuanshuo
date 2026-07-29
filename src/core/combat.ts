@@ -11,11 +11,18 @@
 
 import type { Combatant, CombatResult } from './types';
 import type { Rng } from './rng';
-import { calcDamage, expectedDamage } from './formula';
 import {
-  IDLE_FREE_DAMAGE_RATIO,
-  IDLE_SUSTAIN_HINT_EFFICIENCY,
-} from '@/data/constants';
+  calcConfirmedElementalDamage,
+  calcDamage,
+  expectedConfirmedElementalDamage,
+  expectedDamage,
+  hitChance,
+} from './formula';
+import {
+  assertOnHitElementalDamageTrigger,
+  type OnHitElementalDamageTrigger,
+} from './equipmentSets';
+import { IDLE_FREE_DAMAGE_RATIO, IDLE_SUSTAIN_HINT_EFFICIENCY } from '@/data/constants';
 
 /** 单场战斗的时间上限（秒），防止打不动时死循环 */
 const MAX_FIGHT_SECONDS = 300;
@@ -28,8 +35,116 @@ export interface FightOptions {
   playerSkillMultiplier?: number;
   /** 怪物平均技能倍率 */
   monsterSkillMultiplier?: number;
+  /** 玩家每个直接伤害段命中后独立判定的触发。 */
+  playerOnHitTriggers?: readonly OnHitElementalDamageTrigger[];
+  /** 为未来怪物机制预留的同一逐击接口。 */
+  monsterOnHitTriggers?: readonly OnHitElementalDamageTrigger[];
   /** 时间上限 */
   maxSeconds?: number;
+}
+
+export interface DirectDamageSegmentEvent {
+  kind: 'direct-damage';
+  damage: number;
+  hit: boolean;
+  crit: boolean;
+  element: Combatant['element'];
+}
+
+export interface OnHitElementalDamageEvent {
+  kind: 'on-hit-elemental-damage';
+  damage: number;
+  triggerId: string;
+  element: Exclude<Combatant['element'], 'none'>;
+}
+
+export type DamageSegmentEvent = DirectDamageSegmentEvent | OnHitElementalDamageEvent;
+
+export interface DamageSegmentResolution {
+  direct: DirectDamageSegmentEvent;
+  /** 顺序固定为直接伤害、随后各个已触发追加段；视觉只能消费这些结算事件。 */
+  events: readonly DamageSegmentEvent[];
+}
+
+export interface CombatTimelineEvent {
+  sequence: number;
+  source: 'player' | 'monster';
+  target: 'player' | 'monster';
+  event: DamageSegmentEvent;
+}
+
+export interface SimulatedFightResult extends CombatResult {
+  /** 已按目标剩余生命截断为实际伤害，可直接供表现层消费。 */
+  events: readonly CombatTimelineEvent[];
+}
+
+export interface CombatEstimateOptions {
+  playerOnHitTriggers?: readonly OnHitElementalDamageTrigger[];
+  monsterOnHitTriggers?: readonly OnHitElementalDamageTrigger[];
+}
+
+/**
+ * 解析一个直接伤害段。
+ *
+ * 一次调用严格代表一段伤害，而不是一次技能。直接段未命中时不触发；命中后每个
+ * 触发器独立使用 seeded RNG。追加段不会再次进入本函数，因此不会递归。
+ */
+export function resolveDamageSegment(
+  attacker: Combatant,
+  defender: Combatant,
+  skillMultiplier: number,
+  rng: Rng,
+  onHitTriggers: readonly OnHitElementalDamageTrigger[] = [],
+): DamageSegmentResolution {
+  for (const trigger of onHitTriggers) {
+    assertOnHitElementalDamageTrigger(trigger);
+  }
+  const directResult = calcDamage(attacker, defender, skillMultiplier, rng);
+  const direct: DirectDamageSegmentEvent = {
+    kind: 'direct-damage',
+    damage: directResult.damage,
+    hit: directResult.hit,
+    crit: directResult.crit,
+    element: attacker.element,
+  };
+  const events: DamageSegmentEvent[] = [direct];
+  if (!direct.hit) return { direct, events };
+
+  for (const trigger of onHitTriggers) {
+    if (!rng.chance(trigger.chance)) continue;
+    events.push({
+      kind: 'on-hit-elemental-damage',
+      triggerId: trigger.id,
+      element: trigger.element,
+      damage: calcConfirmedElementalDamage(
+        attacker,
+        defender,
+        trigger.atkMultiplier,
+        trigger.element,
+        rng,
+      ),
+    });
+  }
+  return { direct, events };
+}
+
+/** resolveDamageSegment 的无随机期望值；挂机与逐击战斗共享相同触发定义与伤害公式。 */
+export function expectedDamageSegment(
+  attacker: Combatant,
+  defender: Combatant,
+  skillMultiplier: number,
+  onHitTriggers: readonly OnHitElementalDamageTrigger[] = [],
+): number {
+  let total = expectedDamage(attacker, defender, skillMultiplier);
+  const directHitChance = hitChance(attacker.stats.acc, defender.stats.eva);
+  for (const trigger of onHitTriggers) {
+    assertOnHitElementalDamageTrigger(trigger);
+    total +=
+      directHitChance *
+      trigger.chance *
+      expectedConfirmedElementalDamage(attacker, defender, trigger.atkMultiplier, trigger.element);
+  }
+  return total;
 }
 
 /**
@@ -42,7 +157,7 @@ export function simulateFight(
   monster: Combatant,
   rng: Rng,
   opts: FightOptions = {},
-): CombatResult {
+): SimulatedFightResult {
   const pMul = opts.playerSkillMultiplier ?? 1.0;
   const mMul = opts.monsterSkillMultiplier ?? 1.0;
   const maxSeconds = opts.maxSeconds ?? MAX_FIGHT_SECONDS;
@@ -57,6 +172,7 @@ export function simulateFight(
   let monsterCd = 0;
   let damageDealt = 0;
   let damageTaken = 0;
+  const events: CombatTimelineEvent[] = [];
 
   const playerInterval = 1 / Math.max(0.01, player.stats.spd);
   const monsterInterval = 1 / Math.max(0.01, monster.stats.spd);
@@ -68,15 +184,15 @@ export function simulateFight(
 
     if (playerCd <= 0) {
       playerCd += playerInterval;
-      const r = calcDamage(player, monster, pMul, rng);
-      damageDealt += applyDamageAndLifesteal(player, monster, r.damage);
+      const segment = resolveDamageSegment(player, monster, pMul, rng, opts.playerOnHitTriggers);
+      damageDealt += applyDamageSegment(player, monster, segment, 'player', events);
       if (monster.currentHp <= 0) break;
     }
 
     if (monsterCd <= 0) {
       monsterCd += monsterInterval;
-      const r = calcDamage(monster, player, mMul, rng);
-      damageTaken += applyDamageAndLifesteal(monster, player, r.damage);
+      const segment = resolveDamageSegment(monster, player, mMul, rng, opts.monsterOnHitTriggers);
+      damageTaken += applyDamageSegment(monster, player, segment, 'monster', events);
     }
   }
 
@@ -88,6 +204,7 @@ export function simulateFight(
     damageDealt,
     damageTaken,
     kills: win ? 1 : 0,
+    events,
   };
 }
 
@@ -95,16 +212,26 @@ export function simulateFight(
  * 玩家对某怪物的每秒伤害期望。
  * 挂机产出的核心输入。
  */
-export function estimateDps(player: Combatant, monster: Combatant, skillMultiplier = 1.0): number {
-  return expectedDamage(player, monster, skillMultiplier) * player.stats.spd;
+export function estimateDps(
+  player: Combatant,
+  monster: Combatant,
+  skillMultiplier = 1.0,
+  onHitTriggers: readonly OnHitElementalDamageTrigger[] = [],
+): number {
+  return expectedDamageSegment(player, monster, skillMultiplier, onHitTriggers) * player.stats.spd;
 }
 
 /**
  * 击杀一只该怪物需要多少秒。
  * 返回 Infinity 表示打不动（DPS 为 0）。
  */
-export function timeToKill(player: Combatant, monster: Combatant, skillMultiplier = 1.0): number {
-  const dps = estimateDps(player, monster, skillMultiplier);
+export function timeToKill(
+  player: Combatant,
+  monster: Combatant,
+  skillMultiplier = 1.0,
+  onHitTriggers: readonly OnHitElementalDamageTrigger[] = [],
+): number {
+  const dps = estimateDps(player, monster, skillMultiplier, onHitTriggers);
   if (dps <= 0) return Infinity;
   return monster.stats.hp / dps;
 }
@@ -117,8 +244,9 @@ export function estimateIncomingDps(
   player: Combatant,
   monster: Combatant,
   skillMultiplier = 1.0,
+  onHitTriggers: readonly OnHitElementalDamageTrigger[] = [],
 ): number {
-  return expectedDamage(monster, player, skillMultiplier) * monster.stats.spd;
+  return estimateDps(monster, player, skillMultiplier, onHitTriggers);
 }
 
 /** 玩家每秒期望吸血量；只按真实输出管线计算，不把吸血当作基础属性。 */
@@ -128,7 +256,12 @@ export function estimateLifestealPerSecond(
   skillMultiplier = 1.0,
 ): number {
   const lifestealPoints = player.combatBonuses?.lifesteal ?? 0;
-  return estimateDps(player, monster, skillMultiplier) * (Math.max(0, lifestealPoints) / 100);
+  // on-hit 追加段明确不吸血，因此这里只取直接伤害段期望，不能复用含触发的 estimateDps。
+  return (
+    expectedDamage(player, monster, skillMultiplier) *
+    player.stats.spd *
+    (Math.max(0, lifestealPoints) / 100)
+  );
 }
 
 export interface CombatPressure {
@@ -160,16 +293,15 @@ export function combatPressure(
   player: Combatant,
   monster: Combatant,
   skillMultiplier = 1.0,
+  options: CombatEstimateOptions = {},
 ): CombatPressure {
-  const playerDps = estimateDps(player, monster, skillMultiplier);
-  const incomingDps = estimateIncomingDps(player, monster);
+  const playerDps = estimateDps(player, monster, skillMultiplier, options.playerOnHitTriggers);
+  const incomingDps = estimateIncomingDps(player, monster, 1, options.monsterOnHitTriggers);
   const lifestealPerSecond = estimateLifestealPerSecond(player, monster, skillMultiplier);
   const fightSeconds =
     playerDps > 0 && monster.stats.hp > 0 ? monster.stats.hp / playerDps : Infinity;
   const netIncomingDps = Math.max(0, incomingDps - lifestealPerSecond);
-  const damagePerFight = Number.isFinite(fightSeconds)
-    ? netIncomingDps * fightSeconds
-    : Infinity;
+  const damagePerFight = Number.isFinite(fightSeconds) ? netIncomingDps * fightSeconds : Infinity;
   const damageRatio =
     player.stats.hp > 0 && Number.isFinite(damagePerFight)
       ? damagePerFight / player.stats.hp
@@ -196,8 +328,9 @@ export function combatEfficiency(
   player: Combatant,
   monster: Combatant,
   skillMultiplier = 1.0,
+  options: CombatEstimateOptions = {},
 ): number {
-  return combatPressure(player, monster, skillMultiplier).efficiency;
+  return combatPressure(player, monster, skillMultiplier, options).efficiency;
 }
 
 /**
@@ -205,8 +338,15 @@ export function combatEfficiency(
  *
  * 只用于提示，不得据此停止挂机；效率模型本身不会把合法战斗压到 0。
  */
-export function canSustain(player: Combatant, monster: Combatant, skillMultiplier = 1.0): boolean {
-  return combatEfficiency(player, monster, skillMultiplier) >= IDLE_SUSTAIN_HINT_EFFICIENCY;
+export function canSustain(
+  player: Combatant,
+  monster: Combatant,
+  skillMultiplier = 1.0,
+  options: CombatEstimateOptions = {},
+): boolean {
+  return (
+    combatEfficiency(player, monster, skillMultiplier, options) >= IDLE_SUSTAIN_HINT_EFFICIENCY
+  );
 }
 
 /**
@@ -225,5 +365,39 @@ function applyDamageAndLifesteal(
   const lifestealPoints = attacker.combatBonuses?.lifesteal ?? 0;
   const healing = actualDamage * (Math.max(0, lifestealPoints) / 100);
   attacker.currentHp = Math.min(attacker.stats.hp, attacker.currentHp + healing);
+  return actualDamage;
+}
+
+function applyDamageSegment(
+  attacker: Combatant,
+  defender: Combatant,
+  resolution: DamageSegmentResolution,
+  source: 'player' | 'monster',
+  timeline: CombatTimelineEvent[],
+): number {
+  let total = 0;
+  for (const event of resolution.events) {
+    const actualDamage =
+      event.kind === 'direct-damage'
+        ? applyDamageAndLifesteal(attacker, defender, event.damage)
+        : applyDamageOnly(defender, event.damage);
+    total += actualDamage;
+
+    // 命中失败也作为直接段事件保留，方便未来表现层显示 MISS；追加段若因直接段
+    // 已击杀目标而变成 0 实际伤害则不播放一段假的炎爆飘字。
+    if (event.kind === 'on-hit-elemental-damage' && actualDamage <= 0) continue;
+    timeline.push({
+      sequence: timeline.length + 1,
+      source,
+      target: source === 'player' ? 'monster' : 'player',
+      event: { ...event, damage: actualDamage },
+    });
+  }
+  return total;
+}
+
+function applyDamageOnly(defender: Combatant, rolledDamage: number): number {
+  const actualDamage = Math.min(Math.max(0, defender.currentHp), Math.max(0, rolledDamage));
+  defender.currentHp = Math.max(0, defender.currentHp - actualDamage);
   return actualDamage;
 }

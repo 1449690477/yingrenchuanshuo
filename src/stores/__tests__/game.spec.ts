@@ -1503,6 +1503,13 @@ describe('equipment dungeon transaction', () => {
       def: 0.06,
       hp: 0.08,
     });
+    expect(game.equipmentSetResolution.combatBonuses).toEqual({
+      damageReduction: 0,
+      lifesteal: 0,
+      elementDamage: { fire: 0, ice: 0, thunder: 0 },
+    });
+    expect(game.equipmentSetResolution.onHitTriggers).toEqual([]);
+    expect(usePlayerStore().playerOnHitTriggers).toEqual([]);
     expect(game.finalStats.critRate).toBeGreaterThanOrEqual(10);
 
     const firstMonsterId = game.currentStage.waves[0]?.monsters[0]?.id;

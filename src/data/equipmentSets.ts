@@ -7,9 +7,11 @@
 
 import type { EquipmentSetDefinition } from '@/core/equipmentSets';
 import { EQUIPMENT_DUNGEON_SETS } from './equipmentDungeonSets';
+import { REGION_EQUIPMENT_SETS } from './regionEquipmentSets';
 
 export const EQUIPMENT_SETS: Readonly<Record<string, EquipmentSetDefinition>> = {
   ...EQUIPMENT_DUNGEON_SETS,
+  ...REGION_EQUIPMENT_SETS,
 };
 
 export function getEquipmentSet(id: string): EquipmentSetDefinition | undefined {

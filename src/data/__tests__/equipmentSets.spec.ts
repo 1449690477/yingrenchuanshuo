@@ -1,23 +1,30 @@
 import { describe, expect, it } from 'vitest';
 import { EQUIPMENT_DUNGEON_SETS } from '../equipmentDungeonSets';
 import { EQUIPMENT_SETS, getEquipmentSet, requireEquipmentSet } from '../equipmentSets';
+import {
+  REGION_CRIMSON_FLAMEBURST_TRIGGER_ID,
+  REGION_CRIMSON_SET,
+  REGION_CRIMSON_SET_ID,
+} from '../regionEquipmentSets';
 
 describe('通用装备套装注册表', () => {
-  it('完整聚合现有四套装备副本套装且保持同一权威定义', () => {
+  it('完整聚合现有四套副本套装与绯焰套，且保持同一权威定义', () => {
     expect(Object.keys(EQUIPMENT_SETS)).toEqual([
       'set_dungeon_azure',
       'set_dungeon_violet',
       'set_dungeon_auric',
       'set_dungeon_crimson',
+      REGION_CRIMSON_SET_ID,
     ]);
     for (const [id, definition] of Object.entries(EQUIPMENT_DUNGEON_SETS)) {
       expect(getEquipmentSet(id)).toBe(definition);
     }
+    expect(getEquipmentSet(REGION_CRIMSON_SET_ID)).toBe(REGION_CRIMSON_SET);
   });
 
   it('锁住现有四套的全部结算数值', () => {
     const numericContract = Object.fromEntries(
-      Object.entries(EQUIPMENT_SETS).map(([id, definition]) => [
+      Object.entries(EQUIPMENT_DUNGEON_SETS).map(([id, definition]) => [
         id,
         definition.bonuses.map((bonus) => ({
           pieces: bonus.pieces,
@@ -134,6 +141,47 @@ describe('通用装备套装注册表', () => {
         },
       ],
     });
+  });
+
+  it('锁住绯焰六槽与 2 / 4 / 6 件真实结算，不伪装为技能倍率', () => {
+    expect(REGION_CRIMSON_SET.pieceSlots).toEqual([
+      'weapon',
+      'head',
+      'body',
+      'necklace',
+      'ring',
+      'bracelet',
+    ]);
+    expect(REGION_CRIMSON_SET.bonuses).toEqual([
+      {
+        pieces: 2,
+        label: '赤金火纹',
+        description: '攻击 +8%',
+        statPercent: { atk: 0.08 },
+      },
+      {
+        pieces: 4,
+        label: '祭火誓约',
+        description: '暴击率 +6%，炎属性伤害 +12%',
+        statFlat: { critRate: 6 },
+        combatBonuses: { elementDamage: { fire: 12 } },
+      },
+      {
+        pieces: 6,
+        label: '绯焰',
+        description: '每次直接命中有 15% 概率追加 120% 攻击力的炎爆伤害',
+        onHitTriggers: [
+          {
+            id: REGION_CRIMSON_FLAMEBURST_TRIGGER_ID,
+            kind: 'elemental-damage',
+            chance: 0.15,
+            atkMultiplier: 1.2,
+            element: 'fire',
+          },
+        ],
+      },
+    ]);
+    expect(REGION_CRIMSON_SET.bonuses.every((bonus) => !bonus.skillMultiplierBonus)).toBe(true);
   });
 
   it('未知套装查询不伪造定义，强制查询直接报错', () => {
