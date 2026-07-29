@@ -106,7 +106,7 @@ const SWORDSMAN_STORIES: readonly AffectionStoryDefinition[] = [
     backgroundAsset: 'assets/affection/scenes/swordsman-training-dawn.webp',
     openingDialogue: [
       { text: '晨钟还没响，樱花训练场已经传来整齐的破风声。' },
-      { speaker: '剑姬', text: '你来得比晨钟还早。正好，能替我数到一百吗？' },
+      { speaker: '剑姬', mood: 'bright', text: '你来得比《晨钟》还早。正好，能替我数到一百吗？' },
       { text: '她仍握着剑，目光却已经安静地停在你身上。' },
     ],
     choices: [
@@ -116,8 +116,8 @@ const SWORDSMAN_STORIES: readonly AffectionStoryDefinition[] = [
         mood: 'moved',
         responseDialogue: [
           { text: '她微微一怔，把剑尖压低了一寸。' },
-          { speaker: '剑姬', text: '比起挥了多少次，你先看见的是我累不累……' },
-          { speaker: '剑姬', text: '那就劳你盯紧了。' },
+          { speaker: '剑姬', mood: 'moved', text: '比起挥了多少次，《你先看见的是我累不累》……' },
+          { speaker: '剑姬', mood: 'shy', text: '那就劳你《盯紧》了。' },
         ],
       },
       {
@@ -125,9 +125,9 @@ const SWORDSMAN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“我拿木剑陪你，数数交给晨钟。”',
         mood: 'bright',
         responseDialogue: [
-          { speaker: '剑姬', text: '不许偷懒。' },
+          { speaker: '剑姬', mood: 'playful', text: '不许偷懒。' },
           { text: '她转过身藏住笑意，又把另一把木剑推到你手边。' },
-          { speaker: '剑姬', text: '不过，两个人的脚步声……确实比钟声好听。' },
+          { speaker: '剑姬', mood: 'moved', text: '不过，《两个人的脚步声》……确实比钟声好听。' },
         ],
       },
       {
@@ -136,7 +136,7 @@ const SWORDSMAN_STORIES: readonly AffectionStoryDefinition[] = [
         mood: 'shy',
         responseDialogue: [
           { text: '她确认你的手停在原处，才主动把手腕递来。' },
-          { speaker: '剑姬', text: '只许系护腕，不许趁机笑我。' },
+          { speaker: '剑姬', mood: 'shy', text: '只许系护腕，不许趁机笑我。' },
           { text: '最后一个结系好时，她没有立刻收回手。' },
         ],
       },
@@ -154,7 +154,7 @@ const SWORDSMAN_STORIES: readonly AffectionStoryDefinition[] = [
     backgroundAsset: 'assets/affection/scenes/swordsman-rain-gate.webp',
     openingDialogue: [
       { text: '训练结束时骤雨落下，她撑着伞站在廊外，半边肩膀已经湿透。' },
-      { speaker: '剑姬', text: '伞明明够大，怎么还是淋到了？' },
+      { speaker: '剑姬', mood: 'calm', text: '伞明明够大，怎么还是淋到了？' },
       { text: '伞沿朝你的方向偏得太明显，答案其实就在眼前。' },
     ],
     choices: [
@@ -164,7 +164,7 @@ const SWORDSMAN_STORIES: readonly AffectionStoryDefinition[] = [
         mood: 'shy',
         responseDialogue: [
           { text: '她轻轻点头，把伞柄握得更稳。' },
-          { speaker: '剑姬', text: '先问过再靠近……很好。那就别离开伞沿。' },
+          { speaker: '剑姬', mood: 'moved', text: '《先问过再靠近》……很好。那就别离开伞沿。' },
         ],
       },
       {
@@ -173,7 +173,7 @@ const SWORDSMAN_STORIES: readonly AffectionStoryDefinition[] = [
         mood: 'moved',
         responseDialogue: [
           { text: '你把伞推回正中，她却又悄悄向你这边倾了一点。' },
-          { speaker: '剑姬', text: '保护不是单方面的……这句话，我记住了。' },
+          { speaker: '剑姬', mood: 'moved', text: '《保护不是单方面的》……这句话，我记住了。' },
         ],
       },
       {
@@ -182,7 +182,7 @@ const SWORDSMAN_STORIES: readonly AffectionStoryDefinition[] = [
         mood: 'bright',
         responseDialogue: [
           { text: '她松手前看了你一会儿。' },
-          { speaker: '剑姬', text: '只准送到廊下。别擅自把这段路变长。' },
+          { speaker: '剑姬', mood: 'shy', text: '只准送到廊下。《别擅自把这段路变长》。' },
           { text: '可她的脚步，明显比平时慢。' },
         ],
       },
@@ -218,7 +218,7 @@ const SWORDSMAN_STORIES: readonly AffectionStoryDefinition[] = [
     ],
     openingDialogue: [
       { text: '夜间庆典里，所有人都围着她的新剑赞叹。' },
-      { speaker: '剑姬', text: '大家都在看剑……可我想知道，你刚才在看什么。' },
+      { speaker: '剑姬', mood: 'shy', text: '大家都在看剑……可我想知道，《你刚才在看什么》。' },
     ],
     choices: [
       {
@@ -226,9 +226,9 @@ const SWORDSMAN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“看你松开剑时，终于肯笑的样子。”',
         mood: 'shy',
         responseDialogue: [
-          { speaker: '剑姬', text: '那个笑容本来只出现了一瞬。' },
+          { speaker: '剑姬', mood: 'shy', text: '那个笑容本来只出现了一瞬。' },
           { text: '她避开目光，把胜利绶带的一端系到你腕上。' },
-          { speaker: '剑姬', text: '看来它早就落到你这里了。' },
+          { speaker: '剑姬', mood: 'moved', text: '看来它早就落到你这里了。' },
         ],
       },
       {
@@ -236,7 +236,7 @@ const SWORDSMAN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“看你每次收剑，都会先确认我在不在。”',
         mood: 'moved',
         responseDialogue: [
-          { speaker: '剑姬', text: '因为看见你，我才知道这一战真的结束了。' },
+          { speaker: '剑姬', mood: 'moved', text: '因为《看见你》，我才知道这一战真的结束了。' },
           { text: '另一端绶带仍系在她的剑穗，两端在夜风里轻轻靠近。' },
         ],
       },
@@ -246,7 +246,7 @@ const SWORDSMAN_STORIES: readonly AffectionStoryDefinition[] = [
         mood: 'shy',
         responseDialogue: [
           { text: '她耳尖微红，第一次没能立刻回话。' },
-          { speaker: '剑姬', text: '这样的夸奖……比正面接一剑更让人没防备。' },
+          { speaker: '剑姬', mood: 'shy', text: '这样的夸奖……比正面接一剑更让人没防备。' },
         ],
       },
     ],
@@ -275,7 +275,7 @@ const SWORDSMAN_STORIES: readonly AffectionStoryDefinition[] = [
     ],
     openingDialogue: [
       { text: '训练后的樱木作战室里，摊开的战术手札有几页被剑风划破。' },
-      { speaker: '剑姬', text: '旧手札只写了我如何挡在前面。现在看来，那不是完整的并肩。' },
+      { speaker: '剑姬', mood: 'calm', text: '旧手札只写了我如何挡在前面。现在看来，那不是完整的并肩。' },
       { text: '她递来修补纸与缎带，空白页上留着信号、背后与共同撤退三个位置。' },
     ],
     choices: [
@@ -284,7 +284,7 @@ const SWORDSMAN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“先约定一个只有我们懂的安全信号。”',
         mood: 'moved',
         responseDialogue: [
-          { speaker: '剑姬', text: '收到信号就互相确认，不许任何人独自逞强。' },
+          { speaker: '剑姬', mood: 'bright', text: '收到信号就互相确认，《不许任何人独自逞强》。' },
           { text: '她在修好的页角画下两道并行剑纹，与你一起试过信号。' },
         ],
       },
@@ -293,7 +293,7 @@ const SWORDSMAN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“轮流守住背后，谁都不永远站在最前面。”',
         mood: 'bright',
         responseDialogue: [
-          { speaker: '剑姬', text: '把背后交给你，并不削弱我的剑。它让我们的视野完整。' },
+          { speaker: '剑姬', mood: 'moved', text: '《把背后交给你》，并不削弱我的剑。它让我们的视野完整。' },
           { text: '她把背靠背阵形画进手札，也将你的名字写在与自己平齐的位置。' },
         ],
       },
@@ -303,7 +303,7 @@ const SWORDSMAN_STORIES: readonly AffectionStoryDefinition[] = [
         mood: 'shy',
         responseDialogue: [
           { text: '她停笔片刻，认真把“共同”二字描得更深。' },
-          { speaker: '剑姬', text: '不是谁拖累谁，是为了下一次仍能并肩出发。约定。' },
+          { speaker: '剑姬', mood: 'moved', text: '不是谁拖累谁，是为了下一次仍能并肩出发。《约定》。' },
         ],
       },
     ],
@@ -332,8 +332,8 @@ const SWORDSMAN_STORIES: readonly AffectionStoryDefinition[] = [
     ],
     openingDialogue: [
       { text: '灯笼暖光铺满廊下，她没有佩剑，只在两张相邻坐垫旁放了茶与点心。' },
-      { speaker: '剑姬', text: '今晚没有巡逻表。我却习惯站在最外侧，一时不知道怎样休息。' },
-      { speaker: '剑姬', text: '你愿意陪我练习一次什么都不守护的夜晚吗？' },
+      { speaker: '剑姬', mood: 'calm', text: '今晚没有巡逻表。我却习惯站在最外侧，一时不知道怎样休息。' },
+      { speaker: '剑姬', mood: 'shy', text: '你愿意陪我练习一次《什么都不守护的夜晚》吗？' },
     ],
     choices: [
       {
@@ -342,7 +342,7 @@ const SWORDSMAN_STORIES: readonly AffectionStoryDefinition[] = [
         mood: 'moved',
         responseDialogue: [
           { text: '她终于从廊柱旁坐下，把佩剑习惯放置的位置留空。' },
-          { speaker: '剑姬', text: '原来不说话也不会错过什么。你在这里，夜色就很完整。' },
+          { speaker: '剑姬', mood: 'moved', text: '原来不说话也不会错过什么。《你在这里》，夜色就很完整。' },
         ],
       },
       {
@@ -350,7 +350,7 @@ const SWORDSMAN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“选一种点心吧，今晚只讨论喜欢什么。”',
         mood: 'shy',
         responseDialogue: [
-          { speaker: '剑姬', text: '这么简单的问题，竟比战术选择更难。' },
+          { speaker: '剑姬', mood: 'playful', text: '这么简单的问题，竟比战术选择更难。' },
           { text: '她把选中的点心分成两半，笑意在灯影里慢慢松开。' },
         ],
       },
@@ -359,7 +359,7 @@ const SWORDSMAN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“若还是想确认安全，我们就轮流看一眼，然后继续休息。”',
         mood: 'calm',
         responseDialogue: [
-          { speaker: '剑姬', text: '不是禁止警觉，而是不让它把整晚都占满。这个办法很好。' },
+          { speaker: '剑姬', mood: 'calm', text: '不是禁止警觉，而是不让它把整晚都占满。这个办法很好。' },
           { text: '她只确认一次庭院，回来后便把座位向你这边挪近。' },
         ],
       },
@@ -395,8 +395,8 @@ const SWORDSMAN_STORIES: readonly AffectionStoryDefinition[] = [
     ],
     openingDialogue: [
       { text: '远征后的晨光穿过樱木窗格，作战室里那张相邻座位仍保持着离开前的样子。' },
-      { speaker: '剑姬', text: '我一路都记得：归来时，不必先证明自己赢得多漂亮。' },
-      { speaker: '剑姬', text: '只要还能回到这里，与你一起解开这枚归来结。' },
+      { speaker: '剑姬', mood: 'calm', text: '我一路都记得：归来时，不必先证明自己赢得多漂亮。' },
+      { speaker: '剑姬', mood: 'moved', text: '只要还能《回到这里》，与你一起解开这枚归来结。' },
     ],
     choices: [
       {
@@ -404,7 +404,7 @@ const SWORDSMAN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“欢迎回来。先坐下，战报可以以后再说。”',
         mood: 'moved',
         responseDialogue: [
-          { speaker: '剑姬', text: '原来这四个字，比任何凯旋礼都更让我安心。' },
+          { speaker: '剑姬', mood: 'moved', text: '原来这四个字，比任何凯旋礼都更让我安心。' },
           { text: '她坐到一直为她保留的位置，将归来结的一端交给你。' },
         ],
       },
@@ -413,7 +413,7 @@ const SWORDSMAN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“一起把归来结系好，再约定下一次共同撤退。”',
         mood: 'bright',
         responseDialogue: [
-          { speaker: '剑姬', text: '无论出发几次，都要把彼此带回这张座位旁。' },
+          { speaker: '剑姬', mood: 'bright', text: '无论出发几次，都要把《彼此》带回这张座位旁。' },
           { text: '两段缎带在你们手中合成一枚不束缚任何人的并肩结。' },
         ],
       },
@@ -422,7 +422,7 @@ const SWORDSMAN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“座位会留着，但我们也可以一起去创造新的归处。”',
         mood: 'shy',
         responseDialogue: [
-          { speaker: '剑姬', text: '归处不是让人停下的锁，而是让人敢继续向前的理由。' },
+          { speaker: '剑姬', mood: 'moved', text: '归处不是让人停下的锁，而是让人《敢继续向前》的理由。' },
           { text: '她与你并肩推开作战室的门，晨樱正落在下一段路上。' },
         ],
       },
@@ -447,8 +447,8 @@ const SWORDSMAN_STORIES: readonly AffectionStoryDefinition[] = [
     ],
     openingDialogue: [
       { text: '晨光落进小茶室，一只未拆的樱叶茶罐放在两只空杯之间，军需簿却被合在一旁。' },
-      { speaker: '剑姬', text: '我第一反应是把它登记，再想办法回赠同等价值的物资。' },
-      { speaker: '剑姬', text: '可你说这是礼物。那我想先学会，不把心意换算成欠款。' },
+      { speaker: '剑姬', mood: 'calm', text: '我第一反应是把它登记，再想办法回赠同等价值的物资。' },
+      { speaker: '剑姬', mood: 'moved', text: '可你说这是礼物。那我想先学会，《不把心意换算成欠款》。' },
     ],
     choices: [
       {
@@ -456,7 +456,7 @@ const SWORDSMAN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“它不是军需，也不需要用战果偿还。”',
         mood: 'moved',
         responseDialogue: [
-          { speaker: '剑姬', text: '那我只说谢谢，不列补给清单。' },
+          { speaker: '剑姬', mood: 'bright', text: '那我只说谢谢，不列补给清单。' },
           { text: '她把军需簿推远，亲自为相邻的两只杯子添上热茶。' },
         ],
       },
@@ -465,7 +465,7 @@ const SWORDSMAN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“你可以现在拆，也可以等想独处时再看。”',
         mood: 'calm',
         responseDialogue: [
-          { speaker: '剑姬', text: '选择收礼的时机，也属于收到礼物的人。谢谢你留出这个位置。' },
+          { speaker: '剑姬', mood: 'moved', text: '选择收礼的时机，《也属于收到礼物的人》。谢谢你留出这个位置。' },
           { text: '她没有急着拆封，只先把属于你的杯子放到身旁。' },
         ],
       },
@@ -474,7 +474,7 @@ const SWORDSMAN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“下次想要什么，可以直接告诉我；我也会告诉你。”',
         mood: 'shy',
         responseDialogue: [
-          { speaker: '剑姬', text: '不必靠猜测证明在意……好。那下一次，由我先开口。' },
+          { speaker: '剑姬', mood: 'shy', text: '不必靠猜测证明在意……好。那下一次，《由我先开口》。' },
           { text: '她认真记住约定，却没有再把它写进任何值勤表。' },
         ],
       },
@@ -499,8 +499,8 @@ const SWORDSMAN_STORIES: readonly AffectionStoryDefinition[] = [
     ],
     openingDialogue: [
       { text: '细雨落在有顶小市集外，试味桌上摆着三份不同甜度的茶点。' },
-      { speaker: '剑姬', text: '以前有人问我喜欢什么，我总回答“都可以”。那其实只是在省略自己。' },
-      { speaker: '剑姬', text: '今天我想认真选，也想知道你的口味。' },
+      { speaker: '剑姬', mood: 'calm', text: '以前有人问我喜欢什么，我总回答“都可以”。那其实只是在省略自己。' },
+      { speaker: '剑姬', mood: 'bright', text: '今天我想《认真选》，也想知道你的口味。' },
     ],
     choices: [
       {
@@ -508,7 +508,7 @@ const SWORDSMAN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“我记得你偏爱低糖，但今天仍由你重新选择。”',
         mood: 'moved',
         responseDialogue: [
-          { speaker: '剑姬', text: '被记住，却不被过去的答案困住……这样的体贴很温柔。' },
+          { speaker: '剑姬', mood: 'moved', text: '《被记住，却不被过去的答案困住》……这样的体贴很温柔。' },
           { text: '她选了带淡淡樱叶香的一份，也把另一只小碟推到你面前。' },
         ],
       },
@@ -517,7 +517,7 @@ const SWORDSMAN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“我们各选一份；想交换试味时，再先问对方。”',
         mood: 'bright',
         responseDialogue: [
-          { speaker: '剑姬', text: '各自保留选择，也能主动分享。很像我们现在的并肩。' },
+          { speaker: '剑姬', mood: 'bright', text: '各自保留选择，也能主动分享。很像我们现在的并肩。' },
           { text: '她认真比较三份茶点，最后笑着问你愿不愿意交换一小块。' },
         ],
       },
@@ -526,7 +526,7 @@ const SWORDSMAN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“喜好会变。改口不算辜负礼物，只是更诚实地认识彼此。”',
         mood: 'shy',
         responseDialogue: [
-          { speaker: '剑姬', text: '那我以后不再用“都可以”挡住你，也不挡住自己。' },
+          { speaker: '剑姬', mood: 'moved', text: '那我以后不再用“都可以”挡住你，也不挡住自己。' },
           { text: '雨声轻落，她第一次自然地说出自己还想再尝哪一种。' },
         ],
       },
@@ -552,8 +552,8 @@ const SWORDSMAN_STORIES: readonly AffectionStoryDefinition[] = [
     ],
     openingDialogue: [
       { text: '晚霞落在木桌上，她准备了一枚由旧胜利绶带编成的地图书签，旁边放着你送的茶罐。' },
-      { speaker: '剑姬', text: '这不是偿还那份茶礼。我只是看见它时，第一时间想把它送给你。' },
-      { speaker: '剑姬', text: '若你愿意收下，也请允许我不计算两件礼物是否等价。' },
+      { speaker: '剑姬', mood: 'shy', text: '这不是偿还那份茶礼。我只是看见它时，《第一时间想把它送给你》。' },
+      { speaker: '剑姬', mood: 'moved', text: '若你愿意收下，也请允许我不计算两件礼物是否等价。' },
     ],
     choices: [
       {
@@ -561,7 +561,7 @@ const SWORDSMAN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“我愿意收下。我们不说两清，只说谢谢。”',
         mood: 'moved',
         responseDialogue: [
-          { speaker: '剑姬', text: '好。不是结清，是心意从一个人走向另一个人。' },
+          { speaker: '剑姬', mood: 'moved', text: '好。不是结清，是《心意从一个人走向另一个人》。' },
           { text: '两份礼物在桌上并排展开，缎带没有绑住任何一件物品。' },
         ],
       },
@@ -570,7 +570,7 @@ const SWORDSMAN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“不比较价格；我们各自说说为什么想送它。”',
         mood: 'bright',
         responseDialogue: [
-          { speaker: '剑姬', text: '我选它，是因为每次展开地图时，我都希望你在下一条路上。' },
+          { speaker: '剑姬', mood: 'shy', text: '我选它，是因为每次展开地图时，我都《希望你在下一条路上》。' },
           { text: '她听完你的理由，把两段独立缎带轻轻摆成并肩方向。' },
         ],
       },
@@ -579,7 +579,7 @@ const SWORDSMAN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“留一条不打结的丝带，给以后改变心意与礼物的我们。”',
         mood: 'shy',
         responseDialogue: [
-          { speaker: '剑姬', text: '空白不是犹豫，是把未来也当作平等的选择。' },
+          { speaker: '剑姬', mood: 'calm', text: '空白不是犹豫，是把未来也当作平等的选择。' },
           { text: '她将未打结的丝带放在两份礼物之间，晚樱落在柔软留白上。' },
         ],
       },
@@ -600,7 +600,7 @@ const WITCH_STORIES: readonly AffectionStoryDefinition[] = [
     backgroundAsset: 'assets/affection/scenes/witch-atelier-spark.webp',
     openingDialogue: [
       { text: '一颗小星火绕着魔法桌乱飞，最后停在你面前。' },
-      { speaker: '魔女', text: '它今天不肯回瓶子。奇怪，它倒是很喜欢你。' },
+      { speaker: '魔女', mood: 'playful', text: '它今天不肯回瓶子。奇怪，《它倒是很喜欢你》。' },
       { text: '星火在你们之间晃了晃，像是在等待共同的决定。' },
     ],
     choices: [
@@ -609,9 +609,9 @@ const WITCH_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“我伸手以前，先问问它和你都同不同意。”',
         mood: 'shy',
         responseDialogue: [
-          { speaker: '魔女', text: '它同意了。' },
+          { speaker: '魔女', mood: 'bright', text: '它同意了。' },
           { text: '她故意停顿，星火也跟着悬在半空。' },
-          { speaker: '魔女', text: '我也……勉强同意。掌心放平。' },
+          { speaker: '魔女', mood: 'shy', text: '我也……《勉强同意》。掌心放平。' },
         ],
       },
       {
@@ -619,9 +619,9 @@ const WITCH_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“我替你按住笔记，你专心把它引回来。”',
         mood: 'bright',
         responseDialogue: [
-          { speaker: '魔女', text: '左边第三页，别让风翻过去。' },
+          { speaker: '魔女', mood: 'calm', text: '左边第三页，别让风翻过去。' },
           { text: '星火顺着她的指尖回到瓶中，动作一气呵成。' },
-          { speaker: '魔女', text: '配合得这么顺，会让我误以为我们练习过很多次。' },
+          { speaker: '魔女', mood: 'playful', text: '配合得这么顺，会让我误以为我们练习过很多次。' },
         ],
       },
       {
@@ -629,8 +629,8 @@ const WITCH_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“给它起个名字吧，也许它只是想被记住。”',
         mood: 'playful',
         responseDialogue: [
-          { speaker: '魔女', text: '那就叫“偏航星”。' },
-          { speaker: '魔女', text: '因为它总会偏到你那里……这个理由不许笑。' },
+          { speaker: '魔女', mood: 'bright', text: '那就叫“偏航星”。' },
+          { speaker: '魔女', mood: 'shy', text: '因为它总会偏到你那里……这个理由不许笑。' },
         ],
       },
     ],
@@ -647,7 +647,7 @@ const WITCH_STORIES: readonly AffectionStoryDefinition[] = [
     backgroundAsset: 'assets/affection/scenes/witch-observatory-night.webp',
     openingDialogue: [
       { text: '观星台只有一把椅子，桌上却摆着两杯热饮。' },
-      { speaker: '魔女', text: '椅子只有一张是我故意的。我想看看你会怎么办。' },
+      { speaker: '魔女', mood: 'playful', text: '椅子只有一张《是我故意的》。我想看看你会怎么办。' },
     ],
     choices: [
       {
@@ -655,7 +655,7 @@ const WITCH_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“我可以坐近一点吗？你说可以我再过去。”',
         mood: 'shy',
         responseDialogue: [
-          { speaker: '魔女', text: '先问过才挤进来，合格。' },
+          { speaker: '魔女', mood: 'bright', text: '先问过才挤进来，合格。' },
           { text: '她把披肩往你这边分了一半。' },
         ],
       },
@@ -665,7 +665,7 @@ const WITCH_STORIES: readonly AffectionStoryDefinition[] = [
         mood: 'bright',
         responseDialogue: [
           { text: '她用法杖把另一只软垫拉到身边。' },
-          { speaker: '魔女', text: '故作体贴也不许离太远，记录纸在这里。' },
+          { speaker: '魔女', mood: 'playful', text: '故作体贴也《不许离太远》，记录纸在这里。' },
         ],
       },
       {
@@ -674,7 +674,7 @@ const WITCH_STORIES: readonly AffectionStoryDefinition[] = [
         mood: 'shy',
         responseDialogue: [
           { text: '魔法笔在纸上划出一道慌乱的弧线。' },
-          { speaker: '魔女', text: '害我把日期写成你的名字了……你负责重写。' },
+          { speaker: '魔女', mood: 'shy', text: '害我把日期《写成你的名字了》……你负责重写。' },
         ],
       },
     ],
@@ -709,7 +709,7 @@ const WITCH_STORIES: readonly AffectionStoryDefinition[] = [
     ],
     openingDialogue: [
       { text: '她将一枚尚未刻字的星晶推到你面前。' },
-      { speaker: '魔女', text: '最后一道配方要写一个愿望。既然它会认你，你来决定。' },
+      { speaker: '魔女', mood: 'calm', text: '最后一道配方要写一个愿望。既然它会认你，你来决定。' },
     ],
     choices: [
       {
@@ -717,7 +717,7 @@ const WITCH_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“愿每次冒险都平安回来，换我在门口等你。”',
         mood: 'moved',
         responseDialogue: [
-          { speaker: '魔女', text: '那我把回程坐标写成你站着的地方。' },
+          { speaker: '魔女', mood: 'moved', text: '那我把回程坐标《写成你站着的地方》。' },
           { text: '星晶在两人掌心之间亮起柔软的归航光。' },
         ],
       },
@@ -727,7 +727,7 @@ const WITCH_STORIES: readonly AffectionStoryDefinition[] = [
         mood: 'moved',
         responseDialogue: [
           { text: '她安静了片刻，星晶的光也柔下来。' },
-          { speaker: '魔女', text: '观察得太仔细了……不过，我并不讨厌。' },
+          { speaker: '魔女', mood: 'shy', text: '观察得太仔细了……不过，《我并不讨厌》。' },
         ],
       },
       {
@@ -735,9 +735,9 @@ const WITCH_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“愿以后每一个秘密实验，都有我的位置。”',
         mood: 'shy',
         responseDialogue: [
-          { speaker: '魔女', text: '不是下一个，是以后每一个。' },
+          { speaker: '魔女', mood: 'moved', text: '不是下一个，是以后每一个。' },
           { text: '她把星晶递到你掌心。' },
-          { speaker: '魔女', text: '这样写……你同意吗？' },
+          { speaker: '魔女', mood: 'shy', text: '这样写……你同意吗？' },
         ],
       },
     ],
@@ -766,8 +766,8 @@ const WITCH_STORIES: readonly AffectionStoryDefinition[] = [
     ],
     openingDialogue: [
       { text: '夕照落进工坊，一枚算错刻度的星晶正忽明忽暗，桌边散着未完成的公式。' },
-      { speaker: '魔女', text: '它没有按预计变成完美球体，却还在发光。' },
-      { speaker: '魔女', text: '我知道失败记录也有价值，只是今天想听你陪我给它一个新结论。' },
+      { speaker: '魔女', mood: 'calm', text: '它没有按预计变成完美球体，《却还在发光》。' },
+      { speaker: '魔女', mood: 'shy', text: '我知道失败记录也有价值，只是今天想听你陪我给它一个新结论。' },
     ],
     choices: [
       {
@@ -775,7 +775,7 @@ const WITCH_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“保留它的形状吧，不完美也是这次实验独有的结果。”',
         mood: 'moved',
         responseDialogue: [
-          { speaker: '魔女', text: '独有，而不是残次品……这个分类比我的公式更准确。' },
+          { speaker: '魔女', mood: 'moved', text: '《独有，而不是残次品》……这个分类比我的公式更准确。' },
           { text: '歪斜星晶在她掌心亮起柔软余辉，像认真接受了自己的模样。' },
         ],
       },
@@ -784,7 +784,7 @@ const WITCH_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“一起复盘误差，但今天不急着把它修正。”',
         mood: 'bright',
         responseDialogue: [
-          { speaker: '魔女', text: '把求知欲留下，把责备拿走。不错的复盘原则。' },
+          { speaker: '魔女', mood: 'bright', text: '把求知欲留下，把责备拿走。不错的复盘原则。' },
           { text: '你们并排补完记录，并在最后一栏共同画下一颗仍在发光的小星。' },
         ],
       },
@@ -793,7 +793,7 @@ const WITCH_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“如果你愿意，把它送给我；我喜欢这次意外。”',
         mood: 'shy',
         responseDialogue: [
-          { speaker: '魔女', text: '你这样说，会让天才魔女开始期待下一次小误差。' },
+          { speaker: '魔女', mood: 'playful', text: '你这样说，会让天才魔女开始期待下一次小误差。' },
           { text: '她为星晶系上细绳，郑重放进你伸出的掌心。' },
         ],
       },
@@ -823,8 +823,8 @@ const WITCH_STORIES: readonly AffectionStoryDefinition[] = [
     ],
     openingDialogue: [
       { text: '星舟划过夜空，她同时修正航线、记录星象，指尖的魔光越来越急。' },
-      { speaker: '魔女', text: '我给所有法术都写过停止条件，唯独没给自己准备暂停咒语。' },
-      { speaker: '魔女', text: '现在想把它交给你，但何时使用仍要由我们一起判断。' },
+      { speaker: '魔女', mood: 'calm', text: '我给所有法术都写过停止条件，唯独没给自己准备暂停咒语。' },
+      { speaker: '魔女', mood: 'moved', text: '现在想把它《交给你》，但何时使用仍要由我们一起判断。' },
     ],
     choices: [
       {
@@ -833,7 +833,7 @@ const WITCH_STORIES: readonly AffectionStoryDefinition[] = [
         mood: 'calm',
         responseDialogue: [
           { text: '她把咒语写进你的航图，也在旁边标下注释：先确认。' },
-          { speaker: '魔女', text: '很好。关心不是擅自夺走控制权。' },
+          { speaker: '魔女', mood: 'bright', text: '很好。《关心不是擅自夺走控制权》。' },
         ],
       },
       {
@@ -841,7 +841,7 @@ const WITCH_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“我们设一个共同信号，谁太累都可以提出暂停。”',
         mood: 'moved',
         responseDialogue: [
-          { speaker: '魔女', text: '双向生效才公平。那我也有权提醒你休息。' },
+          { speaker: '魔女', mood: 'playful', text: '双向生效才公平。那我也有权提醒你休息。' },
           { text: '两枚暂停符号同时落在星舟舵盘两侧，亮度完全相同。' },
         ],
       },
@@ -850,7 +850,7 @@ const WITCH_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“现在就试一次。停下来看看星河，不做任何记录。”',
         mood: 'shy',
         responseDialogue: [
-          { speaker: '魔女', text: '命令已确认——暂停。原来星星不写进报告也不会消失。' },
+          { speaker: '魔女', mood: 'moved', text: '命令已确认——暂停。原来星星不写进报告也不会消失。' },
           { text: '星舟放慢速度，她与你靠在舷边，看无须计算的光从身旁流过。' },
         ],
       },
@@ -886,8 +886,8 @@ const WITCH_STORIES: readonly AffectionStoryDefinition[] = [
     ],
     openingDialogue: [
       { text: '晨光进入观星台，一张由两条独立星轨组成的共享星座悬在穹顶下。' },
-      { speaker: '魔女', text: '它不是让谁围着谁转，而是让两条航线都知道怎样找到对方。' },
-      { speaker: '魔女', text: '最后一个坐标，应该由我们共同写下。' },
+      { speaker: '魔女', mood: 'calm', text: '它不是让谁围着谁转，而是让两条航线都知道《怎样找到对方》。' },
+      { speaker: '魔女', mood: 'moved', text: '最后一个坐标，应该由我们共同写下。' },
     ],
     choices: [
       {
@@ -895,7 +895,7 @@ const WITCH_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“画两颗各自发光、却能彼此找到的归航星。”',
         mood: 'moved',
         responseDialogue: [
-          { speaker: '魔女', text: '不会互相吞没，也永远知道对方在哪里。完美。' },
+          { speaker: '魔女', mood: 'bright', text: '不会互相吞没，也永远知道对方在哪里。完美。' },
           { text: '共享星座中亮起两颗归航星，各自映着另一条航线的微光。' },
         ],
       },
@@ -904,7 +904,7 @@ const WITCH_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“先画一条没有终点的路线，以后边走边补。”',
         mood: 'bright',
         responseDialogue: [
-          { speaker: '魔女', text: '那这会是全世界唯一一幅持续更新的星座。' },
+          { speaker: '魔女', mood: 'bright', text: '那这会是全世界唯一一幅持续更新的星座。' },
           { text: '她与你同时落笔，星路朝尚未命名的远方延伸。' },
         ],
       },
@@ -913,7 +913,7 @@ const WITCH_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“留一块空白，给以后改变主意的我们。”',
         mood: 'shy',
         responseDialogue: [
-          { speaker: '魔女', text: '誓约里也允许修改答案……你果然很适合和我研究一辈子。' },
+          { speaker: '魔女', mood: 'playful', text: '誓约里也允许修改答案……你果然很适合和我《研究一辈子》。' },
           { text: '她把空白处认真圈起，与你各留下一颗尚未连线的星点。' },
         ],
       },
@@ -938,8 +938,8 @@ const WITCH_STORIES: readonly AffectionStoryDefinition[] = [
     ],
     openingDialogue: [
       { text: '安全光环围住一瓶尚未开封的偏航星墨，检测台被转到两张座位中间。' },
-      { speaker: '魔女', text: '礼物很迷人。但越迷人的实验材料，越应该先确认边界和风险。' },
-      { speaker: '魔女', text: '所以今天由我们共同决定：检查、保留密封，或者退回。' },
+      { speaker: '魔女', mood: 'calm', text: '礼物很迷人。但越迷人的实验材料，越应该先确认边界和风险。' },
+      { speaker: '魔女', mood: 'bright', text: '所以今天由我们共同决定：检查、保留密封，或者退回。' },
     ],
     choices: [
       {
@@ -947,7 +947,7 @@ const WITCH_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“由你主持检测；我只操作你明确交给我的部分。”',
         mood: 'bright',
         responseDialogue: [
-          { speaker: '魔女', text: '优秀的共犯从来不是乱碰东西，而是知道什么时候该递工具。' },
+          { speaker: '魔女', mood: 'playful', text: '《优秀的共犯》从来不是乱碰东西，而是知道什么时候该递工具。' },
           { text: '她把检测台转到中央，与你逐项确认星墨保持稳定。' },
         ],
       },
@@ -956,7 +956,7 @@ const WITCH_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“先保持密封。等你想研究时，它仍然是你的礼物。”',
         mood: 'moved',
         responseDialogue: [
-          { speaker: '魔女', text: '你不把好奇心当通行证……这条我很喜欢。' },
+          { speaker: '魔女', mood: 'moved', text: '你不把好奇心当通行证……《这条我很喜欢》。' },
           { text: '她为墨瓶罩上柔光玻璃罩，把开启日期留成空白。' },
         ],
       },
@@ -965,7 +965,7 @@ const WITCH_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“若不合适就退回，不需要编一个照顾我面子的理由。”',
         mood: 'shy',
         responseDialogue: [
-          { speaker: '魔女', text: '连拒收权都包装进礼物里了。你比很多魔法契约聪明。' },
+          { speaker: '魔女', mood: 'playful', text: '连拒收权都包装进礼物里了。你比很多魔法契约聪明。' },
           { text: '确认安全后，她才弯起眼睛，把星墨郑重移到自己的实验区。' },
         ],
       },
@@ -990,8 +990,8 @@ const WITCH_STORIES: readonly AffectionStoryDefinition[] = [
     ],
     openingDialogue: [
       { text: '深夜观星藏书室里，一页封在透明星袋中的空白手札放在两张相邻座位之间。' },
-      { speaker: '魔女', text: '我想把一项尚未公开的研究送给你，但不是让你立刻证明值得信任。' },
-      { speaker: '魔女', text: '开启日期由我说明，是否收下以及何时阅读，仍由你决定。' },
+      { speaker: '魔女', mood: 'calm', text: '我想把一项尚未公开的研究送给你，但不是让你立刻证明值得信任。' },
+      { speaker: '魔女', mood: 'moved', text: '开启日期由我说明，是否收下以及何时阅读，《仍由你决定》。' },
     ],
     choices: [
       {
@@ -999,7 +999,7 @@ const WITCH_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“先告诉我开启边界；内容可以等你准备好再解释。”',
         mood: 'moved',
         responseDialogue: [
-          { speaker: '魔女', text: '问规则，不追问答案。你总能把好奇和尊重同时留下。' },
+          { speaker: '魔女', mood: 'moved', text: '问规则，不追问答案。你总能把《好奇和尊重》同时留下。' },
           { text: '她只说明安全边界，没有被迫透露星页中的任何秘密。' },
         ],
       },
@@ -1008,7 +1008,7 @@ const WITCH_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“我愿意替你保管未拆的这一页，直到你主动说可以。”',
         mood: 'shy',
         responseDialogue: [
-          { speaker: '魔女', text: '把秘密交给你，竟然不需要立刻失去它……感觉很新鲜。' },
+          { speaker: '魔女', mood: 'shy', text: '把秘密交给你，竟然不需要立刻失去它……感觉很新鲜。' },
           { text: '她为星袋留下只有自己能解除的柔光封印。' },
         ],
       },
@@ -1017,7 +1017,7 @@ const WITCH_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“我也放一张空白页在旁边；想分享什么，由我们各自决定。”',
         mood: 'bright',
         responseDialogue: [
-          { speaker: '魔女', text: '两份秘密都拥有自己的门，却愿意把门开向同一张桌子。' },
+          { speaker: '魔女', mood: 'bright', text: '两份秘密都拥有自己的门，却愿意把门开向同一张桌子。' },
           { text: '两页空白手札并排放好，没有任何一页被擅自翻开。' },
         ],
       },
@@ -1043,8 +1043,8 @@ const WITCH_STORIES: readonly AffectionStoryDefinition[] = [
     ],
     openingDialogue: [
       { text: '黎明实验台上，两瓶颜色不同的星墨停在独立黄铜底座，光轨在中间相遇又各自延伸。' },
-      { speaker: '魔女', text: '一瓶是你送来的偏航星墨，另一瓶是我重新调出的回礼。' },
-      { speaker: '魔女', text: '它们不用变成同一种颜色，也能在同一张星图上找到彼此。' },
+      { speaker: '魔女', mood: 'calm', text: '一瓶是你送来的偏航星墨，另一瓶是我重新调出的回礼。' },
+      { speaker: '魔女', mood: 'moved', text: '它们不用变成同一种颜色，也能在同一张星图上《找到彼此》。' },
     ],
     choices: [
       {
@@ -1052,7 +1052,7 @@ const WITCH_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“保留两种颜色，让每条轨迹都能看见对方。”',
         mood: 'moved',
         responseDialogue: [
-          { speaker: '魔女', text: '不互相覆盖，却能共同完成一幅星图。很像我们。' },
+          { speaker: '魔女', mood: 'moved', text: '不互相覆盖，却能共同完成一幅星图。《很像我们》。' },
           { text: '两束独立星墨越过玻璃，在中央留下不相吞没的交汇光点。' },
         ],
       },
@@ -1061,7 +1061,7 @@ const WITCH_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“坐标可以改写；想偏航时，我们先告诉彼此。”',
         mood: 'bright',
         responseDialogue: [
-          { speaker: '魔女', text: '长期实验最重要的不是永不变化，而是诚实报告新的方向。' },
+          { speaker: '魔女', mood: 'bright', text: '长期实验最重要的不是永不变化，而是诚实报告新的方向。' },
           { text: '她把两只可移动底座推到中间，邀请你共同调整下一段星轨。' },
         ],
       },
@@ -1070,7 +1070,7 @@ const WITCH_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“每次共同实验都重新确认，秘密与陪伴都不视为默认权限。”',
         mood: 'shy',
         responseDialogue: [
-          { speaker: '魔女', text: '批准。看来你很适合当一位长期、但随时可以说暂停的共犯。' },
+          { speaker: '魔女', mood: 'playful', text: '批准。看来你很适合当一位长期、但《随时可以说暂停》的共犯。' },
           { text: '她轻轻碰响自己的墨瓶，另一瓶随即亮起温柔回应。' },
         ],
       },
@@ -1091,7 +1091,7 @@ const SHAMAN_STORIES: readonly AffectionStoryDefinition[] = [
     backgroundAsset: 'assets/affection/scenes/shaman-shrine-morning.webp',
     openingDialogue: [
       { text: '清晨神社里没有风，檐下风铃却轻轻摇着。' },
-      { speaker: '灵巫', text: '它今天不肯回答。也许在等一个不会催促它的人。' },
+      { speaker: '灵巫', mood: 'calm', text: '它今天不肯回答。也许在等一个《不会催促它的人》。' },
     ],
     choices: [
       {
@@ -1100,7 +1100,7 @@ const SHAMAN_STORIES: readonly AffectionStoryDefinition[] = [
         mood: 'moved',
         responseDialogue: [
           { text: '很久以后，铃声终于响起。' },
-          { speaker: '灵巫', text: '你没有说话，可它好像已经听懂了。' },
+          { speaker: '灵巫', mood: 'moved', text: '你没有说话，可它好像《已经听懂了》。' },
         ],
       },
       {
@@ -1108,7 +1108,7 @@ const SHAMAN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“我把热茶放在这里，不打断你。”',
         mood: 'calm',
         responseDialogue: [
-          { speaker: '灵巫', text: '谢谢。茶的热气也是一种很温柔的回答。' },
+          { speaker: '灵巫', mood: 'moved', text: '谢谢。茶的热气也是一种很温柔的回答。' },
           { text: '她把另一只茶杯放到自己身旁，位置离你很近。' },
         ],
       },
@@ -1118,7 +1118,7 @@ const SHAMAN_STORIES: readonly AffectionStoryDefinition[] = [
         mood: 'shy',
         responseDialogue: [
           { text: '她把身旁坐垫移开一点。' },
-          { speaker: '灵巫', text: '可以。靠近些也没关系；需要安静时，我会告诉你。' },
+          { speaker: '灵巫', mood: 'shy', text: '可以。靠近些也没关系；需要安静时，我会告诉你。' },
         ],
       },
     ],
@@ -1135,7 +1135,7 @@ const SHAMAN_STORIES: readonly AffectionStoryDefinition[] = [
     backgroundAsset: 'assets/affection/scenes/shaman-firefly-lake.webp',
     openingDialogue: [
       { text: '一簇小灵火离开她的灯盏，固执地跟在你肩边。' },
-      { speaker: '灵巫', text: '它平时不会靠近陌生人。' },
+      { speaker: '灵巫', mood: 'calm', text: '它平时不会靠近陌生人。' },
     ],
     choices: [
       {
@@ -1144,7 +1144,7 @@ const SHAMAN_STORIES: readonly AffectionStoryDefinition[] = [
         mood: 'moved',
         responseDialogue: [
           { text: '灵火已经先一步落到你的肩头。' },
-          { speaker: '灵巫', text: '看来它比我更早知道……我已经放心了。' },
+          { speaker: '灵巫', mood: 'moved', text: '看来它比我更早知道……《我已经放心了》。' },
         ],
       },
       {
@@ -1153,7 +1153,7 @@ const SHAMAN_STORIES: readonly AffectionStoryDefinition[] = [
         mood: 'bright',
         responseDialogue: [
           { text: '水面映出两个人和一簇灵火，像三道并肩的影子。' },
-          { speaker: '灵巫', text: '这样的巡夜，似乎不再漫长了。' },
+          { speaker: '灵巫', mood: 'bright', text: '这样的巡夜，似乎《不再漫长》了。' },
         ],
       },
       {
@@ -1161,8 +1161,8 @@ const SHAMAN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“给它起个只有我们知道的名字。”',
         mood: 'shy',
         responseDialogue: [
-          { speaker: '灵巫', text: '叫“归灯”吧。' },
-          { speaker: '灵巫', text: '因为无论走多远，它都会带人回到想见的人身边。' },
+          { speaker: '灵巫', mood: 'calm', text: '叫“归灯”吧。' },
+          { speaker: '灵巫', mood: 'moved', text: '因为无论走多远，它都会带人回到想见的人身边。' },
         ],
       },
     ],
@@ -1197,7 +1197,7 @@ const SHAMAN_STORIES: readonly AffectionStoryDefinition[] = [
     ],
     openingDialogue: [
       { text: '雨声盖住祈愿铃，她拿着空白愿纸迟迟没有落笔。' },
-      { speaker: '灵巫', text: '大家都把愿望交给我。我却忽然不知道，自己的愿望是什么。' },
+      { speaker: '灵巫', mood: 'calm', text: '大家都把愿望交给我。我却忽然不知道，《自己的愿望》是什么。' },
     ],
     choices: [
       {
@@ -1205,7 +1205,7 @@ const SHAMAN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“这一次先写你的，不替任何人。”',
         mood: 'moved',
         responseDialogue: [
-          { speaker: '灵巫', text: '那我想写——愿有人也会问我累不累。' },
+          { speaker: '灵巫', mood: 'shy', text: '那我想写——愿有人也会《问我累不累》。' },
           { text: '她把愿纸折成两半，一半轻轻放入你手中。' },
         ],
       },
@@ -1214,7 +1214,7 @@ const SHAMAN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“若你总替我守夜，以后也让我守着你。”',
         mood: 'shy',
         responseDialogue: [
-          { speaker: '灵巫', text: '守护原来不是一个方向，而是一个圆。' },
+          { speaker: '灵巫', mood: 'moved', text: '守护原来不是一个方向，而是一个圆。' },
           { text: '归灯沿着你们之间画出一圈温柔光轨。' },
         ],
       },
@@ -1224,7 +1224,7 @@ const SHAMAN_STORIES: readonly AffectionStoryDefinition[] = [
         mood: 'bright',
         responseDialogue: [
           { text: '她写下愿望，将纸折成两半。' },
-          { speaker: '灵巫', text: '一半给神明，一半给你保管。这样明天就不会走丢。' },
+          { speaker: '灵巫', mood: 'bright', text: '一半给神明，一半给你保管。这样明天就不会走丢。' },
         ],
       },
     ],
@@ -1253,8 +1253,8 @@ const SHAMAN_STORIES: readonly AffectionStoryDefinition[] = [
     ],
     openingDialogue: [
       { text: '午后茶席被树影分成柔软的明暗，壶中热气缓慢升起，没有任何仪式等她主持。' },
-      { speaker: '灵巫', text: '我今天不想解释沉默，也不想急着寻找答案。' },
-      { speaker: '灵巫', text: '如果你愿意，可以陪我把这段安静分成两人份。' },
+      { speaker: '灵巫', mood: 'calm', text: '我今天不想解释沉默，也不想急着寻找答案。' },
+      { speaker: '灵巫', mood: 'shy', text: '如果你愿意，可以陪我把这段安静《分成两人份》。' },
     ],
     choices: [
       {
@@ -1262,7 +1262,7 @@ const SHAMAN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“好。我们先喝茶，谁想说话时再开口。”',
         mood: 'bright',
         responseDialogue: [
-          { speaker: '灵巫', text: '谢谢你没有把安静误解成疏远。' },
+          { speaker: '灵巫', mood: 'moved', text: '谢谢你没有把安静误解成疏远。' },
           { text: '她替两只茶杯添满热茶，杯沿在桌上保持着自在的距离。' },
         ],
       },
@@ -1271,7 +1271,7 @@ const SHAMAN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“我也有想安静的时候。今天不需要谁照顾谁。”',
         mood: 'calm',
         responseDialogue: [
-          { speaker: '灵巫', text: '平等地分享沉默，原来也能让人感到被理解。' },
+          { speaker: '灵巫', mood: 'moved', text: '平等地分享沉默，原来也能让人感到《被理解》。' },
           { text: '风穿过庭院，茶香与安静同时停在两人之间。' },
         ],
       },
@@ -1280,7 +1280,7 @@ const SHAMAN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“若你想结束茶席，随时告诉我；留下也由你决定。”',
         mood: 'shy',
         responseDialogue: [
-          { speaker: '灵巫', text: '选择离开也不会伤害关系……这样的余地让我更愿意留下。' },
+          { speaker: '灵巫', mood: 'calm', text: '选择离开也不会伤害关系……这样的余地让我更愿意留下。' },
           { text: '她轻轻点头，将下一盏茶也倒成了两人份。' },
         ],
       },
@@ -1310,8 +1310,8 @@ const SHAMAN_STORIES: readonly AffectionStoryDefinition[] = [
     ],
     openingDialogue: [
       { text: '暴雨压低山路灯笼，她护送最后一簇灵火归位后，脚步终于在石阶边停住。' },
-      { speaker: '灵巫', text: '我习惯替所有人举灯，可今晚确实有些走不动了。' },
-      { speaker: '灵巫', text: '这次……可以让我也被守护一段路吗？' },
+      { speaker: '灵巫', mood: 'calm', text: '我习惯替所有人举灯，可今晚确实有些走不动了。' },
+      { speaker: '灵巫', mood: 'shy', text: '这次……可以《让我也被守护》一段路吗？' },
     ],
     choices: [
       {
@@ -1319,7 +1319,7 @@ const SHAMAN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“把灯交给我，我们按你的速度一起走。”',
         mood: 'moved',
         responseDialogue: [
-          { speaker: '灵巫', text: '不是催我追上，而是愿意陪我放慢……谢谢。' },
+          { speaker: '灵巫', mood: 'moved', text: '不是催我追上，而是《愿意陪我放慢》……谢谢。' },
           { text: '你接过灯柄，她仍握着另一侧，暖光稳稳落在共同的路上。' },
         ],
       },
@@ -1328,7 +1328,7 @@ const SHAMAN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“先到避雨处休息，路不会因为暂停而消失。”',
         mood: 'calm',
         responseDialogue: [
-          { speaker: '灵巫', text: '我总告诉别人可以休息，却忘了这句话也适用于自己。' },
+          { speaker: '灵巫', mood: 'calm', text: '我总告诉别人可以休息，却忘了这句话也适用于自己。' },
           { text: '你们在檐下并肩坐好，灯火隔着雨幕照亮前方石阶。' },
         ],
       },
@@ -1337,7 +1337,7 @@ const SHAMAN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“前半程你护送灵火，后半程换我守着你。”',
         mood: 'shy',
         responseDialogue: [
-          { speaker: '灵巫', text: '守护原来真的会回到自己身边。那就拜托你了，同行者。' },
+          { speaker: '灵巫', mood: 'moved', text: '守护原来真的会回到自己身边。那就拜托你了，同行者。' },
           { text: '她不再走在最前面，而是与你共享灯下同一片干燥位置。' },
         ],
       },
@@ -1373,8 +1373,8 @@ const SHAMAN_STORIES: readonly AffectionStoryDefinition[] = [
     ],
     openingDialogue: [
       { text: '初雪落在庭院，两盏成对愿灯映着未被踩乱的白色小径。' },
-      { speaker: '灵巫', text: '以前我的愿望总写给别人。现在再落笔，里面已经自然地有了你。' },
-      { speaker: '灵巫', text: '不是替你决定未来，只是邀请你一起点亮这对愿灯。' },
+      { speaker: '灵巫', mood: 'moved', text: '以前我的愿望总写给别人。现在再落笔，里面已经《自然地有了你》。' },
+      { speaker: '灵巫', mood: 'shy', text: '不是替你决定未来，只是邀请你一起点亮这对愿灯。' },
     ],
     choices: [
       {
@@ -1382,7 +1382,7 @@ const SHAMAN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“各写自己的名字，让两盏灯自由选择相互照亮。”',
         mood: 'moved',
         responseDialogue: [
-          { speaker: '灵巫', text: '各自完整，又愿意把光分给对方。正是我想要的答案。' },
+          { speaker: '灵巫', mood: 'bright', text: '《各自完整》，又愿意把光分给对方。正是我想要的答案。' },
           { text: '两枚灯形护符同时亮起，光线在空中温柔交汇。' },
         ],
       },
@@ -1391,7 +1391,7 @@ const SHAMAN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“写‘随时欢迎回来’，但谁都不必放弃自己的旅途。”',
         mood: 'bright',
         responseDialogue: [
-          { speaker: '灵巫', text: '门永远可以打开，脚步也永远可以向前。' },
+          { speaker: '灵巫', mood: 'calm', text: '门永远可以打开，脚步也永远可以向前。' },
           { text: '她在灯面添上一条通往远方、又折返回来的细线。' },
         ],
       },
@@ -1400,7 +1400,7 @@ const SHAMAN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“先留一面空白，以后的愿望由未来的我们补写。”',
         mood: 'shy',
         responseDialogue: [
-          { speaker: '灵巫', text: '好。心意不是一次写完的符咒，而是长久的共同练习。' },
+          { speaker: '灵巫', mood: 'moved', text: '好。心意不是一次写完的符咒，而是长久的共同练习。' },
           { text: '她把空白灯面朝向你，与你一起放入第一簇归灯火。' },
         ],
       },
@@ -1425,8 +1425,8 @@ const SHAMAN_STORIES: readonly AffectionStoryDefinition[] = [
     ],
     openingDialogue: [
       { text: '清晨纸作间里，一册无字愿纸放在两盏小灯之间，旁边只有可以随时取下的花夹。' },
-      { speaker: '灵巫', text: '很多人送愿纸时，已经替收礼的人写好了应该许下什么。' },
-      { speaker: '灵巫', text: '而这一本什么都没有。它让我觉得，沉默也被当成了完整的答案。' },
+      { speaker: '灵巫', mood: 'calm', text: '很多人送愿纸时，已经替收礼的人写好了应该许下什么。' },
+      { speaker: '灵巫', mood: 'moved', text: '而这一本什么都没有。它让我觉得，沉默也被当成了《完整的答案》。' },
     ],
     choices: [
       {
@@ -1434,7 +1434,7 @@ const SHAMAN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“不写也可以。空白本身就是你拥有的选择。”',
         mood: 'moved',
         responseDialogue: [
-          { speaker: '灵巫', text: '谢谢你没有把安静当作等待填补的缺口。' },
+          { speaker: '灵巫', mood: 'moved', text: '谢谢你没有把安静当作等待填补的缺口。' },
           { text: '她轻轻翻过第一页，没有落笔，却把纸册珍重地留在身边。' },
         ],
       },
@@ -1443,7 +1443,7 @@ const SHAMAN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“花夹可以取下；装饰也不该替你固定愿望。”',
         mood: 'bright',
         responseDialogue: [
-          { speaker: '灵巫', text: '可以留下，也可以改变。这样的花，比永不凋谢更温柔。' },
+          { speaker: '灵巫', mood: 'bright', text: '可以留下，也可以改变。这样的花，比永不凋谢更温柔。' },
           { text: '她将花夹换到另一页，也把选择位置的权利稳稳留在自己手中。' },
         ],
       },
@@ -1452,7 +1452,7 @@ const SHAMAN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“它放在哪里由你决定；我不会用礼物换取查看的权利。”',
         mood: 'shy',
         responseDialogue: [
-          { speaker: '灵巫', text: '被赠予，并不等于被要求公开。你总能听见没有说出口的边界。' },
+          { speaker: '灵巫', mood: 'moved', text: '被赠予，并不等于被要求公开。你总能听见《没有说出口的边界》。' },
           { text: '她把纸册收进自己的抽屉，只将一枚无字书签留在茶席上。' },
         ],
       },
@@ -1477,8 +1477,8 @@ const SHAMAN_STORIES: readonly AffectionStoryDefinition[] = [
     ],
     openingDialogue: [
       { text: '月色落在有顶茶廊，一盏值夜灯已经熄下，两杯月白茶在相邻坐垫前冒着热气。' },
-      { speaker: '灵巫', text: '我总会先问别人需要什么，却很少练习回答自己的需要。' },
-      { speaker: '灵巫', text: '今晚我想先休息。若你愿意，可以陪我把这件小事认真做完。' },
+      { speaker: '灵巫', mood: 'calm', text: '我总会先问别人需要什么，却很少练习回答自己的需要。' },
+      { speaker: '灵巫', mood: 'shy', text: '《今晚我想先休息》。若你愿意，可以陪我把这件小事认真做完。' },
     ],
     choices: [
       {
@@ -1486,7 +1486,7 @@ const SHAMAN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“茶由我们一起泡；照顾不必由一个人包办。”',
         mood: 'bright',
         responseDialogue: [
-          { speaker: '灵巫', text: '不是替我完成，而是与我一起完成。这样很好。' },
+          { speaker: '灵巫', mood: 'bright', text: '不是替我完成，而是《与我一起完成》。这样很好。' },
           { text: '她分出茶叶，你添上热水，两杯茶在同一阵香气里慢慢安静。' },
         ],
       },
@@ -1495,7 +1495,7 @@ const SHAMAN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“不想说话也可以。安静陪伴同样算完整的回应。”',
         mood: 'moved',
         responseDialogue: [
-          { speaker: '灵巫', text: '那今晚，我把沉默和疲倦都放心交给这张茶席。' },
+          { speaker: '灵巫', mood: 'moved', text: '那今晚，我把沉默和疲倦都放心交给这张茶席。' },
           { text: '她靠回自己的坐垫，月灯没有催促任何一句话出现。' },
         ],
       },
@@ -1504,7 +1504,7 @@ const SHAMAN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“今晚我提醒你休息；下次累的人也可以是我。”',
         mood: 'shy',
         responseDialogue: [
-          { speaker: '灵巫', text: '照顾若能轮流，就不会把任何人永远固定成守护者。' },
+          { speaker: '灵巫', mood: 'moved', text: '照顾若能轮流，就不会把任何人永远固定成守护者。' },
           { text: '她认真答应，也替你把第二杯茶推到最顺手的位置。' },
         ],
       },
@@ -1530,8 +1530,8 @@ const SHAMAN_STORIES: readonly AffectionStoryDefinition[] = [
     ],
     openingDialogue: [
       { text: '月夜归灯亭里，两枚无字护符由一条可以随时解开的松结相连，远处小径通向敞开的门。' },
-      { speaker: '灵巫', text: '我想送你一件回礼。它不召回、不追踪，也不会替你决定方向。' },
-      { speaker: '灵巫', text: '它只在你想起归处时亮起；是否佩带，始终由你决定。' },
+      { speaker: '灵巫', mood: 'calm', text: '我想送你一件回礼。它不召回、不追踪，也不会替你决定方向。' },
+      { speaker: '灵巫', mood: 'moved', text: '它只在你《想起归处时亮起》；是否佩带，始终由你决定。' },
     ],
     choices: [
       {
@@ -1539,7 +1539,7 @@ const SHAMAN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“我愿意收下；需要时佩带，不需要时也会妥善珍藏。”',
         mood: 'moved',
         responseDialogue: [
-          { speaker: '灵巫', text: '被珍惜不等于必须时刻使用。谢谢你也尊重礼物的休息。' },
+          { speaker: '灵巫', mood: 'moved', text: '被珍惜不等于必须时刻使用。谢谢你也《尊重礼物的休息》。' },
           { text: '两枚护符各自亮起，又在不被触碰时安静归于柔光。' },
         ],
       },
@@ -1548,7 +1548,7 @@ const SHAMAN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“让它们并排挂在归灯亭，各自照亮来去的方向。”',
         mood: 'bright',
         responseDialogue: [
-          { speaker: '灵巫', text: '不把谁带回谁身边，只让彼此知道门仍然开着。' },
+          { speaker: '灵巫', mood: 'bright', text: '不把谁带回谁身边，只让彼此知道门仍然开着。' },
           { text: '两枚护符被分别挂好，灯光在中间形成温柔而开放的通路。' },
         ],
       },
@@ -1557,7 +1557,7 @@ const SHAMAN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“保留这个松结；关系长久，也仍能重新确认与调整。”',
         mood: 'shy',
         responseDialogue: [
-          { speaker: '灵巫', text: '愿望不是系得越紧越真。能被重新选择，才会一直有温度。' },
+          { speaker: '灵巫', mood: 'calm', text: '愿望不是系得越紧越真。能被重新选择，才会一直有温度。' },
           { text: '她没有收紧丝绳，只与你共同确认两端都能自由解开。' },
         ],
       },
@@ -1578,7 +1578,7 @@ const CATKIN_STORIES: readonly AffectionStoryDefinition[] = [
     backgroundAsset: 'assets/affection/scenes/catkin-box-base.webp',
     openingDialogue: [
       { text: '房间中央多了一座纸箱据点，门口郑重摆着“只容一人”的坐垫。' },
-      { speaker: '喵喵', text: '贵宾席只有一个。除非你有很有说服力的申请。' },
+      { speaker: '喵喵', mood: 'playful', text: '贵宾席只有一个。除非你有《很有说服力的申请》。' },
       { text: '她抱臂守在门边，神情像一位等待正式文书的可靠队长。' },
     ],
     choices: [
@@ -1587,8 +1587,8 @@ const CATKIN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“先敲门。请问我可以进去吗？”',
         mood: 'bright',
         responseDialogue: [
-          { speaker: '喵喵', text: '会敲门的人加分！' },
-          { speaker: '喵喵', text: '可以进，但不许动我的战利品地图。' },
+          { speaker: '喵喵', mood: 'bright', text: '会敲门的人加分！' },
+          { speaker: '喵喵', mood: 'playful', text: '可以进，但不许动我的战利品地图。' },
         ],
       },
       {
@@ -1596,9 +1596,9 @@ const CATKIN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“我带了热莓奶，放在门口，由你决定。”',
         mood: 'shy',
         responseDialogue: [
-          { speaker: '喵喵', text: '礼物可以进。' },
+          { speaker: '喵喵', mood: 'bright', text: '礼物可以进。' },
           { text: '她向旁边挪了挪。' },
-          { speaker: '喵喵', text: '送礼的人……也能挤进半个位置。' },
+          { speaker: '喵喵', mood: 'shy', text: '送礼的人……也能挤进《半个位置》。' },
         ],
       },
       {
@@ -1606,8 +1606,8 @@ const CATKIN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“我帮你加固架子，东西放哪都听你的。”',
         mood: 'playful',
         responseDialogue: [
-          { speaker: '喵喵', text: '你记得这是我的据点，不是普通纸箱。很好。' },
-          { speaker: '喵喵', text: '正式任命你为第一副队长！' },
+          { speaker: '喵喵', mood: 'bright', text: '你记得这是我的据点，不是普通纸箱。很好。' },
+          { speaker: '喵喵', mood: 'playful', text: '正式任命你为第一副队长！' },
         ],
       },
     ],
@@ -1624,7 +1624,7 @@ const CATKIN_STORIES: readonly AffectionStoryDefinition[] = [
     backgroundAsset: 'assets/affection/scenes/catkin-workbench-evening.webp',
     openingDialogue: [
       { text: '训练后，她的手套扣松开了，一只戴着晶爪手套的手伸到你面前。' },
-      { speaker: '喵喵', text: '只检查手套，不许顺手摸耳朵。先说好！' },
+      { speaker: '喵喵', mood: 'playful', text: '只检查手套，《不许顺手摸耳朵》。先说好！' },
     ],
     choices: [
       {
@@ -1633,7 +1633,7 @@ const CATKIN_STORIES: readonly AffectionStoryDefinition[] = [
         mood: 'shy',
         responseDialogue: [
           { text: '她认真点头，把手放稳。' },
-          { speaker: '喵喵', text: '三秒钟。……你的手怎么比晶爪还凉。' },
+          { speaker: '喵喵', mood: 'shy', text: '三秒钟。……你的手怎么比晶爪还凉。' },
         ],
       },
       {
@@ -1641,8 +1641,8 @@ const CATKIN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“修理带给你，你自己来，我替你照明。”',
         mood: 'moved',
         responseDialogue: [
-          { speaker: '喵喵', text: '尊重专业猫爪，判断正确。' },
-          { speaker: '喵喵', text: '不过你要留在这里，不许把光拿走。' },
+          { speaker: '喵喵', mood: 'playful', text: '尊重专业猫爪，判断正确。' },
+          { speaker: '喵喵', mood: 'shy', text: '不过你要留在这里，《不许把光拿走》。' },
         ],
       },
       {
@@ -1651,7 +1651,7 @@ const CATKIN_STORIES: readonly AffectionStoryDefinition[] = [
         mood: 'bright',
         responseDialogue: [
           { text: '清脆一声，蓝色小火花从掌心跳开。' },
-          { speaker: '喵喵', text: '这个声音以后就代表“搭档集合”！' },
+          { speaker: '喵喵', mood: 'bright', text: '这个声音以后就代表“搭档集合”！' },
         ],
       },
     ],
@@ -1686,7 +1686,7 @@ const CATKIN_STORIES: readonly AffectionStoryDefinition[] = [
     ],
     openingDialogue: [
       { text: '她坐在屋顶边缘，尾巴规规矩矩盘在自己身侧。' },
-      { speaker: '喵喵', text: '月亮追了我半晚。不过我知道，你其实是来找我的。' },
+      { speaker: '喵喵', mood: 'playful', text: '月亮追了我半晚。不过我知道，《你其实是来找我的》。' },
     ],
     choices: [
       {
@@ -1695,7 +1695,7 @@ const CATKIN_STORIES: readonly AffectionStoryDefinition[] = [
         mood: 'moved',
         responseDialogue: [
           { text: '她的尾尖在两人之间轻轻敲了一下瓦片。' },
-          { speaker: '喵喵', text: '这是召集信号，可不是不小心。' },
+          { speaker: '喵喵', mood: 'shy', text: '这是召集信号，《可不是不小心》。' },
         ],
       },
       {
@@ -1703,9 +1703,9 @@ const CATKIN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“战利品糖一人一半，你先挑。”',
         mood: 'bright',
         responseDialogue: [
-          { speaker: '喵喵', text: '明明两块一样大……' },
+          { speaker: '喵喵', mood: 'shy', text: '明明两块一样大……' },
           { text: '她把其中一块推给你。' },
-          { speaker: '喵喵', text: '我量过了，真的一样大。' },
+          { speaker: '喵喵', mood: 'playful', text: '我量过了，真的一样大。' },
         ],
       },
       {
@@ -1714,7 +1714,7 @@ const CATKIN_STORIES: readonly AffectionStoryDefinition[] = [
         mood: 'shy',
         responseDialogue: [
           { text: '她的尾巴一下扬起，又立刻压回身边。' },
-          { speaker: '喵喵', text: '再说一次。刚才我在看月亮，没听清。' },
+          { speaker: '喵喵', mood: 'shy', text: '再说一次。刚才我在看月亮，没听清。' },
         ],
       },
     ],
@@ -1743,8 +1743,8 @@ const CATKIN_STORIES: readonly AffectionStoryDefinition[] = [
     ],
     openingDialogue: [
       { text: '白天的据点扩建刚结束，两把造型相同的钥匙并排放在新门前。' },
-      { speaker: '喵喵', text: '不是备用钥匙，也不是谁替谁保管。两把权限完全一样。' },
-      { speaker: '喵喵', text: '新区域的第一条使用规则，我们一起定。' },
+      { speaker: '喵喵', mood: 'bright', text: '不是备用钥匙，也不是谁替谁保管。《两把权限完全一样》。' },
+      { speaker: '喵喵', mood: 'moved', text: '新区域的第一条使用规则，我们一起定。' },
     ],
     choices: [
       {
@@ -1752,7 +1752,7 @@ const CATKIN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“谁先回来谁开门，不需要向另一位申请。”',
         mood: 'moved',
         responseDialogue: [
-          { speaker: '喵喵', text: '通过！平等钥匙就该有平等的开门权。' },
+          { speaker: '喵喵', mood: 'bright', text: '通过！平等钥匙就该有平等的开门权。' },
           { text: '她把其中一把推给你，自己拿起另一把同时试锁。' },
         ],
       },
@@ -1761,7 +1761,7 @@ const CATKIN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“各自的工作区先敲门，共享区随时欢迎。”',
         mood: 'shy',
         responseDialogue: [
-          { speaker: '喵喵', text: '边界明确，集合方便。副队长提案非常专业！' },
+          { speaker: '喵喵', mood: 'playful', text: '边界明确，集合方便。副队长提案《非常专业》！' },
           { text: '她在平面图上圈出两个独立角落，也画出宽敞的共同桌面。' },
         ],
       },
@@ -1770,7 +1770,7 @@ const CATKIN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“若规则不合适，任何一方都能提出重谈。”',
         mood: 'bright',
         responseDialogue: [
-          { speaker: '喵喵', text: '批准。搭档协议当然要能升级，不能把谁困住。' },
+          { speaker: '喵喵', mood: 'bright', text: '批准。搭档协议当然要能升级，不能把谁困住。' },
           { text: '她将两把钥匙再次并排放好，认真与你确认这项规则。' },
         ],
       },
@@ -1800,8 +1800,8 @@ const CATKIN_STORIES: readonly AffectionStoryDefinition[] = [
     ],
     openingDialogue: [
       { text: '雨夜的工作间里，修理工具已经收好，她却还守着熄暗一半的台灯。' },
-      { speaker: '喵喵', text: '队长今天判断失误：明明很累，还安排了额外检修。' },
-      { speaker: '喵喵', text: '我不需要命令，只想听搭档提出一个平等的休息方案。' },
+      { speaker: '喵喵', mood: 'calm', text: '队长今天判断失误：明明很累，还安排了额外检修。' },
+      { speaker: '喵喵', mood: 'shy', text: '我不需要命令，只想听搭档提出一个《平等的休息方案》。' },
     ],
     choices: [
       {
@@ -1809,7 +1809,7 @@ const CATKIN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“今晚一起收工，剩下的工作明天平分。”',
         mood: 'moved',
         responseDialogue: [
-          { speaker: '喵喵', text: '不是替我包办，是把明天也一起分担。批准。' },
+          { speaker: '喵喵', mood: 'moved', text: '不是替我包办，是《把明天也一起分担》。批准。' },
           { text: '她关掉剩下的台灯，与你一起确认工具都安全归位。' },
         ],
       },
@@ -1818,7 +1818,7 @@ const CATKIN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“你可以去安静角落休息，我在共享区处理自己的事。”',
         mood: 'calm',
         responseDialogue: [
-          { speaker: '喵喵', text: '不追问、不围观，也不把独处当成生气。优秀搭档。' },
+          { speaker: '喵喵', mood: 'moved', text: '不追问、不围观，也不把独处当成生气。优秀搭档。' },
           { text: '她带着自己的钥匙走向安静角落，回头向你比了个安心手势。' },
         ],
       },
@@ -1827,7 +1827,7 @@ const CATKIN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“去窗边听雨吧。想聊天就聊，不想说话也可以。”',
         mood: 'shy',
         responseDialogue: [
-          { speaker: '喵喵', text: '队长申请一份不需要活跃气氛的陪伴。' },
+          { speaker: '喵喵', mood: 'shy', text: '队长申请一份不需要活跃气氛的陪伴。' },
           { text: '她与你各坐长椅一侧，雨声把工作间变成安静的休息站。' },
         ],
       },
@@ -1863,8 +1863,8 @@ const CATKIN_STORIES: readonly AffectionStoryDefinition[] = [
     ],
     openingDialogue: [
       { text: '晨光铺上启程站台，两枚搭档徽章放在并排的行囊之间，远处列车即将到站。' },
-      { speaker: '喵喵', text: '这次不是队长带副队长出发，是两位搭档共同选择下一站。' },
-      { speaker: '喵喵', text: '无论答案是哪条路线，我们都保留说累、暂停和改道的权利。' },
+      { speaker: '喵喵', mood: 'bright', text: '这次不是队长带副队长出发，是《两位搭档》共同选择下一站。' },
+      { speaker: '喵喵', mood: 'calm', text: '无论答案是哪条路线，我们都保留说累、暂停和改道的权利。' },
     ],
     choices: [
       {
@@ -1872,7 +1872,7 @@ const CATKIN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“每次出发都重新确认愿意同行，不把陪伴当成理所当然。”',
         mood: 'moved',
         responseDialogue: [
-          { speaker: '喵喵', text: '通过！下一次、下下次，也都要听见彼此亲口说愿意。' },
+          { speaker: '喵喵', mood: 'moved', text: '通过！下一次、下下次，也都要听见彼此《亲口说愿意》。' },
           { text: '她拿起自己的徽章，与你同时别在各自行囊上。' },
         ],
       },
@@ -1881,7 +1881,7 @@ const CATKIN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“路线一人提案、一起确认，任何时候都能改道。”',
         mood: 'bright',
         responseDialogue: [
-          { speaker: '喵喵', text: '并列领航员制度成立！第一站由我提案，你负责审核。' },
+          { speaker: '喵喵', mood: 'playful', text: '并列领航员制度成立！第一站由我提案，你负责审核。' },
           { text: '她将路线图放在两人中间，没有替你圈定任何终点。' },
         ],
       },
@@ -1890,7 +1890,7 @@ const CATKIN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“并肩出发，也允许各自探索，想会合时就用集合暗号。”',
         mood: 'shy',
         responseDialogue: [
-          { speaker: '喵喵', text: '这才是最厉害的搭档：各自看世界，也总能认出集合信号。' },
+          { speaker: '喵喵', mood: 'bright', text: '这才是最厉害的搭档：各自看世界，也总能认出集合信号。' },
           { text: '她与你碰了碰徽章，清脆声响与进站铃一同响起。' },
         ],
       },
@@ -1915,8 +1915,8 @@ const CATKIN_STORIES: readonly AffectionStoryDefinition[] = [
     ],
     openingDialogue: [
       { text: '白昼工坊里，一只珊瑚粉与湖蓝模块化远征匣停在检测台上，所有标签牌都保持空白。' },
-      { speaker: '喵喵', text: '防水、可拆、抗冲击。外观分先拿高分，权限设计还需要搭档验收。' },
-      { speaker: '喵喵', text: '先说明：收到礼物的人拥有最终分类权，也有不共享内容的权利。' },
+      { speaker: '喵喵', mood: 'playful', text: '防水、可拆、抗冲击。外观分先拿高分，权限设计还需要搭档验收。' },
+      { speaker: '喵喵', mood: 'bright', text: '先说明：收到礼物的人拥有最终分类权，也有不共享内容的权利。' },
     ],
     choices: [
       {
@@ -1924,7 +1924,7 @@ const CATKIN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“标签由你填写；送礼的人不替你定义里面该放什么。”',
         mood: 'moved',
         responseDialogue: [
-          { speaker: '喵喵', text: '准确！空白标签不是漏做，是最高级的权限设计。' },
+          { speaker: '喵喵', mood: 'bright', text: '准确！空白标签不是漏做，是《最高级的权限设计》。' },
           { text: '她把标签片逐一收好，只在自己选中的位置装上一枚蓝色识别扣。' },
         ],
       },
@@ -1933,7 +1933,7 @@ const CATKIN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“拆解检查由你主持；需要协助时再向我发出搭档邀请。”',
         mood: 'bright',
         responseDialogue: [
-          { speaker: '喵喵', text: '不抢工具、不突然接管。副队长专业等级提升。' },
+          { speaker: '喵喵', mood: 'playful', text: '不抢工具、不突然接管。副队长专业等级提升。' },
           { text: '她打开检测灯，主动把其中一项耐压测试分配给你。' },
         ],
       },
@@ -1942,7 +1942,7 @@ const CATKIN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“共享工具格与私人收纳格分开，谁都不默认拥有查看权。”',
         mood: 'shy',
         responseDialogue: [
-          { speaker: '喵喵', text: '搭档可以共享任务，不代表要上交全部私人物资。批准。' },
+          { speaker: '喵喵', mood: 'moved', text: '搭档可以共享任务，《不代表要上交全部私人物资》。批准。' },
           { text: '她装好两种不同锁扣，又把共享格的双控开关放在正中央。' },
         ],
       },
@@ -1967,8 +1967,8 @@ const CATKIN_STORIES: readonly AffectionStoryDefinition[] = [
     ],
     openingDialogue: [
       { text: '雨夜工坊的一面收纳墙打开小半，旧票片、空白徽章与被修补过的纸箱角整齐放在独立格中。' },
-      { speaker: '喵喵', text: '它们没有战斗数值，也不属于任务必需品。按物资标准，应该早就清理。' },
-      { speaker: '喵喵', text: '可我喜欢。今天只展示我主动打开的这些，其他格仍然保密。' },
+      { speaker: '喵喵', mood: 'calm', text: '它们没有战斗数值，也不属于任务必需品。按物资标准，应该早就清理。' },
+      { speaker: '喵喵', mood: 'shy', text: '《可我喜欢》。今天只展示我主动打开的这些，其他格仍然保密。' },
     ],
     choices: [
       {
@@ -1976,7 +1976,7 @@ const CATKIN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“我只看你主动打开的格子；想关上时不用解释。”',
         mood: 'moved',
         responseDialogue: [
-          { speaker: '喵喵', text: '收到。参观权限按实时意愿生效，不自动续期。' },
+          { speaker: '喵喵', mood: 'playful', text: '收到。参观权限按实时意愿生效，不自动续期。' },
           { text: '她放松地打开第二个小格，又保留其余遮板原样不动。' },
         ],
       },
@@ -1985,7 +1985,7 @@ const CATKIN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“喜欢不需要提交用途报告，也不必证明值得保留。”',
         mood: 'shy',
         responseDialogue: [
-          { speaker: '喵喵', text: '副队长批准一批“没有用途但就是舍不得”的最高级物资。' },
+          { speaker: '喵喵', mood: 'moved', text: '副队长批准一批“没有用途但就是舍不得”的《最高级物资》。' },
           { text: '她把旧徽章摆得更正了一点，语气得意，动作却格外轻。' },
         ],
       },
@@ -1994,7 +1994,7 @@ const CATKIN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“若你愿意，我们可以留一个共同纪念格；各自私藏仍归各自。”',
         mood: 'bright',
         responseDialogue: [
-          { speaker: '喵喵', text: '中央共享格成立，但新增物品必须双人确认。' },
+          { speaker: '喵喵', mood: 'bright', text: '中央共享格成立，但新增物品必须双人确认。' },
           { text: '她打开最中间的空格，与你约定第一件纪念物以后共同选择。' },
         ],
       },
@@ -2020,8 +2020,8 @@ const CATKIN_STORIES: readonly AffectionStoryDefinition[] = [
     ],
     openingDialogue: [
       { text: '朝阳照进远征整备室，两只独立储物格分列左右，中央是一只需要双控开启的共享格。' },
-      { speaker: '喵喵', text: '这是我准备的回礼：一枚属于你的远征标签，以及一格不会被我擅自整理的空间。' },
-      { speaker: '喵喵', text: '别误会，不是把你固定在据点。它只是表示——下一次集合仍然有你的位置。' },
+      { speaker: '喵喵', mood: 'bright', text: '这是我准备的回礼：一枚属于你的远征标签，以及一格不会被我擅自整理的空间。' },
+      { speaker: '喵喵', mood: 'shy', text: '别误会，不是把你固定在据点。它只是表示——下一次集合《仍然有你的位置》。' },
     ],
     choices: [
       {
@@ -2029,7 +2029,7 @@ const CATKIN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“保留两个私人格，再留一个由双方确认的共享格。”',
         mood: 'bright',
         responseDialogue: [
-          { speaker: '喵喵', text: '完美结构！并肩不等于合并库存，这才叫成熟搭档。' },
+          { speaker: '喵喵', mood: 'playful', text: '完美结构！并肩不等于合并库存，这才叫成熟搭档。' },
           { text: '她分别检查两边锁扣，最后与你同时点亮中央共享格。' },
         ],
       },
@@ -2038,7 +2038,7 @@ const CATKIN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“每次远征前重新确认权限，任何一方都能调整或收回。”',
         mood: 'moved',
         responseDialogue: [
-          { speaker: '喵喵', text: '长期搭档也要尊重今天的答案。权限协议正式通过。' },
+          { speaker: '喵喵', mood: 'moved', text: '长期搭档也要《尊重今天的答案》。权限协议正式通过。' },
           { text: '两枚空白标签各自亮起，没有任何一枚覆盖另一枚的控制信号。' },
         ],
       },
@@ -2047,7 +2047,7 @@ const CATKIN_STORIES: readonly AffectionStoryDefinition[] = [
         label: '“各自探索也没关系；想会合时，用这枚标签发集合信号。”',
         mood: 'shy',
         responseDialogue: [
-          { speaker: '喵喵', text: '那我大概会经常测试信号……只是为了确认设备稳定。' },
+          { speaker: '喵喵', mood: 'shy', text: '那我大概会经常测试信号……只是为了确认设备稳定。' },
           { text: '她让两枚标签轻轻相触，珊瑚与湖蓝光点同时跳亮。' },
         ],
       },

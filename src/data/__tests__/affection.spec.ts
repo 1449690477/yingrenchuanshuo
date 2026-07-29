@@ -213,6 +213,45 @@ describe('affection content', () => {
     expect(catkinText).toMatch(/搭档/);
   });
 
+  it('R1b 演出标注：旧 36 幕每句角色台词都有心情 cue，强调标记全部闭合', () => {
+    const VALID_MOODS = new Set(['calm', 'bright', 'shy', 'moved', 'playful']);
+    for (const classId of CLASS_IDS) {
+      const oldStories = AFFECTION_CHARACTERS[classId].stories.filter((story) => story.episode <= 9);
+      expect(oldStories).toHaveLength(9);
+      for (const story of oldStories) {
+        const actedLines = [
+          ...story.openingDialogue,
+          ...story.choices.flatMap((choice) => choice.responseDialogue),
+        ];
+        // 每句角色台词（有 speaker）都必须带心情 cue；旁白（无 speaker）一律不带
+        for (const line of actedLines) {
+          if (line.speaker) {
+            expect(line.mood, `${story.id}: ${line.text}`).toBeDefined();
+            expect(VALID_MOODS.has(line.mood!), `${story.id} ${line.mood}`).toBe(true);
+          } else {
+            expect(line.mood, `${story.id} 旁白不应带 mood: ${line.text}`).toBeUndefined();
+          }
+          const opens = line.text.split('《').length - 1;
+          const closes = line.text.split('》').length - 1;
+          expect(opens, `${story.id}: ${line.text}`).toBe(closes);
+          expect(line.text, story.id).not.toContain('《》');
+        }
+        // 每幕至少一处《…》强调
+        expect(
+          actedLines.filter((line) => line.text.includes('《')).length,
+          story.id,
+        ).toBeGreaterThanOrEqual(1);
+        // 记忆回响保持纯文本：那是她说过的原话，不加演出
+        for (const callback of story.memoryCallbacks ?? []) {
+          for (const line of callback.dialogue) {
+            expect(line.text, `${story.id} memoryCallback`).not.toContain('《');
+            expect(line.mood, `${story.id} memoryCallback`).toBeUndefined();
+          }
+        }
+      }
+    }
+  });
+
   it('所有场景与高潮插画都使用固定运行时路径，不依赖外链', () => {
     const scenePaths = new Set<string>();
     for (const story of AFFECTION_STORIES) {
