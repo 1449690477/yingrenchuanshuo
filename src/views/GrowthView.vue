@@ -1,10 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onUnmounted, ref } from 'vue';
 import { abbr } from '@/core/format';
-import {
-  isAffectionStoryUnlocked,
-  type AffectionMood,
-} from '@/core/affection';
+import { isAffectionStoryUnlocked, type AffectionMood } from '@/core/affection';
 import type { EquipmentInstance, EquipSlot, Stats } from '@/core/types';
 import { useInventoryStore } from '@/stores/inventory';
 import { usePlayerStore } from '@/stores/player';
@@ -19,17 +16,12 @@ import {
   requireAffectionStory,
 } from '@/data/affection';
 import { AFFECTION_RULES } from '@/data/affectionRules';
-import {
-  affectionEquipmentForClass,
-  requireAffectionEquipment,
-} from '@/data/affectionEquipment';
-import {
-  affectionGiftsForClass,
-  requireAffectionGift,
-} from '@/data/affectionGifts';
+import { affectionEquipmentForClass, requireAffectionEquipment } from '@/data/affectionEquipment';
+import { affectionGiftsForClass, requireAffectionGift } from '@/data/affectionGifts';
 import { itemName } from '@/data/items';
 import { visualSkillsFor } from '@/data/skills';
 import EquipDetail from '@/components/EquipDetail.vue';
+import CollapsibleCard from '@/components/CollapsibleCard.vue';
 import CharacterShowcase from '@/components/CharacterShowcase.vue';
 import CharacterAppearance from '@/components/CharacterAppearance.vue';
 import ClassSwitchModal from '@/components/ClassSwitchModal.vue';
@@ -42,6 +34,7 @@ import AffectionGiftShelf from '@/components/affection/AffectionGiftShelf.vue';
 import AffectionStoryModal from '@/components/affection/AffectionStoryModal.vue';
 import AffectionEquipmentGallery from '@/components/affection/AffectionEquipmentGallery.vue';
 import { triggerHaptic } from '@/ui/haptics';
+import { prefersCompactLayout } from '@/ui/useFold';
 
 const inventory = useInventoryStore();
 const player = usePlayerStore();
@@ -75,6 +68,12 @@ const GIFT_BUSY_MIN_MS = 420;
 
 const equipped = computed(() => inventory.equipped);
 const visualSkills = computed(() => (player.player ? visualSkillsFor(player.player.classId) : []));
+/** 矮屏（手机主流）折叠卡的默认值都按收起走，玩家手动切换后由 localStorage 记忆 */
+const compactLayout = prefersCompactLayout();
+const unlockedSkillCount = computed(
+  () =>
+    visualSkills.value.filter((skill) => (player.player?.level ?? 0) >= skill.unlockLevel).length,
+);
 const affectionCharacter = computed(() =>
   player.player ? requireAffectionCharacter(player.player.classId) : null,
 );
@@ -114,12 +113,10 @@ const activeStory = computed(() => {
     ? requireAffectionStory(classId, activeStoryId.value)
     : null;
 });
-const activeStoryReplay = computed(
-  () =>
-    Boolean(
-      activeStory.value &&
-        affectionProgress.value?.completedStoryIds.includes(activeStory.value.id),
-    ),
+const activeStoryReplay = computed(() =>
+  Boolean(
+    activeStory.value && affectionProgress.value?.completedStoryIds.includes(activeStory.value.id),
+  ),
 );
 const activeStoryMemory = computed(() =>
   activeStory.value && affectionProgress.value
@@ -143,8 +140,7 @@ const affectionEquipmentItems = computed(() => {
     iconAsset: entry.definition.icon,
     owned: progress.discoveredGearIds.includes(entry.definition.id),
     equipped: equippedIds.has(entry.definition.id),
-    eligible:
-      progress.points >= entry.unlockPoints && level >= entry.definition.level,
+    eligible: progress.points >= entry.unlockPoints && level >= entry.definition.level,
     requiredPoints: entry.unlockPoints,
     effectText: entry.definition.uniqueEffect ?? '与她共同珍藏的心虹装备。',
     flavorText: entry.flavorText,
@@ -200,6 +196,12 @@ const statRows = computed(() => {
   }));
 });
 
+/** 属性卡收起时的一行速览：三大核心数值让卡片折起来也有信息量 */
+const statPeek = computed(() => {
+  const pick = (key: keyof Stats) => statRows.value.find((row) => row.key === key)?.value ?? '-';
+  return `攻击 ${pick('atk')} · 生命 ${pick('hp')} · 防御 ${pick('def')}`;
+});
+
 function fmt(key: keyof Stats, v: number): string {
   if (key === 'critRate' || key === 'critDmg') return v.toFixed(1) + '%';
   if (key === 'spd') return v.toFixed(2);
@@ -212,32 +214,32 @@ function announce(message: string): void {
   feedbackTimer = window.setTimeout(() => (feedback.value = ''), 2_200);
 }
 
-function announceAffection(
-  text: string,
-  tone: 'success' | 'notice' | 'reward' = 'success',
-): void {
+function announceAffection(text: string, tone: 'success' | 'notice' | 'reward' = 'success'): void {
   affectionFeedback.value = { text, tone };
   clearTimeout(affectionFeedbackTimer);
-  affectionFeedbackTimer = window.setTimeout(() => {
-    affectionFeedback.value = null;
-  }, tone === 'reward' ? 5_200 : 4_000);
+  affectionFeedbackTimer = window.setTimeout(
+    () => {
+      affectionFeedback.value = null;
+    },
+    tone === 'reward' ? 5_200 : 4_000,
+  );
 }
 
-function announceGift(
-  text: string,
-  tone: 'success' | 'notice' | 'reward' = 'success',
-): void {
+function announceGift(text: string, tone: 'success' | 'notice' | 'reward' = 'success'): void {
   giftFeedback.value = { text, tone };
   clearTimeout(giftFeedbackTimer);
-  giftFeedbackTimer = window.setTimeout(() => {
-    giftFeedback.value = null;
-  }, tone === 'reward' ? 5_200 : 4_000);
+  giftFeedbackTimer = window.setTimeout(
+    () => {
+      giftFeedback.value = null;
+    },
+    tone === 'reward' ? 5_200 : 4_000,
+  );
 }
 
 function prefersReducedMotion(): boolean {
   return Boolean(
     settings.settings?.reduceMotion ||
-      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches,
+    window.matchMedia?.('(prefers-reduced-motion: reduce)').matches,
   );
 }
 
@@ -551,15 +553,18 @@ onUnmounted(() => {
       </button>
     </section>
 
-    <section
+    <CollapsibleCard
       v-if="visualSkills.length > 0"
-      class="card skills-card row-in"
+      class="skills-card row-in"
       style="--row-delay: 90ms"
+      :title="`${CLASS_INFO[player.player.classId].name}技能演出`"
+      subtitle="随等级解锁"
+      persist-key="growth.skills"
+      :default-open="!compactLayout"
     >
-      <div class="card-head">
-        <span>{{ CLASS_INFO[player.player.classId].name }}技能演出</span>
-        <span class="skill-hint">随等级解锁</span>
-      </div>
+      <template #peek>
+        <span class="skills-peek">已解锁 {{ unlockedSkillCount }}/{{ visualSkills.length }}</span>
+      </template>
       <div class="skills">
         <div
           v-for="skill in visualSkills"
@@ -577,18 +582,26 @@ onUnmounted(() => {
           </span>
         </div>
       </div>
-    </section>
+    </CollapsibleCard>
 
     <!-- 属性面板 -->
-    <section class="card stats-card row-in" style="--row-delay: 140ms">
-      <div class="card-head"><span>属性</span></div>
+    <CollapsibleCard
+      class="stats-card row-in"
+      style="--row-delay: 140ms"
+      title="属性"
+      persist-key="growth.stats"
+      :default-open="!compactLayout"
+    >
+      <template #peek>
+        <span class="stats-peek num">{{ statPeek }}</span>
+      </template>
       <div class="stats">
         <div v-for="r in statRows" :key="r.key" class="stat">
           <span class="s-label">{{ r.label }}</span>
           <span class="s-value num">{{ r.value }}</span>
         </div>
       </div>
-    </section>
+    </CollapsibleCard>
 
     <section class="card soon row-in" style="--row-delay: 190ms">
       <div class="card-head"><span>后续养成</span></div>
@@ -702,9 +715,10 @@ onUnmounted(() => {
   transform: translateY(-8px) scale(0.985);
 }
 
-.skill-hint {
-  font-size: 9px;
-  color: var(--blue-deep);
+.skills-peek,
+.stats-peek {
+  font-size: 10px;
+  color: var(--text-dim);
 }
 
 .skills {

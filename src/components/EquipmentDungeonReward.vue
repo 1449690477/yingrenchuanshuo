@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import { Gift, Sparkles } from '@lucide/vue';
+import { computed, ref } from 'vue';
+import { ChevronRight, Gift, Sparkles } from '@lucide/vue';
 import type { EquipmentInstance, Quality } from '@/core/types';
 import { AFFIX_LABELS, QUALITY_LABELS } from '@/data/constants';
 import { requireEquipment } from '@/data/equipment';
 import EquipmentIcon from './EquipmentIcon.vue';
+import EquipDetail from './EquipDetail.vue';
 
 const props = defineProps<{
   instances: readonly EquipmentInstance[];
@@ -18,6 +19,9 @@ const rewards = computed(() =>
     definition: requireEquipment(instance.defId),
   })),
 );
+
+/** 掉落卡可点：直接弹完整详情（可比可穿），让结算窗口从「只能看」变成「值得点」 */
+const detail = ref<EquipmentInstance | null>(null);
 
 /**
  * 高品质掉落才配拿到额外的揭晓演出。
@@ -53,12 +57,15 @@ const hasPrize = computed(() =>
     </header>
 
     <div class="reward-list">
-      <article
+      <button
         v-for="({ instance, definition }, index) in rewards"
         :key="instance.uid"
+        type="button"
         class="reward-item"
         :class="[`quality-${definition.quality}`, { 'is-prize': isPrize(definition.quality) }]"
         :style="{ '--card-index': index }"
+        :aria-label="`查看${definition.name}详情`"
+        @click="detail = instance"
       >
         <EquipmentIcon
           :def="definition"
@@ -85,8 +92,17 @@ const hasPrize = computed(() =>
             </span>
           </div>
         </div>
-      </article>
+        <span class="reward-more" aria-hidden="true">
+          <ChevronRight :size="15" />
+        </span>
+      </button>
     </div>
+
+    <Teleport to="body">
+      <Transition name="modal-pop">
+        <EquipDetail v-if="detail" :inst="detail" from="bag" @close="detail = null" />
+      </Transition>
+    </Teleport>
   </section>
 </template>
 
@@ -155,11 +171,30 @@ header small,
   display: flex;
   align-items: center;
   gap: 11px;
+  width: 100%;
   min-width: 0;
   padding: 9px;
+  text-align: left;
   background: rgb(255 255 255 / 76%);
   border: 1px solid color-mix(in srgb, var(--reward-color) 28%, white);
   border-radius: 15px;
+  transition: background-color var(--t-fast) var(--ease-soft);
+}
+
+.reward-item:active {
+  background: rgb(255 255 255 / 96%);
+}
+
+/* 右缘的小箭头：告诉玩家这张卡可以点开看详情 */
+.reward-more {
+  display: grid;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  color: var(--reward-color);
+  background: color-mix(in srgb, var(--reward-color) 10%, white);
+  border-radius: 50%;
 }
 
 .quality-epic {
@@ -343,5 +378,26 @@ header small,
 
 .reward-panel.reduced-motion .reward-item.is-prize {
   box-shadow: 0 0 0 2px rgb(255 214 132 / 55%);
+}
+
+/* 极窄屏（≤350px）：收紧留白，保证词条胶囊不挤出卡片 */
+@media (max-width: 350px) {
+  .reward-panel {
+    padding: 10px;
+  }
+
+  .reward-item {
+    gap: 8px;
+    padding: 8px;
+  }
+
+  .reward-copy > strong {
+    font-size: 11px;
+  }
+
+  .reward-more {
+    width: 20px;
+    height: 20px;
+  }
 }
 </style>

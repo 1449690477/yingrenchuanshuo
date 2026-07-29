@@ -80,7 +80,7 @@ const moreCount = computed(() => Math.max(0, (r.value?.yield.loot.length ?? 0) -
         </div>
 
         <div v-if="drops.length > 0" class="drops">
-          <div class="drops-head">掉落</div>
+          <div class="drops-head">掉落 · 共 {{ r.yield.loot.length }} 种</div>
           <div class="drop-list">
             <div
               v-for="(d, i) in drops"
@@ -112,8 +112,13 @@ const moreCount = computed(() => Math.max(0, (r.value?.yield.loot.length ?? 0) -
 <style scoped>
 .sheet {
   position: relative;
+  display: flex;
+  flex-direction: column;
   width: 100%;
   max-width: 340px;
+
+  /* 小屏兜底：内容超出视口时只让掉落区内滚，「收下」永远露在外面 */
+  max-height: calc(100% - 4px);
   padding: 26px 18px 18px;
   background: linear-gradient(170deg, #fff, var(--blue-soft));
   border-radius: var(--r-lg);
@@ -135,6 +140,7 @@ const moreCount = computed(() => Math.max(0, (r.value?.yield.loot.length ?? 0) -
 }
 
 .top {
+  flex-shrink: 0;
   margin-bottom: 16px;
 }
 
@@ -171,6 +177,7 @@ h3 {
 
 .gains {
   display: grid;
+  flex-shrink: 0;
   grid-template-columns: repeat(3, 1fr);
   gap: 8px;
   margin-bottom: 12px;
@@ -223,6 +230,9 @@ h3 {
 }
 
 .drops {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   padding: 10px;
   margin-bottom: 10px;
   background: #fff;
@@ -231,6 +241,7 @@ h3 {
 }
 
 .drops-head {
+  flex-shrink: 0;
   font-size: 10px;
   color: var(--text-dim);
   margin-bottom: 5px;
@@ -238,10 +249,12 @@ h3 {
 
 .drop-list {
   display: flex;
+  flex: 1;
   flex-direction: column;
   gap: 3px;
-  max-height: 150px;
+  min-height: 0;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .drop {
@@ -249,7 +262,13 @@ h3 {
   align-items: center;
   gap: 6px;
   justify-content: space-between;
+  padding: 3px 6px;
   font-size: 12px;
+  border-radius: 8px;
+}
+
+.drop:nth-child(odd) {
+  background: var(--panel-2);
 }
 
 .d-name {
@@ -266,12 +285,14 @@ h3 {
 }
 
 .more {
+  flex-shrink: 0;
   margin-top: 6px;
   font-size: 10px;
   color: var(--text-dim);
 }
 
 .capped {
+  flex-shrink: 0;
   margin-bottom: 10px;
   font-size: 10px;
   line-height: 1.6;
@@ -279,9 +300,55 @@ h3 {
 }
 
 .take {
+  flex-shrink: 0;
   width: 100%;
+  min-height: 46px;
   padding: 12px;
   font-size: 15px;
+}
+
+/* 矮屏（如 320×568 的老手机）：压缩留白，保证收益与按钮一屏看全 */
+@media (max-height: 640px) {
+  .sheet {
+    padding: 16px 14px 12px;
+  }
+
+  .top {
+    margin-bottom: 10px;
+  }
+
+  .sparkle svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  h3 {
+    font-size: 17px;
+  }
+
+  .gains {
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+
+  .gain {
+    gap: 2px;
+    padding: 7px 4px;
+  }
+
+  .g-icon {
+    width: 22px;
+    height: 22px;
+  }
+
+  .g-value {
+    font-size: 13px;
+  }
+
+  .drops {
+    padding: 8px;
+    margin-bottom: 8px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

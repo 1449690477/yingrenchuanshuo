@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref, watch } from 'vue';
-import { Anvil, Hammer, Sparkles } from '@lucide/vue';
+import { Anvil, ChevronDown, Hammer, Sparkles } from '@lucide/vue';
 import { abbr, signed } from '@/core/format';
 import { enhanceCost, enhanceRule, luckGainForRate, type EnhanceOutcome } from '@/core/enhance';
 import { ENHANCE_BATCH_MILESTONES } from '@/core/enhanceBatch';
@@ -27,6 +27,7 @@ import { requireItem } from '@/data/items';
 import EquipmentIcon from '@/components/EquipmentIcon.vue';
 import ItemIcon from '@/components/ItemIcon.vue';
 import SystemArtwork from '@/components/SystemArtwork.vue';
+import { prefersCompactLayout, useFold } from '@/ui/useFold';
 
 defineOptions({ inheritAttrs: false });
 
@@ -78,6 +79,21 @@ let awakenTimer = 0;
 let ritualTimer = 0;
 let finishRitual: (() => void) | null = null;
 let disposed = false;
+
+/*
+ * 强化台是养成页最高的一块，整块折叠交给 useFold 记忆。
+ * 矮屏默认收起：玩家进来先看到好感与角色，强化时一键展开。
+ * 折叠动画与 CollapsibleCard 同套 0fr ↔ 1fr 方案。
+ */
+const { open: bodyOpen, toggle: toggleBody } = useFold('growth.enhance', !prefersCompactLayout());
+
+/** 收起时的一行速览：当前台上是哪件装备、强化到几级 */
+const peekCopy = computed(() => {
+  if (!selected.value) return '尚未选择装备';
+  const { definition, instance } = selected.value;
+  const plus = instance.enhance > 0 ? ` +${instance.enhance}` : '';
+  return `${definition.name}${plus} 在强化台上`;
+});
 
 const candidates = computed<EnhanceCandidate[]>(() => {
   const result: EnhanceCandidate[] = [];
@@ -518,254 +534,282 @@ onUnmounted(() => {
       >
         {{ selected ? '更换装备' : '选择装备' }}
       </button>
+      <button
+        class="fold-button"
+        type="button"
+        :aria-expanded="bodyOpen"
+        :aria-label="bodyOpen ? '收起强化台' : '展开强化台'"
+        @click="toggleBody"
+      >
+        <ChevronDown
+          :size="15"
+          class="fold-chev"
+          :class="{ closed: !bodyOpen }"
+          aria-hidden="true"
+        />
+      </button>
     </header>
 
-    <div v-if="selected" :key="selected.instance.uid" class="selected-equipment">
-      <EquipmentIcon
-        :def="selected.definition"
-        :enhance="selected.instance.enhance"
-        :locked="selected.instance.locked"
-        size="lg"
-        decorative
-      />
-      <span class="selected-copy">
-        <strong :class="`q-${selected.definition.quality}`">
-          {{ selected.definition.name }}
-          <b v-if="selected.instance.enhance > 0">+{{ selected.instance.enhance }}</b>
-        </strong>
-        <span>
-          {{ SLOT_LABELS[selected.slot] }} ·
-          {{ selected.source === 'equipped' ? '已穿戴' : '背包中' }}
-        </span>
-        <small>
-          胚子属性 +{{ ((selected.instance.baseRollPermille - 1000) / 10).toFixed(1) }}%
-        </small>
-      </span>
-      <span v-if="preview" class="level-route" :class="`stage-${preview.stage}`">
-        <small>目标</small>
-        <b>+{{ preview.targetLevel }}</b>
-      </span>
-      <span v-else class="level-route stage-sakura">
-        <small>满级</small>
-        <b>+{{ ENHANCE_MAX }}</b>
-      </span>
-    </div>
+    <!-- 收起态速览：一行告诉玩家台上是哪件装备，点一下即展开 -->
+    <button v-if="!bodyOpen" type="button" class="enhance-peek" @click="toggleBody">
+      <span class="peek-text">{{ peekCopy }}</span>
+      <span class="peek-cta">展开 ›</span>
+    </button>
 
-    <div v-else class="empty-selection">
-      <span aria-hidden="true">✦</span>
-      <strong>{{ selectedUid ? '刚才的装备已经离开强化台' : '还没有可强化的装备' }}</strong>
-      <small>
-        {{ selectedUid ? '碎裂或移除后不会擅自替你选择下一件。' : '挂机获得装备后即可开始强化。' }}
-      </small>
-      <button v-if="candidates.length > 0" type="button" @click="pickerOpen = true">
-        重新选择
-      </button>
-    </div>
-
-    <div v-if="selected" class="stage-block">
-      <div
-        class="stage-track"
-        role="img"
-        :aria-label="`锻造外观进度 +${selected.instance.enhance} / ${ENHANCE_MAX}`"
-      >
-        <span class="track-rail" />
-        <span
-          class="track-fill"
-          :style="{ width: `${(selected.instance.enhance / ENHANCE_MAX) * 100}%` }"
-        />
-        <span
-          v-for="(node, index) in STAGE_NODES"
-          :key="node.stage"
-          class="stage-node"
-          :class="{
-            reached: selected.instance.enhance >= node.minLevel,
-            current: currentNodeIndex === index,
-          }"
-          :style="{ left: `${(node.minLevel / ENHANCE_MAX) * 100}%` }"
-        >
-          <i class="node-dot" :class="`dot-${node.stage}`" />
-          <small>{{ node.name }}</small>
-          <em class="num">+{{ node.minLevel }}</em>
-        </span>
-      </div>
-      <p v-if="nextNode && levelsToNextNode !== null" class="stage-hint">
-        再强化 <b class="num">{{ levelsToNextNode }}</b> 级，外观觉醒为「{{ nextNode.name }}」
-      </p>
-      <p v-else class="stage-hint maxed">外观已觉醒至最高阶「樱华」✦</p>
-    </div>
-
-    <section v-if="selected" class="batch-tools" aria-labelledby="batch-title">
-      <header>
-        <span>
-          <strong id="batch-title">一键强化</strong>
-          <small>选择目标档，资源不足会安全停止</small>
-        </span>
-        <span class="safe-badge">+{{ ENHANCE_BREAK_FROM }} 起自动保护</span>
-      </header>
-      <div class="batch-targets" role="group" aria-label="一键强化目标等级">
-        <button
-          v-for="target in ENHANCE_BATCH_MILESTONES"
-          :key="target"
-          type="button"
-          :class="{ active: batchTarget === target }"
-          :aria-pressed="batchTarget === target"
-          :disabled="batchMode !== null || ritual"
-          @click="batchTarget = target"
-        >
-          +{{ target }}
-        </button>
-      </div>
-      <div class="batch-actions">
-        <button
-          type="button"
-          class="batch-single"
-          :disabled="singleBatchDisabled"
-          @click="runBatch('single')"
-        >
-          当前装备一键强化
-        </button>
-        <button
-          type="button"
-          class="batch-all"
-          :disabled="allBatchDisabled"
-          @click="runBatch('balanced')"
-        >
-          全身均衡强化
-        </button>
-      </div>
-      <small class="batch-safe-copy">
-        一键操作绝不会碎装；保护符不足时停在安全等级，已完成的强化会保留。
-      </small>
-    </section>
-
-    <template v-if="selected && preview">
-      <div class="chance-row">
-        <span class="chance">
-          <small>基础成功率</small>
-          <strong>{{ Math.round(preview.rate * 100) }}%</strong>
-        </span>
-        <span class="failure" :class="{ dangerous: preview.failure === 'break' }">
-          {{ failureCopy }}
-        </span>
-      </div>
-
-      <div class="luck-block">
-        <span class="luck-label">
-          <b>{{ preview.guaranteed ? '本次幸运保底' : '目标等级幸运值' }}</b>
-          <span>{{ preview.luck }} / {{ LUCK_FULL }}</span>
-        </span>
-        <span
-          class="luck-track"
-          role="progressbar"
-          aria-label="当前目标等级幸运值"
-          :aria-valuenow="preview.luck"
-          :aria-valuemax="LUCK_FULL"
-        >
-          <i :style="{ width: `${preview.luck}%` }" />
-        </span>
-        <small v-if="!preview.guaranteed">本次若失败，幸运值 +{{ preview.luckGain }}</small>
-        <small v-else>仍显示基础成功率，但本次结果必定成功。</small>
-      </div>
-
-      <div class="costs">
-        <span class="gold-cost" :class="{ missing: (player.player?.gold ?? 0) < preview.gold }">
-          <small>金币</small>
-          <b>{{ abbr(player.player?.gold ?? 0) }} / {{ abbr(preview.gold) }}</b>
-        </span>
-        <span
-          v-for="row in materialRows"
-          :key="row.id"
-          class="material-cost"
-          :class="{ missing: row.have < row.need }"
-        >
-          <ItemIcon :item="requireItem(row.id)" size="sm" />
-          <span>
-            <small>{{ requireItem(row.id).name }}</small>
-            <b>{{ abbr(row.have) }} / {{ abbr(row.need) }}</b>
+    <div class="enhance-fold" :class="{ closed: !bodyOpen }">
+      <div class="enhance-fold-inner">
+        <div v-if="selected" :key="selected.instance.uid" class="selected-equipment">
+          <EquipmentIcon
+            :def="selected.definition"
+            :enhance="selected.instance.enhance"
+            :locked="selected.instance.locked"
+            size="lg"
+            decorative
+          />
+          <span class="selected-copy">
+            <strong :class="`q-${selected.definition.quality}`">
+              {{ selected.definition.name }}
+              <b v-if="selected.instance.enhance > 0">+{{ selected.instance.enhance }}</b>
+            </strong>
+            <span>
+              {{ SLOT_LABELS[selected.slot] }} ·
+              {{ selected.source === 'equipped' ? '已穿戴' : '背包中' }}
+            </span>
+            <small>
+              胚子属性 +{{ ((selected.instance.baseRollPermille - 1000) / 10).toFixed(1) }}%
+            </small>
           </span>
-        </span>
-      </div>
+          <span v-if="preview" class="level-route" :class="`stage-${preview.stage}`">
+            <small>目标</small>
+            <b>+{{ preview.targetLevel }}</b>
+          </span>
+          <span v-else class="level-route stage-sakura">
+            <small>满级</small>
+            <b>+{{ ENHANCE_MAX }}</b>
+          </span>
+        </div>
 
-      <label
-        v-if="preview.failure === 'break'"
-        class="protection-toggle"
-        :class="{ disabled: preview.guaranteed || protectionCount < 1 }"
-      >
-        <input
-          v-model="useProtection"
-          type="checkbox"
-          :disabled="preview.guaranteed || protectionCount < 1"
-        />
-        <span class="toggle-dot" aria-hidden="true" />
-        <span>
-          <b>启用保护符</b>
+        <div v-else class="empty-selection">
+          <span aria-hidden="true">✦</span>
+          <strong>{{ selectedUid ? '刚才的装备已经离开强化台' : '还没有可强化的装备' }}</strong>
           <small>
             {{
-              preview.guaranteed
-                ? '幸运保底无需消耗'
-                : `持有 ${protectionCount} · 仅在实际防住碎裂时消耗`
+              selectedUid ? '碎裂或移除后不会擅自替你选择下一件。' : '挂机获得装备后即可开始强化。'
             }}
           </small>
-        </span>
-      </label>
+          <button v-if="candidates.length > 0" type="button" @click="pickerOpen = true">
+            重新选择
+          </button>
+        </div>
 
-      <div v-if="dangerConfirm" class="danger-confirm" role="alert">
-        <strong>未启用保护，失败会永久失去这件装备。</strong>
-        <span>
-          <button type="button" @click="dangerConfirm = false">再想想</button>
-          <button type="button" class="danger-button" @click="attempt(true)">确认冒险强化</button>
-        </span>
+        <div v-if="selected" class="stage-block">
+          <div
+            class="stage-track"
+            role="img"
+            :aria-label="`锻造外观进度 +${selected.instance.enhance} / ${ENHANCE_MAX}`"
+          >
+            <span class="track-rail" />
+            <span
+              class="track-fill"
+              :style="{ width: `${(selected.instance.enhance / ENHANCE_MAX) * 100}%` }"
+            />
+            <span
+              v-for="(node, index) in STAGE_NODES"
+              :key="node.stage"
+              class="stage-node"
+              :class="{
+                reached: selected.instance.enhance >= node.minLevel,
+                current: currentNodeIndex === index,
+              }"
+              :style="{ left: `${(node.minLevel / ENHANCE_MAX) * 100}%` }"
+            >
+              <i class="node-dot" :class="`dot-${node.stage}`" />
+              <small>{{ node.name }}</small>
+              <em class="num">+{{ node.minLevel }}</em>
+            </span>
+          </div>
+          <p v-if="nextNode && levelsToNextNode !== null" class="stage-hint">
+            再强化 <b class="num">{{ levelsToNextNode }}</b> 级，外观觉醒为「{{ nextNode.name }}」
+          </p>
+          <p v-else class="stage-hint maxed">外观已觉醒至最高阶「樱华」✦</p>
+        </div>
+
+        <section v-if="selected" class="batch-tools" aria-labelledby="batch-title">
+          <header>
+            <span>
+              <strong id="batch-title">一键强化</strong>
+              <small>选择目标档，资源不足会安全停止</small>
+            </span>
+            <span class="safe-badge">+{{ ENHANCE_BREAK_FROM }} 起自动保护</span>
+          </header>
+          <div class="batch-targets" role="group" aria-label="一键强化目标等级">
+            <button
+              v-for="target in ENHANCE_BATCH_MILESTONES"
+              :key="target"
+              type="button"
+              :class="{ active: batchTarget === target }"
+              :aria-pressed="batchTarget === target"
+              :disabled="batchMode !== null || ritual"
+              @click="batchTarget = target"
+            >
+              +{{ target }}
+            </button>
+          </div>
+          <div class="batch-actions">
+            <button
+              type="button"
+              class="batch-single"
+              :disabled="singleBatchDisabled"
+              @click="runBatch('single')"
+            >
+              当前装备一键强化
+            </button>
+            <button
+              type="button"
+              class="batch-all"
+              :disabled="allBatchDisabled"
+              @click="runBatch('balanced')"
+            >
+              全身均衡强化
+            </button>
+          </div>
+          <small class="batch-safe-copy">
+            一键操作绝不会碎装；保护符不足时停在安全等级，已完成的强化会保留。
+          </small>
+        </section>
+
+        <template v-if="selected && preview">
+          <div class="chance-row">
+            <span class="chance">
+              <small>基础成功率</small>
+              <strong>{{ Math.round(preview.rate * 100) }}%</strong>
+            </span>
+            <span class="failure" :class="{ dangerous: preview.failure === 'break' }">
+              {{ failureCopy }}
+            </span>
+          </div>
+
+          <div class="luck-block">
+            <span class="luck-label">
+              <b>{{ preview.guaranteed ? '本次幸运保底' : '目标等级幸运值' }}</b>
+              <span>{{ preview.luck }} / {{ LUCK_FULL }}</span>
+            </span>
+            <span
+              class="luck-track"
+              role="progressbar"
+              aria-label="当前目标等级幸运值"
+              :aria-valuenow="preview.luck"
+              :aria-valuemax="LUCK_FULL"
+            >
+              <i :style="{ width: `${preview.luck}%` }" />
+            </span>
+            <small v-if="!preview.guaranteed">本次若失败，幸运值 +{{ preview.luckGain }}</small>
+            <small v-else>仍显示基础成功率，但本次结果必定成功。</small>
+          </div>
+
+          <div class="costs">
+            <span class="gold-cost" :class="{ missing: (player.player?.gold ?? 0) < preview.gold }">
+              <small>金币</small>
+              <b>{{ abbr(player.player?.gold ?? 0) }} / {{ abbr(preview.gold) }}</b>
+            </span>
+            <span
+              v-for="row in materialRows"
+              :key="row.id"
+              class="material-cost"
+              :class="{ missing: row.have < row.need }"
+            >
+              <ItemIcon :item="requireItem(row.id)" size="sm" />
+              <span>
+                <small>{{ requireItem(row.id).name }}</small>
+                <b>{{ abbr(row.have) }} / {{ abbr(row.need) }}</b>
+              </span>
+            </span>
+          </div>
+
+          <label
+            v-if="preview.failure === 'break'"
+            class="protection-toggle"
+            :class="{ disabled: preview.guaranteed || protectionCount < 1 }"
+          >
+            <input
+              v-model="useProtection"
+              type="checkbox"
+              :disabled="preview.guaranteed || protectionCount < 1"
+            />
+            <span class="toggle-dot" aria-hidden="true" />
+            <span>
+              <b>启用保护符</b>
+              <small>
+                {{
+                  preview.guaranteed
+                    ? '幸运保底无需消耗'
+                    : `持有 ${protectionCount} · 仅在实际防住碎裂时消耗`
+                }}
+              </small>
+            </span>
+          </label>
+
+          <div v-if="dangerConfirm" class="danger-confirm" role="alert">
+            <strong>未启用保护，失败会永久失去这件装备。</strong>
+            <span>
+              <button type="button" @click="dangerConfirm = false">再想想</button>
+              <button type="button" class="danger-button" @click="attempt(true)">
+                确认冒险强化
+              </button>
+            </span>
+          </div>
+
+          <button
+            v-else
+            class="enhance-button"
+            type="button"
+            :disabled="!quote?.ok || ritual || batchMode !== null"
+            @click="attempt(false)"
+          >
+            <Sparkles :size="16" aria-hidden="true" />
+            {{ ritual && batchMode === null ? '锻造中…' : actionLabel }}
+          </button>
+
+          <p v-if="blockedCopy" class="blocked-copy" role="status">{{ blockedCopy }}</p>
+        </template>
+
+        <div v-else-if="selected" class="maxed-copy">
+          <strong>樱华锻造完成</strong>
+          <span>这件装备已经达到当前版本上限，并启用最高阶图标与角色粒子外观。</span>
+        </div>
+
+        <Transition name="result-pop" mode="out-in">
+          <div
+            v-if="feedback"
+            :key="resultSequence"
+            class="result-feedback"
+            :class="`tone-${feedback.tone}`"
+            role="status"
+            aria-live="polite"
+          >
+            <span v-if="feedback.tone === 'success'" class="burst" aria-hidden="true">
+              <b class="burst-ring" />
+              <i class="b1" /><i class="b2" /><i class="b3" /><i class="b4" /><i class="b5" /><i
+                class="b6"
+              />
+            </span>
+            <span
+              v-else
+              class="burst ash"
+              :class="{ danger: feedback.tone === 'danger' }"
+              aria-hidden="true"
+            >
+              <i class="b1" /><i class="b2" /><i class="b3" />
+            </span>
+            <span class="result-spark" aria-hidden="true">✦</span>
+            <span>
+              <strong>{{ feedback.title }}</strong>
+              <small>{{ feedback.detail }}</small>
+            </span>
+          </div>
+        </Transition>
       </div>
-
-      <button
-        v-else
-        class="enhance-button"
-        type="button"
-        :disabled="!quote?.ok || ritual || batchMode !== null"
-        @click="attempt(false)"
-      >
-        <Sparkles :size="16" aria-hidden="true" />
-        {{ ritual && batchMode === null ? '锻造中…' : actionLabel }}
-      </button>
-
-      <p v-if="blockedCopy" class="blocked-copy" role="status">{{ blockedCopy }}</p>
-    </template>
-
-    <div v-else-if="selected" class="maxed-copy">
-      <strong>樱华锻造完成</strong>
-      <span>这件装备已经达到当前版本上限，并启用最高阶图标与角色粒子外观。</span>
     </div>
-
-    <Transition name="result-pop" mode="out-in">
-      <div
-        v-if="feedback"
-        :key="resultSequence"
-        class="result-feedback"
-        :class="`tone-${feedback.tone}`"
-        role="status"
-        aria-live="polite"
-      >
-        <span v-if="feedback.tone === 'success'" class="burst" aria-hidden="true">
-          <b class="burst-ring" />
-          <i class="b1" /><i class="b2" /><i class="b3" /><i class="b4" /><i class="b5" /><i
-            class="b6"
-          />
-        </span>
-        <span
-          v-else
-          class="burst ash"
-          :class="{ danger: feedback.tone === 'danger' }"
-          aria-hidden="true"
-        >
-          <i class="b1" /><i class="b2" /><i class="b3" />
-        </span>
-        <span class="result-spark" aria-hidden="true">✦</span>
-        <span>
-          <strong>{{ feedback.title }}</strong>
-          <small>{{ feedback.detail }}</small>
-        </span>
-      </div>
-    </Transition>
 
     <Transition name="ritual-fade">
       <div v-if="ritual" class="forge-ritual" aria-hidden="true">
@@ -897,6 +941,92 @@ onUnmounted(() => {
 
 .panel-head {
   justify-content: space-between;
+}
+
+/* 折叠开关：贴在「更换装备」右侧的小圆钮，不占标题空间 */
+.fold-button {
+  display: grid;
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  margin-left: 6px;
+  color: var(--text-dim);
+  background: var(--panel-3);
+  border-radius: 50%;
+  transition: background-color var(--t-fast) var(--ease-soft);
+}
+
+.fold-button:active {
+  background: var(--line);
+}
+
+.fold-chev {
+  transition: transform var(--t-mid) var(--ease-soft);
+}
+
+.fold-chev.closed {
+  transform: rotate(-90deg);
+}
+
+/* 收起态速览行：整个条带都是热区，一键展开 */
+.enhance-peek {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 12px;
+  text-align: left;
+  background: linear-gradient(100deg, #fff8fb, #f5f8ff);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+}
+
+.enhance-peek .peek-text {
+  overflow: hidden;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-mid);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.enhance-peek .peek-cta {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--pink-deep);
+}
+
+/* 0fr ↔ 1fr 折叠动画，与 CollapsibleCard 同套方案 */
+.enhance-fold {
+  display: grid;
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transition:
+    grid-template-rows var(--t-mid) var(--ease-soft),
+    opacity var(--t-fast) ease;
+}
+
+.enhance-fold.closed {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+
+.enhance-fold-inner {
+  display: grid;
+  gap: 10px;
+  overflow: hidden;
+  min-height: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .enhance-fold,
+  .fold-chev {
+    transition: none;
+  }
 }
 
 .panel-head > span,
