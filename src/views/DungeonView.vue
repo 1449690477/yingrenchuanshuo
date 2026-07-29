@@ -3,6 +3,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import {
   CalendarDays,
   Check,
+  ChevronDown,
   Crown,
   Gem,
   LockKeyhole,
@@ -26,10 +27,7 @@ import {
   equipmentDungeonDropsForClass,
   equipmentDungeonStagesForSlot,
 } from '@/data/equipmentDungeons';
-import {
-  EQUIPMENT_DUNGEON_TIERS,
-  type EquipmentDungeonTierId,
-} from '@/data/equipmentDungeonGear';
+import { EQUIPMENT_DUNGEON_TIERS, type EquipmentDungeonTierId } from '@/data/equipmentDungeonGear';
 import { EQUIPMENT_DUNGEON_RULES } from '@/data/equipmentDungeonRules';
 import { requireEquipmentDungeonSet } from '@/data/equipmentDungeonSets';
 import { emptyEquipped } from '@/save/schema';
@@ -37,6 +35,8 @@ import { useGameStore, type EquipmentDungeonRunResult } from '@/stores/game';
 import EquipmentDungeonBattle from '@/components/EquipmentDungeonBattle.vue';
 import EquipmentIcon from '@/components/EquipmentIcon.vue';
 import SystemArtwork from '@/components/SystemArtwork.vue';
+import CollapsibleCard from '@/components/CollapsibleCard.vue';
+import { prefersCompactLayout, useFold } from '@/ui/useFold';
 
 type PlayedResult = Extract<EquipmentDungeonRunResult, { ok: true }>;
 
@@ -49,6 +49,17 @@ const notice = ref('');
 const pendingNotice = ref('');
 const systemReduceMotion = ref(false);
 let motionPreference: MediaQueryList | null = null;
+
+/**
+ * 第三轮折叠化：矮屏默认把低频配置区收起来，让关卡卡尽量进首屏。
+ * 挑战配置（STEP1+2）与未来计划用 CollapsibleCard；
+ * 套装/掉落块有自己的渐变视觉，用 useFold 只折叠内容、不套卡壳。
+ */
+const compactLayout = prefersCompactLayout();
+const configDefaultOpen = !compactLayout;
+const dropsDefaultOpen = !compactLayout;
+const { open: setOpen, toggle: toggleSetFold } = useFold('dungeon.set', !compactLayout);
+const { open: dropOpen, toggle: toggleDropFold } = useFold('dungeon.drops', dropsDefaultOpen);
 
 const planned = [
   {
@@ -72,12 +83,12 @@ const planned = [
   },
 ] as const;
 
-const portal = computed(
-  () => EQUIPMENT_DUNGEON_PORTALS.find((candidate) => candidate.slot === selectedSlot.value)!,
+const portal = computed(() =>
+  EQUIPMENT_DUNGEON_PORTALS.find((candidate) => candidate.slot === selectedSlot.value)!,
 );
 const slotStages = computed(() => equipmentDungeonStagesForSlot(selectedSlot.value));
-const stage = computed(
-  () => slotStages.value.find((candidate) => candidate.tierId === selectedTierId.value)!,
+const stage = computed(() =>
+  slotStages.value.find((candidate) => candidate.tierId === selectedTierId.value)!,
 );
 const playerLevel = computed(() => game.player?.level ?? 1);
 const classId = computed(() => game.player?.classId ?? 'swordsman');
@@ -108,8 +119,8 @@ const cpRatio = computed(() =>
   stage.value.recommendCP > 0 ? game.cp / stage.value.recommendCP : 1,
 );
 const cpPercent = computed(() => Math.min(100, Math.max(5, cpRatio.value * 100)));
-const currentTier = computed(
-  () => EQUIPMENT_DUNGEON_TIERS.find((tier) => tier.id === selectedTierId.value)!,
+const currentTier = computed(() =>
+  EQUIPMENT_DUNGEON_TIERS.find((tier) => tier.id === selectedTierId.value)!,
 );
 const currentSet = computed(() => requireEquipmentDungeonSet(currentTier.value.setId));
 const currentSetProgress = computed(
@@ -234,92 +245,110 @@ onUnmounted(() => {
       </div>
     </section>
 
-    <section class="section-block">
-      <header class="section-heading">
-        <span>
-          <small>STEP 1</small>
-          <strong>选择定向部位</strong>
+    <!-- 挑战配置折叠卡：收起时一行读完当前选择，展开才两步挑选 -->
+    <CollapsibleCard
+      class="config-fold"
+      title="挑战配置"
+      subtitle="STEP 1 部位 · STEP 2 品质"
+      persist-key="dungeon.config"
+      :default-open="configDefaultOpen"
+    >
+      <template #peek>
+        <span class="config-peek">
+          {{ SLOT_LABELS[selectedSlot] }} · {{ QUALITY_LABELS[stage.quality] }} Lv{{
+            stage.unlockLevel
+          }}
         </span>
-        <em>8 座独立主题门户</em>
-      </header>
-      <div class="portal-grid">
-        <button
-          v-for="candidate in EQUIPMENT_DUNGEON_PORTALS"
-          :key="candidate.id"
-          class="portal-button"
-          :class="{ active: candidate.slot === selectedSlot }"
-          :style="{ '--portal-accent': candidate.accent }"
-          type="button"
-          :aria-pressed="candidate.slot === selectedSlot"
-          @click="selectSlot(candidate.slot)"
-        >
-          <span class="portal-symbol">{{ SLOT_LABELS[candidate.slot].slice(0, 1) }}</span>
-          <span>
-            <strong>{{ SLOT_LABELS[candidate.slot] }}</strong>
-            <small>{{ candidate.shortName }}</small>
-          </span>
-          <Check
-            v-if="dungeonState?.records[`equipment_${candidate.slot}_crimson`]"
-            :size="13"
-            class="portal-check"
-            aria-label="红色档已首通"
-          />
-        </button>
-      </div>
-    </section>
+      </template>
+      <div class="config-body">
+        <section class="section-block">
+          <header class="section-heading">
+            <span>
+              <small>STEP 1</small>
+              <strong>选择定向部位</strong>
+            </span>
+            <em>8 座独立主题门户</em>
+          </header>
+          <div class="portal-grid">
+            <button
+              v-for="candidate in EQUIPMENT_DUNGEON_PORTALS"
+              :key="candidate.id"
+              class="portal-button"
+              :class="{ active: candidate.slot === selectedSlot }"
+              :style="{ '--portal-accent': candidate.accent }"
+              type="button"
+              :aria-pressed="candidate.slot === selectedSlot"
+              @click="selectSlot(candidate.slot)"
+            >
+              <span class="portal-symbol">{{ SLOT_LABELS[candidate.slot].slice(0, 1) }}</span>
+              <span>
+                <strong>{{ SLOT_LABELS[candidate.slot] }}</strong>
+                <small>{{ candidate.shortName }}</small>
+              </span>
+              <Check
+                v-if="dungeonState?.records[`equipment_${candidate.slot}_crimson`]"
+                :size="13"
+                class="portal-check"
+                aria-label="红色档已首通"
+              />
+            </button>
+          </div>
+        </section>
 
-    <section class="section-block">
-      <header class="section-heading">
-        <span>
-          <small>STEP 2</small>
-          <strong>选择品质难度</strong>
-        </span>
-        <em>同部位逐档首通解锁</em>
-      </header>
-      <div class="tier-tabs" role="group" aria-label="装备副本品质难度">
-        <button
-          v-for="candidate in slotStages"
-          :key="candidate.id"
-          class="tier-tab"
-          :class="[
-            `quality-${candidate.quality}`,
-            {
-              active: candidate.tierId === selectedTierId,
-              cleared: dungeonState?.records[candidate.id],
-              locked:
-                !dungeonState ||
-                !isEquipmentDungeonStageUnlocked(candidate, dungeonState, playerLevel),
-            },
-          ]"
-          type="button"
-          :aria-pressed="candidate.tierId === selectedTierId"
-          :aria-label="`${QUALITY_LABELS[candidate.quality]} Lv${candidate.unlockLevel}${
-            !dungeonState ||
-            !isEquipmentDungeonStageUnlocked(candidate, dungeonState, playerLevel)
-              ? '，未解锁'
-              : dungeonState.records[candidate.id]
-                ? '，已首通'
-                : ''
-          }`"
-          @click="selectTier(candidate.tierId)"
-        >
-          <span class="tier-gem">
-            <LockKeyhole
-              v-if="
+        <section class="section-block">
+          <header class="section-heading">
+            <span>
+              <small>STEP 2</small>
+              <strong>选择品质难度</strong>
+            </span>
+            <em>同部位逐档首通解锁</em>
+          </header>
+          <div class="tier-tabs" role="group" aria-label="装备副本品质难度">
+            <button
+              v-for="candidate in slotStages"
+              :key="candidate.id"
+              class="tier-tab"
+              :class="[
+                `quality-${candidate.quality}`,
+                {
+                  active: candidate.tierId === selectedTierId,
+                  cleared: dungeonState?.records[candidate.id],
+                  locked:
+                    !dungeonState ||
+                    !isEquipmentDungeonStageUnlocked(candidate, dungeonState, playerLevel),
+                },
+              ]"
+              type="button"
+              :aria-pressed="candidate.tierId === selectedTierId"
+              :aria-label="`${QUALITY_LABELS[candidate.quality]} Lv${candidate.unlockLevel}${
                 !dungeonState ||
                 !isEquipmentDungeonStageUnlocked(candidate, dungeonState, playerLevel)
-              "
-              :size="12"
-              aria-hidden="true"
-            />
-            <Gem v-else :size="13" aria-hidden="true" />
-          </span>
-          <strong>{{ QUALITY_LABELS[candidate.quality] }}</strong>
-          <small>Lv{{ candidate.unlockLevel }}</small>
-          <Check v-if="dungeonState?.records[candidate.id]" :size="11" aria-label="已首通" />
-        </button>
+                  ? '，未解锁'
+                  : dungeonState.records[candidate.id]
+                    ? '，已首通'
+                    : ''
+              }`"
+              @click="selectTier(candidate.tierId)"
+            >
+              <span class="tier-gem">
+                <LockKeyhole
+                  v-if="
+                    !dungeonState ||
+                    !isEquipmentDungeonStageUnlocked(candidate, dungeonState, playerLevel)
+                  "
+                  :size="12"
+                  aria-hidden="true"
+                />
+                <Gem v-else :size="13" aria-hidden="true" />
+              </span>
+              <strong>{{ QUALITY_LABELS[candidate.quality] }}</strong>
+              <small>Lv{{ candidate.unlockLevel }}</small>
+              <Check v-if="dungeonState?.records[candidate.id]" :size="11" aria-label="已首通" />
+            </button>
+          </div>
+        </section>
       </div>
-    </section>
+    </CollapsibleCard>
 
     <section
       class="stage-card"
@@ -402,71 +431,104 @@ onUnmounted(() => {
         <p v-if="notice" class="notice" role="status">{{ notice }}</p>
 
         <div class="set-block">
-          <header>
+          <button
+            type="button"
+            class="block-toggle"
+            :aria-expanded="setOpen"
+            @click="toggleSetFold"
+          >
             <span>
               <small>套装共鸣</small>
               <strong>{{ currentSet.name }}</strong>
             </span>
             <em>已穿戴 {{ currentSetProgress }} / 8</em>
-          </header>
-          <div class="set-bonuses">
-            <span
-              v-for="bonus in currentSet.bonuses"
-              :key="bonus.pieces"
-              :class="{ active: currentSetProgress >= bonus.pieces }"
-            >
-              <b>{{ bonus.pieces }} 件 · {{ bonus.label }}</b>
-              <small>{{ bonus.description }}</small>
-            </span>
+            <ChevronDown
+              :size="13"
+              class="toggle-chev"
+              :class="{ closed: !setOpen }"
+              aria-hidden="true"
+            />
+          </button>
+          <div class="fold-grid" :class="{ closed: !setOpen }">
+            <div class="fold-inner">
+              <div class="set-bonuses">
+                <span
+                  v-for="bonus in currentSet.bonuses"
+                  :key="bonus.pieces"
+                  :class="{ active: currentSetProgress >= bonus.pieces }"
+                >
+                  <b>{{ bonus.pieces }} 件 · {{ bonus.label }}</b>
+                  <small>{{ bonus.description }}</small>
+                </span>
+              </div>
+            </div>
           </div>
         </div>
 
         <div class="drop-block">
-          <header>
+          <button
+            type="button"
+            class="block-toggle"
+            :aria-expanded="dropOpen"
+            @click="toggleDropFold"
+          >
             <span>
               <small>当前 {{ CLASS_INFO[classId].name }} 可掉落</small>
               <strong>{{ drops.length }} 件定向候选</strong>
             </span>
             <em>{{ currentTier.shortName }}</em>
-          </header>
-          <div class="drop-list">
-            <article v-for="definition in drops" :key="definition.id">
-              <EquipmentIcon :def="definition" size="lg" decorative />
-              <span>
-                <strong>{{ definition.name }}</strong>
-                <small>{{ definition.uniqueEffect }}</small>
-              </span>
-            </article>
+            <ChevronDown
+              :size="13"
+              class="toggle-chev"
+              :class="{ closed: !dropOpen }"
+              aria-hidden="true"
+            />
+          </button>
+          <div class="fold-grid" :class="{ closed: !dropOpen }">
+            <div class="fold-inner">
+              <div class="drop-list">
+                <article v-for="definition in drops" :key="definition.id">
+                  <EquipmentIcon :def="definition" size="lg" decorative />
+                  <span>
+                    <strong>{{ definition.name }}</strong>
+                    <small>{{ definition.uniqueEffect }}</small>
+                  </span>
+                </article>
+              </div>
+            </div>
           </div>
         </div>
-
       </div>
     </section>
 
-    <section class="future-block">
-      <header class="section-heading">
-        <span>
-          <small>NEXT</small>
-          <strong>其他副本计划</strong>
-        </span>
-        <em>装备副本不再是占位</em>
-      </header>
-      <div
-        v-for="(item, index) in planned"
-        :key="item.name"
-        class="future-row card"
-        :style="{ '--row-delay': `${40 + index * 45}ms` }"
-      >
-        <span class="future-icon">
-          <component :is="item.icon" :size="17" :stroke-width="2" aria-hidden="true" />
-        </span>
-        <span class="future-copy">
-          <strong>{{ item.name }}</strong>
-          <small>{{ item.desc }}</small>
-        </span>
-        <em>{{ item.when }}</em>
+    <CollapsibleCard
+      class="future-fold"
+      title="其他副本计划"
+      subtitle="NEXT"
+      persist-key="dungeon.future"
+      :default-open="false"
+    >
+      <template #peek>
+        <span class="config-peek">日常材料 · 无尽塔 · 世界 BOSS…</span>
+      </template>
+      <div class="future-body">
+        <div
+          v-for="(item, index) in planned"
+          :key="item.name"
+          class="future-row card"
+          :style="{ '--row-delay': `${40 + index * 45}ms` }"
+        >
+          <span class="future-icon">
+            <component :is="item.icon" :size="17" :stroke-width="2" aria-hidden="true" />
+          </span>
+          <span class="future-copy">
+            <strong>{{ item.name }}</strong>
+            <small>{{ item.desc }}</small>
+          </span>
+          <em>{{ item.when }}</em>
+        </div>
       </div>
-    </section>
+    </CollapsibleCard>
 
     <EquipmentDungeonBattle
       v-if="battleResult && game.save"
@@ -645,10 +707,26 @@ onUnmounted(() => {
   color: var(--text-mid);
 }
 
-.section-block,
-.future-block {
+.section-block {
   display: grid;
   gap: 7px;
+}
+
+/* 挑战配置折叠卡的内部留白：两个 STEP 块保持原来的呼吸感 */
+.config-body,
+.future-body {
+  display: grid;
+  gap: 10px;
+  padding: 2px 12px 13px;
+}
+
+.config-peek {
+  overflow: hidden;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--blue-deep);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .section-heading {
@@ -826,7 +904,11 @@ onUnmounted(() => {
   height: 22px;
   place-items: center;
   color: #fff;
-  background: linear-gradient(145deg, color-mix(in srgb, var(--quality) 65%, white), var(--quality));
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--quality) 65%, white),
+    var(--quality)
+  );
   border-radius: 8px;
 }
 
@@ -858,7 +940,11 @@ onUnmounted(() => {
   z-index: -1;
   inset: 0;
   content: '';
-  background: radial-gradient(circle at 80% 50%, color-mix(in srgb, var(--tier-color) 35%, transparent), transparent 31%);
+  background: radial-gradient(
+    circle at 80% 50%,
+    color-mix(in srgb, var(--tier-color) 35%, transparent),
+    transparent 31%
+  );
 }
 
 .stage-map > header {
@@ -934,7 +1020,11 @@ onUnmounted(() => {
   bottom: 7px;
   width: 43%;
   height: 28px;
-  background: radial-gradient(ellipse, color-mix(in srgb, var(--tier-color) 72%, white), transparent 67%);
+  background: radial-gradient(
+    ellipse,
+    color-mix(in srgb, var(--tier-color) 72%, white),
+    transparent 67%
+  );
   border: 1px solid color-mix(in srgb, var(--tier-color) 65%, white);
   border-radius: 50%;
   opacity: 0.72;
@@ -1029,35 +1119,76 @@ onUnmounted(() => {
   gap: 7px;
   padding: 9px;
   background:
-    radial-gradient(circle at 92% 0%, color-mix(in srgb, var(--tier-color) 18%, transparent), transparent 45%),
+    radial-gradient(
+      circle at 92% 0%,
+      color-mix(in srgb, var(--tier-color) 18%, transparent),
+      transparent 45%
+    ),
     linear-gradient(145deg, rgb(255 255 255 / 92%), rgb(250 247 255 / 88%));
   border: 1px solid color-mix(in srgb, var(--tier-color) 22%, #e6e5f0);
   border-radius: 14px;
 }
 
-.set-block > header {
+.block-toggle {
   display: flex;
+  width: 100%;
   align-items: end;
   justify-content: space-between;
   gap: 8px;
+  text-align: left;
 }
 
-.set-block > header > span {
+.block-toggle > span {
   display: grid;
   gap: 1px;
 }
 
-.set-block header small {
+.block-toggle small {
   font-size: 8px;
   color: var(--text-dim);
 }
 
-.set-block header strong {
+.set-block .block-toggle strong {
   font-size: 11px;
   color: color-mix(in srgb, var(--tier-color) 74%, #574760);
 }
 
-.set-block header em {
+.drop-block .block-toggle strong {
+  font-size: 10px;
+}
+
+.toggle-chev {
+  flex-shrink: 0;
+  align-self: center;
+  color: var(--text-dim);
+  transition: transform var(--t-mid) var(--ease-soft);
+}
+
+.toggle-chev.closed {
+  transform: rotate(-90deg);
+}
+
+/* 0fr ↔ 1fr 折叠动画：块内容多高都平滑开合 */
+.fold-grid {
+  display: grid;
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transition:
+    grid-template-rows var(--t-mid) var(--ease-soft),
+    opacity var(--t-fast) ease;
+}
+
+.fold-grid.closed {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+
+.fold-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
+.set-block .block-toggle em {
   padding: 3px 7px;
   font-size: 8px;
   font-style: normal;
@@ -1114,28 +1245,15 @@ onUnmounted(() => {
   border-radius: 15px;
 }
 
-.drop-block > header {
-  display: flex;
+.drop-block .block-toggle {
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
 }
 
-.drop-block > header > span {
-  display: grid;
-  gap: 1px;
-}
-
-.drop-block header small {
+.drop-block .block-toggle small {
   font-size: 7px;
-  color: var(--text-dim);
 }
 
-.drop-block header strong {
-  font-size: 10px;
-}
-
-.drop-block header em {
+.drop-block .block-toggle em {
   padding: 3px 6px;
   font-size: 7px;
   font-style: normal;
@@ -1240,10 +1358,6 @@ onUnmounted(() => {
   border-radius: 9px;
 }
 
-.future-block {
-  margin-top: 2px;
-}
-
 .future-row {
   display: flex;
   min-height: 52px;
@@ -1326,6 +1440,23 @@ onUnmounted(() => {
   }
 }
 
+/* ── 小屏手机适配：压缩 banner 与次数卡的纵向占用 ── */
+@media (max-height: 740px) {
+  .banner {
+    min-height: 104px;
+    padding: 12px 118px 12px 13px;
+  }
+
+  .banner-art {
+    width: 116px;
+    height: 116px;
+  }
+
+  .daily-card {
+    padding: 8px 12px;
+  }
+}
+
 @media (width <= 340px) {
   .banner {
     padding-right: 108px;
@@ -1359,7 +1490,7 @@ onUnmounted(() => {
 }
 
 .dungeon.reduced-motion
-  :is(.portal-button, .attempts i, .power-track i, .challenge-button) {
+  :is(.portal-button, .attempts i, .power-track i, .challenge-button, .fold-grid, .toggle-chev) {
   transition: none;
 }
 
@@ -1374,7 +1505,9 @@ onUnmounted(() => {
   .portal-button,
   .attempts i,
   .power-track i,
-  .challenge-button {
+  .challenge-button,
+  .fold-grid,
+  .toggle-chev {
     transition: none;
   }
 }
