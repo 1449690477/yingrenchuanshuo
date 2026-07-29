@@ -29,7 +29,7 @@ import { FIRST_STAGE_ID, ORDERED_STAGE_IDS, STAGES } from '../stages';
 import { SYSTEM_VISUALS } from '../systemVisuals';
 import { BOUTIQUE_THEME_LIST } from '../boutique';
 import { SHOP_OFFERS } from '../shop';
-import { ENHANCE_MATERIAL_IDS, QUALITY_AFFIX_COUNT } from '../constants';
+import { ENHANCE_MATERIAL_IDS, QUALITY_AFFIX_COUNT, SLOT_ORDER } from '../constants';
 import {
   ENHANCE_PROGRESSION,
   ENHANCE_PROGRESSION_MATERIAL_IDS,
@@ -114,9 +114,37 @@ describe('区域 1–4 内容完整性', () => {
     expect(ALL_CHAPTERS).toHaveLength(20);
     expect(Object.keys(STAGES)).toHaveLength(120);
     expect(Object.keys(MONSTERS)).toHaveLength(96);
-    // 区域/珍品商店 83 件 + 定向副本 80 件 + 心虹 40 件 + 区域 3/4 各 16 件。
-    expect(Object.keys(EQUIPMENT)).toHaveLength(235);
+    // 区域装备 96 件 + 珍品商店 35 件 + 定向副本 80 件 + 心虹 40 件。
+    expect(Object.keys(EQUIPMENT)).toHaveLength(251);
     expect(Object.keys(LOOT_TABLES)).toHaveLength(60);
+  });
+
+  it('区域 3/4 各有八部位 × 精良/稀有/史诗 24 件装备', () => {
+    const qualities = ['fine', 'rare', 'epic'] as const;
+    const fineLevelByRegion = { r3: 26, r4: 36 } as const;
+
+    for (const regionId of ['r3', 'r4'] as const) {
+      const regionalDefinitions = Object.values(EQUIPMENT).filter((definition) =>
+        definition.id.startsWith(`eq_${regionId}_`),
+      );
+      expect(regionalDefinitions, regionId).toHaveLength(24);
+
+      for (const slot of SLOT_ORDER) {
+        const variants = qualities.map((quality) => {
+          const definition = EQUIPMENT[`eq_${regionId}_${slot}_${quality}`];
+          expect(definition, `${regionId}/${slot}/${quality}`).toBeDefined();
+          expect(definition?.slot).toBe(slot);
+          expect(definition?.quality).toBe(quality);
+          return definition!;
+        });
+
+        expect(variants[0].level, `${regionId}/${slot}/fine`).toBe(
+          fineLevelByRegion[regionId],
+        );
+        expect(new Set(variants.map((definition) => definition.icon)).size).toBe(1);
+        expect(new Set(variants.map((definition) => definition.appearanceId)).size).toBe(1);
+      }
+    }
   });
 
   it('所有 id 唯一且关卡顺序从第一关开始', () => {

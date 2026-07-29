@@ -4,7 +4,7 @@ import { ArrowRight, Check, Coins, LockKeyhole, ShieldCheck, Sparkles, X } from 
 import { createFocusTrap, type FocusTrap } from 'focus-trap';
 import { equipmentAdvancementCost } from '@/core/equipmentAdvancement';
 import { abbr } from '@/core/format';
-import type { EquipmentInstance } from '@/core/types';
+import type { Element, EquipmentInstance } from '@/core/types';
 import { QUALITY_LABELS, SLOT_LABELS } from '@/data/constants';
 import { requireEquipment } from '@/data/equipment';
 import { requireItem, type ItemDef } from '@/data/items';
@@ -48,6 +48,36 @@ const cost = openingOption
   ? equipmentAdvancementCost(openingOption.target, openingOption.requirement)
   : null;
 const teleportDisabled = typeof document === 'undefined';
+
+const BASE_ELEMENT_LABELS: Readonly<Record<Element, string>> = {
+  fire: '炎属性',
+  ice: '冰属性',
+  thunder: '雷属性',
+  none: '无属性',
+};
+
+/**
+ * 元素权威数据合入后才展示；旧配置没有显式 element 时保持空白，
+ * 不能用地区名或词条反推基础攻击属性。
+ */
+const baseElementChange = (() => {
+  if (sourceDefinition.slot !== 'weapon' || targetDefinition?.slot !== 'weapon') {
+    return null;
+  }
+  const sourceElement = sourceDefinition.element;
+  const targetElement = targetDefinition.element;
+  if (
+    sourceElement === undefined ||
+    targetElement === undefined ||
+    sourceElement === targetElement
+  ) {
+    return null;
+  }
+  return {
+    sourceLabel: BASE_ELEMENT_LABELS[sourceElement],
+    targetLabel: BASE_ELEMENT_LABELS[targetElement],
+  };
+})();
 
 interface MaterialCostPreview {
   item: ItemDef;
@@ -294,6 +324,22 @@ onBeforeUnmount(() => {
             <span>不会自动改变品质</span>
           </article>
         </div>
+
+        <aside
+          v-if="baseElementChange"
+          class="element-change"
+          aria-label="基础攻击属性变化"
+        >
+          <header>
+            <strong>基础攻击属性变化</strong>
+            <span>
+              <b>{{ baseElementChange.sourceLabel }}</b>
+              <ArrowRight :size="13" aria-hidden="true" />
+              <b>{{ baseElementChange.targetLabel }}</b>
+            </span>
+          </header>
+          <p>升阶后采用目标武器的基础攻击属性；强化、洗练与现有词条仍原样保留。</p>
+        </aside>
 
         <section class="preserve-card" aria-label="升阶保留内容">
           <header>
@@ -626,6 +672,56 @@ onBeforeUnmount(() => {
   color: var(--text-dim) !important;
   background: rgb(235 238 246 / 86%);
   border-radius: 14px;
+}
+
+.element-change {
+  position: relative;
+  z-index: 1;
+  margin-top: 8px;
+  padding: 8px 10px;
+  color: #855337;
+  background:
+    radial-gradient(circle at 12% 0%, rgb(255 197 144 / 28%), transparent 44%),
+    linear-gradient(145deg, rgb(255 248 237 / 88%), rgb(248 244 255 / 82%));
+  border: 1px solid rgb(227 188 151 / 62%);
+  border-radius: 14px;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 78%);
+}
+
+.element-change > header,
+.element-change > header > span {
+  display: flex;
+  align-items: center;
+}
+
+.element-change > header {
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.element-change > header > strong {
+  font-size: 10px;
+}
+
+.element-change > header > span {
+  flex: none;
+  gap: 4px;
+  padding: 3px 7px;
+  font-size: 8px;
+  color: #9d5e3f;
+  background: rgb(255 255 255 / 66%);
+  border-radius: 999px;
+}
+
+.element-change b {
+  font-weight: 800;
+}
+
+.element-change p {
+  margin: 5px 0 0;
+  font-size: 8px;
+  line-height: 1.55;
+  color: var(--text-dim);
 }
 
 .preserve-card {

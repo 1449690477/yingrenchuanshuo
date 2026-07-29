@@ -48,7 +48,7 @@ describe('区域装备升阶数据规则', () => {
     const options = Object.values(EQUIPMENT)
       .map(equipmentAdvancementOption)
       .filter((option) => option !== undefined);
-    expect(options).toHaveLength(48);
+    expect(options).toHaveLength(64);
 
     for (const option of options) {
       expect(option.target.slot).toBe(option.source.slot);
@@ -64,12 +64,14 @@ describe('区域装备升阶数据规则', () => {
     }
   });
 
-  it('每条有效品质路线覆盖八部位，不靠手写 40 个装备 ID', () => {
+  it('每条有效品质路线覆盖八部位，不靠手写 64 个装备 ID', () => {
     const validPairs = [
       ['r1', 'r2', 'fine'],
       ['r1', 'r2', 'rare'],
+      ['r2', 'r3', 'fine'],
       ['r2', 'r3', 'rare'],
       ['r2', 'r3', 'epic'],
+      ['r3', 'r4', 'fine'],
       ['r3', 'r4', 'rare'],
       ['r3', 'r4', 'epic'],
     ] as const;
@@ -85,12 +87,26 @@ describe('区域装备升阶数据规则', () => {
     }
   });
 
+  it('相邻区域三段升阶路线分别生成 16 / 24 / 24 条', () => {
+    const counts = Object.values(EQUIPMENT)
+      .map(equipmentAdvancementOption)
+      .filter((option) => option !== undefined)
+      .reduce<Record<string, number>>((result, option) => {
+        const routeId = `${option.route.sourceRegionId}->${option.route.targetRegionId}`;
+        result[routeId] = (result[routeId] ?? 0) + 1;
+        return result;
+      }, {});
+
+    expect(counts).toEqual({
+      'r1->r2': 16,
+      'r2->r3': 24,
+      'r3->r4': 24,
+    });
+  });
+
   it('没有同品质目标与非区域装备明确不可升阶', () => {
     expect(
       equipmentAdvancementOption(requireEquipment('eq_r1_weapon_common')),
-    ).toBeUndefined();
-    expect(
-      equipmentAdvancementOption(requireEquipment('eq_r2_weapon_fine')),
     ).toBeUndefined();
     expect(
       equipmentAdvancementOption(requireEquipment('eq_r4_weapon_rare')),

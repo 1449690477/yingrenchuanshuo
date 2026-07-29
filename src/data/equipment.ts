@@ -86,7 +86,7 @@ const THEMES: NamingTheme[] = [
   ...REGION_34_EQUIPMENT_THEMES.map((theme) => ({
     regionId: theme.regionId,
     level: theme.regionId === 'r3' ? 26 : 36,
-    qualities: ['rare', 'epic'] as Quality[],
+    qualities: ['fine', 'rare', 'epic'] as Quality[],
     icons: Object.fromEntries(
       SLOT_ORDER.map((slot) => [slot, `assets/equipment/${theme.regionId}/${slot}.png`]),
     ) as Record<EquipSlot, string>,

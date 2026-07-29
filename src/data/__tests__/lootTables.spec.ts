@@ -2,15 +2,85 @@ import { describe, expect, it } from 'vitest';
 import type { MonsterType } from '@/core/types';
 import { rollLoot, type PityCounters } from '@/core/loot';
 import { Rng } from '@/core/rng';
+import { EQUIPMENT } from '../equipment';
 import { requireItem } from '../items';
-import { requireLootTable } from '../lootTables';
-import { lootTableIdFor } from '../monsters';
+import { LOOT_TABLES, requireLootTable } from '../lootTables';
+import { lootTableIdFor, MONSTERS } from '../monsters';
 import { ALL_CHAPTERS } from '../regions';
 import { REGION_MATERIAL_TIER_BY_MONSTER_TYPE } from '../materialSources';
 
 const MONSTER_TYPES = ['normal', 'elite', 'boss'] as const satisfies readonly MonsterType[];
 
 describe('章节区域材料掉落表', () => {
+  it('区域 3/4 的普通怪、精英与 BOSS 使用完整的精良至史诗装备矩阵', () => {
+    const expectedWeights = {
+      normal: { fine: 3, rare: 0.6 },
+      elite: { fine: 20, rare: 8, epic: 1 },
+      boss: { fine: 20, rare: 40, epic: 12 },
+    } as const;
+
+    for (const chapter of ALL_CHAPTERS.filter(
+      (candidate) => candidate.id.startsWith('3-') || candidate.id.startsWith('4-'),
+    )) {
+      const regionId = chapter.id.startsWith('3-') ? 'r3' : 'r4';
+
+      for (const monsterType of MONSTER_TYPES) {
+        const table = requireLootTable(lootTableIdFor(chapter.id, monsterType));
+        const regionalEquipmentEntries = table.entries.filter((entry) =>
+          entry.itemId.startsWith(`eq_${regionId}_`),
+        );
+        const expectedByQuality = expectedWeights[monsterType];
+
+        expect(
+          [...new Set(regionalEquipmentEntries.map((entry) => EQUIPMENT[entry.itemId]?.quality))]
+            .sort(),
+          `${chapter.id}/${monsterType} 品质`,
+        ).toEqual(Object.keys(expectedByQuality).sort());
+
+        for (const [quality, totalWeight] of Object.entries(expectedByQuality)) {
+          const entries = regionalEquipmentEntries.filter(
+            (entry) => EQUIPMENT[entry.itemId]?.quality === quality,
+          );
+          expect(entries, `${chapter.id}/${monsterType}/${quality} 八部位`).toHaveLength(8);
+          expect(
+            entries.reduce((sum, entry) => sum + entry.weight, 0),
+            `${chapter.id}/${monsterType}/${quality} 总权重`,
+          ).toBeCloseTo(totalWeight);
+
+          for (const entry of entries) {
+            expect(entry.weight).toBeCloseTo(totalWeight / 8);
+            expect(entry.minCount).toBe(1);
+            expect(entry.maxCount).toBe(1);
+            expect(entry.pityCount).toBe(
+              monsterType === 'boss' && quality === 'epic' ? 30 : undefined,
+            );
+          }
+        }
+      }
+    }
+  });
+
+  it('区域 3/4 的 16 件精良装备均能从真实登场怪物的掉落表获得', () => {
+    const reachableLootTableIds = new Set(
+      Object.values(MONSTERS).map((monster) => monster.lootTableId),
+    );
+    const fineDefinitions = Object.values(EQUIPMENT).filter(
+      (definition) =>
+        (definition.id.startsWith('eq_r3_') || definition.id.startsWith('eq_r4_')) &&
+        definition.quality === 'fine',
+    );
+
+    expect(fineDefinitions).toHaveLength(16);
+    for (const definition of fineDefinitions) {
+      const reachableSources = Object.values(LOOT_TABLES).filter(
+        (table) =>
+          reachableLootTableIds.has(table.id) &&
+          table.entries.some((entry) => entry.itemId === definition.id),
+      );
+      expect(reachableSources.length, `${definition.id} 没有真实怪物来源`).toBeGreaterThan(0);
+    }
+  });
+
   it('普通 / 精英 / BOSS 只接收 common / fine / rare，不再复制章节全量材料', () => {
     for (const chapter of ALL_CHAPTERS) {
       for (const monsterType of MONSTER_TYPES) {

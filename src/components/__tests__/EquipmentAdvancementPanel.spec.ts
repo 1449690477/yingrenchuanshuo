@@ -14,6 +14,9 @@ import EquipmentAdvancementPanel from '../EquipmentAdvancementPanel.vue';
 const sourceDefinition = requireEquipment('eq_r1_weapon_rare');
 const routeOption = resolveEquipmentAdvancementOption(sourceDefinition);
 if (!routeOption) throw new Error('[测试配置错误] r1 rare 武器缺少 r2 升阶目标');
+const region3FineWeapon = requireEquipment('eq_r3_weapon_fine');
+const region34RouteOption = resolveEquipmentAdvancementOption(region3FineWeapon);
+if (!region34RouteOption) throw new Error('[测试配置错误] r3 fine 武器缺少 r4 升阶目标');
 
 const inventory = vi.hoisted(() => ({
   bag: {
@@ -105,6 +108,22 @@ describe('跨区装备升阶移动端面板', () => {
     expect(html).toContain('洗练共鸣 9');
     expect(html).toContain('分解保护已锁定');
     expect(html).toContain('不会重掷词条');
+  });
+
+  it('权威元素数据明确变化时提示炎属性武器升阶为无属性', async () => {
+    inventory.equipmentAdvancementOption.mockReturnValue({
+      ...region34RouteOption,
+      source: { ...region34RouteOption.source, element: 'fire' },
+      target: { ...region34RouteOption.target, element: 'none' },
+    });
+
+    const html = await renderPanel(makeInstance({ defId: region3FineWeapon.id }));
+
+    expect(html).toContain('基础攻击属性变化');
+    expect(html).toContain('炎属性');
+    expect(html).toContain('无属性');
+    expect(html).toContain('升阶后采用目标武器的基础攻击属性');
+    expect(html).toContain('强化、洗练与现有词条仍原样保留');
   });
 
   it('等级或材料不足时显示真实缺口并禁用确认', async () => {
