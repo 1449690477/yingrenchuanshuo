@@ -620,8 +620,8 @@ onUnmounted(() => {
     </Teleport>
 
     <Teleport to="body">
-      <Transition name="fade">
-        <div v-if="lockOpen" class="decompose-mask" @click.self="closeLock">
+      <Transition name="modal-pop">
+        <div v-if="lockOpen" class="overlay decompose-overlay" @click.self="closeLock">
           <section
             ref="lockSheet"
             class="decompose-sheet"
