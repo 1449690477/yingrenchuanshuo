@@ -145,7 +145,10 @@ watch(
       selectedUid.value = list[0]!.uid;
       return;
     }
-    selectedUid.value = (topPick.value?.assessment ?? list[0]!).uid;
+    const initial = topPick.value?.assessment ?? list[0]!;
+    selectedUid.value = initial.uid;
+    // 开局就让操作台与首推一致，否则横幅写着「同调」而页签停在「重铸」
+    adoptRecommendation(initial);
     initializedSelection = true;
   },
   { immediate: true },
@@ -294,6 +297,42 @@ const rollHint = computed(() => {
   return `已定契 ${lockedIndices.value.length} 条，本次从其余 ${unlockedIndices.value.length} 条中随机选 1 条。`;
 });
 
+/**
+ * 定契风险提示。
+ *
+ * 随机操作是「从未定契的词条里随机挑一条改掉」，所以身上有好词条时
+ * 每洗一次都在赌。界面此前只说「从全部 N 条中随机选 1 条」，
+ * 没人会自己去算那条 T4 暴击率有多大概率被洗掉。这里直接把概率说出来。
+ */
+const protectAdvice = computed<{ names: string; risk: number; indices: number[] } | null>(() => {
+  const advice = selectedAssessment.value?.recommendation;
+  const inst = selectedInstance.value;
+  if (!advice?.protectIndices?.length || !inst) return null;
+  if (operation.value === 'resonate') return null;
+
+  // 只提示尚未定契的那些
+  const exposed = advice.protectIndices.filter((index) => !lockedIndices.value.includes(index));
+  if (exposed.length === 0) return null;
+
+  const pool = operationTargets.value;
+  const atRisk = exposed.filter((index) => pool.includes(index));
+  if (atRisk.length === 0 || pool.length === 0) return null;
+
+  return {
+    names: atRisk.map((index) => affixDisplayName(inst.affixes[index]!)).join('、'),
+    risk: Math.round((atRisk.length / pool.length) * 100),
+    indices: atRisk,
+  };
+});
+
+function protectSuggested(): void {
+  const advice = protectAdvice.value;
+  if (rolling.value || !advice) return;
+  lockedIndices.value = [...new Set([...lockedIndices.value, ...advice.indices])].sort(
+    (a, b) => a - b,
+  );
+}
+
 function gradeOf(affixScore: number): { grade: string; label: string } {
   if (affixScore >= 80) return { grade: 's', label: 'S' };
   if (affixScore >= 60) return { grade: 'a', label: 'A' };
@@ -305,6 +344,20 @@ function operationName(id: AffixChangeOperation): string {
   return operationOptions.find((entry) => entry.id === id)?.name ?? id;
 }
 
+/**
+ * 把某件装备的建议同步到操作台（操作 + 同调目标）。
+ *
+ * 卡片上写着「建议同调」、横幅也写着同调，操作页签却停在默认的「重铸」——
+ * 玩家顺手点「洗练一次」就会做错操作还扣掉材料。选中装备时一并对齐建议，
+ * 页签仍在旁边，想改随时能改。
+ */
+function adoptRecommendation(assessment: EquipmentAssessment | undefined): void {
+  const advice = assessment?.recommendation;
+  if (!advice) return;
+  operation.value = advice.operation;
+  resonateTarget.value = advice.operation === 'resonate' ? (advice.targetIndex ?? null) : null;
+}
+
 function selectGear(uid: string): void {
   if (rolling.value) return;
   if (uid === selectedUid.value) return;
@@ -312,6 +365,7 @@ function selectGear(uid: string): void {
   feedback.value = '';
   lockedIndices.value = [];
   resonateTarget.value = null;
+  adoptRecommendation(assessments.value.find((entry) => entry.uid === uid));
 }
 
 function applyRecommendation(pick: {
@@ -748,6 +802,10 @@ onBeforeUnmount(() => {
 
               <div class="operation-note">
                 <p>{{ rollHint }}</p>
+                <p v-if="protectAdvice" class="protect-warn" data-testid="protect-warn">
+                  本次有 <b>{{ protectAdvice.risk }}%</b> 概率洗掉「{{ protectAdvice.names }}」。
+                  <button class="protect-apply" @click="protectSuggested">定契保护</button>
+                </p>
                 <small v-if="hasDeferredAffix">
                   「待 M3-4 技能结算」词条仍可查看，并可通过重铸或铭刻换掉；淬炼、同调不会继续投入。
                 </small>
@@ -908,6 +966,43 @@ onBeforeUnmount(() => {
   margin: 3px 0 0;
   font-size: 17px;
   text-shadow: 0 1px 0 rgb(255 255 255 / 70%);
+}
+
+/*
+ * 矮屏压缩头部。
+ *
+ * 320×568 这类小机上，128px 的装饰头部要吃掉 23% 的屏幕，
+ * 正文只剩 440px —— 推荐横幅加装备轨就占满了，洗练台要滚很久才看得到。
+ * 矮屏上把横幅压到 84px 并缩掉副标题，主标题仍保留。
+ */
+@media (max-height: 700px) {
+  .studio-head {
+    min-height: 84px;
+  }
+
+  .head-copy {
+    padding: 10px 13px 9px;
+  }
+
+  .head-copy h2 {
+    font-size: 15px;
+  }
+
+  /* 装饰性星点在矮屏上只是噪音 */
+  .head-sparkle {
+    display: none;
+  }
+}
+
+/* 更矮的屏（如 320×480）直接去掉主标题，只留身份与件数 */
+@media (max-height: 560px) {
+  .studio-head {
+    min-height: 62px;
+  }
+
+  .head-copy h2 {
+    display: none;
+  }
 }
 
 .head-copy p {
@@ -1263,6 +1358,32 @@ onBeforeUnmount(() => {
 
 .resonance p,
 .result-card > p,
+/* 洗掉好词条是不可逆的，提示要比普通说明显眼 */
+.operation-note .protect-warn {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 5px 8px;
+  color: #9a4b2f;
+  font-size: 10px;
+  background: #fff2e8;
+  border: 1px solid #f3cdb4;
+  border-radius: 9px;
+}
+
+.protect-apply {
+  margin-left: auto;
+  padding: 3px 10px;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  background: linear-gradient(100deg, #f0a06a, #e2745f);
+  border: 0;
+  border-radius: 999px;
+}
+
 .operation-note p,
 .operation-note small,
 .feedback {

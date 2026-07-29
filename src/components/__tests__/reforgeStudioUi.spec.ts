@@ -162,8 +162,43 @@ describe('星辉洗练坊独立界面', () => {
     expect(html).toContain('同调');
     expect(html).toContain('共鸣值');
     expect(html).toContain('8 / 20');
+    // 这组词条（T2/T3）的建议是同调，操作台开局就跟着建议走
+    expect(html).toContain('已选择');
+    expect(html).toContain('同调一次');
+  });
+
+  it('开局操作台与首推一致：建议随机操作时进入随机模式', async () => {
+    inventory.bag.equipment = [
+      instance(randomDefinition.id, [
+        // 待开放的死词条（技能倍率待 M3-4 结算）→ 建议重铸（随机操作）
+        { key: 'skillMul', tier: 2, value: 18 },
+        { key: 'atk', tier: 1, value: 8 },
+      ]),
+    ];
+
+    const html = await render(ReforgeStudio);
+
+    // 卡片写着「建议重铸」而页签停在别的操作，玩家点下去就会做错操作还扣材料
+    expect(html).toContain('建议重铸');
     expect(html).toContain('参与随机');
     expect(html).toContain('重铸一次');
+  });
+
+  it('随机操作会提示洗掉好词条的概率', async () => {
+    inventory.bag.equipment = [
+      instance(randomDefinition.id, [
+        // 一条 T5 + 两条低阶：随机操作有三分之一概率把 T5 洗掉
+        { key: 'atk', tier: 5, value: 40 },
+        { key: 'def', tier: 1, value: 6 },
+        { key: 'hp', tier: 1, value: 30 },
+      ]),
+    ];
+
+    const html = await render(ReforgeStudio);
+
+    expect(html).toContain('data-testid="protect-warn"');
+    expect(html).toContain('33%');
+    expect(html).toContain('定契保护');
   });
 
   it('已付费候选优先展示新旧对比与采用/保留选择', async () => {

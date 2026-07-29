@@ -223,6 +223,40 @@ describe('列表排序与过滤', () => {
     expect(topRecommendation([])).toBeNull();
   });
 
+  it('随机操作会标出该定契保护的高阶词条', () => {
+    const result = adviseReforge({
+      classId: 'witch',
+      entries: [
+        {
+          // 一条 T5 好词条 + 两条低阶：重铸有三分之一概率把 T5 洗掉
+          instance: instance('risky', [atk(5), atk(1), atk(1)]),
+          definition: def('risky', 'weapon', 'epic', 40),
+          source: 'equipped',
+        },
+      ],
+    });
+    const advice = result[0]!.recommendation!;
+    // 具体推哪个随机操作由规则链决定，这里只关心「是随机操作」这件事
+    expect(['reforge', 'temper', 'inscribe']).toContain(advice.operation);
+    expect(advice.protectIndices).toEqual([0]);
+  });
+
+  it('同调不误伤其他词条，不给定契建议', () => {
+    const result = adviseReforge({
+      classId: 'witch',
+      entries: [
+        {
+          instance: instance('safe', [atk(4), atk(4)]),
+          definition: def('safe', 'weapon', 'epic', 40),
+          source: 'equipped',
+        },
+      ],
+    });
+    const advice = result[0]!.recommendation!;
+    expect(advice.operation).toBe('resonate');
+    expect(advice.protectIndices).toBeUndefined();
+  });
+
   it('背包里等级远低于在用装备的，判为已淘汰且不给建议', () => {
     const result = adviseReforge({
       classId: 'witch',

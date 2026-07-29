@@ -133,10 +133,11 @@ describe('洗练消耗', () => {
 
 describe('共鸣保底', () => {
   it('低阶累积、高阶清零且最多 20', () => {
-    expect(resonanceAfterRoll(0, 1)).toBe(2);
+    expect(resonanceAfterRoll(0, 1)).toBe(3);
     expect(resonanceAfterRoll(19, 1)).toBe(20);
-    expect(resonanceAfterRoll(7, 2)).toBe(8);
-    expect(resonanceAfterRoll(7, 3)).toBe(7);
+    expect(resonanceAfterRoll(7, 2)).toBe(9);
+    // T3 也推进保底：原表里 T3 不动，进度条会卡住不走
+    expect(resonanceAfterRoll(7, 3)).toBe(8);
     expect(resonanceAfterRoll(20, 4)).toBe(0);
     expect(resonanceAfterRoll(20, 5)).toBe(0);
   });

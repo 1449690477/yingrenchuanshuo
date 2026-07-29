@@ -47,6 +47,14 @@ export interface ReforgeRecommendation {
   expected: string;
   /** 跨装备排序分，越高越值得先洗。 */
   priority: number;
+  /**
+   * 随机操作前建议定契（保护）的词条下标。
+   *
+   * 重铸/淬炼/铭刻都是「从未定契的词条里随机挑一条改掉」——
+   * 一件三词条的装备只要有一条是好的，不定契就有三分之一的概率把它洗没，
+   * 而界面此前完全没有提示。这里把该保护的挑出来，UI 负责告知风险。
+   */
+  protectIndices?: readonly number[];
 }
 
 export interface EquipmentAssessment {
@@ -293,6 +301,20 @@ function buildRecommendation(
   return null;
 }
 
+/**
+ * 值得定契保护的词条：已经生效、且品阶达到卓越（T4）以上。
+ *
+ * 门槛定在 T4 而不是 T3：T3 还在随机洗练的期望附近，锁它等于花材料
+ * 保护一条本来就容易再摇出来的词条；T4/T5 才是真正洗坏了会心疼的。
+ */
+export const PROTECT_TIER_THRESHOLD: AffixTier = 4;
+
+function protectIndicesOf(affixes: readonly AffixAssessment[]): number[] {
+  return affixes
+    .filter((affix) => isUseful(affix) && affix.tier >= PROTECT_TIER_THRESHOLD)
+    .map((affix) => affix.index);
+}
+
 export function assessEquipment(
   instance: EquipmentInstance,
   definition: EquipmentDef,
@@ -320,8 +342,26 @@ export function assessEquipment(
     recommendation:
       relevance <= 0
         ? null
-        : buildRecommendation(definition, source, affixes, worthScore, affixScore),
+        : withProtection(
+            buildRecommendation(definition, source, affixes, worthScore, affixScore),
+            affixes,
+          ),
   };
+}
+
+/** 随机操作（重铸/淬炼/铭刻）才会误伤别的词条；同调是指定的，不需要保护。 */
+const RANDOM_OPERATIONS: readonly AffixChangeOperation[] = ['reforge', 'temper', 'inscribe'];
+
+function withProtection(
+  recommendation: ReforgeRecommendation | null,
+  affixes: readonly AffixAssessment[],
+): ReforgeRecommendation | null {
+  if (!recommendation || !RANDOM_OPERATIONS.includes(recommendation.operation)) {
+    return recommendation;
+  }
+  const protectIndices = protectIndicesOf(affixes);
+  if (protectIndices.length === 0) return recommendation;
+  return { ...recommendation, protectIndices };
 }
 
 /**
