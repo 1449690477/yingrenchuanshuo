@@ -52,6 +52,10 @@ import {
   type EnhanceBatchStopReason,
   type EnhanceBatchStrategy,
 } from '@/core/enhanceBatch';
+import {
+  planEquipmentAdvancement,
+  type EquipmentAdvancementResult,
+} from '@/core/equipmentAdvancement';
 import { planClassSwitch } from '@/core/classSwitch';
 import {
   applyClassMods,
@@ -172,6 +176,10 @@ import {
   REFORGE_UNLOCK_LEVEL,
   requireRegionReforgeMaterials,
 } from '@/data/reforgeRules';
+import {
+  equipmentAdvancementOption as resolveEquipmentAdvancementOption,
+  type EquipmentAdvancementOption,
+} from '@/data/equipmentAdvancement';
 
 import { createSave, type SaveData } from '@/save/schema';
 import { clearSave, loadSave, saveSave } from '@/save/storage';
@@ -272,6 +280,24 @@ export type ResolveAffixChangeActionResult =
       candidate: EquipmentInstance['affixes'][number];
       cpDelta: number;
     };
+
+type EquipmentAdvancementCoreFailure = Extract<EquipmentAdvancementResult, { ok: false }>;
+type EquipmentAdvancementCoreSuccess = Extract<EquipmentAdvancementResult, { ok: true }>;
+
+export type EquipmentAdvancementActionResult =
+  | EquipmentAdvancementCoreFailure
+  | { ok: false; reason: 'no-save' | 'not-found' | 'no-route' }
+  | {
+      ok: false;
+      reason: 'source-changed';
+      expectedSourceDefId: string;
+      currentSourceDefId: string;
+    }
+  | (EquipmentAdvancementCoreSuccess & {
+      /** 返回存档中同一个响应式实例，详情页无需重开即可刷新。 */
+      equipment: EquipmentInstance;
+      cpDelta: number;
+    });
 
 export type EncounterResolveResult =
   | { ok: true; outcome: string; rewards: ResourceBundle }
@@ -1741,6 +1767,70 @@ export const useGameStore = defineStore('game', () => {
     return null;
   }
 
+  /** 查询背包或穿戴装备的下一阶；无同品质相邻区域定义时明确返回 undefined。 */
+  function equipmentAdvancementOption(uid: string): EquipmentAdvancementOption | undefined {
+    const located = findOwnedEquipment(uid);
+    if (!located) return undefined;
+    return resolveEquipmentAdvancementOption(requireEquipment(located.instance.defId));
+  }
+
+  /**
+   * 跨区升阶原子事务。
+   *
+   * `expectedSourceDefId` 是确认弹层打开时看到的来源定义。连续点击或旧弹层
+   * 再次提交时，第一次升阶已改变 defId，第二次会返回 source-changed，绝不
+   * 顺势再跨一个区域。纯逻辑完整成功后才同步扣资产并原地改 defId。
+   */
+  function advanceEquipment(
+    uid: string,
+    expectedSourceDefId: string,
+  ): EquipmentAdvancementActionResult {
+    if (!save.value) return { ok: false, reason: 'no-save' };
+    const located = findOwnedEquipment(uid);
+    if (!located) return { ok: false, reason: 'not-found' };
+    if (located.instance.defId !== expectedSourceDefId) {
+      return {
+        ok: false,
+        reason: 'source-changed',
+        expectedSourceDefId,
+        currentSourceDefId: located.instance.defId,
+      };
+    }
+
+    const sourceDefinition = requireEquipment(located.instance.defId);
+    const option = resolveEquipmentAdvancementOption(sourceDefinition);
+    if (!option) return { ok: false, reason: 'no-route' };
+
+    const result = planEquipmentAdvancement({
+      instance: located.instance,
+      sourceDefinition,
+      targetDefinition: option.target,
+      playerLevel: save.value.player.level,
+      wallet: {
+        gold: save.value.player.gold,
+        items: save.value.bag.items,
+      },
+      requirement: option.requirement,
+    });
+    if (!result.ok) return result;
+
+    // 到这里所有会抛错的配置验证与所有玩家态预检都已经结束。
+    // 只做同步且不会失败的赋值，形成金币、材料、装备三者的一次原子提交。
+    const beforeCp = cp.value;
+    save.value.player.gold = result.wallet.gold;
+    save.value.bag.items = { ...result.wallet.items };
+    located.instance.defId = result.targetDefId;
+    const cpChange = cp.value - beforeCp;
+    noteCpDelta(beforeCp);
+    void persist();
+
+    return {
+      ...result,
+      equipment: located.instance,
+      cpDelta: cpChange,
+    };
+  }
+
   /**
    * 开始洗练：纯逻辑层先在克隆钱包/RNG/装备上生成完整候选，
    * 成功后才一次性扣材料并写入可持久化 pending；原词条此时绝不覆盖。
@@ -2296,6 +2386,8 @@ export const useGameStore = defineStore('game', () => {
     equipmentCandidateCp,
     equipmentCpDelta,
     equipmentContributionCp,
+    equipmentAdvancementOption,
+    advanceEquipment,
     startAffixChange,
     resolveAffixChange,
     quoteEnhance,

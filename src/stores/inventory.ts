@@ -2,10 +2,12 @@
 import { computed } from 'vue';
 import { defineStore } from 'pinia';
 import type { AffixChangeOperation, EquipSlot, EquipmentInstance } from '@/core/types';
+import type { EquipmentAdvancementOption } from '@/data/equipmentAdvancement';
 import {
   useGameStore,
   type AffixChangeActionResult,
   type DecomposeResult,
+  type EquipmentAdvancementActionResult,
   type EnhanceBatchActionResult,
   type EnhanceEquipmentResult,
   type EnhanceQuote,
@@ -55,6 +57,17 @@ export const useInventoryStore = defineStore('inventory', () => {
     return game.equipmentContributionCp(inst);
   }
 
+  function equipmentAdvancementOption(uid: string): EquipmentAdvancementOption | undefined {
+    return game.equipmentAdvancementOption(uid);
+  }
+
+  function advanceEquipment(
+    uid: string,
+    expectedSourceDefId: string,
+  ): EquipmentAdvancementActionResult {
+    return game.advanceEquipment(uid, expectedSourceDefId);
+  }
+
   function startAffixChange(
     uid: string,
     operation: AffixChangeOperation,
@@ -100,6 +113,8 @@ export const useInventoryStore = defineStore('inventory', () => {
     candidateCp,
     cpDelta,
     contributionCp,
+    equipmentAdvancementOption,
+    advanceEquipment,
     startAffixChange,
     resolveAffixChange,
     quoteEnhance,
