@@ -12,11 +12,13 @@
  *   - 倒计时用中性措辞（「剩余 3 天」），不用「仅剩！」
  *   - 一屏内立即决策只有一个：挑战
  */
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref, shallowRef } from 'vue';
 import {
   CloudOff,
+  Flag,
   Flame,
   Info,
+  Pencil,
   RefreshCw,
   Snowflake,
   Sparkles,
@@ -25,6 +27,7 @@ import {
   Upload,
   Zap,
 } from '@lucide/vue';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { abbr, duration, pct } from '@/core/format';
 import { trialWeekRemainingMs, upperPercentText } from '@/core/trial';
 import type { ClassId, Element } from '@/core/types';
@@ -34,6 +37,10 @@ import { ELEMENT_LABELS } from '@/data/trialRules';
 import { useGameStore } from '@/stores/game';
 import { useLeaderboardStore, type TrialChallengeOutcome } from '@/stores/leaderboard';
 import type { TrialSubmitResult } from '@/net/leaderboard';
+import { getSupabaseClient } from '@/net/supabase';
+import { reportProfile, type PlayerProfile } from '@/net/profile';
+import ProfileAvatar from '@/components/ProfileAvatar.vue';
+import ProfileEditor from '@/components/ProfileEditor.vue';
 import TrialBattleScene from '@/components/TrialBattleScene.vue';
 
 const game = useGameStore();
@@ -121,6 +128,80 @@ function say(text: string, ok: boolean): void {
   toast.value = { text, ok };
   clearTimeout(toastTimer);
   toastTimer = window.setTimeout(() => (toast.value = null), 3200);
+}
+
+// ─────────── 玩家公开档案（与游戏角色名解耦） ───────────
+// SupabaseClient 是带私有字段的类，必须 shallowRef，避免 Vue 深层解包破坏类型身份。
+const profileClient = shallowRef<SupabaseClient | null>(null);
+const profileOpen = ref(false);
+
+async function requireProfileClient(): Promise<SupabaseClient | null> {
+  if (!(await lb.connect())) {
+    say(lb.lastError ?? '联机档案暂不可用，请稍后重试', false);
+    return null;
+  }
+  const client = await getSupabaseClient();
+  if (!client || !lb.userId) {
+    say('联机档案暂不可用，请稍后重试', false);
+    return null;
+  }
+  profileClient.value = client;
+  return client;
+}
+
+async function openProfileEditor(): Promise<void> {
+  if (!(await requireProfileClient())) return;
+  profileOpen.value = true;
+}
+
+async function onProfileSaved(_profile: PlayerProfile): Promise<void> {
+  say('榜单档案已更新', true);
+  await lb.refreshBoards(true);
+}
+
+interface ReportTarget {
+  userId: string;
+  displayName: string;
+}
+
+const reportTarget = ref<ReportTarget | null>(null);
+const reportReason = ref('');
+const reporting = ref(false);
+const canReport = computed(
+  () => Boolean(reportTarget.value) && reportReason.value.trim().length > 0 && !reporting.value,
+);
+
+function openReport(target: ReportTarget): void {
+  if (target.userId === lb.userId) return;
+  reportTarget.value = target;
+  reportReason.value = '';
+}
+
+function closeReport(): void {
+  if (reporting.value) return;
+  reportTarget.value = null;
+  reportReason.value = '';
+}
+
+async function submitReport(): Promise<void> {
+  if (!canReport.value || !reportTarget.value) return;
+  const client = await requireProfileClient();
+  if (!client || !lb.userId) return;
+  reporting.value = true;
+  try {
+    await reportProfile(client, {
+      reporterId: lb.userId,
+      targetId: reportTarget.value.userId,
+      reason: reportReason.value,
+    });
+    say('已收到举报，我们会人工核查', true);
+    reportTarget.value = null;
+    reportReason.value = '';
+  } catch (error) {
+    say(error instanceof Error ? error.message : '举报失败，请稍后重试', false);
+  } finally {
+    reporting.value = false;
+  }
 }
 
 const canUpload = computed(
@@ -265,6 +346,14 @@ onUnmounted(() => {
           <Upload :size="13" aria-hidden="true" />
           {{ lb.submitting ? '上传中…' : '上传成绩' }}
         </button>
+        <button
+          v-if="lb.status === 'ready'"
+          class="btn btn-plain profile-btn"
+          @click="openProfileEditor"
+        >
+          <Pencil :size="12" aria-hidden="true" />
+          编辑档案
+        </button>
       </div>
     </section>
 
@@ -328,11 +417,30 @@ onUnmounted(() => {
         >
           <span class="rank-no" :data-rank="row.rank">{{ row.rank }}</span>
           <span class="who">
-            <i>{{ classSymbol(row.classId) }}</i>
-            <b>{{ row.displayName }}</b>
-            <em v-if="row.isMe">你</em>
+            <ProfileAvatar
+              class="row-avatar"
+              :avatar-url="row.avatarUrl"
+              :class-id="row.classId"
+              :alt="`${row.displayName}的头像`"
+            />
+            <span class="identity-copy">
+              <span class="identity-line">
+                <b>{{ row.displayName }}</b>
+                <em v-if="row.isMe">你</em>
+              </span>
+              <small>{{ row.bio || `${className(row.classId)}挑战者` }}</small>
+            </span>
           </span>
           <span class="damage num">{{ abbr(row.damage) }}</span>
+          <button
+            v-if="!row.isMe && lb.status === 'ready'"
+            class="report-entry"
+            :aria-label="`举报${row.displayName}的档案`"
+            title="举报档案"
+            @click.stop="openReport(row)"
+          >
+            <Flag :size="12" aria-hidden="true" />
+          </button>
         </div>
       </div>
 
@@ -347,12 +455,32 @@ onUnmounted(() => {
         >
           <span class="rank-no">{{ row.rank }}</span>
           <span class="who">
-            <i>{{ classSymbol(row.classId) }}</i>
-            <b>{{ row.displayName }}</b>
-            <small>Lv.{{ row.level }}</small>
-            <em v-if="row.isMe">你</em>
+            <ProfileAvatar
+              class="row-avatar"
+              :avatar-url="row.avatarUrl"
+              :class-id="row.classId"
+              :alt="`${row.displayName}的头像`"
+            />
+            <span class="identity-copy">
+              <span class="identity-line">
+                <b>{{ row.displayName }}</b>
+                <em v-if="row.isMe">你</em>
+              </span>
+              <small
+                >Lv.{{ row.level }}<template v-if="row.bio"> · {{ row.bio }}</template></small
+              >
+            </span>
           </span>
           <span class="damage num">{{ abbr(row.combatPower) }}</span>
+          <button
+            v-if="!row.isMe && lb.status === 'ready'"
+            class="report-entry"
+            :aria-label="`举报${row.displayName}的档案`"
+            title="举报档案"
+            @click.stop="openReport(row)"
+          >
+            <Flag :size="12" aria-hidden="true" />
+          </button>
         </div>
         <p v-if="myPowerRank && !powerRows.some((r) => r.isMe)" class="my-power-note">
           我的战力名次：第 {{ myPowerRank }} 名
@@ -396,6 +524,46 @@ onUnmounted(() => {
             单机试炼模式：成绩已记录在本机，联机后可随时上传。
           </p>
         </div>
+      </div>
+    </Transition>
+
+    <ProfileEditor
+      v-if="profileOpen && profileClient && lb.userId"
+      :client="profileClient"
+      :user-id="lb.userId"
+      :class-id="lb.classId"
+      :fallback-name="game.player?.name ?? '无名旅人'"
+      @saved="onProfileSaved"
+      @close="profileOpen = false"
+    />
+
+    <Transition name="modal-pop">
+      <div v-if="reportTarget" class="overlay" @click.self="closeReport">
+        <section
+          class="result-panel report-panel"
+          role="dialog"
+          aria-modal="true"
+          :aria-label="`举报${reportTarget.displayName}的档案`"
+          @keydown.esc.stop="closeReport"
+        >
+          <Flag :size="22" aria-hidden="true" />
+          <strong>举报 {{ reportTarget.displayName }}</strong>
+          <p>仅用于不当头像、昵称或简介。举报内容不会公开，项目所有者会人工核查。</p>
+          <textarea
+            v-model="reportReason"
+            maxlength="200"
+            rows="3"
+            autofocus
+            placeholder="请简要说明问题"
+          />
+          <small>{{ reportReason.trim().length }} / 200</small>
+          <div class="result-actions">
+            <button class="btn btn-plain" :disabled="reporting" @click="closeReport">取消</button>
+            <button class="btn btn-pink" :disabled="!canReport" @click="submitReport">
+              {{ reporting ? '提交中…' : '提交举报' }}
+            </button>
+          </div>
+        </section>
       </div>
     </Transition>
 
@@ -818,6 +986,13 @@ onUnmounted(() => {
   font-size: 11px;
 }
 
+.profile-btn {
+  min-width: 108px;
+  min-height: 30px;
+  gap: 4px;
+  font-size: 10px;
+}
+
 /* 交锋演出：按钮上的刀光闪过 */
 .clash {
   position: absolute;
@@ -925,8 +1100,8 @@ onUnmounted(() => {
 .row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
+  gap: 7px;
+  padding: 7px 8px;
   border-radius: var(--r-sm);
   background: var(--panel-2);
 }
@@ -968,16 +1143,33 @@ onUnmounted(() => {
   min-width: 0;
   flex: 1;
   display: flex;
-  align-items: baseline;
+  align-items: center;
+  gap: 7px;
+}
+
+.row-avatar {
+  width: 32px;
+  height: 32px;
+  font-size: 18px;
+}
+
+.identity-copy {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.identity-line {
+  min-width: 0;
+  display: flex;
+  align-items: center;
   gap: 5px;
 }
 
-.who i {
-  font-style: normal;
-  font-size: 12px;
-}
-
-.who b {
+.identity-line b {
+  min-width: 0;
   font-size: 12px;
   font-weight: 600;
   overflow: hidden;
@@ -985,12 +1177,17 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
-.who small {
+.identity-copy small {
+  display: block;
+  max-width: 100%;
   font-size: 9px;
   color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.who em {
+.identity-line em {
   flex-shrink: 0;
   padding: 1px 7px;
   font-size: 9px;
@@ -1006,6 +1203,28 @@ onUnmounted(() => {
   font-size: 13px;
   font-weight: 800;
   color: var(--text);
+}
+
+.report-entry {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  flex: none;
+  place-items: center;
+  color: var(--text-dim);
+  background: rgb(255 255 255 / 62%);
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  transition:
+    color var(--t-fast),
+    border-color var(--t-fast),
+    transform var(--t-fast);
+}
+
+.report-entry:active {
+  color: var(--pink-deep);
+  border-color: var(--pink);
+  transform: scale(0.9);
 }
 
 .my-power-note {
@@ -1123,6 +1342,50 @@ onUnmounted(() => {
   display: flex;
   gap: 8px;
   margin-top: 8px;
+}
+
+.report-panel {
+  align-items: stretch;
+  width: min(330px, 100%);
+}
+
+.report-panel > svg {
+  align-self: center;
+  color: var(--pink-deep);
+}
+
+.report-panel > strong {
+  text-align: center;
+}
+
+.report-panel > p {
+  margin: 0;
+  color: var(--text-mid);
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.report-panel textarea {
+  width: 100%;
+  padding: 9px 10px;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.5;
+  resize: none;
+  background: rgb(255 255 255 / 76%);
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+}
+
+.report-panel > small {
+  color: var(--text-dim);
+  font-size: 9px;
+  text-align: right;
+}
+
+.report-panel .result-actions {
+  justify-content: flex-end;
 }
 
 /* 新纪录粒子迸发 */

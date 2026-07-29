@@ -125,14 +125,28 @@ Deno.serve(async (req: Request) => {
 
     // ── 5. 写入（service role；成绩表对客户端无写权限）──
     const admin = createClient(supabaseUrl, serviceKey);
-    await admin.from('profiles').upsert({
-      id: user.id,
-      display_name: sub.displayName,
+    const profileProgress = {
       class_id: sub.classId,
       level: sub.level,
       combat_power: build.combatPower,
       updated_at: new Date().toISOString(),
-    });
+    };
+    const { error: createProfileError } = await admin.from('profiles').upsert(
+      {
+        id: user.id,
+        // 只在首次建档时使用角色名；已有档案的自设昵称绝不能被成绩上传覆盖。
+        display_name: sub.displayName,
+        ...profileProgress,
+      },
+      { onConflict: 'id', ignoreDuplicates: true },
+    );
+    if (createProfileError) return json({ error: '档案初始化失败' }, 500);
+
+    const { error: updateProfileError } = await admin
+      .from('profiles')
+      .update(profileProgress)
+      .eq('id', user.id);
+    if (updateProfileError) return json({ error: '档案同步失败' }, 500);
 
     const { data: existing } = await admin
       .from('trial_scores')

@@ -8,7 +8,7 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { submitTrialScore, type TrialSubmission } from '../leaderboard';
+import { submitTrialScore, upsertProfile, type TrialSubmission } from '../leaderboard';
 import { NetRequestError } from '../supabase';
 
 type InvokeStub = (
@@ -82,6 +82,44 @@ describe('submitTrialScore', () => {
       error: null,
     }));
     await submitTrialScore(stubClient(invoke), submission);
-    expect(invoke).toHaveBeenCalledWith('submit-trial', expect.objectContaining({ body: submission }));
+    expect(invoke).toHaveBeenCalledWith(
+      'submit-trial',
+      expect.objectContaining({ body: submission }),
+    );
+  });
+});
+
+describe('upsertProfile', () => {
+  it('只在首次建档时使用角色名，已有档案同步不再覆盖玩家自设昵称', async () => {
+    const eq = vi.fn(async (_column: string, _value: string) => ({ error: null }));
+    const update = vi.fn((_patch: Record<string, unknown>) => ({ eq }));
+    const upsert = vi.fn(async () => ({ error: null }));
+    const client = {
+      from: vi.fn(() => ({ upsert, update })),
+    } as unknown as SupabaseClient;
+
+    await upsertProfile(client, {
+      id: 'user-1',
+      displayName: '剑姬角色名',
+      classId: 'swordsman',
+      level: 45,
+      combatPower: 123_456,
+    });
+
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'user-1',
+        display_name: '剑姬角色名',
+      }),
+      { onConflict: 'id', ignoreDuplicates: true },
+    );
+    const progressPatch = update.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(progressPatch).toMatchObject({
+      class_id: 'swordsman',
+      level: 45,
+      combat_power: 123_456,
+    });
+    expect(progressPatch).not.toHaveProperty('display_name');
+    expect(eq).toHaveBeenCalledWith('id', 'user-1');
   });
 });
