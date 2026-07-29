@@ -1,8 +1,9 @@
 /**
  * 区域 5 物品与装备图标资产门禁。
  *
- * 同时验证仓库外 chroma/alpha 母版、仓库内提示词与 SHA 锁、运行时文件集、
- * 透明边缘、留白、绿幕残留、体积和像素唯一性，防止路径存在掩盖缺图或占位图。
+ * 默认验证主仓内的提示词、SHA 锁、运行时文件集、透明边缘、留白、绿幕残留、
+ * 体积和像素唯一性；显式传入 `--with-sources` 时，才严格复核仓库外
+ * chroma/alpha 母版。这样 CI 与本机运行时门禁一致，源仓门禁仍不允许缺图。
  */
 
 import { createHash } from 'node:crypto';
@@ -19,7 +20,10 @@ import {
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(SCRIPT_DIR, '..');
-const SOURCE_ROOT = resolve(ROOT, '..', 'yingrenchuanshuo-art-source-r5', 'items-equipment');
+const SOURCE_ROOT = process.env.REGION5_ITEMS_EQUIPMENT_SOURCE_ROOT?.trim()
+  ? resolve(process.env.REGION5_ITEMS_EQUIPMENT_SOURCE_ROOT)
+  : resolve(ROOT, '..', 'yingrenchuanshuo-art-source-r5', 'items-equipment');
+const WITH_SOURCES = process.argv.includes('--with-sources');
 const PROMPTS_PATH = resolve(ROOT, 'art-source', 'regions', 'r5', 'PROMPTS-ITEMS-EQUIPMENT.md');
 const SHA_PATH = resolve(ROOT, 'art-source', 'regions', 'r5', 'ITEMS-EQUIPMENT-SHA256.txt');
 const CONTACT_PATH = resolve(ROOT, 'art-source', 'qa', 'r5-items-equipment-contact.webp');
@@ -316,18 +320,22 @@ for (const asset of assets) {
   const chromaPath = resolve(SOURCE_ROOT, ...chromaRelative.split('/'));
   const alphaPath = resolve(SOURCE_ROOT, ...alphaRelative.split('/'));
 
-  await validateChroma(chromaPath, `${asset.key} chroma 母版`);
-  await validateAlpha(alphaPath, `${asset.key} alpha 母版`);
+  if (WITH_SOURCES) {
+    await validateChroma(chromaPath, `${asset.key} chroma 母版`);
+    await validateAlpha(alphaPath, `${asset.key} alpha 母版`);
+  }
   await validateRuntime(asset.output, `${asset.key} 运行时图标`);
 
-  for (const [relativePath, absolutePath] of [
-    [chromaRelative, chromaPath],
-    [alphaRelative, alphaPath],
-  ]) {
-    if (!(await exists(absolutePath)) || !lockedHashes.has(relativePath)) continue;
-    const actualHash = await fileSha256(absolutePath);
-    if (actualHash !== lockedHashes.get(relativePath)) {
-      errors.push(`${relativePath} 与 SHA 锁不一致`);
+  if (WITH_SOURCES) {
+    for (const [relativePath, absolutePath] of [
+      [chromaRelative, chromaPath],
+      [alphaRelative, alphaPath],
+    ]) {
+      if (!(await exists(absolutePath)) || !lockedHashes.has(relativePath)) continue;
+      const actualHash = await fileSha256(absolutePath);
+      if (actualHash !== lockedHashes.get(relativePath)) {
+        errors.push(`${relativePath} 与 SHA 锁不一致`);
+      }
     }
   }
 }
@@ -358,6 +366,6 @@ if (errors.length > 0) {
   process.exitCode = 1;
 } else {
   console.log(
-    `区域 5 物品与装备资产校验通过：${chromaPixelHashes.size} 张独立 chroma、${alphaPixelHashes.size} 张独立 alpha、${runtimePixelHashes.size} 张独立运行时图标；5 物品 / 8 普通装备 / 6 绯焰套装。`,
+    `区域 5 物品与装备资产校验通过：${WITH_SOURCES ? `${chromaPixelHashes.size} 张独立 chroma、${alphaPixelHashes.size} 张独立 alpha、` : ''}${runtimePixelHashes.size} 张独立运行时图标；5 物品 / 8 普通装备 / 6 绯焰套装${WITH_SOURCES ? '，外置源 SHA 同步通过' : ''}。`,
   );
 }

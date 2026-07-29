@@ -1,8 +1,8 @@
 /**
  * 区域 5 怪物素材门禁。
  *
- * CI 可验证主仓中的运行时资产、PROMPTS、SHA 锁和联系表；在本机外置美术
- * 源仓存在时，还会逐条复核 chroma/alpha 文件的实际 SHA256。
+ * 默认验证主仓中的运行时资产、PROMPTS、SHA 锁和联系表；显式传入
+ * `--with-sources` 时，才严格逐条复核外置 chroma/alpha 文件的实际 SHA256。
  */
 
 import { createHash } from 'node:crypto';
@@ -18,9 +18,10 @@ const RUNTIME_ROOT = resolve(ROOT, 'public/assets/monsters/r5');
 const PROMPTS_PATH = resolve(ROOT, 'art-source/regions/r5/PROMPTS.md');
 const LOCK_PATH = resolve(ROOT, 'art-source/regions/r5/MONSTERS-SHA256.txt');
 const CONTACT_PATH = resolve(ROOT, 'art-source/qa/r5-monsters-contact.webp');
-const DEFAULT_SOURCE_ROOT =
-  'C:/Users/Administrator/Desktop/二次元传奇项目/yingrenchuanshuo-art-source-r5/monsters';
-const SOURCE_ROOT = resolve(process.env.R5_MONSTER_SOURCE ?? DEFAULT_SOURCE_ROOT);
+const SOURCE_ROOT = process.env.R5_MONSTER_SOURCE?.trim()
+  ? resolve(process.env.R5_MONSTER_SOURCE)
+  : resolve(ROOT, '..', 'yingrenchuanshuo-art-source-r5', 'monsters');
+const WITH_SOURCES = process.argv.includes('--with-sources');
 
 const EXPECTED_SIZE = 512;
 const LAST_VISIBLE_Y = 503;
@@ -174,77 +175,83 @@ if (new Set(lockEntries.map((entry) => entry.hash)).size !== lockEntries.length)
   fail('MONSTERS-SHA256.txt 中存在重复源图哈希');
 }
 
-try {
-  await access(SOURCE_ROOT);
-  for (const entry of lockEntries) {
-    const sourcePath = resolve(SOURCE_ROOT, entry.filename);
-    const source = await readFile(sourcePath);
-    const actualHash = sha256(source);
-    if (actualHash !== entry.hash) {
-      fail(`${entry.filename} SHA256 与锁文件不一致`);
-    }
+if (WITH_SOURCES) {
+  let sourceAvailable = true;
+  try {
+    await access(SOURCE_ROOT);
+  } catch {
+    sourceAvailable = false;
+    fail(`外置 R5 怪物源目录不存在：${SOURCE_ROOT}`);
+  }
 
-    const { data, info } = await sharp(sourcePath)
-      .ensureAlpha()
-      .raw()
-      .toBuffer({ resolveWithObject: true });
-    const corners = [
-      0,
-      info.width - 1,
-      (info.height - 1) * info.width,
-      info.width * info.height - 1,
-    ];
-
-    if (entry.filename.endsWith('-alpha.png')) {
-      if (corners.some((index) => data[index * 4 + 3] !== 0)) {
-        fail(`${entry.filename} alpha 母版四角未完全透明`);
-      }
-      const bounds = findBoundsAndGreen(data, info.width, info.height);
-      if (bounds.visible === 0) {
-        fail(`${entry.filename} alpha 母版没有可见主体`);
-      } else if (bounds.green / bounds.visible > 0.0005) {
-        fail(`${entry.filename} alpha 母版存在可检测绿边`);
-      }
-    } else {
-      if (
-        corners.some((index) => {
-          const offset = index * 4;
-          return (
-            data[offset] !== 0 ||
-            data[offset + 1] !== 255 ||
-            data[offset + 2] !== 0 ||
-            data[offset + 3] !== 255
-          );
-        })
-      ) {
-        fail(`${entry.filename} 绿幕四角不是严格 #00ff00`);
+  if (sourceAvailable) {
+    for (const entry of lockEntries) {
+      const sourcePath = resolve(SOURCE_ROOT, entry.filename);
+      const source = await readFile(sourcePath);
+      const actualHash = sha256(source);
+      if (actualHash !== entry.hash) {
+        fail(`${entry.filename} SHA256 与锁文件不一致`);
       }
 
-      const borderIndexes = [];
-      for (let x = 0; x < info.width; x += 1) {
-        borderIndexes.push(x, (info.height - 1) * info.width + x);
-      }
-      for (let y = 1; y < info.height - 1; y += 1) {
-        borderIndexes.push(y * info.width, y * info.width + info.width - 1);
-      }
-      if (
-        borderIndexes.some((index) => {
-          const offset = index * 4;
-          return (
-            data[offset] !== 0 ||
-            data[offset + 1] !== 255 ||
-            data[offset + 2] !== 0 ||
-            data[offset + 3] !== 255
-          );
-        })
-      ) {
-        fail(`${entry.filename} 外沿不是严格、均匀的 #00ff00`);
+      const { data, info } = await sharp(sourcePath)
+        .ensureAlpha()
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+      const corners = [
+        0,
+        info.width - 1,
+        (info.height - 1) * info.width,
+        info.width * info.height - 1,
+      ];
+
+      if (entry.filename.endsWith('-alpha.png')) {
+        if (corners.some((index) => data[index * 4 + 3] !== 0)) {
+          fail(`${entry.filename} alpha 母版四角未完全透明`);
+        }
+        const bounds = findBoundsAndGreen(data, info.width, info.height);
+        if (bounds.visible === 0) {
+          fail(`${entry.filename} alpha 母版没有可见主体`);
+        } else if (bounds.green / bounds.visible > 0.0005) {
+          fail(`${entry.filename} alpha 母版存在可检测绿边`);
+        }
+      } else {
+        if (
+          corners.some((index) => {
+            const offset = index * 4;
+            return (
+              data[offset] !== 0 ||
+              data[offset + 1] !== 255 ||
+              data[offset + 2] !== 0 ||
+              data[offset + 3] !== 255
+            );
+          })
+        ) {
+          fail(`${entry.filename} 绿幕四角不是严格 #00ff00`);
+        }
+
+        const borderIndexes = [];
+        for (let x = 0; x < info.width; x += 1) {
+          borderIndexes.push(x, (info.height - 1) * info.width + x);
+        }
+        for (let y = 1; y < info.height - 1; y += 1) {
+          borderIndexes.push(y * info.width, y * info.width + info.width - 1);
+        }
+        if (
+          borderIndexes.some((index) => {
+            const offset = index * 4;
+            return (
+              data[offset] !== 0 ||
+              data[offset + 1] !== 255 ||
+              data[offset + 2] !== 0 ||
+              data[offset + 3] !== 255
+            );
+          })
+        ) {
+          fail(`${entry.filename} 外沿不是严格、均匀的 #00ff00`);
+        }
       }
     }
   }
-} catch (error) {
-  if (error?.code !== 'ENOENT') throw error;
-  console.log('ℹ 未检测到外置 R5 美术源仓，跳过本机源图哈希实文件复核');
 }
 
 const contactMetadata = await sharp(CONTACT_PATH).metadata();
@@ -270,6 +277,6 @@ if (errors.length > 0) {
   process.exitCode = 1;
 } else {
   console.log(
-    `✓ R5 怪物素材门禁通过：24 个独立 512×512 WebP、透明边界/落点/绿边/体积/哈希/PROMPTS/SHA 锁/联系表全部合格`,
+    `✓ R5 怪物素材门禁通过：24 个独立 512×512 WebP、透明边界/落点/绿边/体积/哈希/PROMPTS/SHA 锁/联系表全部合格${WITH_SOURCES ? '，外置源 SHA 同步通过' : ''}`,
   );
 }
