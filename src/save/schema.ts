@@ -79,7 +79,11 @@ export interface ProgressSave {
   clearedStageIds: string[];
   /** 各关已累计的击杀数，中途关闭页面也不能丢进度 */
   stageKills: Record<string, number>;
-  /** 掉落保底计数器，key 为 `${tableId}:${itemId}` */
+  /**
+   * 掉落保底计数器。
+   * 单品 key 为 `${tableId}:${itemId}`，品质组 key 为
+   * `${tableId}:@pity-group:${groupId}`。
+   */
   pity: Record<string, number>;
   /** 已看过教学提示的章节 id，避免重复弹 */
   seenTutorials: string[];

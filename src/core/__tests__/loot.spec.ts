@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { dropChance, expectedLoot, rollLoot, type PityCounters } from '../loot';
+import { dropChance, expectedLoot, pityGroupKey, rollLoot, type PityCounters } from '../loot';
 import { Rng } from '../rng';
 import type { LootTable } from '../types';
 
@@ -123,6 +123,203 @@ describe('保底机制（防止非酋流失）', () => {
     const rng = new Rng(77);
     rollLoot(pityTable, rng, pity);
     expect(pity['loot_pity:shard']).toBeGreaterThanOrEqual(0);
+  });
+
+  it('多个旧单品同时到达阈值时仍逐项强制，不改变既有语义', () => {
+    const t: LootTable = {
+      id: 'legacy_multi_pity',
+      rolls: 0,
+      entries: [
+        { itemId: 'old_a', weight: 1, minCount: 1, maxCount: 1, pityCount: 2 },
+        { itemId: 'old_b', weight: 1, minCount: 1, maxCount: 1, pityCount: 2 },
+      ],
+    };
+    const pity: PityCounters = {
+      'legacy_multi_pity:old_a': 2,
+      'legacy_multi_pity:old_b': 2,
+    };
+
+    expect(rollLoot(t, new Rng(9), pity)).toEqual([
+      { itemId: 'old_a', count: 1 },
+      { itemId: 'old_b', count: 1 },
+    ]);
+    expect(pity).toEqual({
+      'legacy_multi_pity:old_a': 0,
+      'legacy_multi_pity:old_b': 0,
+    });
+  });
+});
+
+describe('品质组保底', () => {
+  const groupTable: LootTable = {
+    id: 'loot_quality_group',
+    rolls: 0,
+    entries: [
+      { itemId: 'legendary_weapon', weight: 1, minCount: 1, maxCount: 1 },
+      { itemId: 'legendary_head', weight: 3, minCount: 1, maxCount: 1 },
+      { itemId: 'legendary_body', weight: 6, minCount: 1, maxCount: 1 },
+    ],
+    pityGroups: [
+      {
+        id: 'legendary',
+        pityCount: 30,
+        itemIds: ['legendary_weapon', 'legendary_head', 'legendary_body'],
+      },
+    ],
+  };
+  const groupKey = pityGroupKey(groupTable.id, 'legendary');
+  const groupItemIds = new Set(groupTable.pityGroups![0]!.itemIds);
+
+  it('同种子、同计数的组选中与 RNG 推进完全可复现', () => {
+    const run = () => {
+      const pity: PityCounters = { [groupKey]: 30 };
+      const rng = new Rng(4242);
+      return {
+        drops: rollLoot(groupTable, rng, pity),
+        pity,
+        rngState: rng.getState(),
+      };
+    };
+
+    expect(run()).toEqual(run());
+  });
+
+  it('到达阈值时只按权重强制选择组内一件，不批量掉出全部候选', () => {
+    const pity: PityCounters = { [groupKey]: 30 };
+    const drops = rollLoot(groupTable, new Rng(1), pity);
+    const groupDrops = drops.filter((drop) => groupItemIds.has(drop.itemId));
+
+    expect(groupDrops).toHaveLength(1);
+    expect(groupDrops[0]).toMatchObject({ count: 1 });
+  });
+
+  it('强制选择沿用候选 LootEntry 的配置权重', () => {
+    const rng = new Rng(20260729);
+    let bodyHits = 0;
+    const sampleSize = 10_000;
+
+    for (let i = 0; i < sampleSize; i++) {
+      const pity: PityCounters = { [groupKey]: 30 };
+      const drops = rollLoot(groupTable, rng, pity);
+      if (drops[0]!.itemId === 'legendary_body') bodyHits++;
+    }
+
+    expect(bodyHits / sampleSize).toBeCloseTo(0.6, 1);
+  });
+
+  it('强制命中后整组计数清零', () => {
+    const pity: PityCounters = { [groupKey]: 30 };
+
+    rollLoot(groupTable, new Rng(2), pity);
+
+    expect(pity[groupKey]).toBe(0);
+  });
+
+  it('阈值前任一候选被正常掷中时按单品既有语义提前清零', () => {
+    const normalHitTable: LootTable = {
+      ...groupTable,
+      id: 'loot_quality_group_normal_hit',
+      rolls: 1,
+    };
+    const key = pityGroupKey(normalHitTable.id, 'legendary');
+    const pity: PityCounters = { [key]: 29 };
+    const drops = rollLoot(normalHitTable, new Rng(7), pity);
+
+    expect(drops).toHaveLength(1);
+    expect(groupItemIds.has(drops[0]!.itemId)).toBe(true);
+    expect(pity[key]).toBe(0);
+  });
+
+  it('整组未命中时只递增一份共享计数', () => {
+    const pity: PityCounters = {};
+
+    rollLoot(groupTable, new Rng(3), pity);
+
+    expect(pity).toEqual({ [groupKey]: 1 });
+  });
+
+  it('可与其他条目的旧单品保底并存，双方各自只结算自己的计数', () => {
+    const mixedTable: LootTable = {
+      ...groupTable,
+      id: 'loot_mixed_pity',
+      entries: [
+        ...groupTable.entries,
+        { itemId: 'old_shard', weight: 1, minCount: 2, maxCount: 2, pityCount: 5 },
+      ],
+    };
+    const mixedGroupKey = pityGroupKey(mixedTable.id, 'legendary');
+    const pity: PityCounters = {
+      [mixedGroupKey]: 30,
+      'loot_mixed_pity:old_shard': 5,
+    };
+    const drops = rollLoot(mixedTable, new Rng(8), pity);
+
+    expect(drops.filter((drop) => groupItemIds.has(drop.itemId))).toHaveLength(1);
+    expect(drops).toContainEqual({ itemId: 'old_shard', count: 2 });
+    expect(pity).toEqual({
+      [mixedGroupKey]: 0,
+      'loot_mixed_pity:old_shard': 0,
+    });
+  });
+
+  it('重复组 ID、计数 key 冲突与候选跨组会硬错误', () => {
+    const duplicateGroupId: LootTable = {
+      ...groupTable,
+      pityGroups: [groupTable.pityGroups![0]!, { ...groupTable.pityGroups![0]! }],
+    };
+    expect(() => rollLoot(duplicateGroupId, new Rng(1))).toThrow(/id 冲突/);
+
+    const counterKeyCollision: LootTable = {
+      ...groupTable,
+      entries: [
+        ...groupTable.entries,
+        {
+          itemId: '@pity-group:legendary',
+          weight: 1,
+          minCount: 1,
+          maxCount: 1,
+        },
+      ],
+    };
+    expect(() => rollLoot(counterKeyCollision, new Rng(1))).toThrow(/计数 key.*冲突/);
+
+    const memberInTwoGroups: LootTable = {
+      ...groupTable,
+      pityGroups: [
+        groupTable.pityGroups![0]!,
+        {
+          id: 'another',
+          pityCount: 20,
+          itemIds: ['legendary_weapon', 'legendary_head'],
+        },
+      ],
+    };
+    expect(() => rollLoot(memberInTwoGroups, new Rng(1))).toThrow(/同时属于品质组/);
+  });
+
+  it('缺候选、重复候选、非正阈值与单品保底重叠均硬错误', () => {
+    const withGroup = (itemIds: string[], pityCount = 30): LootTable => ({
+      ...groupTable,
+      pityGroups: [{ id: 'legendary', pityCount, itemIds }],
+    });
+
+    expect(() => rollLoot(withGroup(['legendary_weapon', 'missing_item']), new Rng(1))).toThrow(
+      /不存在/,
+    );
+    expect(() => rollLoot(withGroup(['legendary_weapon', 'legendary_weapon']), new Rng(1))).toThrow(
+      /重复引用/,
+    );
+    expect(() =>
+      rollLoot(withGroup(['legendary_weapon', 'legendary_head'], 0), new Rng(1)),
+    ).toThrow(/正整数/);
+
+    const overlapsSinglePity: LootTable = {
+      ...groupTable,
+      entries: groupTable.entries.map((entry) =>
+        entry.itemId === 'legendary_weapon' ? { ...entry, pityCount: 30 } : entry,
+      ),
+    };
+    expect(() => rollLoot(overlapsSinglePity, new Rng(1))).toThrow(/不能同时配置单品/);
   });
 });
 

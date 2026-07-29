@@ -459,11 +459,27 @@ export interface LootEntry {
   pityCount?: number;
 }
 
+/**
+ * 同一掉落表内共享计数的品质组保底。
+ *
+ * 候选必须引用 entries 中的物品；强制命中时沿用各 LootEntry.weight，
+ * 只选择其中一件。任一候选在正常掷骰中提前掉出，也会重置整组计数。
+ */
+export interface LootPityGroup {
+  id: string;
+  /** 累计 N 次整组都未命中后，下次结算强制命中组内一件。 */
+  pityCount: number;
+  /** 至少两个、不重复的 entries.itemId。 */
+  itemIds: readonly string[];
+}
+
 export interface LootTable {
   id: string;
   /** 每次击杀 roll 几次 */
   rolls: number;
   entries: LootEntry[];
+  /** 多个候选共享一次保底；组成员不能同时配置单物品 pityCount。 */
+  pityGroups?: readonly LootPityGroup[];
   /** 必掉项 */
   guaranteed?: LootEntry[];
 }
