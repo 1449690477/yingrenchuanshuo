@@ -14,6 +14,7 @@ import { useGameStore } from '@/stores/game';
 import { useInventoryStore } from '@/stores/inventory';
 import { usePlayerStore } from '@/stores/player';
 import { requireEquipment } from '@/data/equipment';
+import { equipmentDisplayPresentation } from '@/data/equipmentPresentation';
 import { requireItem } from '@/data/items';
 import { isAffixSettlementActive, QUALITY_LABELS, SLOT_LABELS, SLOT_ORDER } from '@/data/constants';
 import {
@@ -112,6 +113,11 @@ const assessments = computed<EquipmentAssessment[]>(() => {
 });
 
 const topPick = computed(() => topRecommendation(assessments.value));
+const presentationFor = (defId: string) => {
+  const classId = player.player?.classId;
+  if (!classId) throw new Error('[洗练坊错误] 存档未载入，无法解析装备职业外观');
+  return equipmentDisplayPresentation(requireEquipment(defId), classId);
+};
 
 /**
  * 值得洗练的件数。
@@ -606,7 +612,7 @@ onBeforeUnmount(() => {
               <span class="advisor-op">{{ operationName(topPick.recommendation.operation) }}</span>
             </div>
             <p class="advisor-headline">
-              <b>{{ requireEquipment(topPick.assessment.defId).name }}</b>
+              <b>{{ presentationFor(topPick.assessment.defId).name }}</b>
               · {{ topPick.recommendation.headline }}
             </p>
             <p class="advisor-reason">{{ topPick.recommendation.reason }}</p>
@@ -651,10 +657,10 @@ onBeforeUnmount(() => {
                 </span>
                 <img
                   class="gear-icon"
-                  :src="`${BASE}${requireEquipment(entry.defId).icon}`"
-                  :alt="requireEquipment(entry.defId).name"
+                  :src="`${BASE}${presentationFor(entry.defId).icon}`"
+                  :alt="presentationFor(entry.defId).name"
                 />
-                <span class="gear-name">{{ requireEquipment(entry.defId).name }}</span>
+                <span class="gear-name">{{ presentationFor(entry.defId).name }}</span>
                 <span class="gear-meta">
                   {{ QUALITY_LABELS[requireEquipment(entry.defId).quality] }} ·
                   {{ entry.source === 'equipped' ? '已穿戴' : '背包' }}

@@ -12,6 +12,7 @@ import { idleEfficiencyPresentation } from '@/ui/idleEfficiencyPresentation';
 import { requireChapter, requireRegionOfChapter } from '@/data/regions';
 import { requireMonster } from '@/data/monsters';
 import { requireEquipment } from '@/data/equipment';
+import { equipmentDisplayPresentation } from '@/data/equipmentPresentation';
 import { requireItem } from '@/data/items';
 import { QUALITY_LABELS, QUALITY_ORDER, QUALITY_RANK } from '@/data/constants';
 import StageSelect from '@/components/StageSelect.vue';
@@ -27,6 +28,11 @@ import type { EquipmentInstance } from '@/core/types';
 import type { ItemDef } from '@/data/items';
 
 const player = usePlayerStore();
+const activeClassId = computed(() => {
+  const classId = player.player?.classId;
+  if (!classId) throw new Error('[挂机页错误] 存档未载入，无法解析装备职业外观');
+  return classId;
+});
 const inventory = useInventoryStore();
 const stage = useStageStore();
 const showStages = ref(false);
@@ -83,12 +89,18 @@ const qualitySummary = computed(() => {
 
 const groupedLoot = computed(() =>
   aggregateLootEntries(
-    stage.lootLog.map((entry) => ({
-      ...entry,
-      category: entry.isEquipment
-        ? ('equipment' as const)
-        : (requireItem(entry.itemId).kind as LootDisplayCategory),
-    })),
+    stage.lootLog.map((entry) => {
+      const presentation = entry.isEquipment
+        ? equipmentDisplayPresentation(requireEquipment(entry.itemId), activeClassId.value)
+        : null;
+      return {
+        ...entry,
+        name: presentation?.name ?? entry.name,
+        category: entry.isEquipment
+          ? ('equipment' as const)
+          : (requireItem(entry.itemId).kind as LootDisplayCategory),
+      };
+    }),
   ),
 );
 const allLootCollapsed = computed(
@@ -139,15 +151,16 @@ const battleVitals = computed(() => {
 const recentDrop = computed(() => {
   const entry = stage.lootLog[0];
   if (!entry) return null;
-  const asset = entry.isEquipment
-    ? requireEquipment(entry.itemId).icon
-    : requireItem(entry.itemId).icon;
+  const presentation = entry.isEquipment
+    ? equipmentDisplayPresentation(requireEquipment(entry.itemId), activeClassId.value)
+    : null;
+  const asset = presentation?.icon ?? requireItem(entry.itemId).icon;
   return {
     id: entry.id,
     itemId: entry.itemId,
     isEquipment: entry.isEquipment,
     count: entry.count,
-    name: entry.name,
+    name: presentation?.name ?? entry.name,
     quality: entry.quality,
     assetUrl: `${import.meta.env.BASE_URL}${asset}`,
   };
@@ -160,17 +173,22 @@ const efficiencyStatus = computed(() => idleEfficiencyPresentation(stage.battleE
 
 /** 挂机窗口眉部的战利品流水线：最近 6 件，新货在最左。 */
 const lootFeed = computed(() =>
-  stage.lootLog.slice(0, 6).map((entry) => ({
-    id: entry.id,
-    itemId: entry.itemId,
-    name: entry.name,
-    count: entry.count,
-    quality: entry.quality,
-    isEquipment: entry.isEquipment,
-    assetUrl: `${import.meta.env.BASE_URL}${
-      entry.isEquipment ? requireEquipment(entry.itemId).icon : requireItem(entry.itemId).icon
-    }`,
-  })),
+  stage.lootLog.slice(0, 6).map((entry) => {
+    const presentation = entry.isEquipment
+      ? equipmentDisplayPresentation(requireEquipment(entry.itemId), activeClassId.value)
+      : null;
+    return {
+      id: entry.id,
+      itemId: entry.itemId,
+      name: presentation?.name ?? entry.name,
+      count: entry.count,
+      quality: entry.quality,
+      isEquipment: entry.isEquipment,
+      assetUrl: `${import.meta.env.BASE_URL}${
+        presentation?.icon ?? requireItem(entry.itemId).icon
+      }`,
+    };
+  }),
 );
 
 /** 掉落日志满员提示：40 条之后最旧的记录会被冲掉，别让玩家误以为丢装备了。 */
@@ -426,7 +444,12 @@ function openLootEntry(entry: { itemId: string; isEquipment: boolean; count: num
                   :aria-label="`查看${e.name}详情`"
                   @click="openLootEntry(e)"
                 >
-                  <EquipmentIcon v-if="e.isEquipment" :def="requireEquipment(e.itemId)" size="sm" />
+                  <EquipmentIcon
+                    v-if="e.isEquipment"
+                    :def="requireEquipment(e.itemId)"
+                    :class-id="activeClassId"
+                    size="sm"
+                  />
                   <ItemIcon v-else :item="requireItem(e.itemId)" />
                   <span class="loot-name" :class="'q-' + e.quality">{{ e.name }}</span>
                   <span class="loot-count num">×{{ e.count }}</span>

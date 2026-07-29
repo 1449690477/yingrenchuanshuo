@@ -14,6 +14,7 @@ import { useGameStore } from '@/stores/game';
 import { useInventoryStore } from '@/stores/inventory';
 import { usePlayerStore } from '@/stores/player';
 import { requireEquipment } from '@/data/equipment';
+import { equipmentDisplayPresentation } from '@/data/equipmentPresentation';
 import { requireItem } from '@/data/items';
 import { isAffixSettlementActive } from '@/data/constants';
 import {
@@ -49,6 +50,11 @@ let dialogFocusTrap: FocusTrap | null = null;
 let revealTimer = 0;
 
 const definition = computed(() => requireEquipment(props.inst.defId));
+const presentation = computed(() => {
+  const classId = player.player?.classId;
+  if (!classId) throw new Error('[洗练错误] 存档未载入，无法解析装备职业外观');
+  return equipmentDisplayPresentation(definition.value, classId);
+});
 const pending = computed(() => props.inst.pendingAffixChange ?? null);
 const oldPendingAffix = computed<Affix | null>(() => {
   const value = pending.value;
@@ -361,7 +367,7 @@ onBeforeUnmount(() => {
       <header class="reforge-head">
         <div>
           <small>词条养成</small>
-          <h2>{{ definition.name }}</h2>
+          <h2>{{ presentation.name }}</h2>
         </div>
         <button
           ref="closeButtonRef"

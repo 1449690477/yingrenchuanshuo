@@ -496,6 +496,7 @@ onUnmounted(() => {
         <template v-if="result.win">
           <EquipmentDungeonReward
             :instances="result.instances"
+            :class-id="classId"
             :first-clear="result.firstClear"
             :reduce-motion="reduceMotion"
           />

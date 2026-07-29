@@ -9,6 +9,7 @@ import {
 } from '@/core/types';
 import { forgeStageAt } from '@/core/equipment';
 import { requireEquipment } from './equipment';
+import { equipmentPresentation } from './equipmentPresentation';
 import { BOUTIQUE_THEME_LIST, BOUTIQUE_THEMES, boutiqueAppearanceId } from './boutique';
 import { QUALITY_RANK } from './constants';
 import {
@@ -485,7 +486,8 @@ export function resolveCharacterAppearance(
         throw new Error(`[配置错误] ${classId} 缺少装备外观：${appearance.id}`);
       }
       visibleEquippedCount += 1;
-      visibleNames.push(equipment.name);
+      const presentation = equipmentPresentation(equipment, classId);
+      visibleNames.push(presentation.name);
       if (appearance.renderMode === 'replacement') {
         replacementBaseAsset = asset;
         replacementId = appearance.id;
@@ -500,7 +502,7 @@ export function resolveCharacterAppearance(
         id: appearance.id,
         asset,
         slot,
-        name: equipment.name,
+        name: presentation.name,
         quality: equipment.quality,
         enhance: instance.enhance,
         forgeStage: forgeStageAt(instance.enhance),

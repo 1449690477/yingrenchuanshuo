@@ -8,7 +8,7 @@
 
 import type { RegionSpec } from './regions';
 import type { MonsterMotionProfile } from './battleMotions';
-import type { EquipSlot } from '@/core/types';
+import type { ClassId, EquipSlot } from '@/core/types';
 
 export interface Region34MaterialSpec {
   id: string;
@@ -248,6 +248,7 @@ export interface Region34EquipmentThemeSpec {
   themeName: string;
   visualKeywords: readonly string[];
   names: Readonly<Record<EquipSlot, string>>;
+  weaponNames: Readonly<Record<ClassId, string>>;
 }
 
 /**
@@ -270,6 +271,12 @@ export const REGION_34_EQUIPMENT_THEMES: readonly Region34EquipmentThemeSpec[] =
       belt: '甲节腰封',
       shoes: '苔纹轻靴',
     },
+    weaponNames: {
+      swordsman: '晶壳双刃',
+      witch: '幽晶魔导球',
+      shaman: '虫翅灵扇',
+      catkin: '幽晶裂爪',
+    },
   },
   {
     regionId: 'r4',
@@ -284,6 +291,12 @@ export const REGION_34_EQUIPMENT_THEMES: readonly Region34EquipmentThemeSpec[] =
       ring: '月见银戒',
       belt: '灵柩腰封',
       shoes: '幽步骨靴',
+    },
+    weaponNames: {
+      swordsman: '月泪骨刃',
+      witch: '月泪星杖',
+      shaman: '永眠轮扇',
+      catkin: '月铠巨爪',
     },
   },
 ];

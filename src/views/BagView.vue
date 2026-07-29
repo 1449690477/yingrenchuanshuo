@@ -6,7 +6,9 @@ import { decomposeGold } from '@/core/economy';
 import { abbr } from '@/core/format';
 import type { EquipmentInstance, Quality } from '@/core/types';
 import { useInventoryStore } from '@/stores/inventory';
+import { usePlayerStore } from '@/stores/player';
 import { requireEquipment } from '@/data/equipment';
+import { equipmentDisplayPresentation } from '@/data/equipmentPresentation';
 import { equipmentAdvancementOption as resolveEquipmentAdvancementOption } from '@/data/equipmentAdvancement';
 import { requireItem } from '@/data/items';
 import { QUALITY_LABELS, SLOT_LABELS } from '@/data/constants';
@@ -18,6 +20,12 @@ import ItemIcon from '@/components/ItemIcon.vue';
 import SystemArtwork from '@/components/SystemArtwork.vue';
 
 const inventory = useInventoryStore();
+const player = usePlayerStore();
+const activeClassId = computed(() => {
+  const classId = player.player?.classId;
+  if (!classId) throw new Error('[背包错误] 存档未载入，无法解析装备职业外观');
+  return classId;
+});
 const tab = ref<'equip' | 'item'>('equip');
 const detail = ref<EquipmentInstance | null>(null);
 const advancement = ref<EquipmentInstance | null>(null);
@@ -97,6 +105,7 @@ const bagEquips = computed(() => {
     return {
       inst,
       def,
+      presentation: equipmentDisplayPresentation(def, activeClassId.value),
       score: scoreOf(inst),
       // 直接用已经解析出的定义做 O(1) 路线判断；不要为每一行再按 UID 扫描背包。
       canAdvance: Boolean(resolveEquipmentAdvancementOption(def)),
@@ -450,11 +459,16 @@ onUnmounted(() => {
             :data-equip-uid="row.inst.uid"
             @click="detail = row.inst"
           >
-            <EquipmentIcon :def="row.def" :enhance="row.inst.enhance" :locked="row.inst.locked" />
+            <EquipmentIcon
+              :def="row.def"
+              :class-id="activeClassId"
+              :enhance="row.inst.enhance"
+              :locked="row.inst.locked"
+            />
             <span class="mid">
               <span class="name-line">
                 <span class="name" :class="'q-' + row.def.quality">
-                  {{ row.def.name }}
+                  {{ row.presentation.name }}
                   <span v-if="row.inst.enhance > 0" class="enh">+{{ row.inst.enhance }}</span>
                 </span>
                 <span v-if="row.inst.pendingAffixChange" class="pending-affix-badge">
@@ -476,7 +490,7 @@ onUnmounted(() => {
             v-if="row.canAdvance"
             type="button"
             class="advance-quick"
-            :aria-label="`升阶 ${row.def.name}`"
+            :aria-label="`升阶 ${row.presentation.name}`"
             @click="openAdvancement(row.inst)"
           >
             <ArrowUp :size="16" :stroke-width="2.3" aria-hidden="true" />

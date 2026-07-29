@@ -9,6 +9,7 @@ import { useSettingsStore } from '@/stores/settings';
 import { CLASS_INFO, SLOT_LABELS, SLOT_ORDER, STAT_LABELS } from '@/data/constants';
 import { REFORGE_UNLOCK_LEVEL } from '@/data/reforgeRules';
 import { requireEquipment } from '@/data/equipment';
+import { equipmentDisplayPresentation } from '@/data/equipmentPresentation';
 import { adviseReforge, topRecommendation } from '@/core/reforgeAdvisor';
 import {
   affectionMemoryDialogue,
@@ -182,7 +183,9 @@ const reforgeOverview = computed(() => {
     unlocked: level >= REFORGE_UNLOCK_LEVEL,
     count: list.length,
     headline: top
-      ? `${requireEquipment(top.assessment.defId).name} · ${top.recommendation.headline}`
+      ? `${equipmentDisplayPresentation(requireEquipment(top.assessment.defId), classId).name} · ${
+          top.recommendation.headline
+        }`
       : '',
   };
 });

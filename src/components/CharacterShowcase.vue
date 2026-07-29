@@ -4,6 +4,7 @@ import { abbr } from '@/core/format';
 import type { ClassId, EquipmentInstance, EquipSlot } from '@/core/types';
 import { CLASS_INFO, SLOT_LABELS } from '@/data/constants';
 import { requireEquipment } from '@/data/equipment';
+import { equipmentPresentation } from '@/data/equipmentPresentation';
 import { BOUTIQUE_THEMES } from '@/data/boutique';
 import {
   BASIC_ATTACK_EFFECTS,
@@ -103,7 +104,9 @@ function instanceOf(slot: EquipSlot): EquipmentInstance | null {
 
 function equipmentName(slot: EquipSlot): string {
   const instance = instanceOf(slot);
-  return instance ? requireEquipment(instance.defId).name : `空的${SLOT_LABELS[slot]}槽`;
+  return instance
+    ? equipmentPresentation(requireEquipment(instance.defId), props.classId).name
+    : `空的${SLOT_LABELS[slot]}槽`;
 }
 
 function play(nextAction: CharacterAction, skill: VisualSkill | null = null): void {
@@ -203,6 +206,7 @@ onUnmounted(() => clearTimeout(previewTimer));
           <EquipmentIcon
             v-if="instanceOf(slot)"
             :def="requireEquipment(instanceOf(slot)!.defId)"
+            :class-id="classId"
             :enhance="instanceOf(slot)!.enhance"
             size="sm"
             decorative
@@ -261,6 +265,7 @@ onUnmounted(() => clearTimeout(previewTimer));
           <EquipmentIcon
             v-if="instanceOf(slot)"
             :def="requireEquipment(instanceOf(slot)!.defId)"
+            :class-id="classId"
             :enhance="instanceOf(slot)!.enhance"
             size="sm"
             decorative

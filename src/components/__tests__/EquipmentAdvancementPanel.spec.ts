@@ -9,6 +9,7 @@ import {
   type EquipmentAdvancementOption,
 } from '@/data/equipmentAdvancement';
 import { requireEquipment } from '@/data/equipment';
+import { equipmentDisplayPresentation } from '@/data/equipmentPresentation';
 import EquipmentAdvancementPanel from '../EquipmentAdvancementPanel.vue';
 
 const sourceDefinition = requireEquipment('eq_r1_weapon_rare');
@@ -88,8 +89,8 @@ describe('跨区装备升阶移动端面板', () => {
     const html = await renderPanel();
     const cost = equipmentAdvancementCost(routeOption.target, routeOption.requirement);
 
-    expect(html).toContain(sourceDefinition.name);
-    expect(html).toContain(routeOption.target.name);
+    expect(html).toContain(equipmentDisplayPresentation(sourceDefinition, 'swordsman').name);
+    expect(html).toContain(equipmentDisplayPresentation(routeOption.target, 'swordsman').name);
     expect(html).toContain(`Lv${routeOption.target.level}`);
     expect(html).toContain('蜂娘蜜');
     expect(html).toContain('祭坛结晶');

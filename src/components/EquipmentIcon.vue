@@ -1,13 +1,16 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { LockKeyhole } from '@lucide/vue';
-import type { EquipmentDef } from '@/core/types';
+import type { ClassId, EquipmentDef } from '@/core/types';
 import { forgeStageAt } from '@/core/equipment';
+import { equipmentDisplayPresentation } from '@/data/equipmentPresentation';
 import { requireForgeStageVisual } from '@/data/forgeVisuals';
 
 const props = withDefaults(
   defineProps<{
     def: EquipmentDef;
+    /** 决定通用区域武器实际显示剑 / 杖 / 扇 / 爪中的哪一种。 */
+    classId: ClassId;
     /** 装备实例的强化等级；只改变锻造外观，不改变品质配色。 */
     enhance?: number;
     locked?: boolean;
@@ -23,7 +26,8 @@ const props = withDefaults(
   },
 );
 
-const iconUrl = computed(() => `${import.meta.env.BASE_URL}${props.def.icon}`);
+const presentation = computed(() => equipmentDisplayPresentation(props.def, props.classId));
+const iconUrl = computed(() => `${import.meta.env.BASE_URL}${presentation.value.icon}`);
 const forgeStage = computed(() => forgeStageAt(props.enhance));
 const forgeOverlayUrl = computed(() => {
   const asset = requireForgeStageVisual(forgeStage.value).overlayAsset;
@@ -31,8 +35,8 @@ const forgeOverlayUrl = computed(() => {
 });
 const iconLabel = computed(() =>
   props.enhance > 0
-    ? `${props.def.name}装备图标，强化 +${props.enhance}`
-    : `${props.def.name}装备图标`,
+    ? `${presentation.value.name}装备图标，强化 +${props.enhance}`
+    : `${presentation.value.name}装备图标`,
 );
 </script>
 

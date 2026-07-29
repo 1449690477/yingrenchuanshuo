@@ -58,7 +58,7 @@ describe('角色换装外观解析', () => {
     expect(appearance.growthTier.id).toBe('moon');
     expect(appearance.ariaLabel).toContain('樱色连衣裙');
     expect(appearance.ariaLabel).toContain('稻草帽');
-    expect(appearance.ariaLabel).toContain('樱枝短剑');
+    expect(appearance.ariaLabel).toContain('花羽魔杖');
   });
 
   it('仅穿戴 +15 的槽位首饰时不触发全身或武器锻造视觉', () => {

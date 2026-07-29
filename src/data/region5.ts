@@ -6,7 +6,7 @@
  * 避免出现能进入新区却缺图、缺材料用途或缺真实套装结算的半成品状态。
  */
 
-import type { EquipSlot, Quality } from '@/core/types';
+import type { ClassId, EquipSlot, Quality } from '@/core/types';
 import type { MonsterMotionProfile } from './battleMotions';
 import type { RegionSpec } from './regions';
 
@@ -153,6 +153,7 @@ export interface Region5EquipmentThemeSpec {
   qualities: readonly Quality[];
   visualKeywords: readonly string[];
   names: Readonly<Record<EquipSlot, string>>;
+  weaponNames: Readonly<Record<ClassId, string>>;
 }
 
 export const REGION_5_EQUIPMENT_THEME: Region5EquipmentThemeSpec = {
@@ -170,6 +171,12 @@ export const REGION_5_EQUIPMENT_THEME: Region5EquipmentThemeSpec = {
     ring: '誓火金戒',
     belt: '赤金绶带',
     shoes: '焰步短靴',
+  },
+  weaponNames: {
+    swordsman: '绯金誓刃',
+    witch: '熔晶焰心杖',
+    shaman: '赤羽祭火扇',
+    catkin: '绯焰裂晶爪',
   },
 };
 
@@ -196,6 +203,13 @@ export const REGION_5_SET_NAMES: Readonly<
   necklace: '熔心誓坠',
   ring: '不灭焰戒',
   bracelet: '赤金焰护',
+};
+
+export const REGION_5_SET_WEAPON_NAMES: Readonly<Record<ClassId, string>> = {
+  swordsman: '维斯塔誓焰刃',
+  witch: '维斯塔焰心杖',
+  shaman: '维斯塔燎天扇',
+  catkin: '维斯塔焰羽爪',
 };
 
 export function region5SetEquipmentId(
@@ -231,4 +245,3 @@ export const REGION_5_MONSTER_MOTIONS: Readonly<Record<string, MonsterMotionProf
   'mon_5-5_elite': 'guard',
   'mon_5-5_boss': 'royal',
 };
-

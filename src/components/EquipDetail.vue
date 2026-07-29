@@ -13,6 +13,7 @@ import type { EquipmentInstance, Stats } from '@/core/types';
 import { useInventoryStore } from '@/stores/inventory';
 import { usePlayerStore } from '@/stores/player';
 import { requireEquipment } from '@/data/equipment';
+import { equipmentDisplayPresentation } from '@/data/equipmentPresentation';
 import { requireEquipmentSet } from '@/data/equipmentSets';
 import { AFFIX_LABELS, QUALITY_LABELS, SLOT_LABELS, STAT_LABELS } from '@/data/constants';
 import { REFORGE_RESONANCE_MAX } from '@/data/reforgeRules';
@@ -35,9 +36,17 @@ const emit = defineEmits<{ close: [] }>();
 
 const inventory = useInventoryStore();
 const player = usePlayerStore();
+const activeClassId = computed(() => {
+  const classId = player.player?.classId;
+  if (!classId) throw new Error('[装备详情错误] 存档未载入，无法解析装备职业外观');
+  return classId;
+});
 const showReforge = ref(false);
 const showAdvancement = ref(false);
 const def = computed(() => requireEquipment(props.inst.defId));
+const presentation = computed(() =>
+  equipmentDisplayPresentation(def.value, activeClassId.value),
+);
 const advancementOption = computed(() => inventory.equipmentAdvancementOption(props.inst.uid));
 
 const stats = computed<Stats>(() =>
@@ -153,10 +162,16 @@ function doDecompose() {
   <div class="overlay" @click.self="emit('close')">
     <div v-if="def" class="sheet">
       <header class="head" :class="'hq-' + def.quality">
-        <EquipmentIcon :def="def" :enhance="inst.enhance" size="lg" :locked="inst.locked" />
+        <EquipmentIcon
+          :def="def"
+          :class-id="activeClassId"
+          :enhance="inst.enhance"
+          size="lg"
+          :locked="inst.locked"
+        />
         <div class="title">
           <span class="name" :class="'q-' + def.quality">
-            {{ def.name }}
+            {{ presentation.name }}
             <span v-if="inst.enhance > 0" class="enh">+{{ inst.enhance }}</span>
           </span>
           <span class="sub">

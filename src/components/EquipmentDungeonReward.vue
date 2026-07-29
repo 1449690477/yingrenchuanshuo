@@ -1,14 +1,16 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { ChevronRight, Gift, Sparkles } from '@lucide/vue';
-import type { EquipmentInstance, Quality } from '@/core/types';
+import type { ClassId, EquipmentInstance, Quality } from '@/core/types';
 import { AFFIX_LABELS, QUALITY_LABELS } from '@/data/constants';
 import { requireEquipment } from '@/data/equipment';
+import { equipmentDisplayPresentation } from '@/data/equipmentPresentation';
 import EquipmentIcon from './EquipmentIcon.vue';
 import EquipDetail from './EquipDetail.vue';
 
 const props = defineProps<{
   instances: readonly EquipmentInstance[];
+  classId: ClassId;
   firstClear: boolean;
   reduceMotion: boolean;
 }>();
@@ -17,6 +19,7 @@ const rewards = computed(() =>
   props.instances.map((instance) => ({
     instance,
     definition: requireEquipment(instance.defId),
+    presentation: equipmentDisplayPresentation(requireEquipment(instance.defId), props.classId),
   })),
 );
 
@@ -58,17 +61,18 @@ const hasPrize = computed(() =>
 
     <div class="reward-list">
       <button
-        v-for="({ instance, definition }, index) in rewards"
+        v-for="({ instance, definition, presentation }, index) in rewards"
         :key="instance.uid"
         type="button"
         class="reward-item"
         :class="[`quality-${definition.quality}`, { 'is-prize': isPrize(definition.quality) }]"
         :style="{ '--card-index': index }"
-        :aria-label="`查看${definition.name}详情`"
+        :aria-label="`查看${presentation.name}详情`"
         @click="detail = instance"
       >
         <EquipmentIcon
           :def="definition"
+          :class-id="classId"
           :enhance="instance.enhance"
           :locked="instance.locked"
           size="lg"
@@ -81,7 +85,7 @@ const hasPrize = computed(() =>
             <b v-if="instance.baseRollPermille >= 1121">奇迹胚子</b>
             <b v-else-if="instance.baseRollPermille >= 1061">精工胚子</b>
           </span>
-          <strong>{{ definition.name }}</strong>
+          <strong>{{ presentation.name }}</strong>
           <small>基础胚子 {{ (instance.baseRollPermille / 10).toFixed(1) }}%</small>
           <div class="affix-pills">
             <span v-for="affix in definition.fixedAffixes ?? []" :key="`fixed-${affix.key}`">

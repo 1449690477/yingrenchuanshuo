@@ -15,6 +15,7 @@ import type { EquipmentInstance, EquipSlot } from '@/core/types';
 import type { EquippedRecord } from '@/data/characterAppearance';
 import { SLOT_LABELS } from '@/data/constants';
 import { requireEquipment } from '@/data/equipment';
+import { equipmentPresentation } from '@/data/equipmentPresentation';
 import { requireEquipmentSet } from '@/data/equipmentSets';
 import { requireEquipmentSetCraftingRecipe } from '@/data/equipmentSetCrafting';
 import { requireItem } from '@/data/items';
@@ -59,6 +60,14 @@ const fragmentProgress = computed(() =>
 );
 const selectedDefinition = computed(() =>
   requireEquipment(recipe.targetDefIds[selectedSlot.value]!),
+);
+const activeClassId = computed(() => {
+  const classId = player.player?.classId;
+  if (!classId) throw new Error('[绯焰重铸错误] 存档未载入，无法解析职业武器外观');
+  return classId;
+});
+const selectedPresentation = computed(() =>
+  equipmentPresentation(selectedDefinition.value, activeClassId.value),
 );
 
 const allOwnedEquipment = computed(() => [
@@ -134,7 +143,7 @@ const readyMessage = computed(() => {
   if (duplicates > 0) {
     return `已经拥有 ${duplicates} 件同部位绯焰装备；仍可继续重铸，确认后会进入背包。`;
   }
-  return `材料齐备，将重铸 ${selectedDefinition.value.name} 并放入背包。`;
+  return `材料齐备，将重铸 ${selectedPresentation.value.name} 并放入背包。`;
 });
 
 function failureMessage(result: Exclude<EquipmentSetCraftingActionResult, { ok: true }>): string {
@@ -181,9 +190,10 @@ async function confirmCraft(): Promise<void> {
     }
 
     const definition = requireEquipment(result.targetDefId);
+    const presentation = equipmentPresentation(definition, activeClassId.value);
     lastCraftedSlot.value = result.targetSlot;
-    feedback.value = `${definition.name}重铸完成，已安全放入背包。`;
-    emit('crafted', { equipmentName: definition.name, targetSlot: result.targetSlot });
+    feedback.value = `${presentation.name}重铸完成，已安全放入背包。`;
+    emit('crafted', { equipmentName: presentation.name, targetSlot: result.targetSlot });
   } finally {
     submitting.value = false;
   }
@@ -365,6 +375,7 @@ onBeforeUnmount(() => {
                   >
                     <EquipmentIcon
                       :def="requireEquipment(recipe.targetDefIds[slot]!)"
+                      :class-id="activeClassId"
                       size="sm"
                       decorative
                     />
@@ -380,10 +391,10 @@ onBeforeUnmount(() => {
             </div>
 
             <section class="selected-preview" aria-label="选中装备预览">
-              <EquipmentIcon :def="selectedDefinition" size="lg" />
+              <EquipmentIcon :def="selectedDefinition" :class-id="activeClassId" size="lg" />
               <span class="selected-copy">
                 <small>本次重铸</small>
-                <strong>{{ selectedDefinition.name }}</strong>
+                <strong>{{ selectedPresentation.name }}</strong>
                 <span
                   >传说 · {{ SLOT_LABELS[selectedSlot] }} · Lv{{ selectedDefinition.level }}</span
                 >

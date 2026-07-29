@@ -137,6 +137,13 @@ export interface PendingAffixChange {
 // ─────────────────────────── 装备 ───────────────────────────
 
 /** 装备定义的公共字段（配置表里的静态数据）。 */
+export interface EquipmentClassPresentation {
+  /** 同一件共享数值装备在当前职业下的玩家可见名称。 */
+  name: string;
+  /** 与人物纸娃娃武器造型一致的职业专属图标。 */
+  icon: string;
+}
+
 interface EquipmentDefBase {
   id: string;
   name: string;
@@ -152,6 +159,13 @@ interface EquipmentDefBase {
   appearanceId: string;
   /** 职业专属装备；未填写表示全职业通用。 */
   classId?: ClassId;
+  /**
+   * 全职业共享装备的职业外观。
+   *
+   * 当前只用于区域武器：存档和数值仍共用同一个 defId，但剑士 / 魔女 /
+   * 灵巫 / 喵喵分别展示剑、杖、扇、爪，避免通用武器图标冒充纸娃娃实装。
+   */
+  classPresentations?: Partial<Record<ClassId, EquipmentClassPresentation>>;
   /** 精品换装系列，用于统一人物光环、攻击换肤和互动。 */
   boutiqueTheme?: BoutiqueThemeId;
   /** 固定词条，套装件常用；不参与实例洗练。 */

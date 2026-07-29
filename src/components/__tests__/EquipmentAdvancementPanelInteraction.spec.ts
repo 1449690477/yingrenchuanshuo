@@ -8,6 +8,7 @@ import {
   type EquipmentAdvancementOption,
 } from '@/data/equipmentAdvancement';
 import { requireEquipment } from '@/data/equipment';
+import { equipmentDisplayPresentation } from '@/data/equipmentPresentation';
 import EquipmentAdvancementPanel from '../EquipmentAdvancementPanel.vue';
 
 const resolvedRoute = resolveEquipmentAdvancementOption(requireEquipment('eq_r1_weapon_rare'));
@@ -145,7 +146,7 @@ describe('跨区升阶面板耐久提交交互', () => {
 
     expect(onUpgraded).toHaveBeenCalledOnce();
     expect(onUpgraded).toHaveBeenCalledWith({
-      targetName: route.target.name,
+      targetName: equipmentDisplayPresentation(route.target, 'swordsman').name,
       cpDelta: 123,
     });
     expect(sheet.getAttribute('aria-busy')).toBe('false');

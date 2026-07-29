@@ -3,6 +3,7 @@ import { renderToString } from 'vue/server-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EquipmentInstance } from '@/core/types';
 import { EQUIPMENT } from '@/data/equipment';
+import { equipmentDisplayPresentation } from '@/data/equipmentPresentation';
 import BagView from '@/views/BagView.vue';
 import EquipDetail from '../EquipDetail.vue';
 import ReforgePanel from '../ReforgePanel.vue';
@@ -177,7 +178,9 @@ describe('洗练组件产品红线', () => {
 
     const html = await render(BagView, {});
 
-    expect(html).toContain(randomDefinition.name);
+    expect(html).toContain(
+      equipmentDisplayPresentation(randomDefinition, player.player.classId).name,
+    );
     expect(html).toContain('洗练待确认');
     expect(html).toContain('pending-affix-badge');
   });

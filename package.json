@@ -22,6 +22,8 @@
     "assets:catkin-cardboard": "node scripts/build-catkin-cardboard-assets.mjs && node scripts/validate-catkin-cardboard-assets.mjs",
     "assets:equipment-dungeon": "node scripts/build-equipment-dungeon-assets.mjs && node scripts/validate-equipment-dungeon-assets.mjs",
     "assets:equipment-dungeon:check": "node scripts/validate-equipment-dungeon-assets.mjs",
+    "assets:weapon-icons": "node scripts/build-equipment-weapon-icons.mjs && node scripts/validate-equipment-weapon-icons.mjs",
+    "assets:weapon-icons:check": "node scripts/validate-equipment-weapon-icons.mjs",
     "assets:reforge:check": "node scripts/validate-reforge-assets.mjs",
     "assets:region34": "node scripts/build-region34-assets.mjs && node scripts/validate-region34-assets.mjs",
     "assets:region34:check": "node scripts/validate-region34-assets.mjs",
@@ -37,7 +39,7 @@
     "qa:region5-save": "tsx scripts/create-region5-qa-save.mts",
     "balance:equipment-dungeon": "tsx scripts/equipment-dungeon-balance.mts",
     "typecheck": "vue-tsc --noEmit",
-    "verify": "npm run lint && npm run typecheck && npm run test && npm run sim && npm run assets:encounters:check && npm run assets:affection:check && npm run assets:reforge:check && npm run assets:region34:check && npm run assets:region5:check",
+    "verify": "npm run lint && npm run typecheck && npm run test && npm run sim && npm run assets:encounters:check && npm run assets:affection:check && npm run assets:reforge:check && npm run assets:region34:check && npm run assets:region5:check && npm run assets:weapon-icons:check",
     "sim": "tsx scripts/simulate.ts && tsx scripts/region5-economy.mts",
     "sim:r5": "tsx scripts/region5-economy.mts",
     "edge:build": "tsx scripts/build-edge-function.mts"

@@ -131,6 +131,13 @@ describe('绯焰套通用碎片自选重铸面板', () => {
 
     await openForge();
 
+    expect(document.body.textContent).toContain('维斯塔焰羽爪');
+    expect(document.body.textContent).not.toContain('维斯塔誓焰刃');
+    expect(
+      document.body.querySelector<HTMLImageElement>(
+        'img[src*="assets/equipment/weapons/r5-set-weapon/catkin.png"]',
+      ),
+    ).not.toBeNull();
     const choices = [...document.querySelectorAll<HTMLButtonElement>('.slot-choice')];
     expect(choices).toHaveLength(6);
     expect(document.querySelector('.slot-grid')?.getAttribute('role')).toBe('group');

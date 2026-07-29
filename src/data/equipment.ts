@@ -10,12 +10,15 @@
 
 import type {
   AffixKey,
+  ClassId,
   Element,
+  EquipmentClassPresentation,
   EquipmentDef,
   EquipSlot,
   FixedAffix,
   Quality,
 } from '@/core/types';
+import { CLASS_IDS } from '@/core/types';
 import { QUALITY_AFFIX_COUNT, SLOT_ORDER } from './constants';
 import { AFFECTION_EQUIPMENT_LIST } from './affectionEquipment';
 import { BOUTIQUE_THEME_LIST, boutiqueAppearanceId, boutiqueEquipmentId } from './boutique';
@@ -28,6 +31,7 @@ import {
   REGION_5_SET_NAMES,
   REGION_5_SET_QUALITY,
   REGION_5_SET_SLOTS,
+  REGION_5_SET_WEAPON_NAMES,
   region5SetEquipmentId,
 } from './region5';
 import { BOUTIQUE_WEAPON_ELEMENTS, REGION_WEAPON_ELEMENTS } from './weaponElements';
@@ -44,6 +48,8 @@ interface NamingTheme {
   /** 同区域同部位共用基础图，品质由 UI 边框和光效表达 */
   icons: Record<EquipSlot, string>;
   names: Record<EquipSlot, string>;
+  /** 同一把共享数值武器在四职业手中呈现为剑 / 杖 / 扇 / 爪。 */
+  weaponNames: Readonly<Record<ClassId, string>>;
 }
 
 const THEMES: NamingTheme[] = [
@@ -73,6 +79,12 @@ const THEMES: NamingTheme[] = [
       belt: '缎带腰封',
       shoes: '软草便鞋',
     },
+    weaponNames: {
+      swordsman: '樱枝短剑',
+      witch: '花羽魔杖',
+      shaman: '樱信灵扇',
+      catkin: '花铃晶爪',
+    },
   },
   {
     regionId: 'r2',
@@ -99,6 +111,12 @@ const THEMES: NamingTheme[] = [
       belt: '草编腰带',
       shoes: '蓬松绒靴',
     },
+    weaponNames: {
+      swordsman: '棉花糖战槌',
+      witch: '甜云魔杖',
+      shaman: '蜜铃灵槌',
+      catkin: '蜂蜜键帽锤',
+    },
   },
 
   // 区域 3/4：主题与可见名称登记在 region34.ts，此处只补等级与品质档。
@@ -113,6 +131,7 @@ const THEMES: NamingTheme[] = [
       SLOT_ORDER.map((slot) => [slot, `assets/equipment/${theme.regionId}/${slot}.png`]),
     ) as Record<EquipSlot, string>,
     names: theme.names,
+    weaponNames: theme.weaponNames,
   })),
   {
     regionId: REGION_5_EQUIPMENT_THEME.regionId,
@@ -123,6 +142,7 @@ const THEMES: NamingTheme[] = [
       SLOT_ORDER.map((slot) => [slot, `assets/equipment/r5/${slot}.png`]),
     ) as Record<EquipSlot, string>,
     names: REGION_5_EQUIPMENT_THEME.names,
+    weaponNames: REGION_5_EQUIPMENT_THEME.weaponNames,
   },
 ];
 
@@ -150,6 +170,22 @@ const QUALITY_LEVEL_OFFSET: Record<Quality, number> = {
   divine: 10,
 };
 
+function weaponClassPresentations(
+  appearanceId: string,
+  names: Readonly<Record<ClassId, string>>,
+  qualityPrefix = '',
+): Record<ClassId, EquipmentClassPresentation> {
+  return Object.fromEntries(
+    CLASS_IDS.map((classId) => [
+      classId,
+      {
+        name: `${qualityPrefix}${names[classId]}`,
+        icon: `assets/equipment/weapons/${appearanceId}/${classId}.png`,
+      },
+    ]),
+  ) as Record<ClassId, EquipmentClassPresentation>;
+}
+
 function buildEquipment(): Record<string, EquipmentDef> {
   const out: Record<string, EquipmentDef> = {};
 
@@ -167,7 +203,16 @@ function buildEquipment(): Record<string, EquipmentDef> {
         };
         out[id] =
           slot === 'weapon'
-            ? { ...common, slot, element: theme.weaponElement }
+            ? {
+                ...common,
+                slot,
+                element: theme.weaponElement,
+                classPresentations: weaponClassPresentations(
+                  `${theme.regionId}-weapon`,
+                  theme.weaponNames,
+                  QUALITY_PREFIX[quality],
+                ),
+              }
             : { ...common, slot };
       }
     }
@@ -186,7 +231,15 @@ function buildEquipment(): Record<string, EquipmentDef> {
     } as const;
     out[id] =
       slot === 'weapon'
-        ? { ...common, slot, element: REGION_WEAPON_ELEMENTS.r5 }
+        ? {
+            ...common,
+            slot,
+            element: REGION_WEAPON_ELEMENTS.r5,
+            classPresentations: weaponClassPresentations(
+              'r5-set-weapon',
+              REGION_5_SET_WEAPON_NAMES,
+            ),
+          }
         : { ...common, slot };
   }
 

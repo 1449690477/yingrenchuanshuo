@@ -120,7 +120,7 @@ const allRows = computed<PreviewRow[]>(() => {
     });
   }
 
-  for (const regionId of ['r1', 'r2', 'r3', 'r4']) {
+  for (const regionId of ['r1', 'r2', 'r3', 'r4', 'r5']) {
     result.push({
       title: `区域 · ${regionId}`,
       subtitle: `${regionId}-body/head/weapon`,
@@ -132,6 +132,17 @@ const allRows = computed<PreviewRow[]>(() => {
       cells: singleSlotCells(`${regionId}-head`, 'head'),
     });
   }
+
+  result.push({
+    title: '区域 · r5 绯焰六件套',
+    subtitle: 'r5-set-body/head/weapon',
+    cells: suiteCells('r5-set'),
+  });
+  result.push({
+    title: '区域 r5 绯焰套 · 只持武',
+    subtitle: 'r5-set-weapon（剑 / 杖 / 扇 / 爪）',
+    cells: singleSlotCells('r5-set-weapon', 'weapon'),
+  });
 
   for (const tier of EQUIPMENT_DUNGEON_TIERS) {
     result.push({

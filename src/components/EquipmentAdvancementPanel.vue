@@ -7,6 +7,7 @@ import { abbr } from '@/core/format';
 import type { EquipmentInstance } from '@/core/types';
 import { QUALITY_LABELS, SLOT_LABELS } from '@/data/constants';
 import { requireEquipment } from '@/data/equipment';
+import { equipmentDisplayPresentation } from '@/data/equipmentPresentation';
 import { requireItem, type ItemDef } from '@/data/items';
 import { WEAPON_ELEMENT_LABELS } from '@/data/weaponElements';
 import { useInventoryStore } from '@/stores/inventory';
@@ -26,6 +27,11 @@ const emit = defineEmits<{
 
 const inventory = useInventoryStore();
 const player = usePlayerStore();
+const activeClassId = computed(() => {
+  const classId = player.player?.classId;
+  if (!classId) throw new Error('[装备升阶错误] 存档未载入，无法解析装备职业外观');
+  return classId;
+});
 const sheetRef = ref<HTMLElement | null>(null);
 const closeButtonRef = ref<HTMLButtonElement | null>(null);
 const submitting = ref(false);
@@ -45,6 +51,12 @@ const expectedSourceDefId = props.inst.defId;
 const openingOption = inventory.equipmentAdvancementOption(props.inst.uid);
 const sourceDefinition = openingOption?.source ?? requireEquipment(expectedSourceDefId);
 const targetDefinition = openingOption?.target ?? null;
+const sourcePresentation = computed(() =>
+  equipmentDisplayPresentation(sourceDefinition, activeClassId.value),
+);
+const targetPresentation = computed(() =>
+  targetDefinition ? equipmentDisplayPresentation(targetDefinition, activeClassId.value) : null,
+);
 const cost = openingOption
   ? equipmentAdvancementCost(openingOption.target, openingOption.requirement)
   : null;
@@ -211,7 +223,10 @@ async function confirmAdvancement(): Promise<void> {
     succeeded.value = true;
     successCpDelta.value = result.cpDelta;
     feedback.value = '';
-    const targetName = requireEquipment(result.targetDefId).name;
+    const targetName = equipmentDisplayPresentation(
+      requireEquipment(result.targetDefId),
+      activeClassId.value,
+    ).name;
     emit('upgraded', { targetName, cpDelta: result.cpDelta });
   } finally {
     submitting.value = false;
@@ -298,9 +313,14 @@ onBeforeUnmount(() => {
         <div class="equipment-route" :class="{ unavailable: !targetDefinition }">
           <article class="equipment-card source-card">
             <small>当前装备</small>
-            <EquipmentIcon :def="sourceDefinition" :enhance="inst.enhance" :locked="inst.locked" />
+            <EquipmentIcon
+              :def="sourceDefinition"
+              :class-id="activeClassId"
+              :enhance="inst.enhance"
+              :locked="inst.locked"
+            />
             <strong :class="`q-${sourceDefinition.quality}`">
-              {{ sourceDefinition.name }}
+              {{ sourcePresentation.name }}
             </strong>
             <span>
               {{ SLOT_LABELS[sourceDefinition.slot] }} ·
@@ -315,9 +335,14 @@ onBeforeUnmount(() => {
 
           <article v-if="targetDefinition" class="equipment-card target-card">
             <small>升阶目标</small>
-            <EquipmentIcon :def="targetDefinition" :enhance="inst.enhance" :locked="inst.locked" />
+            <EquipmentIcon
+              :def="targetDefinition"
+              :class-id="activeClassId"
+              :enhance="inst.enhance"
+              :locked="inst.locked"
+            />
             <strong :class="`q-${targetDefinition.quality}`">
-              {{ targetDefinition.name }}
+              {{ targetPresentation?.name }}
             </strong>
             <span>
               {{ SLOT_LABELS[targetDefinition.slot] }} ·

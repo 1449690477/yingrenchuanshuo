@@ -3,12 +3,20 @@ import { computed } from 'vue';
 import { Coins, Sparkles, Star, Swords } from '@lucide/vue';
 import { abbr, duration } from '@/core/format';
 import { useStageStore } from '@/stores/stage';
+import { usePlayerStore } from '@/stores/player';
 import { getEquipment, requireEquipment } from '@/data/equipment';
+import { equipmentDisplayPresentation } from '@/data/equipmentPresentation';
 import { requireItem } from '@/data/items';
 import EquipmentIcon from '@/components/EquipmentIcon.vue';
 import ItemIcon from '@/components/ItemIcon.vue';
 
 const stage = useStageStore();
+const player = usePlayerStore();
+const activeClassId = computed(() => {
+  const classId = player.player?.classId;
+  if (!classId) throw new Error('[离线结算错误] 存档未载入，无法解析装备职业外观');
+  return classId;
+});
 
 const r = computed(() => stage.offlineResult);
 
@@ -32,7 +40,7 @@ const drops = computed(() => {
       }
       return {
         itemId: d.itemId,
-        name: eq.name,
+        name: equipmentDisplayPresentation(eq, activeClassId.value).name,
         count: d.count,
         quality: eq.quality,
         isEquip: true,
@@ -88,7 +96,12 @@ const moreCount = computed(() => Math.max(0, (r.value?.yield.loot.length ?? 0) -
               class="drop row-in"
               :style="{ '--row-delay': `${120 + i * 50}ms` }"
             >
-              <EquipmentIcon v-if="d.isEquip" :def="requireEquipment(d.itemId)" size="sm" />
+              <EquipmentIcon
+                v-if="d.isEquip"
+                :def="requireEquipment(d.itemId)"
+                :class-id="activeClassId"
+                size="sm"
+              />
               <ItemIcon v-else :item="requireItem(d.itemId)" />
               <span class="d-name" :class="'q-' + d.quality">
                 {{ d.name }}

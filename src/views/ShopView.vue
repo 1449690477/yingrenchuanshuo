@@ -5,6 +5,7 @@ import { abbr, signed } from '@/core/format';
 import type { EquipmentInstance, Quality } from '@/core/types';
 import type { EquippedRecord } from '@/data/characterAppearance';
 import { QUALITY_LABELS, SLOT_LABELS } from '@/data/constants';
+import { equipmentDisplayPresentation } from '@/data/equipmentPresentation';
 import { useInventoryStore } from '@/stores/inventory';
 import { usePlayerStore } from '@/stores/player';
 import { useShopStore } from '@/stores/shop';
@@ -18,6 +19,11 @@ const emit = defineEmits<{ close: [] }>();
 const shop = useShopStore();
 const inventory = useInventoryStore();
 const player = usePlayerStore();
+const activeClassId = computed(() => {
+  const classId = player.player?.classId;
+  if (!classId) throw new Error('[商店错误] 存档未载入，无法解析装备职业外观');
+  return classId;
+});
 const activeFilter = ref<FilterId>('all');
 const selectedId = ref<string | null>(null);
 const toast = ref('');
@@ -55,6 +61,8 @@ const selected = computed(() =>
     ? (shop.offers.find((entry) => entry.offer.id === selectedId.value) ?? null)
     : null,
 );
+const presentation = (definition: (typeof shop.offers)[number]['def']) =>
+  equipmentDisplayPresentation(definition, activeClassId.value);
 
 const previewInstance = computed<EquipmentInstance | null>(() =>
   selected.value ? shop.previewInstance(selected.value.def.id) : null,
@@ -156,7 +164,9 @@ function buy(): void {
     return;
   }
   purchaseBurst.value += 1;
-  announce(`${result.instance.locked ? '已锁定保护 · ' : ''}${selected.value.def.name} 已放入背包`);
+  announce(
+    `${result.instance.locked ? '已锁定保护 · ' : ''}${presentation(selected.value.def).name} 已放入背包`,
+  );
 }
 
 function qualityClass(quality: Quality): string {
@@ -252,10 +262,10 @@ onUnmounted(() => {
         @click="openDetail(entry.offer.id, $event)"
       >
         <span class="offer-spark" aria-hidden="true">✦</span>
-        <EquipmentIcon :def="entry.def" size="md" decorative />
+        <EquipmentIcon :def="entry.def" :class-id="activeClassId" size="md" decorative />
         <span class="offer-copy">
           <small>{{ entry.theme.shortName }}珍品 · {{ SLOT_LABELS[entry.def.slot] }}</small>
-          <strong :class="`q-${entry.def.quality}`">{{ entry.def.name }}</strong>
+          <strong :class="`q-${entry.def.quality}`">{{ presentation(entry.def).name }}</strong>
           <span class="price"><Coins :size="11" />{{ abbr(entry.offer.price) }}</span>
           <em :class="{ ready: entry.assessment.ok }">{{ assessmentText(entry) }}</em>
         </span>
@@ -299,7 +309,7 @@ onUnmounted(() => {
           <div class="detail-copy scroll-y">
             <span class="series">{{ selected.theme.name }}</span>
             <h2 id="shop-detail-title" :class="`q-${selected.def.quality}`">
-              {{ selected.def.name }}
+              {{ presentation(selected.def).name }}
             </h2>
             <p class="meta">
               {{ QUALITY_LABELS[selected.def.quality] }} · {{ SLOT_LABELS[selected.def.slot] }} ·
