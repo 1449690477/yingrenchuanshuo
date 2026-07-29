@@ -154,7 +154,15 @@ export function resolveEquipmentDungeonChallenge(
   if (input.stage.previousStageId && !state.records[input.stage.previousStageId]) {
     return { ok: false, reason: 'previous-tier-locked', state };
   }
-  if (state.clearsToday >= EQUIPMENT_DUNGEON_RULES.dailyClears) {
+  /*
+   * 首通不占每日次数。
+   *
+   * 首通是「解锁内容」，日常刷取是「重复获取」，两者不该抢同一份预算。
+   * 玩家刚推到新档位却因为今天次数用完而进不去，等于用日常限制
+   * 挡住了内容进度 —— 那是惩罚性设计（见 docs/40 红线、docs/47 第四节）。
+   */
+  const isFirstAttemptOfStage = !state.records[input.stage.id];
+  if (!isFirstAttemptOfStage && state.clearsToday >= EQUIPMENT_DUNGEON_RULES.dailyClears) {
     return { ok: false, reason: 'daily-limit', state };
   }
 
@@ -238,7 +246,8 @@ export function resolveEquipmentDungeonChallenge(
     win: true,
     state: {
       ...state,
-      clearsToday: state.clearsToday + 1,
+      // 首通不计次数，理由见上方 isFirstAttemptOfStage 的说明
+      clearsToday: state.clearsToday + (firstClear ? 0 : 1),
       totalClears: state.totalClears + 1,
       records,
     },

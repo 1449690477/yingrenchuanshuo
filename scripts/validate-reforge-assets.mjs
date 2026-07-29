@@ -13,12 +13,20 @@ const ITEM_IDS = [
   'crystal_resonance',
 ];
 const EFFECT_IDS = ['reforge-swirl', 'tier-up-burst', 'lock-seal'];
+/** 洗练工坊四个操作按钮的图标（kimi 的工坊 UI），与 ReforgeStudio.vue 的 opIconUrl 一一对应。 */
+const OP_ICON_IDS = ['op-temper', 'op-inscribe', 'op-reforge', 'op-resonate'];
+/** 工坊页头横幅。非透明底图，走 webp 而不是 RGBA PNG，因此单独校验。 */
+const BANNER_FILE = 'public/assets/effects/reforge/reforge-studio-banner.webp';
 
 const itemFiles = ITEM_IDS.map((id) => `public/assets/items/${id}.png`);
 const effectFiles = EFFECT_IDS.map((id) => `public/assets/effects/reforge/${id}.png`);
-const sourceFiles = [...ITEM_IDS, ...EFFECT_IDS].map(
-  (id) => `art-source/reforge/${id}-chroma.png`,
-);
+const opIconFiles = OP_ICON_IDS.map((id) => `public/assets/effects/reforge/${id}.png`);
+const sourceFiles = [
+  ...[...ITEM_IDS, ...EFFECT_IDS].map((id) => `art-source/reforge/${id}-chroma.png`),
+  // 操作图标与横幅是直接产出的透明图/底图，没有绿幕中间态
+  ...OP_ICON_IDS.map((id) => `art-source/reforge/${id}.png`),
+  'art-source/reforge/studio-banner.png',
+];
 const promptFiles = [
   'art-source/reforge/PROMPTS.md',
   'art-source/reforge/PROMPTS-SIGILS.md',
@@ -44,8 +52,9 @@ async function assertManifest() {
     throw new Error('洗练资产清单必须严格为 7 张材料图标和 3 张特效图');
   }
   const actualEffects = await filesUnder('public/assets/effects/reforge');
-  const expectedEffects = new Set(effectFiles);
-  const missing = effectFiles.filter((file) => !actualEffects.includes(file));
+  const declared = [...effectFiles, ...opIconFiles, BANNER_FILE];
+  const expectedEffects = new Set(declared);
+  const missing = declared.filter((file) => !actualEffects.includes(file));
   const unexpected = actualEffects.filter((file) => !expectedEffects.has(file));
   if (missing.length > 0 || unexpected.length > 0) {
     throw new Error(
@@ -132,6 +141,28 @@ async function validateTransparentPng(file, width, height, maxBytes) {
   return createHash('sha256').update(data).digest('hex');
 }
 
+/**
+ * 工坊横幅：不透明底图，只保证格式、尺寸比例与体积。
+ * 宽高比放宽到 1.5~1.7，出图工具在 3:2 附近会有几十像素的浮动。
+ */
+async function validateBanner() {
+  const absolute = resolve(BANNER_FILE);
+  const [{ size }, metadata] = await Promise.all([stat(absolute), sharp(absolute).metadata()]);
+  if (metadata.format !== 'webp') {
+    throw new Error(`${BANNER_FILE} 必须是 webp，当前为 ${metadata.format ?? '?'}`);
+  }
+  if (size > 400 * 1024) {
+    throw new Error(`${BANNER_FILE} 为 ${Math.ceil(size / 1024)}KB，超过 400KB`);
+  }
+  const ratio = (metadata.width ?? 0) / (metadata.height ?? 1);
+  if ((metadata.width ?? 0) < 1200 || ratio < 1.5 || ratio > 1.7) {
+    throw new Error(
+      `${BANNER_FILE} 需为宽度不低于 1200 的横幅且宽高比落在 1.5~1.7；` +
+        `当前 ${metadata.width ?? '?'}×${metadata.height ?? '?'}`,
+    );
+  }
+}
+
 await assertManifest();
 const hashes = [];
 for (const file of itemFiles) {
@@ -140,11 +171,17 @@ for (const file of itemFiles) {
 for (const file of effectFiles) {
   hashes.push(await validateTransparentPng(file, 512, 512, 280 * 1024));
 }
+for (const file of opIconFiles) {
+  hashes.push(await validateTransparentPng(file, 256, 256, 120 * 1024));
+}
 if (new Set(hashes).size !== hashes.length) {
   throw new Error('洗练运行时素材存在像素完全重复的占位图');
 }
 
+await validateBanner();
+
 console.log(
-  `洗练资产校验通过：${itemFiles.length} 张材料图标 + ${effectFiles.length} 张特效，` +
-    `${sourceFiles.length} 张绿幕生产源，${promptFiles.map((file) => basename(file)).join(' / ')}`,
+  `洗练资产校验通过：${itemFiles.length} 张材料图标 + ${effectFiles.length} 张特效 + ` +
+    `${opIconFiles.length} 张操作图标 + 1 张工坊横幅，` +
+    `${sourceFiles.length} 张生产源，${promptFiles.map((file) => basename(file)).join(' / ')}`,
 );

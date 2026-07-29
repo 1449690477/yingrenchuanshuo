@@ -1303,14 +1303,17 @@ describe('equipment dungeon transaction', () => {
     expect(result.instances[0]?.affixes.every((affix) => affix.tier >= 1 && affix.tier <= 5)).toBe(
       true,
     );
+    // 首通不占每日次数（见 core/equipmentDungeon 的 isFirstAttemptOfStage 说明），
+    // 但仍计入永久通关总数
     expect(game.save?.equipmentDungeon).toMatchObject({
-      clearsToday: 1,
+      clearsToday: 0,
       totalClears: 1,
     });
     expect(game.save?.equipmentDungeon.records.equipment_weapon_azure?.clears).toBe(1);
     expect(game.save?.rngState).not.toBe(beforeRng);
     expect(game.save?.nextUid).toBe(beforeUid + 2);
-    expect(game.equipmentDungeonRemaining).toBe(2);
+    // 首通不扣次数，所以剩余仍是满的 3 次
+    expect(game.equipmentDungeonRemaining).toBe(3);
 
     await game.persist();
     const loaded = await loadSave();
@@ -1348,7 +1351,13 @@ describe('equipment dungeon transaction', () => {
       reason: 'previous-tier-locked',
     });
 
+    // 日限只挡「已首通过的关卡」的重复刷取；首通不受次数限制
     game.save!.equipmentDungeon.clearsToday = 3;
+    game.save!.equipmentDungeon.records.equipment_weapon_azure = {
+      clears: 1,
+      firstClearedAt: now - 1,
+      bestDurationMs: 20_000,
+    };
     expect(game.runEquipmentDungeon('equipment_weapon_azure', now)).toEqual({
       ok: false,
       reason: 'daily-limit',
@@ -1377,7 +1386,8 @@ describe('equipment dungeon transaction', () => {
 
     expect(result.ok && result.win).toBe(true);
     expect(game.save?.equipmentDungeon.dayKey).toBe('2026-07-28');
-    expect(game.save?.equipmentDungeon.clearsToday).toBe(1);
+    // 这一关是首通，不占次数；日切本身把次数清零，两者叠加仍是 0
+    expect(game.save?.equipmentDungeon.clearsToday).toBe(0);
     expect(game.save?.equipmentDungeon.totalClears).toBe(3);
     expect(game.save?.equipmentDungeon.records.equipment_ring_azure?.clears).toBe(2);
     await game.persist();

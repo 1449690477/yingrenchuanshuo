@@ -71,6 +71,7 @@ describe('装备副本业务日期与次数', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.state.dayKey).toBe('2026-07-28');
+    // 这一关此前已通关（records 里有 firstClearedAt），属于日常重复刷取，照常扣次数
     expect(result.state.clearsToday).toBe(1);
     expect(result.state.totalClears).toBe(10);
     expect(result.state.records.equipment_weapon_azure?.firstClearedAt).toBe(
@@ -78,15 +79,34 @@ describe('装备副本业务日期与次数', () => {
     );
   });
 
-  it('每天第 4 次成功领取会被拒绝', () => {
+  it('每天第 4 次成功领取会被拒绝（首通除外）', () => {
+    const stage = requireEquipmentDungeonStage('equipment_weapon_azure');
+    // 次数用尽 + 该关卡已首通过 → 才会被日限挡住
     const full: EquipmentDungeonState = {
       ...createEquipmentDungeonState(NOW),
       clearsToday: 3,
+      records: {
+        [stage.id]: { clears: 1, firstClearedAt: NOW - 1, bestDurationMs: 20_000 },
+      },
     };
     expect(resolveEquipmentDungeonChallenge(input({ state: full }))).toMatchObject({
       ok: false,
       reason: 'daily-limit',
     });
+  });
+
+  it('首通不占每日次数：次数用尽仍可打没通过的关卡，且打完次数不变', () => {
+    const full: EquipmentDungeonState = {
+      ...createEquipmentDungeonState(NOW),
+      clearsToday: 3,
+    };
+    const result = resolveEquipmentDungeonChallenge(input({ state: full }));
+    expect(result.ok && result.win).toBe(true);
+    // firstClear 只挂在 win: true 分支上，两个字段都要窄化
+    if (!result.ok || !result.win) return;
+    expect(result.firstClear).toBe(true);
+    // 首通是解锁内容，不该和日常刷取抢同一份预算
+    expect(result.state.clearsToday).toBe(3);
   });
 });
 
@@ -111,8 +131,10 @@ describe('装备副本解锁与战斗事务', () => {
       firstClearedAt: NOW - 1,
       bestDurationMs: 20_000,
     };
-    expect(isEquipmentDungeonStageUnlocked(violet, state, 34)).toBe(false);
-    expect(isEquipmentDungeonStageUnlocked(violet, state, 35)).toBe(true);
+    // 等级从档位定义里取，不写死 —— 档位等级会随平衡调整（见 docs/47），
+    // 写死数字的话每次重排都要跟着改一遍测试。
+    expect(isEquipmentDungeonStageUnlocked(violet, state, violet.unlockLevel - 1)).toBe(false);
+    expect(isEquipmentDungeonStageUnlocked(violet, state, violet.unlockLevel)).toBe(true);
   });
 
   it('失败不扣次数、不推进主 RNG、也不增长保底', () => {
@@ -147,7 +169,8 @@ describe('装备副本解锁与战斗事务', () => {
     expect(result.drops).toHaveLength(1);
     expect(result.drops[0]?.itemId).toBe('eq_dungeon_azure_weapon_witch');
     expect(result.drops[0]?.count).toBe(2);
-    expect(result.state.clearsToday).toBe(1);
+    // 这一场是首通，按新规则不占次数（见 core/equipmentDungeon 的 isFirstAttemptOfStage）
+    expect(result.state.clearsToday).toBe(0);
     expect(result.state.totalClears).toBe(1);
     expect(result.state.records.equipment_weapon_azure).toMatchObject({
       clears: 1,

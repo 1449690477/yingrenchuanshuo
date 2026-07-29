@@ -13,8 +13,7 @@ import type {
   MonsterDef,
   Quality,
 } from '@/core/types';
-import { combatPower } from '@/core/formula';
-import { baseStatsFor } from '@/core/progression';
+import { expectedFullGearCp } from './expectedPower';
 import { SLOT_LABELS, SLOT_ORDER } from './constants';
 import {
   EQUIPMENT_DUNGEON_TIERS,
@@ -262,22 +261,29 @@ function lootTableFor(
   };
 }
 
+/**
+ * 副本推荐战力 = 该等级主线满配战力 × 0.9 × 门户难度。
+ *
+ * 旧写法是「裸属性战力 × 手填系数」，与玩家实际战力脱节 ——
+ * 四档里三档的门槛高于同级玩家满配，最低档高出 39%，
+ * 玩家必须越级才能打，而越级期间副本奖励又在贬值，两头落空（docs/47）。
+ *
+ * 0.9 的那 10% 余量刻意留给强化与词条：玩家得先把装备养一养才够门槛，
+ * 这正是洗练系统的短期消耗目标。**不要调到 1.0 以上** ——
+ * 高于同级满配就等于要求越级。
+ *
+ * 门户难度用 sqrt(hpMul × atkMul)，各部位在 0.9~1.1 之间浮动，
+ * 保留「有的门户偏难」的手感，但不改变整体档位定位。
+ */
+/** 推荐战力占同级满配的比例。留 10% 给强化与词条，见 docs/47 规则二。 */
+const RECOMMEND_CP_RATIO = 0.9;
+
 function recommendCpFor(
   tier: EquipmentDungeonTier,
   portal: EquipmentDungeonPortal,
 ): number {
-  const factors: Readonly<Record<EquipmentDungeonTierId, number>> = {
-    azure: 5.65,
-    violet: 5.2,
-    auric: 13,
-    crimson: 26.7,
-  };
   const portalDifficulty = Math.sqrt(portal.hpMul * portal.atkMul);
-  return Math.round(
-    combatPower(baseStatsFor('swordsman', tier.level)) *
-      factors[tier.id] *
-      portalDifficulty,
-  );
+  return Math.round(expectedFullGearCp(tier.level) * RECOMMEND_CP_RATIO * portalDifficulty);
 }
 
 function encounterFor(

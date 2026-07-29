@@ -9,7 +9,10 @@ import type { EquipmentInstance, EquipSlot, Stats } from '@/core/types';
 import { useInventoryStore } from '@/stores/inventory';
 import { usePlayerStore } from '@/stores/player';
 import { useSettingsStore } from '@/stores/settings';
-import { CLASS_INFO, SLOT_LABELS, STAT_LABELS } from '@/data/constants';
+import { CLASS_INFO, SLOT_LABELS, SLOT_ORDER, STAT_LABELS } from '@/data/constants';
+import { REFORGE_UNLOCK_LEVEL } from '@/data/reforgeRules';
+import { requireEquipment } from '@/data/equipment';
+import { adviseReforge, topRecommendation } from '@/core/reforgeAdvisor';
 import {
   affectionMemoryDialogue,
   requireAffectionCharacter,
@@ -31,6 +34,7 @@ import CharacterShowcase from '@/components/CharacterShowcase.vue';
 import CharacterAppearance from '@/components/CharacterAppearance.vue';
 import ClassSwitchModal from '@/components/ClassSwitchModal.vue';
 import EnhancePanel from '@/components/EnhancePanel.vue';
+import ReforgeStudio from '@/components/reforge/ReforgeStudio.vue';
 import SkillIcon from '@/components/SkillIcon.vue';
 import AffectionPanel from '@/components/affection/AffectionPanel.vue';
 import AffectionGiftShelf from '@/components/affection/AffectionGiftShelf.vue';
@@ -59,6 +63,8 @@ const activeStoryId = ref<string | null>(null);
 const storyBusy = ref(false);
 const storyFeedback = ref<string | null>(null);
 const galleryOpen = ref(false);
+const studioOpen = ref(false);
+const BASE = import.meta.env.BASE_URL;
 const selectedAffectionEquipmentId = ref<string | null>(null);
 const galleryRef = ref<HTMLElement | null>(null);
 let feedbackTimer = 0;
@@ -143,6 +149,45 @@ const affectionEquipmentItems = computed(() => {
     flavorText: entry.flavorText,
     setNodeText: `心虹珍藏 ${entry.collectionIndex + 1}/10 · Lv${entry.definition.level}`,
   }));
+});
+
+const reforgeOverview = computed(() => {
+  const classId = player.player?.classId;
+  const level = player.player?.level ?? 0;
+  if (!classId) return { unlocked: false, count: 0, headline: '' };
+  const entries: {
+    instance: EquipmentInstance;
+    definition: ReturnType<typeof requireEquipment>;
+    source: 'equipped' | 'bag';
+  }[] = [];
+  const seen = new Set<string>();
+  for (const slot of SLOT_ORDER) {
+    const instance = equipped.value?.[slot] ?? null;
+    if (!instance) continue;
+    entries.push({
+      instance,
+      definition: requireEquipment(instance.defId),
+      source: 'equipped',
+    });
+    seen.add(instance.uid);
+  }
+  for (const instance of inventory.bag?.equipment ?? []) {
+    if (seen.has(instance.uid)) continue;
+    entries.push({
+      instance,
+      definition: requireEquipment(instance.defId),
+      source: 'bag',
+    });
+  }
+  const list = adviseReforge({ classId, entries });
+  const top = topRecommendation(list);
+  return {
+    unlocked: level >= REFORGE_UNLOCK_LEVEL,
+    count: list.length,
+    headline: top
+      ? `${requireEquipment(top.assessment.defId).name} · ${top.recommendation.headline}`
+      : '',
+  };
 });
 
 const statRows = computed(() => {
@@ -467,6 +512,38 @@ onUnmounted(() => {
 
     <EnhancePanel class="row-in" style="--row-delay: 40ms" />
 
+    <section class="card reforge-entry row-in" style="--row-delay: 60ms">
+      <div class="reforge-entry-art">
+        <img
+          :src="`${BASE}assets/effects/reforge/reforge-studio-banner.webp`"
+          alt=""
+          aria-hidden="true"
+        />
+        <span class="reforge-entry-copy">
+          <span class="reforge-entry-title">星辉洗练坊</span>
+          <span v-if="!reforgeOverview.unlocked" class="reforge-entry-sub">
+            Lv{{ REFORGE_UNLOCK_LEVEL }} 解锁词条洗练
+          </span>
+          <span v-else-if="reforgeOverview.count === 0" class="reforge-entry-sub">
+            还没有带随机词条的装备，先去冒险收集吧
+          </span>
+          <span v-else class="reforge-entry-sub">
+            {{ reforgeOverview.count }} 件装备可洗练
+            <template v-if="reforgeOverview.headline">
+              · 推荐：{{ reforgeOverview.headline }}
+            </template>
+          </span>
+        </span>
+      </div>
+      <button
+        class="btn btn-pink reforge-entry-btn"
+        :disabled="!reforgeOverview.unlocked"
+        @click="studioOpen = true"
+      >
+        进入洗练坊
+      </button>
+    </section>
+
     <section
       v-if="visualSkills.length > 0"
       class="card skills-card row-in"
@@ -510,7 +587,6 @@ onUnmounted(() => {
       <div class="card-head"><span>后续养成</span></div>
       <div class="soon-list">
         <span class="chip">技能 · M3-5</span>
-        <span class="chip">洗练 · M4-6</span>
         <span class="chip">套装 · M5-1</span>
         <span class="chip">宠物 · M6-1</span>
       </div>
@@ -527,6 +603,10 @@ onUnmounted(() => {
       @close="classSwitchOpen = false"
       @confirm="switchClass"
     />
+
+    <Teleport to="body">
+      <ReforgeStudio v-if="studioOpen" @close="studioOpen = false" />
+    </Teleport>
 
     <AffectionStoryModal
       v-if="activeStory && affectionCharacter"
@@ -724,6 +804,66 @@ onUnmounted(() => {
   flex-wrap: wrap;
   gap: 6px;
   padding: 10px;
+}
+
+/* ── 洗练坊入口 ── */
+.reforge-entry {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+}
+
+.reforge-entry-art {
+  position: relative;
+  min-width: 0;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 10px;
+  overflow: hidden;
+}
+
+.reforge-entry-art img {
+  width: 74px;
+  height: 52px;
+  flex: 0 0 74px;
+  object-fit: cover;
+  object-position: center 40%;
+  border: 1px solid #f0d3e2;
+  border-radius: 11px;
+  box-shadow: 0 4px 10px rgb(190 120 170 / 14%);
+}
+
+.reforge-entry-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.reforge-entry-title {
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.reforge-entry-sub {
+  overflow: hidden;
+  color: var(--text-mid);
+  font-size: 9px;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.reforge-entry-btn {
+  min-height: 40px;
+  flex: 0 0 auto;
+  padding: 0 14px;
+  font-size: 11px;
+  font-weight: 800;
 }
 
 .chip {
