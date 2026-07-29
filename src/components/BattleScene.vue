@@ -692,6 +692,24 @@ onUnmounted(() => {
     0 8px 20px rgb(76 70 98 / 15%);
 }
 
+/*
+ * 矮屏手机把战场压扁一档：3:2 → 16:9.6。
+ * 角色与特效全部按百分比定位，扁一点不穿帮，
+ * 省下的 60+px 正好让掉落速览挤进首屏。
+ */
+@media (max-height: 740px) {
+  .battle-scene {
+    aspect-ratio: 16 / 9.6;
+    min-height: 178px;
+  }
+}
+
+@media (max-width: 350px) {
+  .battle-scene {
+    min-height: 164px;
+  }
+}
+
 .scene-background,
 .scene-haze,
 .scene-glow,

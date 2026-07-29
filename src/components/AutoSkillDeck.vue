@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch, type CSSProperties } from 'vue';
-import { Clock, LockKeyhole, Sparkles, X, Zap } from '@lucide/vue';
+import { Clock, ChevronDown, LockKeyhole, Sparkles, X, Zap } from '@lucide/vue';
 import { createFocusTrap, type FocusTrap } from 'focus-trap';
 import type {
   BattleRhythmSnapshot,
@@ -163,6 +163,36 @@ const deckStatus = computed(() => {
   if (!snapshotMatches.value) return '正在同步角色';
   return latestCastName.value ? `${latestCastName.value} · 已释放` : '按冷却自动轮转';
 });
+
+/**
+ * 卡带折叠：小屏默认收起，只留一行状态条，把首屏还给战斗画面。
+ * 玩家手动展开/收起后按设备记忆（localStorage），下次进游戏保持习惯。
+ */
+function readDeckCollapsed(): boolean {
+  try {
+    const raw = localStorage.getItem('sakura.fold.skillDeck');
+    if (raw === '1') return true;
+    if (raw === '0') return false;
+  } catch {
+    /* 隐私模式等场景下不可写，静默回退默认 */
+  }
+  return (
+    typeof window !== 'undefined' &&
+    (window.matchMedia?.('(max-height: 740px)').matches ||
+      window.matchMedia?.('(max-width: 350px)').matches) === true
+  );
+}
+
+const deckCollapsed = ref(readDeckCollapsed());
+
+function toggleDeck(): void {
+  deckCollapsed.value = !deckCollapsed.value;
+  try {
+    localStorage.setItem('sakura.fold.skillDeck', deckCollapsed.value ? '1' : '0');
+  } catch {
+    /* 记忆失败不影响当次交互 */
+  }
+}
 
 const elementLabels: Readonly<Record<Element, string>> = {
   fire: '炎',
@@ -416,85 +446,104 @@ onUnmounted(() => {
     aria-labelledby="auto-skill-deck-title"
   >
     <header class="deck-head">
-      <span class="deck-title">
-        <span class="deck-sigil" aria-hidden="true"><Sparkles :size="13" /></span>
-        <span>
-          <strong id="auto-skill-deck-title">自动技能演出</strong>
-          <small>{{ deckStatus }}</small>
+      <button
+        type="button"
+        class="deck-toggle"
+        :aria-expanded="!deckCollapsed"
+        aria-controls="auto-skill-rail"
+        @click="toggleDeck"
+      >
+        <span class="deck-title">
+          <span class="deck-sigil" aria-hidden="true"><Sparkles :size="13" /></span>
+          <span>
+            <strong id="auto-skill-deck-title">自动技能演出</strong>
+            <small>{{ deckStatus }}</small>
+          </span>
         </span>
-      </span>
-      <span class="deck-hint">点按查看</span>
+        <span class="deck-hint">{{ deckCollapsed ? '展开卡带' : '点按查看' }}</span>
+        <ChevronDown
+          :size="13"
+          class="deck-chev"
+          :class="{ closed: deckCollapsed }"
+          aria-hidden="true"
+        />
+      </button>
     </header>
 
-    <div
-      ref="railRef"
-      class="skill-rail"
-      role="group"
-      aria-label="当前角色自动技能卡片"
-      @pointerdown="railPointerActive = true"
-      @pointerup="railPointerActive = false"
-      @pointercancel="railPointerActive = false"
-      @pointerleave="railPointerActive = false"
-    >
-      <button
-        v-for="(entry, index) in presentedCards"
-        :key="entry.definition.id"
-        :data-card-id="entry.definition.id"
-        type="button"
-        class="skill-card"
-        :class="[
-          `phase-${entry.phase}`,
-          `element-${entry.definition.element}`,
-          {
-            'is-next': entry.isNext,
-            'has-cast': entry.castToken > 0,
-            'is-imminent': entry.isImminent,
-          },
-        ]"
-        :style="cardStyle(entry)"
-        :aria-label="cardAriaLabel(entry.definition)"
-        @click="openCard(entry.definition)"
-        @keydown.left="focusRelative($event, index, -1)"
-        @keydown.right="focusRelative($event, index, 1)"
-      >
-        <span
-          :key="`${entry.definition.id}-${entry.castToken}`"
-          class="card-face"
-          :class="{ 'cast-pop': entry.castToken > 0 }"
+    <div class="deck-fold" :class="{ closed: deckCollapsed }">
+      <div class="deck-fold-inner">
+        <div
+          id="auto-skill-rail"
+          ref="railRef"
+          class="skill-rail"
+          role="group"
+          aria-label="当前角色自动技能卡片"
+          @pointerdown="railPointerActive = true"
+          @pointerup="railPointerActive = false"
+          @pointercancel="railPointerActive = false"
+          @pointerleave="railPointerActive = false"
         >
-          <span v-if="entry.isNext" class="next-dot" aria-hidden="true" />
-          <span class="kind-chip">{{ entry.definition.kind }}</span>
-          <span class="skill-orb" aria-hidden="true">
-            <img
-              :src="assetUrl(entry.definition.iconAsset)"
-              alt=""
-              draggable="false"
-              decoding="async"
-            />
-            <span v-if="entry.phase === 'cooling'" class="cooldown-shade" />
-            <!-- 冷却进度环：压暗告诉你「还剩多少」，亮环告诉你「走了多少」 -->
-            <span v-if="entry.phase === 'cooling'" class="cooldown-ring" />
-            <!-- 就绪那一帧的一次性闪光 -->
+          <button
+            v-for="(entry, index) in presentedCards"
+            :key="entry.definition.id"
+            :data-card-id="entry.definition.id"
+            type="button"
+            class="skill-card"
+            :class="[
+              `phase-${entry.phase}`,
+              `element-${entry.definition.element}`,
+              {
+                'is-next': entry.isNext,
+                'has-cast': entry.castToken > 0,
+                'is-imminent': entry.isImminent,
+              },
+            ]"
+            :style="cardStyle(entry)"
+            :aria-label="cardAriaLabel(entry.definition)"
+            @click="openCard(entry.definition)"
+            @keydown.left="focusRelative($event, index, -1)"
+            @keydown.right="focusRelative($event, index, 1)"
+          >
             <span
-              v-if="entry.readyToken > 0"
-              :key="`ready-${entry.readyToken}`"
-              class="ready-flash"
-            />
-            <LockKeyhole
-              v-if="entry.phase === 'locked'"
-              class="lock"
-              :size="15"
-              :stroke-width="2.4"
-            />
-            <i v-for="particle in 4" :key="particle" class="cast-particle" />
-          </span>
-          <strong class="skill-name">{{ entry.definition.name }}</strong>
-          <span class="skill-status num">
-            <Clock v-if="entry.phase === 'cooling'" :size="9" aria-hidden="true" />
-            {{ entry.status }}
-          </span>
-        </span>
-      </button>
+              :key="`${entry.definition.id}-${entry.castToken}`"
+              class="card-face"
+              :class="{ 'cast-pop': entry.castToken > 0 }"
+            >
+              <span v-if="entry.isNext" class="next-dot" aria-hidden="true" />
+              <span class="kind-chip">{{ entry.definition.kind }}</span>
+              <span class="skill-orb" aria-hidden="true">
+                <img
+                  :src="assetUrl(entry.definition.iconAsset)"
+                  alt=""
+                  draggable="false"
+                  decoding="async"
+                />
+                <span v-if="entry.phase === 'cooling'" class="cooldown-shade" />
+                <!-- 冷却进度环：压暗告诉你「还剩多少」，亮环告诉你「走了多少」 -->
+                <span v-if="entry.phase === 'cooling'" class="cooldown-ring" />
+                <!-- 就绪那一帧的一次性闪光 -->
+                <span
+                  v-if="entry.readyToken > 0"
+                  :key="`ready-${entry.readyToken}`"
+                  class="ready-flash"
+                />
+                <LockKeyhole
+                  v-if="entry.phase === 'locked'"
+                  class="lock"
+                  :size="15"
+                  :stroke-width="2.4"
+                />
+                <i v-for="particle in 4" :key="particle" class="cast-particle" />
+              </span>
+              <strong class="skill-name">{{ entry.definition.name }}</strong>
+              <span class="skill-status num">
+                <Clock v-if="entry.phase === 'cooling'" :size="9" aria-hidden="true" />
+                {{ entry.status }}
+              </span>
+            </span>
+          </button>
+        </div>
+      </div>
     </div>
 
     <Teleport to="body">
@@ -628,6 +677,46 @@ onUnmounted(() => {
   justify-content: space-between;
   gap: 8px;
   padding: 0 2px 3px;
+}
+
+/* 整行头部都是折叠把手，触达面积拉满 */
+.deck-toggle {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.deck-chev {
+  flex-shrink: 0;
+  color: var(--text-dim);
+  transition: transform var(--t-mid) var(--ease-soft);
+}
+
+.deck-chev.closed {
+  transform: rotate(-90deg);
+}
+
+/* 0fr ↔ 1fr 折叠动画：不量高度，冷却环持续推进也不会卡 */
+.deck-fold {
+  display: grid;
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transition:
+    grid-template-rows var(--t-mid) var(--ease-soft),
+    opacity var(--t-fast) ease;
+}
+
+.deck-fold.closed {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+
+.deck-fold-inner {
+  overflow: hidden;
+  min-height: 0;
 }
 
 .deck-title {
@@ -1373,6 +1462,8 @@ onUnmounted(() => {
   }
 
   .skill-card,
+  .deck-fold,
+  .deck-chev,
   .skill-sheet-enter-active,
   .skill-sheet-leave-active {
     transition: none !important;

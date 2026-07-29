@@ -113,6 +113,13 @@ onUnmounted(() => {
   padding: 12px;
 }
 
+/* 小屏手机把外框边距也让出来，内容区多一指的宽度 */
+@media (max-width: 350px), (max-height: 700px) {
+  .main {
+    padding: 8px;
+  }
+}
+
 .boot {
   height: 100dvh;
   display: flex;

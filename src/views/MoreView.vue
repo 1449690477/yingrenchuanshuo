@@ -7,6 +7,7 @@ import { useSettingsStore } from '@/stores/settings';
 import type { SaveData } from '@/save/schema';
 import { downloadSave, importFromJson } from '@/save/storage';
 import ShopView from '@/views/ShopView.vue';
+import CollapsibleCard from '@/components/CollapsibleCard.vue';
 
 const player = usePlayerStore();
 const settings = useSettingsStore();
@@ -109,8 +110,10 @@ function say(text: string, ok: boolean) {
         </button>
       </section>
 
-      <section class="card">
-        <div class="head">游戏数据</div>
+      <CollapsibleCard title="游戏数据" persist-key="more.stats">
+        <template #peek>
+          <span class="peek-note">击杀 / 时长 / 金币</span>
+        </template>
         <div v-if="stats" class="rows">
           <div class="r">
             <span>累计击杀</span><span class="num">{{ abbr(stats.totalKills) }}</span>
@@ -126,10 +129,14 @@ function say(text: string, ok: boolean) {
             <span>金币</span><span class="num">{{ abbr(player.player?.gold ?? 0) }}</span>
           </div>
         </div>
-      </section>
+      </CollapsibleCard>
 
-      <section class="card">
-        <div class="head">互动体验</div>
+      <CollapsibleCard title="互动体验" persist-key="more.haptics">
+        <template #peek>
+          <span class="peek-note">{{
+            settings.settings?.haptics ? '心情震动已开' : '心情震动已关'
+          }}</span>
+        </template>
         <label class="setting-row">
           <span class="setting-copy">
             <strong>角色心情震动</strong>
@@ -144,10 +151,12 @@ function say(text: string, ok: boolean) {
           />
           <span class="setting-switch" aria-hidden="true"><i /></span>
         </label>
-      </section>
+      </CollapsibleCard>
 
-      <section class="card">
-        <div class="head">存档管理</div>
+      <CollapsibleCard title="存档管理" persist-key="more.save" :default-open="false">
+        <template #peek>
+          <span class="peek-note">导出备份 · 导入存档</span>
+        </template>
         <p v-if="settings.saveError" class="save-error">自动存档失败：{{ settings.saveError }}</p>
         <p class="warn-note">
           存档只保存在这台设备的浏览器里。<strong>清理浏览器数据会导致存档丢失</strong>，
@@ -176,10 +185,12 @@ function say(text: string, ok: boolean) {
           hidden
           @change="onFile"
         />
-      </section>
+      </CollapsibleCard>
 
-      <section class="card">
-        <div class="head">危险操作</div>
+      <CollapsibleCard title="危险操作" persist-key="more.danger" :default-open="false">
+        <template #peek>
+          <span class="peek-note danger-peek">删除存档，重新开始</span>
+        </template>
         <div class="btns">
           <button v-if="!confirmReset" class="btn btn-plain f danger" @click="confirmReset = true">
             删除存档，重新开始
@@ -192,10 +203,12 @@ function say(text: string, ok: boolean) {
         <p v-if="confirmReset" class="warn-note danger-text">
           这会永久删除当前角色的全部进度，无法撤销。建议先导出备份。
         </p>
-      </section>
+      </CollapsibleCard>
 
-      <section class="card">
-        <div class="head">即将开放</div>
+      <CollapsibleCard title="即将开放" persist-key="more.roadmap" :default-open="false">
+        <template #peek>
+          <span class="peek-note">邮件 · 成就 · 图鉴 · 排行榜…</span>
+        </template>
         <div class="chips">
           <span class="chip">邮件 · M4-5</span>
           <span class="chip">成就 · M4-7</span>
@@ -203,7 +216,7 @@ function say(text: string, ok: boolean) {
           <span class="chip">排行榜 · M7-4</span>
           <span class="chip">公会 · M8-3</span>
         </div>
-      </section>
+      </CollapsibleCard>
 
       <p class="ver">樱刃传说 · 开发版 M2</p>
 
@@ -303,11 +316,18 @@ function say(text: string, ok: boolean) {
   box-shadow: 0 5px 12px rgb(49 37 57 / 20%);
 }
 
-.head {
-  padding: 10px 12px;
-  font-size: 11px;
+.peek-note {
+  font-size: 10px;
   color: var(--text-dim);
-  border-bottom: 1px solid var(--line);
+}
+
+/* 展开后内容与标题栏之间一道发丝线，保持原来卡片头的分隔感 */
+:deep(.fold-inner) > :first-child {
+  border-top: 1px solid var(--hairline);
+}
+
+.danger-peek {
+  color: var(--danger);
 }
 
 .rows {

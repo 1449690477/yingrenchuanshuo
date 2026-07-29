@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { BookOpen, ChevronDown, Sparkles } from '@lucide/vue';
+import { BookOpen, ChevronDown, Gift, Sparkles } from '@lucide/vue';
 import { abbr } from '@/core/format';
 import { battleVitalsAtProgress } from '@/core/battleVisual';
 import { aggregateLootEntries, type LootDisplayCategory } from '@/core/lootGrouping';
@@ -20,6 +20,7 @@ import EquipmentIcon from '@/components/EquipmentIcon.vue';
 import ItemIcon from '@/components/ItemIcon.vue';
 import EncounterPanel from '@/components/EncounterPanel.vue';
 import EncounterJournalPanel from '@/components/EncounterJournalPanel.vue';
+import CollapsibleCard from '@/components/CollapsibleCard.vue';
 
 const player = usePlayerStore();
 const inventory = useInventoryStore();
@@ -27,6 +28,16 @@ const stage = useStageStore();
 const showStages = ref(false);
 const showEncounters = ref(false);
 const showEncounterJournal = ref(false);
+
+/**
+ * 掉落面板默认开合：矮屏（手机占绝大多数）默认收起成速览条，
+ * 高屏（平板/桌面信箱）默认展开。玩家手动切换后由 CollapsibleCard 记忆。
+ */
+const lootDefaultOpen =
+  typeof window !== 'undefined' &&
+  !window.matchMedia?.('(max-height: 740px)').matches &&
+  !window.matchMedia?.('(max-width: 350px)').matches;
+
 const collapsedLoot = ref<Record<LootDisplayCategory, boolean>>({
   equipment: false,
   material: false,
@@ -165,7 +176,7 @@ const efficiencyStatus = computed(() => idleEfficiencyPresentation(stage.battleE
     </div>
 
     <section class="battle">
-      <!-- 挂机窗口外框：状态灯 + 标题 + 统计条，只做容器装饰，不动 BattleScene 内部 -->
+      <!-- 挂机窗口外框：状态灯 + 标题 + 进度发丝条 + 统计条，只做容器装饰，不动 BattleScene 内部 -->
       <div class="idle-window" :class="{ running: stage.canIdle }">
         <div class="window-chrome">
           <span class="status-dot" :class="{ running: stage.canIdle }" aria-hidden="true" />
@@ -173,6 +184,16 @@ const efficiencyStatus = computed(() => idleEfficiencyPresentation(stage.battleE
           <span class="window-state" :class="{ running: stage.canIdle }">
             {{ stage.canIdle ? '自动战斗中' : '已暂停' }}
           </span>
+        </div>
+        <!-- 发丝级击杀进度：贴在窗口眉下，余光一扫就知道这波推到哪了 -->
+        <div class="wave-track" aria-hidden="true">
+          <span
+            class="wave-fill"
+            :class="{ cleared: stage.cleared }"
+            :style="{
+              transform: `scaleX(${stage.cleared ? 1 : Math.max(0.02, stage.kills / stage.killTarget)})`,
+            }"
+          />
         </div>
         <BattleScene
           v-if="player.player && battleVitals"
@@ -226,12 +247,33 @@ const efficiencyStatus = computed(() => idleEfficiencyPresentation(stage.battleE
       <b class="num">{{ stage.encounterJournal.length }}</b>
       <i>打开 ›</i>
     </button>
-    <section class="loot card">
-      <div class="loot-head">
-        <span>
-          最近掉落
+    <!-- 掉落面板：折叠卡片。收起时是一条「最新一件 + 好货统计」速览，展开后是分组清单 -->
+    <CollapsibleCard
+      class="loot"
+      title="最近掉落"
+      :subtitle="`${stage.lootLog.length}/40 条 · ${groupedLoot.length} 类`"
+      persist-key="lootPanel"
+      :default-open="lootDefaultOpen"
+    >
+      <template #icon>
+        <span class="loot-sigil" aria-hidden="true"><Gift :size="13" /></span>
+      </template>
+      <template #peek>
+        <span v-if="recentDrop" class="peek-drop">
+          <img class="peek-icon" :src="recentDrop.assetUrl" :alt="recentDrop.name" />
+          <span class="peek-name" :class="'q-' + recentDrop.quality">{{ recentDrop.name }}</span>
+        </span>
+        <span v-else class="peek-empty">等待第一件战利品…</span>
+        <span v-for="q in qualitySummary" :key="q.quality" class="q-chip" :class="'q-' + q.quality"
+          >{{ q.label }}×{{ q.count }}</span
+        >
+      </template>
+
+      <div class="loot-body">
+        <div class="loot-toolbar">
           <small>
-            {{ stage.lootLog.length }}/40 条 · {{ groupedLoot.length }} 类
+            史诗以上好货
+            <template v-if="qualitySummary.length === 0">暂无</template>
             <span
               v-for="q in qualitySummary"
               :key="q.quality"
@@ -240,64 +282,64 @@ const efficiencyStatus = computed(() => idleEfficiencyPresentation(stage.battleE
               >{{ q.label }}×{{ q.count }}</span
             >
           </small>
-        </span>
-        <button v-if="groupedLoot.length" @click="toggleAllLoot">
-          {{ allLootCollapsed ? '全部展开' : '全部折叠' }}
-        </button>
-      </div>
-      <!-- 最新掉落聚焦：key 随掉落 id 变化，每次出新货重播入场动画 -->
-      <div
-        v-if="recentDrop"
-        :key="recentDrop.id"
-        class="loot-spot"
-        :class="'q-' + recentDrop.quality"
-      >
-        <span class="spot-tag">✨ 最新掉落</span>
-        <img class="spot-icon" :src="recentDrop.assetUrl" :alt="recentDrop.name" />
-        <span class="spot-name" :class="'q-' + recentDrop.quality">{{ recentDrop.name }}</span>
-        <span class="spot-quality" :class="'q-' + recentDrop.quality">{{
-          qualityLabels[recentDrop.quality] ?? recentDrop.quality
-        }}</span>
-      </div>
-      <div v-if="stage.lootLog.length === 0" class="loot-empty">还没有掉落，稍等一下…</div>
-      <div v-else class="loot-list scroll-y">
-        <section v-for="group in groupedLoot" :key="group.category" class="loot-group">
-          <button
-            class="loot-group-head"
-            :aria-expanded="!collapsedLoot[group.category]"
-            @click="collapsedLoot[group.category] = !collapsedLoot[group.category]"
-          >
-            <span class="loot-category" :class="'cat-' + group.category">{{
-              lootCategoryLabels[group.category]
-            }}</span>
-            <span class="loot-summary">
-              {{ group.distinctCount }} 种 · 共 {{ group.totalCount }} 件
-            </span>
-            <ChevronDown
-              :size="14"
-              :class="{ folded: collapsedLoot[group.category] }"
-              aria-hidden="true"
-            />
+          <button v-if="groupedLoot.length" type="button" @click="toggleAllLoot">
+            {{ allLootCollapsed ? '全部展开' : '全部折叠' }}
           </button>
-          <Transition name="loot-fold">
-            <div v-if="!collapsedLoot[group.category]" class="loot-items">
-              <div
-                v-for="(e, i) in group.items"
-                :key="e.itemId"
-                class="loot-row"
-                :class="'q-' + e.quality"
-                :style="{ '--row-delay': `${Math.min(i, 8) * 28}ms` }"
-              >
-                <EquipmentIcon v-if="e.isEquipment" :def="requireEquipment(e.itemId)" size="sm" />
-                <ItemIcon v-else :item="requireItem(e.itemId)" />
-                <span class="loot-name" :class="'q-' + e.quality">{{ e.name }}</span>
-                <span class="loot-count num">×{{ e.count }}</span>
+        </div>
+        <!-- 最新掉落聚焦：key 随掉落 id 变化，每次出新货重播入场动画 -->
+        <div
+          v-if="recentDrop"
+          :key="recentDrop.id"
+          class="loot-spot"
+          :class="'q-' + recentDrop.quality"
+        >
+          <span class="spot-tag">✨ 最新掉落</span>
+          <img class="spot-icon" :src="recentDrop.assetUrl" :alt="recentDrop.name" />
+          <span class="spot-name" :class="'q-' + recentDrop.quality">{{ recentDrop.name }}</span>
+          <span class="spot-quality" :class="'q-' + recentDrop.quality">{{
+            qualityLabels[recentDrop.quality] ?? recentDrop.quality
+          }}</span>
+        </div>
+        <div v-if="stage.lootLog.length === 0" class="loot-empty">还没有掉落，稍等一下…</div>
+        <div v-else class="loot-list scroll-y">
+          <section v-for="group in groupedLoot" :key="group.category" class="loot-group">
+            <button
+              class="loot-group-head"
+              :aria-expanded="!collapsedLoot[group.category]"
+              @click="collapsedLoot[group.category] = !collapsedLoot[group.category]"
+            >
+              <span class="loot-category" :class="'cat-' + group.category">{{
+                lootCategoryLabels[group.category]
+              }}</span>
+              <span class="loot-summary">
+                {{ group.distinctCount }} 种 · 共 {{ group.totalCount }} 件
+              </span>
+              <ChevronDown
+                :size="14"
+                :class="{ folded: collapsedLoot[group.category] }"
+                aria-hidden="true"
+              />
+            </button>
+            <Transition name="loot-fold">
+              <div v-if="!collapsedLoot[group.category]" class="loot-items">
+                <div
+                  v-for="(e, i) in group.items"
+                  :key="e.itemId"
+                  class="loot-row"
+                  :class="'q-' + e.quality"
+                  :style="{ '--row-delay': `${Math.min(i, 8) * 28}ms` }"
+                >
+                  <EquipmentIcon v-if="e.isEquipment" :def="requireEquipment(e.itemId)" size="sm" />
+                  <ItemIcon v-else :item="requireItem(e.itemId)" />
+                  <span class="loot-name" :class="'q-' + e.quality">{{ e.name }}</span>
+                  <span class="loot-count num">×{{ e.count }}</span>
+                </div>
               </div>
-            </div>
-          </Transition>
-        </section>
+            </Transition>
+          </section>
+        </div>
       </div>
-    </section>
+    </CollapsibleCard>
 
     <!-- 合并：保留 UI 打磨的 modal-pop 过渡，同时接入奇遇面板并统一用同一套过渡 -->
     <Transition name="modal-pop">
@@ -609,11 +651,35 @@ const efficiencyStatus = computed(() => idleEfficiencyPresentation(stage.battleE
   border: 1px solid rgb(245 121 159 / 22%);
 }
 
+/* 发丝级击杀进度条：贴在窗口眉下，不打断画面也能读出推进度 */
+.wave-track {
+  overflow: hidden;
+  height: 3px;
+  margin: 0 13px;
+  background: rgb(70 89 107 / 8%);
+  border-radius: 999px;
+}
+
+.wave-fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, var(--blue), var(--pink));
+  border-radius: inherit;
+  transform-origin: left center;
+  transition: transform 0.45s var(--ease-soft);
+}
+
+.wave-fill.cleared {
+  background: linear-gradient(90deg, #63c98e, #8fe0c8);
+}
+
 .idle-stats {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 6px;
-  padding: 8px 13px 11px;
+  gap: 0;
+  margin-top: 2px;
+  padding: 7px 13px 10px;
   border-top: 1px solid var(--hairline);
 }
 
@@ -623,6 +689,11 @@ const efficiencyStatus = computed(() => idleEfficiencyPresentation(stage.battleE
   align-items: center;
   gap: 1px;
   min-width: 0;
+}
+
+/* 统计格之间的发丝分隔，四宫格读起来像一整条仪表带 */
+.stat + .stat {
+  border-left: 1px solid var(--hairline);
 }
 
 .stat-value {
@@ -648,7 +719,9 @@ const efficiencyStatus = computed(() => idleEfficiencyPresentation(stage.battleE
 }
 
 .loot-spot {
+  position: relative;
   display: flex;
+  overflow: hidden;
   align-items: center;
   gap: 8px;
   margin-bottom: 8px;
@@ -658,6 +731,33 @@ const efficiencyStatus = computed(() => idleEfficiencyPresentation(stage.battleE
   border-radius: 13px;
   box-shadow: 0 3px 10px rgb(245 121 159 / 14%);
   animation: spot-pop 0.5s var(--ease-out-back) both;
+}
+
+/* 传说以上的聚焦行带低频扫光，好货自己会说话 */
+.loot-spot.q-legendary::after,
+.loot-spot.q-mythic::after,
+.loot-spot.q-prismatic::after,
+.loot-spot.q-divine::after {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 42%;
+  content: '';
+  background: linear-gradient(100deg, transparent, rgb(255 255 255 / 42%), transparent);
+  pointer-events: none;
+  animation: spot-shine 3.2s var(--ease-soft) infinite;
+}
+
+@keyframes spot-shine {
+  0%,
+  55% {
+    transform: translate3d(-120%, 0, 0) skewX(-16deg);
+  }
+  85%,
+  100% {
+    transform: translate3d(340%, 0, 0) skewX(-16deg);
+  }
 }
 
 /* 好货聚焦行用品质色勾边，传说以上一眼锁定。 */
@@ -816,26 +916,14 @@ const efficiencyStatus = computed(() => idleEfficiencyPresentation(stage.battleE
 .journal-entry b {
   background: linear-gradient(135deg, var(--blue), var(--pink));
 }
+/*
+ * 掉落面板现在是 CollapsibleCard：卡片外壳（边框/圆角/投影）由它提供，
+ * 这里只管「内容多长就多高」的 flex 行为与樱花纹理。
+ */
 .loot {
   position: relative;
-
-  /*
-   * 内容多长就多高，不再强行撑满剩余空间。
-   *
-   * 原本是 flex: 1，掉落只有三条时面板照样拉到屏幕底部，
-   * 下面留一大片白 —— 看起来像加载失败而不是「还没打到东西」。
-   * 改成 0 1 auto：内容少时贴合内容，内容多时被 flex 压缩，
-   * 由内层 .loot-list.scroll-y 接管滚动，两种情况都不会留白。
-   */
   flex: 0 1 auto;
   min-height: 0;
-  display: flex;
-  flex-direction: column;
-  padding: clamp(10px, 3.2vw, 13px);
-  overflow: hidden;
-  border: 1px solid var(--hairline);
-  border-radius: 18px;
-  box-shadow: var(--shadow-float);
 }
 
 /* 极淡的樱花纹理只填补留白，不影响掉落内容与点击。 */
@@ -856,33 +944,80 @@ const efficiencyStatus = computed(() => idleEfficiencyPresentation(stage.battleE
   z-index: 1;
 }
 
-.loot-head {
+.loot-sigil {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  place-items: center;
+  color: #fff;
+  background: linear-gradient(145deg, #ffb4d1, #f5799f);
+  border: 1px solid rgb(255 255 255 / 88%);
+  border-radius: 8px;
+  box-shadow: 0 3px 8px rgb(245 121 159 / 24%);
+}
+
+/* 折叠态速览：最新一件 + 好货 chips，一行读完这轮的收获 */
+.peek-drop {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  vertical-align: middle;
+}
+
+.peek-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  object-fit: contain;
+  filter: drop-shadow(0 1px 2px rgb(24 38 52 / 18%));
+}
+
+.peek-name {
+  overflow: hidden;
+  max-width: 108px;
+  font-size: 11px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.peek-empty {
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+.peek-drop + .q-chip,
+.q-chip + .q-chip {
+  margin-left: 4px;
+}
+
+.loot-body {
+  padding: 0 clamp(10px, 3.2vw, 13px) clamp(10px, 3.2vw, 13px);
+}
+
+.loot-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 6px;
-  font-size: 11px;
+  gap: 8px;
+  margin-bottom: 7px;
+  padding-top: 2px;
+  border-top: 1px solid var(--hairline);
+}
+
+.loot-toolbar small {
+  overflow: hidden;
+  font-size: 9px;
   color: var(--text-dim);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.loot-head > span {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  font-size: 13px;
-  font-weight: 800;
-  letter-spacing: -0.01em;
-  color: var(--text);
-}
-
-.loot-head small {
-  font-size: 8px;
-  font-weight: 400;
-  color: var(--text-dim);
-}
-
-.loot-head button {
-  min-height: 34px;
+.loot-toolbar button {
+  min-height: 30px;
+  flex-shrink: 0;
   padding: 0 9px;
   font-size: 9px;
   color: var(--blue-deep);
@@ -897,10 +1032,13 @@ const efficiencyStatus = computed(() => idleEfficiencyPresentation(stage.battleE
   color: var(--text-dim);
 }
 
+/*
+ * 展开态的清单限高内滚：掉落再多也不把页面顶长，
+ * 小屏手机上滚动发生在卡片内部而不是整页。
+ */
 .loot-list {
-  flex: 1;
-  min-height: 0;
   display: flex;
+  max-height: min(42vh, 360px);
   flex-direction: column;
   gap: 5px;
 }
@@ -1114,10 +1252,53 @@ const efficiencyStatus = computed(() => idleEfficiencyPresentation(stage.battleE
     transform var(--t-mid) var(--ease-soft);
 }
 
+/* ── 小屏手机适配：压缩纵向占用，首屏尽量看到战斗画面 + 掉落速览 ── */
+@media (max-height: 740px) {
+  .idle {
+    gap: 8px;
+  }
+
+  .stage-bar {
+    min-height: 56px;
+    padding: 9px 12px;
+  }
+
+  .stage-name {
+    font-size: 16px;
+  }
+
+  .efficiency-row {
+    padding: 6px 10px;
+  }
+
+  .idle-stats {
+    padding: 5px 13px 8px;
+  }
+
+  .loot-list {
+    max-height: min(38vh, 320px);
+  }
+}
+
+@media (max-width: 350px) {
+  .idle {
+    gap: 8px;
+  }
+
+  .stage-bar {
+    min-height: 54px;
+  }
+
+  .window-chrome {
+    padding: 7px 11px 6px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .stage-bar::after,
   .status-dot.running,
-  .idle-window.running {
+  .idle-window.running,
+  .loot-spot::after {
     animation: none;
   }
 
@@ -1127,6 +1308,7 @@ const efficiencyStatus = computed(() => idleEfficiencyPresentation(stage.battleE
     animation: none;
   }
 
+  .wave-fill,
   .loot-group-head svg {
     transition: none;
   }
