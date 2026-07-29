@@ -124,7 +124,11 @@ function buildTable(spec: ChapterSpec, type: MonsterType): LootTable {
 
   // ── 装备 ──
   let pityGroups: LootTable['pityGroups'];
-  if (region) {
+  const hasRealMonsterSource =
+    type === 'normal' ||
+    (type === 'elite' && Boolean(spec.elite)) ||
+    (type === 'boss' && Boolean(spec.boss));
+  if (region && hasRealMonsterSource) {
     const profile = regionLootProfile(region.id);
     for (const [quality, weight] of Object.entries(profile.qualityWeights[type]) as [
       Quality,

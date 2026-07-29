@@ -42,7 +42,7 @@ import {
   requireEnhanceProgression,
 } from '../enhanceProgression';
 
-describe('区域 1–4 内容完整性', () => {
+describe('区域 1–5 内容完整性', () => {
   it('每把武器显式登记攻击元素，非武器禁止携带元素字段', () => {
     const validElements = new Set(['none', 'fire', 'ice', 'thunder']);
     for (const definition of Object.values(EQUIPMENT)) {
@@ -151,15 +151,14 @@ describe('区域 1–4 内容完整性', () => {
     }
   });
 
-  it('数量达到区域 1–4 的内容目标', () => {
-    // 区域 3 虫娘洞窟与区域 4 月下墓园接入后，等级覆盖由 Lv1-20 延伸到 Lv1-40。
-    expect(REGIONS).toHaveLength(4);
-    expect(ALL_CHAPTERS).toHaveLength(20);
-    expect(Object.keys(STAGES)).toHaveLength(120);
-    expect(Object.keys(MONSTERS)).toHaveLength(96);
-    // 区域装备 96 件 + 珍品商店 35 件 + 定向副本 80 件 + 心虹 40 件。
-    expect(Object.keys(EQUIPMENT)).toHaveLength(251);
-    expect(Object.keys(LOOT_TABLES)).toHaveLength(60);
+  it('数量达到区域 1–5 的内容目标', () => {
+    expect(REGIONS).toHaveLength(5);
+    expect(ALL_CHAPTERS).toHaveLength(25);
+    expect(Object.keys(STAGES)).toHaveLength(150);
+    expect(Object.keys(MONSTERS)).toHaveLength(120);
+    // 既有 251 件 + R5 普通 24 件 + 绯焰 6 件。
+    expect(Object.keys(EQUIPMENT)).toHaveLength(281);
+    expect(Object.keys(LOOT_TABLES)).toHaveLength(75);
   });
 
   it('区域 3/4 各有八部位 × 精良/稀有/史诗 24 件装备', () => {
@@ -261,7 +260,7 @@ describe('区域 1–4 内容完整性', () => {
     );
     expect(region2Monsters).toHaveLength(25);
     expect(Object.keys(MONSTER_VISUALS).filter((id) => id.startsWith('mon_2-'))).toHaveLength(25);
-    expect(Object.keys(MONSTER_VISUALS)).toHaveLength(96);
+    expect(Object.keys(MONSTER_VISUALS)).toHaveLength(120);
     for (const monster of region2Monsters) {
       expect(monster.sprite, monster.id).toBe(MONSTER_VISUALS[monster.id]?.asset);
       expect(
@@ -271,9 +270,9 @@ describe('区域 1–4 内容完整性', () => {
     }
   });
 
-  it('49 张怪物运行时贴图均为统一尺寸、透明画布与脚底锚点', async () => {
+  it('120 张怪物运行时贴图均为统一尺寸、透明画布与脚底锚点', async () => {
     const assets = Object.values(MONSTER_VISUALS).map((visual) => visual.asset);
-    expect(assets).toHaveLength(96);
+    expect(assets).toHaveLength(120);
 
     for (const asset of assets) {
       expect(asset.endsWith('.webp'), asset).toBe(true);
@@ -354,7 +353,7 @@ describe('区域 1–4 内容完整性', () => {
     }
   });
 
-  it('强化成长配置完整覆盖十章，推荐目标与首通强化石逐章递进', () => {
+  it('强化成长配置完整覆盖二十五章，推荐目标与首通强化石逐章递进', () => {
     expect(Object.keys(ENHANCE_PROGRESSION).sort()).toEqual(
       ALL_CHAPTERS.map((chapter) => chapter.id).sort(),
     );
@@ -502,7 +501,7 @@ describe('区域 1–4 内容完整性', () => {
     }
   });
 
-  it('四职业纸娃娃底模、两区与装备副本外观全部透明对齐', async () => {
+  it('四职业纸娃娃底模、五区与装备副本外观全部透明对齐', async () => {
     const layerAssets = Object.values(EQUIPMENT_APPEARANCES)
       .filter((appearance) => appearance.renderMode !== 'slot-only')
       .flatMap((appearance) => Object.values(appearance.assets));
@@ -513,8 +512,8 @@ describe('区域 1–4 内容完整性', () => {
         ...layerAssets,
       ]),
     ];
-    // 4 底模 + 4 无靴底模 + 区域 2×3×4 + 精品店 50 + 装备副本 4×3×4（鞋已改为仅槽位显示）
-    expect(assets).toHaveLength(154);
+    // 4 底模 + 4 无靴底模 + 区域 1～5 普通层 + R5 套装层 + 精品店 + 装备副本。
+    expect(assets).toHaveLength(178);
 
     for (const asset of assets) {
       const assetPath = resolve('public', asset);
@@ -698,7 +697,7 @@ describe('区域 1–4 内容完整性', () => {
   });
 
   it('全部物品都引用真实存在的正式图标', () => {
-    expect(Object.keys(ITEMS)).toHaveLength(31);
+    expect(Object.keys(ITEMS)).toHaveLength(36);
     for (const [id, item] of Object.entries(ITEMS)) {
       expect(item.icon).toBe(`assets/items/${id}.png`);
       expect(existsSync(resolve('public', item.icon)), `${id} → ${item.icon}`).toBe(true);

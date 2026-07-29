@@ -10,6 +10,7 @@
 
 import type { Element } from '@/core/types';
 import { REGION_34 } from './region34';
+import { REGION_5 } from './region5';
 
 export interface ChapterSpec {
   /** 章节号，如 '1-3' */
@@ -208,10 +209,13 @@ const REGION_2: RegionSpec = {
   ],
 };
 
-/** 全部区域。M2 只做前两个，后续区域按 docs/11 逐步补。 */
-// 区域 3/4 的完整声明在 region34.ts，素材、掉落、强化曲线全部就绪后一次性接入，
-// 见该文件头部说明。接入即代表这两个区域正式可玩。
-export const REGIONS: RegionSpec[] = [REGION_1, REGION_2, ...REGION_34];
+/** 全部已原子完成的可玩区域；未通过数据、经济和资产门禁的区域不得进入本表。 */
+export const REGIONS: RegionSpec[] = [
+  REGION_1,
+  REGION_2,
+  ...REGION_34,
+  REGION_5,
+];
 
 /** 每章的关卡数 */
 export const STAGES_PER_CHAPTER = 6;

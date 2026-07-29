@@ -53,6 +53,7 @@ export const MONSTER_VISUALS: Readonly<Record<string, MonsterVisual>> = {
   // 区域 3/4 与 regions.ts 同一批接入：素材、掉落、强化曲线全部就绪后才展开，
   // 展开前 REGION_34_MONSTER_VISUALS 只作为待启用注册表存在。
   ...REGION_34_MONSTER_VISUALS,
+  ...REGION_5_MONSTER_VISUALS,
   'mon_1-1_0': { asset: 'assets/monsters/r1/mon_1-1_0.webp', motion: 'flutter' },
   'mon_1-1_1': { asset: 'assets/monsters/r1/mon_1-1_1.webp', motion: 'hopper' },
   'mon_1-1_2': { asset: 'assets/monsters/r1/mon_1-1_2.webp', motion: 'flutter' },
