@@ -34,6 +34,13 @@ jobs:
 
       - name: 构建
         run: npm run build
+        env:
+          # Supabase 联机接入（见 docs/51）。
+          # 在仓库 Settings → Secrets and variables → Actions 里配置同名 secret。
+          # 未配置时为空字符串，客户端应据此关闭联机功能并照常离线可玩 ——
+          # 绝不能因为缺这两个值就让构建失败或游戏打不开。
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
       - uses: actions/configure-pages@v5
 
