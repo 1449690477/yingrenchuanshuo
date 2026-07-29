@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { TRIAL_TILTS } from '../trialRules';
-import { requireTrialVisual, TRIAL_PHASES } from '../trialVisuals';
+import { requireTrialMotionTiming, requireTrialVisual, TRIAL_PHASES } from '../trialVisuals';
 
 describe('周常试炼表现配置', () => {
   it('3 种倾向 × 3 种元素都有独立 Boss 资产', () => {
@@ -19,6 +19,19 @@ describe('周常试炼表现配置', () => {
 
   it('四个阶段严格覆盖 60 秒且顺序递增', () => {
     expect(TRIAL_PHASES.map((phase) => phase.at)).toEqual([0, 15, 30, 45]);
+  });
+
+  it('三类 Boss 都有可读的蓄力与回位节奏', () => {
+    const weighty = requireTrialMotionTiming('weighty');
+    const elusive = requireTrialMotionTiming('elusive');
+    const fierce = requireTrialMotionTiming('fierce');
+
+    expect(weighty.windupMs).toBeGreaterThan(fierce.windupMs);
+    expect(fierce.windupMs).toBeGreaterThan(elusive.windupMs);
+    for (const timing of [weighty, elusive, fierce]) {
+      expect(timing.windupMs).toBeGreaterThan(200);
+      expect(timing.recoveryMs).toBeGreaterThan(200);
+    }
   });
 
   it('未知组合直接报错，不用占位图兜底', () => {
