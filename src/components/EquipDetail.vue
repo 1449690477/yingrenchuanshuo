@@ -44,9 +44,7 @@ const activeClassId = computed(() => {
 const showReforge = ref(false);
 const showAdvancement = ref(false);
 const def = computed(() => requireEquipment(props.inst.defId));
-const presentation = computed(() =>
-  equipmentDisplayPresentation(def.value, activeClassId.value),
-);
+const presentation = computed(() => equipmentDisplayPresentation(def.value, activeClassId.value));
 const advancementOption = computed(() => inventory.equipmentAdvancementOption(props.inst.uid));
 
 const stats = computed<Stats>(() =>
@@ -427,6 +425,48 @@ function doDecompose() {
   gap: 10px;
 }
 
+/*
+ * 弹层打开后，内容分节错峰上浮。
+ * modal-pop 负责整张卡片的入场，这一层负责卡片内部
+ * 「战力 → 对比 → 胚子 → 属性 → 词条」依序落位的阅读节奏。
+ */
+.body > * {
+  animation: detail-rise 0.36s var(--ease-soft) both;
+}
+
+.body > *:nth-child(2) {
+  animation-delay: 35ms;
+}
+
+.body > *:nth-child(3) {
+  animation-delay: 70ms;
+}
+
+.body > *:nth-child(4) {
+  animation-delay: 105ms;
+}
+
+.body > *:nth-child(5) {
+  animation-delay: 140ms;
+}
+
+.body > *:nth-child(n + 6) {
+  animation-delay: 175ms;
+}
+
+@keyframes detail-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .body > * {
+    animation: none;
+  }
+}
+
 .cp-row {
   display: flex;
   align-items: center;
@@ -708,9 +748,7 @@ function doDecompose() {
   color: #80551f;
   font-size: 12px;
   font-weight: 800;
-  background:
-    linear-gradient(100deg, rgb(255 245 216 / 94%), rgb(232 247 255 / 94%)),
-    #fff;
+  background: linear-gradient(100deg, rgb(255 245 216 / 94%), rgb(232 247 255 / 94%)), #fff;
   border: 1px solid #ecd09b;
   box-shadow: inset 0 0 0 1px rgb(255 255 255 / 76%);
 }
