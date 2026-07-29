@@ -477,8 +477,12 @@ function openLootEntry(entry: { itemId: string; isEquipment: boolean; count: num
   display: flex;
   flex-direction: column;
   gap: 10px;
-  height: 100%;
-  min-height: 0;
+  /*
+   * main 才是页面的滚动容器。这里只保证空内容时至少撑满一屏；
+   * 不能锁死 height: 100%，否则掉落卡展开后会参与负空间收缩，
+   * 最终整张卡被压成 1px，玩家反而看不到可点击的掉落。
+   */
+  min-height: 100%;
 }
 
 .stage-bar {
@@ -1108,7 +1112,8 @@ function openLootEntry(entry: { itemId: string; isEquipment: boolean; count: num
  */
 .loot {
   position: relative;
-  flex: 0 1 auto;
+  /* 展开内容交给 main 滚动，掉落卡自身绝不因一屏放不下而被压扁。 */
+  flex: 0 0 auto;
   min-height: 0;
 }
 

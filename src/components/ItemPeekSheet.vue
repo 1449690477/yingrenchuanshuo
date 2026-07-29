@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue';
+import { nextTick, onMounted, onUnmounted, ref } from 'vue';
 import { X } from '@lucide/vue';
+import { createFocusTrap, type FocusTrap } from 'focus-trap';
 import type { ItemDef } from '@/data/items';
 
 /**
@@ -24,20 +25,41 @@ const kindLabels: Readonly<Record<ItemDef['kind'], string>> = {
   currency: '货币',
 };
 
+const sheetRef = ref<HTMLElement | null>(null);
 const closeButtonRef = ref<HTMLButtonElement | null>(null);
+let dialogFocusTrap: FocusTrap | null = null;
 
-function onKeydown(event: KeyboardEvent): void {
-  if (event.key === 'Escape') emit('close');
-}
-
-onMounted(() => {
-  closeButtonRef.value?.focus();
-  document.addEventListener('keydown', onKeydown);
+onMounted(async () => {
+  await nextTick();
+  const sheet = sheetRef.value;
+  if (!sheet) return;
+  dialogFocusTrap = createFocusTrap(sheet, {
+    initialFocus: () => closeButtonRef.value ?? sheet,
+    fallbackFocus: () => sheet,
+    clickOutsideDeactivates: true,
+    isolateSubtrees: 'aria-hidden',
+    onDeactivate: () => emit('close'),
+  });
+  dialogFocusTrap.activate();
 });
 
 onUnmounted(() => {
-  document.removeEventListener('keydown', onKeydown);
+  if (dialogFocusTrap?.active) {
+    dialogFocusTrap.deactivate({
+      returnFocus: true,
+      onDeactivate: () => undefined,
+    });
+  }
+  dialogFocusTrap = null;
 });
+
+function requestClose(): void {
+  if (dialogFocusTrap?.active) {
+    dialogFocusTrap.deactivate();
+    return;
+  }
+  emit('close');
+}
 
 function assetUrl(path: string): string {
   return `${import.meta.env.BASE_URL}${path}`;
@@ -46,13 +68,15 @@ function assetUrl(path: string): string {
 
 <template>
   <Teleport to="body">
-    <div class="peek-overlay" @click.self="emit('close')">
+    <div class="peek-overlay">
       <section
+        ref="sheetRef"
         class="peek-sheet"
         role="dialog"
         aria-modal="true"
         :aria-label="`${item.name}详情`"
         :class="'q-' + item.tier"
+        tabindex="-1"
       >
         <span class="peek-glow" aria-hidden="true" />
         <header class="peek-head">
@@ -68,7 +92,7 @@ function assetUrl(path: string): string {
             type="button"
             class="peek-close"
             aria-label="关闭"
-            @click="emit('close')"
+            @click="requestClose"
           >
             <X :size="17" />
           </button>
