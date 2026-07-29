@@ -189,8 +189,8 @@ describe('星辉洗练坊独立界面', () => {
       instance(randomDefinition.id, [
         // 一条 T5 + 两条低阶：随机操作有三分之一概率把 T5 洗掉
         { key: 'atk', tier: 5, value: 40 },
-        { key: 'def', tier: 1, value: 6 },
-        { key: 'hp', tier: 1, value: 30 },
+        { key: 'skillMul', tier: 1, value: 1 },
+        { key: 'wit_power', tier: 1, value: 8 },
       ]),
     ];
 

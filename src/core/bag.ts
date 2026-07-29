@@ -7,16 +7,18 @@
  *   - 任何遍历背包的计算（战力评分、一键穿戴）都被拖垮
  *   - 界面渲染直接卡死
  *
- * 策略：超出容量时自动分解**最不值钱的**装备，但有三条硬性保护：
+ * 策略：超出容量时自动分解**最不值钱的**装备，但有四条硬性保护：
  *   1. 锁定的装备永不分解
  *   2. 史诗（epic）及以上永不自动分解 —— 玩家辛苦刷的东西不能悄悄没了
  *   3. 每个部位至少保留战力最高的一件，避免把唯一的可穿装备清掉
+ *   4. 每个部位 × 高阶战斗词条用途动态保留最好的一件
  *
  * 保护条件太强时宁可让背包超出上限，也不能删玩家的好东西。
  */
 
-import type { EquipmentInstance, EquipSlot, Quality } from './types';
-import { QUALITY_RANK } from '@/data/constants';
+import type { Affix, Element, EquipmentInstance, EquipSlot, Quality } from './types';
+import { isAffixSettlementActive, QUALITY_RANK } from '@/data/constants';
+import { PROTECT_TIER_THRESHOLD } from '@/data/reforgeRules';
 
 /**
  * 掉落时自动上锁的品质门槛。
@@ -72,6 +74,8 @@ export interface TrimContext {
   slotOf: (inst: EquipmentInstance) => EquipSlot | undefined;
   /** 装备品质 */
   qualityOf: (inst: EquipmentInstance) => Quality | undefined;
+  /** 武器的基础攻击元素；非武器返回 undefined */
+  weaponElementOf: (inst: EquipmentInstance) => Element | undefined;
 }
 
 export interface TrimResult {
@@ -79,6 +83,22 @@ export interface TrimResult {
   kept: EquipmentInstance[];
   /** 被自动分解掉的装备 */
   removed: EquipmentInstance[];
+}
+
+type CombatProtectionGroup =
+  | 'damage-reduction'
+  | 'lifesteal'
+  | `element:${'fire' | 'ice' | 'thunder'}`;
+
+interface CombatProtectionCandidate {
+  inst: EquipmentInstance;
+  affix: Affix;
+  originalIndex: number;
+}
+
+interface WeaponElementProtectionCandidate {
+  inst: EquipmentInstance;
+  originalIndex: number;
 }
 
 export interface BulkDecomposePlan {
@@ -218,6 +238,57 @@ export function trimBag(
     }
   }
 
+  /*
+   * 减伤、吸血、元素伤害不属于八项 Stats，不能用固定 CP 权重冒充真实价值。
+   * 这里按用途动态保留一个冠军：新掉落更好的会自然替换旧冠军，不写 locked，
+   * 因此最多额外保护 8 部位 × (减伤 + 吸血 + 三元素) = 40 个位置。
+   */
+  const bestCombatAffix = new Map<string, CombatProtectionCandidate>();
+  equipment.forEach((inst, originalIndex) => {
+    const slot = ctx.slotOf(inst);
+    if (!slot) return;
+    for (const affix of inst.affixes) {
+      const group = combatProtectionGroup(affix);
+      if (!group || affix.tier < PROTECT_TIER_THRESHOLD) continue;
+      const key = `${slot}:${group}`;
+      const candidate = { inst, affix, originalIndex };
+      const current = bestCombatAffix.get(key);
+      if (!current || isBetterCombatProtectionCandidate(candidate, current, cachedValue)) {
+        bestCombatAffix.set(key, candidate);
+      }
+    }
+  });
+  const combatAffixChampions = new Set(
+    [...bestCombatAffix.values()].map((candidate) => candidate.inst.uid),
+  );
+
+  /*
+   * 教学与构筑依赖真实武器元素。它不属于八项 Stats，也不能让唯一一把炎/冰/雷
+   * 武器因为当前关卡没吃克制就被清掉。每个非无属性系只动态保留评分最高的一把，
+   * 最多额外 3 个位置；更好的同系武器会自然替换旧冠军。
+   */
+  const bestWeaponElement = new Map<
+    Exclude<Element, 'none'>,
+    WeaponElementProtectionCandidate
+  >();
+  equipment.forEach((inst, originalIndex) => {
+    const element = ctx.weaponElementOf(inst);
+    if (!element || element === 'none') return;
+    const candidate = { inst, originalIndex };
+    const current = bestWeaponElement.get(element);
+    if (
+      !current ||
+      cachedValue(inst) > cachedValue(current.inst) ||
+      (cachedValue(inst) === cachedValue(current.inst) &&
+        originalIndex < current.originalIndex)
+    ) {
+      bestWeaponElement.set(element, candidate);
+    }
+  });
+  const weaponElementChampions = new Set(
+    [...bestWeaponElement.values()].map((candidate) => candidate.inst.uid),
+  );
+
   const isProtected = (inst: EquipmentInstance): boolean => {
     if (inst.pendingAffixChange) return true;
     if (inst.locked) return true;
@@ -226,6 +297,8 @@ export function trimBag(
     if (!q || !AUTO_DECOMPOSE_QUALITIES.has(q)) return true;
     const slot = ctx.slotOf(inst);
     if (slot && bestPerSlot.get(slot) === inst.uid) return true;
+    if (combatAffixChampions.has(inst.uid)) return true;
+    if (weaponElementChampions.has(inst.uid)) return true;
     return false;
   };
 
@@ -249,6 +322,40 @@ export function trimBag(
 
   const kept = equipment.filter((e) => !removedIds.has(e.uid));
   return { kept, removed };
+}
+
+function combatProtectionGroup(affix: Affix): CombatProtectionGroup | null {
+  if (!isAffixSettlementActive(affix.key)) return null;
+  switch (affix.key) {
+    case 'dmgReduce':
+    case 'sha_ward':
+      return 'damage-reduction';
+    case 'lifesteal':
+    case 'sha_drain':
+      return 'lifesteal';
+    case 'elemDmg':
+    case 'wit_elem':
+      return affix.element && affix.element !== 'none' ? `element:${affix.element}` : null;
+    default:
+      return null;
+  }
+}
+
+function isBetterCombatProtectionCandidate(
+  candidate: CombatProtectionCandidate,
+  current: CombatProtectionCandidate,
+  cachedValue: (inst: EquipmentInstance) => number,
+): boolean {
+  if (candidate.affix.tier !== current.affix.tier) {
+    return candidate.affix.tier > current.affix.tier;
+  }
+  if (candidate.affix.value !== current.affix.value) {
+    return candidate.affix.value > current.affix.value;
+  }
+  const candidateValue = cachedValue(candidate.inst);
+  const currentValue = cachedValue(current.inst);
+  if (candidateValue !== currentValue) return candidateValue > currentValue;
+  return candidate.originalIndex < current.originalIndex;
 }
 
 /** 背包是否已经超出容量 */

@@ -48,16 +48,22 @@ function onPageHide() {
   game.pauseForBackground();
 }
 
+function onPageShow() {
+  if (game.loaded && document.visibilityState !== 'hidden') game.resumeFromBackground();
+}
+
 onMounted(() => {
   void game.init();
   document.addEventListener('visibilitychange', onVisibility);
   window.addEventListener('pagehide', onPageHide);
+  window.addEventListener('pageshow', onPageShow);
 });
 
 onUnmounted(() => {
   game.stopLoop();
   document.removeEventListener('visibilitychange', onVisibility);
   window.removeEventListener('pagehide', onPageHide);
+  window.removeEventListener('pageshow', onPageShow);
 });
 </script>
 

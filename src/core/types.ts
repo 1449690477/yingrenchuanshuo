@@ -98,9 +98,11 @@ export type AffixKey =
   | 'swd_heavy'
   | 'wit_power'
   | 'wit_elem'
+  | 'wit_veil'
   | 'sha_vitality'
   | 'sha_drain'
   | 'sha_ward'
+  | 'sha_spirit'
   | 'cat_swift'
   | 'cat_nimble';
 
@@ -134,15 +136,13 @@ export interface PendingAffixChange {
 
 // ─────────────────────────── 装备 ───────────────────────────
 
-/** 装备定义（配置表里的静态数据） */
-export interface EquipmentDef {
+/** 装备定义的公共字段（配置表里的静态数据）。 */
+interface EquipmentDefBase {
   id: string;
   name: string;
-  slot: EquipSlot;
   quality: Quality;
   /** 需求等级，同时也是属性基准 */
   level: number;
-  element?: Element;
   setId?: string;
   icon: string;
   /**
@@ -176,6 +176,22 @@ export interface EquipmentDef {
   /** 金色装备的专属效果描述 */
   uniqueEffect?: string;
 }
+
+/**
+ * 装备定义。
+ *
+ * 武器是基础攻击属性的唯一装备来源，因此必须显式填写 element；
+ * 非武器禁止携带 element，避免把首饰词条或关卡属性误当成攻击属性。
+ */
+export type EquipmentDef =
+  | (EquipmentDefBase & {
+      slot: 'weapon';
+      element: Element;
+    })
+  | (EquipmentDefBase & {
+      slot: Exclude<EquipSlot, 'weapon'>;
+      element?: never;
+    });
 
 /** 装备实例（玩家背包里那一件，带随机词条与强化等级） */
 export interface EquipmentInstance {

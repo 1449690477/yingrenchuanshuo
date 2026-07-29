@@ -15,16 +15,18 @@ function def(
   level: number,
   extra?: Partial<EquipmentDef>,
 ): EquipmentDef {
-  return {
+  const common = {
     id,
     name: id,
-    slot,
     quality,
     level,
     icon: 'assets/equipment/r1/weapon.png',
     appearanceId: 'r1-weapon',
     ...extra,
   };
+  return slot === 'weapon'
+    ? { ...common, slot, element: extra?.element ?? 'none' }
+    : { ...common, slot, element: undefined };
 }
 
 function instance(defId: string, affixes: Affix[], enhance = 0): EquipmentInstance {
@@ -115,6 +117,21 @@ describe('洗练建议规则', () => {
     expect(first?.recommendation?.headline).toContain('他职业');
   });
 
+  it('他职业专属占用预留职业槽时推荐铭刻，只改该槽', () => {
+    const [first] = adviseReforge({
+      classId: 'witch',
+      entries: [
+        {
+          instance: instance('w3b', [atk(3), atk(2), swd(4)]),
+          definition: def('w3b', 'weapon', 'epic', 30),
+          source: 'equipped',
+        },
+      ],
+    });
+    expect(first?.recommendation?.operation).toBe('inscribe');
+    expect(first?.recommendation?.reason).toContain('不会碰通用词条');
+  });
+
   it('T4 有用词条在好装备上推荐同调直升 T5，并给出目标下标', () => {
     const [first] = adviseReforge({
       classId: 'witch',
@@ -132,7 +149,7 @@ describe('洗练建议规则', () => {
   });
 
   it('史诗装备缺本职专属且有低阶可牺牲词条时推荐铭刻必出', () => {
-    // 全低阶词条：同调无目标，铭刻随机替换的代价低，必出本职专属最划算
+    // 最后一条是预留职业槽；铭刻只会改写它，不会随机碰前两个通用槽。
     const [first] = adviseReforge({
       classId: 'witch',
       entries: [
@@ -147,7 +164,7 @@ describe('洗练建议规则', () => {
   });
 
   it('史诗装备缺本职专属但全是高阶好词条时不推荐铭刻（避免赌坏成品）', () => {
-    // T5+T4+T4：铭刻随机一条可能毁掉 T5，应推荐同调而非铭刻
+    // 预留职业槽已经是 T4，先同调养成，不主动建议覆盖。
     const [first] = adviseReforge({
       classId: 'witch',
       entries: [
@@ -228,17 +245,32 @@ describe('列表排序与过滤', () => {
       classId: 'witch',
       entries: [
         {
-          // 一条 T5 好词条 + 两条低阶：重铸有三分之一概率把 T5 洗掉
-          instance: instance('risky', [atk(5), atk(1), atk(1)]),
+          // 死词条在通用槽，职业槽已有本职专属：建议重铸且需保护 T5。
+          instance: instance('risky', [atk(5), dead(), wit(1)]),
           definition: def('risky', 'weapon', 'epic', 40),
           source: 'equipped',
         },
       ],
     });
     const advice = result[0]!.recommendation!;
-    // 具体推哪个随机操作由规则链决定，这里只关心「是随机操作」这件事
-    expect(['reforge', 'temper', 'inscribe']).toContain(advice.operation);
+    expect(advice.operation).toBe('reforge');
     expect(advice.protectIndices).toEqual([0]);
+  });
+
+  it('铭刻固定改写预留职业槽，不返回无法执行的定契建议', () => {
+    const result = adviseReforge({
+      classId: 'witch',
+      entries: [
+        {
+          instance: instance('inscribe-safe', [atk(5), atk(1), atk(1)]),
+          definition: def('inscribe-safe', 'weapon', 'epic', 40),
+          source: 'equipped',
+        },
+      ],
+    });
+    const advice = result[0]!.recommendation!;
+    expect(advice.operation).toBe('inscribe');
+    expect(advice.protectIndices).toBeUndefined();
   });
 
   it('同调不误伤其他词条，不给定契建议', () => {

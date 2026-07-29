@@ -10,6 +10,7 @@
 
 import type { AffixKey, ClassId, EquipmentDef, EquipSlot, FixedAffix, Quality } from '@/core/types';
 import { CLASS_IDS } from '@/core/types';
+import { EQUIPMENT_DUNGEON_WEAPON_ELEMENTS } from './weaponElements';
 
 export type EquipmentDungeonTierId = 'azure' | 'violet' | 'auric' | 'crimson';
 
@@ -338,10 +339,9 @@ function buildClassGear(
   const noun = slot === 'weapon' ? classSpec.weaponNoun : classSpec.dressNoun;
   const effect = slot === 'weapon' ? classSpec.attackCopy : classSpec.interactionCopy;
 
-  return {
+  const common = {
     id: `eq_dungeon_${tier.id}_${slot}_${classId}`,
     name: `${TIER_CLASS_PREFIX[tier.id][classId]}·${noun}`,
-    slot,
     quality: tier.quality,
     level: tier.level,
     setId: tier.setId,
@@ -351,6 +351,9 @@ function buildClassGear(
     fixedAffixes: [fixedAffix(affixKey, tier)],
     uniqueEffect: `专属视觉：${effect}，并伴随${tier.effectLabel}。`,
   };
+  return slot === 'weapon'
+    ? { ...common, slot, element: EQUIPMENT_DUNGEON_WEAPON_ELEMENTS[tier.id] }
+    : { ...common, slot };
 }
 
 function buildSharedGear(

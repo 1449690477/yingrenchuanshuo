@@ -10,6 +10,7 @@ function equipment(quality: Quality): EquipmentDef {
     id: `eq_${quality}`,
     name: '测试装备',
     slot: 'weapon',
+    element: 'none',
     quality,
     level: 20,
     icon: '',

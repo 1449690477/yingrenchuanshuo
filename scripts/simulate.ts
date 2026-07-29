@@ -25,6 +25,7 @@ import {
   type ClassId,
   type CombatBonuses,
   type Combatant,
+  type Element,
   type EquipSlot,
   type EquipmentDef,
   type FixedAffix,
@@ -33,6 +34,7 @@ import {
 } from '../src/core/types';
 import { addStats, combatPower, zeroStats } from '../src/core/formula';
 import {
+  affixValueRange,
   applyAffix,
   applyCombatAffix,
   enhanceMultiplier,
@@ -42,7 +44,6 @@ import {
   rollEnhanceGainPermille,
   zeroCombatBonuses,
 } from '../src/core/equipment';
-import { dominantAffixElement } from '../src/core/combatBonuses';
 import {
   applyClassMods,
   averageSkillMultiplier,
@@ -59,9 +60,11 @@ import {
   ITEM_POW,
   ITEM_SCALE,
   AFFIX_POOL,
+  availableAffixElementsAtLevel,
   QUALITY_MUL,
   QUALITY_PCT_SCALE,
   QUALITY_AFFIX_COUNT,
+  QUALITY_PROFESSION_AFFIX_COUNT,
   PROFESSION_AFFIX_POOLS,
   SLOT_PCT_WEIGHTS,
   SLOT_WEIGHTS,
@@ -70,6 +73,7 @@ import {
   ENHANCE_PER_LEVEL,
   ENHANCE_TOTAL_GAIN_CAP_PERMILLE,
 } from '../src/data/constants';
+import { EQUIPMENT } from '../src/data/equipment';
 import { idleCombatEfficiency, killsPerSecond } from '../src/core/idle';
 import { timeToKill } from '../src/core/combat';
 import type { IdleContext } from '../src/core/idle';
@@ -269,12 +273,18 @@ function simulateDays(cls: ClassId, days: number, levelCap = 120): DayRecord[] {
 // ──────────────────────────────────────────────────────────
 
 function classBalance() {
-  const levels = [10, 30, 50, 70, 90];
+  // 与词条验收档位保持一致并覆盖 Lv120；基础职业层也不能只在中期打印好看。
+  const levels = [10, 20, 30, 50, 70, 90, 100, 110, 120];
+  let maxDeviation = 0;
   const rows = levels.map((L) => {
     const kps = Object.fromEntries(
       CLASS_IDS.map((classId) => [classId, killsPerSecond(buildContext(classId, L, L))]),
     ) as Record<ClassId, number>;
     const avg = CLASS_IDS.reduce((sum, classId) => sum + kps[classId], 0) / CLASS_IDS.length;
+    maxDeviation = Math.max(
+      maxDeviation,
+      ...CLASS_IDS.map((classId) => Math.abs(kps[classId] - avg) / avg),
+    );
     const dev = (v: number) => `${(((v - avg) / avg) * 100).toFixed(1)}%`;
     return {
       等级: L,
@@ -291,7 +301,7 @@ function classBalance() {
 
   console.log('\n【四职业挂机效率】偏离超过 ±20% 需要调整（docs/13 第四节）\n');
   console.table(rows);
-  return rows;
+  return { rows, maxDeviation };
 }
 
 // ──────────────────────────────────────────────────────────
@@ -424,7 +434,19 @@ function equipmentRandomHealth() {
 
 const REFORGE_SAMPLE_SIZE = 2_000;
 const REFORGE_SAMPLE_SEED = 0x43af_f1a5;
-const REFORGE_LEVELS = [10, 30, 50, 70, 90] as const;
+const REFORGE_ACCEPTANCE_CASES = [
+  { level: 10, quality: 'common' },
+  { level: 20, quality: 'fine' },
+  { level: 30, quality: 'rare' },
+  { level: 50, quality: 'epic' },
+  { level: 70, quality: 'legendary' },
+  { level: 90, quality: 'mythic' },
+  // 心虹珍藏不在 typicalQuality 的自然阶梯内，仍必须单列验证其 6 词条边界。
+  { level: 100, quality: 'prismatic' },
+  { level: 110, quality: 'divine' },
+  // 满级再验一次，防止 L^1.3 词条在区间末端才把职业差异放大出界。
+  { level: 120, quality: 'divine' },
+] as const satisfies readonly { level: number; quality: Quality }[];
 const LEGACY_QUALITY_AFFIX_COUNT: Readonly<Record<Quality, number>> = {
   common: 0,
   fine: 1,
@@ -498,20 +520,69 @@ interface ReforgeAcceptanceRow {
   全T5提升: string;
   新掉落TTK: string;
   新掉落η: string;
+  新掉落KPS: string;
   全T5TTK: string;
   全T5η: string;
+  全T5KPS: string;
+}
+
+interface ReforgeClassMetrics {
+  level: number;
+  quality: Quality;
+  classId: ClassId;
+  legacyCp: number;
+  freshCp: number;
+  t5Cp: number;
+  freshTtk: number;
+  freshEfficiency: number;
+  freshKps: number;
+  t5Ttk: number;
+  t5Efficiency: number;
+  t5Kps: number;
 }
 
 function syntheticEquipment(level: number, quality: Quality, slot: EquipSlot): EquipmentDef {
-  return {
+  const common = {
     id: `sim_${quality}_${level}_${slot}`,
     name: '模拟装备',
-    slot,
     quality,
     level,
     icon: '',
     appearanceId: 'sim',
   };
+  return slot === 'weapon'
+    ? { ...common, slot, element: sourcedWeaponElementAtLevel(level) }
+    : { ...common, slot };
+}
+
+/**
+ * 模拟器只能使用玩家在该等级已经能持有的真实武器元素。
+ *
+ * 优先取不高于当前等级的最高等级定义；同级按 id 升序，保证不同平台结果一致。
+ * 没有来源时返回 none，绝不从词条或怪物属性反推。
+ */
+function sourcedWeaponElementAtLevel(level: number): Element {
+  const source = Object.values(EQUIPMENT)
+    .filter(
+      (definition) =>
+        definition.slot === 'weapon' && definition.element !== 'none' && definition.level <= level,
+    )
+    .sort((a, b) => b.level - a.level || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))[0];
+  return source?.element ?? 'none';
+}
+
+/** 元素词条解锁必须有同级或更早的真实武器定义支撑。 */
+function assertElementSourcesAtLevel(level: number): void {
+  const weapons = Object.values(EQUIPMENT).filter(
+    (definition) => definition.slot === 'weapon' && definition.level <= level,
+  );
+  for (const element of availableAffixElementsAtLevel(level)) {
+    if (!weapons.some((definition) => definition.element === element)) {
+      throw new Error(
+        `[模拟配置错误] Lv${level} 已允许生成 ${element} 元素词条，但没有 level<=${level} 的真实武器来源`,
+      );
+    }
+  }
 }
 
 function rollLegacyAffixes(def: EquipmentDef, rng: Rng): FixedAffix[] {
@@ -526,8 +597,7 @@ function rollLegacyAffixes(def: EquipmentDef, rng: Rng): FixedAffix[] {
     const precision = 10 ** picked.decimals;
     out.push({
       key: picked.key,
-      value:
-        Math.round(rng.float(picked.min * scale, picked.max * scale) * precision) / precision,
+      value: Math.round(rng.float(picked.min * scale, picked.max * scale) * precision) / precision,
     });
   }
   return out;
@@ -571,7 +641,7 @@ function playerWithProfile(cls: ClassId, level: number, profile: AffixProfile): 
     'sim',
     level,
     statsWithProfile(cls, level, profile),
-    dominantAffixElement(profile.bonuses),
+    sourcedWeaponElementAtLevel(level),
     profile.bonuses,
   );
 }
@@ -580,7 +650,7 @@ function idleMetricsWithProfile(
   cls: ClassId,
   level: number,
   profile: AffixProfile,
-): { ttk: number; efficiency: number } {
+): { ttk: number; efficiency: number; kps: number } {
   const context: IdleContext = {
     classId: cls,
     player: playerWithProfile(cls, level, profile),
@@ -595,6 +665,7 @@ function idleMetricsWithProfile(
     // 单独验收。1 / killsPerSecond 已经再次除过 η，是有效秒/杀，不是 TTK。
     ttk: timeToKill(context.player, context.monster, context.skillMultiplier),
     efficiency: idleCombatEfficiency(context),
+    kps: killsPerSecond(context),
   };
 }
 
@@ -614,6 +685,126 @@ function percent(value: number): string {
   return `${(value * 100).toFixed(2)}%`;
 }
 
+function reforgeSampleSeed(
+  base: number,
+  level: number,
+  sample: number,
+  slotIndex: number,
+  key = '',
+): number {
+  let seed =
+    (base ^
+      Math.imul(level, 0x9e37_79b1) ^
+      Math.imul(sample + 1, 0x85eb_ca6b) ^
+      Math.imul(slotIndex + 1, 0xc2b2_ae35)) >>>
+    0;
+  for (let index = 0; index < key.length; index++) {
+    seed = Math.imul(seed ^ key.charCodeAt(index), 0x27d4_eb2d) >>> 0;
+  }
+  return seed;
+}
+
+function maxRelativeDeviation(values: readonly number[]): number {
+  if (values.length === 0) throw new Error('maxRelativeDeviation: 样本不能为空');
+  const average = values.reduce((sum, value) => sum + value, 0) / values.length;
+  return Math.max(...values.map((value) => Math.abs(value - average) / average));
+}
+
+/** 枚举 total 个职业槽在各输出词条间的全部可达分配。 */
+function slotAllocations(total: number, kinds: number): number[][] {
+  if (!Number.isInteger(total) || total < 0 || !Number.isInteger(kinds) || kinds < 1) {
+    throw new Error(`slotAllocations: 非法参数 total=${total}, kinds=${kinds}`);
+  }
+  if (kinds === 1) return [[total]];
+  const out: number[][] = [];
+  for (let count = 0; count <= total; count++) {
+    for (const rest of slotAllocations(total - count, kinds - 1)) {
+      out.push([count, ...rest]);
+    }
+  }
+  return out;
+}
+
+/**
+ * 玩家可以靠重铸定向追逐某个职业输出词条，随机平均合格并不代表可达极值安全。
+ * 这里枚举史诗以上八件装备的职业槽在全部输出词条间的可达分配；
+ * 不能只测“八条同 key”，否则攻击与元素增伤的乘法协同会被漏掉。
+ */
+function offenseExtremeAcceptance() {
+  const rows = REFORGE_ACCEPTANCE_CASES.filter(
+    ({ quality }) => QUALITY_PROFESSION_AFFIX_COUNT[quality] > 0,
+  ).map(({ level, quality }) => {
+    const strongest = Object.fromEntries(
+      CLASS_IDS.map((classId) => {
+        const professionSlots = QUALITY_PROFESSION_AFFIX_COUNT[quality];
+        if (professionSlots !== 1) {
+          throw new Error(
+            `[模拟配置错误] 输出极值组合只覆盖每件 1 个职业槽，当前 ${quality} 为 ${professionSlots}`,
+          );
+        }
+        const offenseSpecs = PROFESSION_AFFIX_POOLS[classId].filter(
+          (entry) => entry.balanceRole === 'offense',
+        );
+        if (offenseSpecs.length === 0) {
+          throw new Error(`[模拟配置错误] ${classId} 没有输出定位职业词条`);
+        }
+        const weaponElement = sourcedWeaponElementAtLevel(level);
+        const candidates = slotAllocations(
+          Object.keys(SLOT_WEIGHTS).length,
+          offenseSpecs.length,
+        ).map((allocation) => {
+          let profile: AffixProfile = { stats: zeroStats(), bonuses: zeroCombatBonuses() };
+          for (const [specIndex, count] of allocation.entries()) {
+            const spec = offenseSpecs[specIndex]!;
+            const elemental = spec.key === 'elemDmg' || spec.key === 'wit_elem';
+            if (elemental && weaponElement === 'none') {
+              throw new Error(`[模拟配置错误] Lv${level} 的 ${spec.key} 极值没有真实元素武器来源`);
+            }
+            const affix: Affix = {
+              key: spec.key,
+              tier: 5,
+              value: affixValueRange(spec.key, level, 5).max,
+              ...(elemental ? { element: weaponElement } : {}),
+            };
+            for (let slot = 0; slot < count; slot++) {
+              profile = addAffixesToProfile(profile, [affix]);
+            }
+          }
+          return {
+            build: allocation
+              .map((count, index) => `${count}×${offenseSpecs[index]!.key}`)
+              .filter((_, index) => allocation[index]! > 0)
+              .join(' + '),
+            kps: idleMetricsWithProfile(classId, level, profile).kps,
+          };
+        });
+        return [
+          classId,
+          candidates.reduce((best, candidate) => (candidate.kps > best.kps ? candidate : best)),
+        ];
+      }),
+    ) as Record<ClassId, { build: string; kps: number }>;
+    const deviation = maxRelativeDeviation(CLASS_IDS.map((classId) => strongest[classId].kps));
+    return {
+      等级: level,
+      品质: quality,
+      剑姬: `${strongest.swordsman.build} · ${strongest.swordsman.kps.toFixed(4)}`,
+      魔女: `${strongest.witch.build} · ${strongest.witch.kps.toFixed(4)}`,
+      灵巫: `${strongest.shaman.build} · ${strongest.shaman.kps.toFixed(4)}`,
+      喵喵: `${strongest.catkin.build} · ${strongest.catkin.kps.toFixed(4)}`,
+      最大偏离: percent(deviation),
+      rawDeviation: deviation,
+    };
+  });
+
+  console.log('\n【职业词条可达输出极值】八件职业槽枚举全部输出 T5 混合分配\n');
+  console.table(rows.map(({ rawDeviation: _rawDeviation, ...row }) => row));
+  return {
+    rows,
+    maxDeviation: Math.max(...rows.map((row) => row.rawDeviation)),
+  };
+}
+
 function reforgeAcceptance() {
   for (const quality of Object.keys(LEGACY_QUALITY_AFFIX_COUNT) as Quality[]) {
     const expected =
@@ -626,14 +817,15 @@ function reforgeAcceptance() {
       );
     }
   }
+  for (const { level } of REFORGE_ACCEPTANCE_CASES) {
+    assertElementSourcesAtLevel(level);
+  }
 
-  const legacyRng = new Rng(REFORGE_SAMPLE_SEED);
-  const freshRng = new Rng(REFORGE_SAMPLE_SEED ^ 0x1111_1111);
-  const t5Rng = new Rng(REFORGE_SAMPLE_SEED ^ 0x5555_5555);
   const rows: ReforgeAcceptanceRow[] = [];
+  const classMetrics: ReforgeClassMetrics[] = [];
+  const slots = Object.keys(SLOT_WEIGHTS) as EquipSlot[];
 
-  for (const level of REFORGE_LEVELS) {
-    const quality = typicalQuality(level);
+  for (const { level, quality } of REFORGE_ACCEPTANCE_CASES) {
     for (const cls of CLASS_IDS) {
       let legacyCp = 0;
       let freshCp = 0;
@@ -642,24 +834,51 @@ function reforgeAcceptance() {
       let t5Ttk = 0;
       let freshEfficiency = 0;
       let t5Efficiency = 0;
+      let freshKps = 0;
+      let t5Kps = 0;
 
       for (let sample = 0; sample < REFORGE_SAMPLE_SIZE; sample++) {
         let legacy: AffixProfile = { stats: zeroStats(), bonuses: zeroCombatBonuses() };
         let fresh: AffixProfile = { stats: zeroStats(), bonuses: zeroCombatBonuses() };
         let t5: AffixProfile = { stats: zeroStats(), bonuses: zeroCombatBonuses() };
 
-        for (const slot of Object.keys(SLOT_WEIGHTS) as EquipSlot[]) {
+        for (const [slotIndex, slot] of slots.entries()) {
           const definition = syntheticEquipment(level, quality, slot);
           legacy = addAffixesToProfile(
             legacy,
-            rollLegacyAffixes(definition, legacyRng),
+            rollLegacyAffixes(
+              definition,
+              new Rng(reforgeSampleSeed(REFORGE_SAMPLE_SEED, level, sample, slotIndex)),
+            ),
             false,
           );
-          const freshAffixes = rollAffixes(definition, freshRng, cls);
+          /*
+           * 每个职业在同等级、同样本、同部位使用同一条随机流。
+           * 通用词条因此完全配对，职业差只来自职业池本身，而不是抽样噪声。
+           */
+          const freshAffixes = rollAffixes(
+            definition,
+            new Rng(reforgeSampleSeed(REFORGE_SAMPLE_SEED ^ 0x1111_1111, level, sample, slotIndex)),
+            cls,
+          );
           fresh = addAffixesToProfile(fresh, freshAffixes);
           t5 = addAffixesToProfile(
             t5,
-            freshAffixes.map((affix) => t5VersionOf(affix, level, t5Rng)),
+            freshAffixes.map((affix) =>
+              t5VersionOf(
+                affix,
+                level,
+                new Rng(
+                  reforgeSampleSeed(
+                    REFORGE_SAMPLE_SEED ^ 0x5555_5555,
+                    level,
+                    sample,
+                    slotIndex,
+                    affix.key,
+                  ),
+                ),
+              ),
+            ),
           );
         }
 
@@ -672,6 +891,8 @@ function reforgeAcceptance() {
         t5Ttk += t5Metrics.ttk;
         freshEfficiency += freshMetrics.efficiency;
         t5Efficiency += t5Metrics.efficiency;
+        freshKps += freshMetrics.kps;
+        t5Kps += t5Metrics.kps;
       }
 
       legacyCp /= REFORGE_SAMPLE_SIZE;
@@ -681,6 +902,22 @@ function reforgeAcceptance() {
       t5Ttk /= REFORGE_SAMPLE_SIZE;
       freshEfficiency /= REFORGE_SAMPLE_SIZE;
       t5Efficiency /= REFORGE_SAMPLE_SIZE;
+      freshKps /= REFORGE_SAMPLE_SIZE;
+      t5Kps /= REFORGE_SAMPLE_SIZE;
+      classMetrics.push({
+        level,
+        quality,
+        classId: cls,
+        legacyCp,
+        freshCp,
+        t5Cp,
+        freshTtk,
+        freshEfficiency,
+        freshKps,
+        t5Ttk,
+        t5Efficiency,
+        t5Kps,
+      });
       rows.push({
         等级: level,
         品质: quality,
@@ -692,8 +929,10 @@ function reforgeAcceptance() {
         全T5提升: percent(t5Cp / freshCp - 1),
         新掉落TTK: freshTtk.toFixed(2),
         新掉落η: freshEfficiency.toFixed(3),
+        新掉落KPS: freshKps.toFixed(4),
         全T5TTK: t5Ttk.toFixed(2),
         全T5η: t5Efficiency.toFixed(3),
+        全T5KPS: t5Kps.toFixed(4),
       });
     }
   }
@@ -703,55 +942,31 @@ function reforgeAcceptance() {
   );
   console.table(rows);
 
-  const classRows = REFORGE_LEVELS.map((level) => {
-    const levelRows = rows.filter((row) => row.等级 === level);
-    const ttks = Object.fromEntries(
-      levelRows.map((row) => [row.职业, Number(row.新掉落TTK)]),
-    ) as Record<ClassId, number>;
-    const t5Ttks = Object.fromEntries(
-      levelRows.map((row) => [row.职业, Number(row.全T5TTK)]),
-    ) as Record<ClassId, number>;
-    const efficiencies = Object.fromEntries(
-      levelRows.map((row) => [row.职业, Number(row.新掉落η)]),
-    ) as Record<ClassId, number>;
-    const t5Efficiencies = Object.fromEntries(
-      levelRows.map((row) => [row.职业, Number(row.全T5η)]),
-    ) as Record<ClassId, number>;
-    /*
-     * 职业平衡必须按「有效击杀率」判，不能只看 TTK。
-     *
-     * 承伤模型上线后，一个职业的真实挂机产出是 η / TTK：
-     * 灵巫是高血续航定位，TTK 天生慢，但承伤压力小、η 更高。
-     * 只按 TTK 排名等于把它的设计优势算成劣势 ——
-     * CLASS_ATK_MUL 本来就有意让灵巫只有 86% 的攻击系数，
-     * 补偿放在生存上，那份补偿只有算进 η 才看得见。
-     */
-    const rate = (cls: ClassId) => efficiencies[cls] / ttks[cls];
-    const t5Rate = (cls: ClassId) => t5Efficiencies[cls] / t5Ttks[cls];
-    const rateAvg = CLASS_IDS.reduce((sum, cls) => sum + rate(cls), 0) / CLASS_IDS.length;
-    const t5RateAvg = CLASS_IDS.reduce((sum, cls) => sum + t5Rate(cls), 0) / CLASS_IDS.length;
-    const freshDeviation = Math.max(
-      ...CLASS_IDS.map((cls) => Math.abs(rate(cls) - rateAvg) / rateAvg),
+  const classRows = REFORGE_ACCEPTANCE_CASES.map(({ level, quality }) => {
+    const levelMetrics = Object.fromEntries(
+      classMetrics
+        .filter((metrics) => metrics.level === level && metrics.quality === quality)
+        .map((metrics) => [metrics.classId, metrics]),
+    ) as Record<ClassId, ReforgeClassMetrics>;
+    const freshDeviation = maxRelativeDeviation(
+      CLASS_IDS.map((classId) => levelMetrics[classId].freshKps),
     );
-    const t5Deviation = Math.max(
-      ...CLASS_IDS.map((cls) => Math.abs(t5Rate(cls) - t5RateAvg) / t5RateAvg),
+    const t5Deviation = maxRelativeDeviation(
+      CLASS_IDS.map((classId) => levelMetrics[classId].t5Kps),
     );
 
     return {
       等级: level,
-      剑姬TTK: ttks.swordsman.toFixed(2),
-      剑姬η: efficiencies.swordsman.toFixed(3),
-      魔女TTK: ttks.witch.toFixed(2),
-      魔女η: efficiencies.witch.toFixed(3),
-      灵巫TTK: ttks.shaman.toFixed(2),
-      灵巫η: efficiencies.shaman.toFixed(3),
-      喵喵TTK: ttks.catkin.toFixed(2),
-      喵喵η: efficiencies.catkin.toFixed(3),
+      品质: quality,
+      剑姬KPS: levelMetrics.swordsman.freshKps.toFixed(4),
+      魔女KPS: levelMetrics.witch.freshKps.toFixed(4),
+      灵巫KPS: levelMetrics.shaman.freshKps.toFixed(4),
+      喵喵KPS: levelMetrics.catkin.freshKps.toFixed(4),
       新掉落最大偏离: percent(freshDeviation),
       全T5最大偏离: percent(t5Deviation),
     };
   });
-  console.log('新鲜掉落词条下的四职业 TTK：');
+  console.log('新鲜掉落词条下的四职业真实 KPS：');
   console.table(classRows);
 
   /*
@@ -764,50 +979,43 @@ function reforgeAcceptance() {
    *
    * 普通品质单独打印出来备查，绝不隐藏。
    */
-  const gradedRows = rows.filter((row) => row.品质 !== 'common');
-  const commonRows = rows.filter((row) => row.品质 === 'common');
-  const cpChangeValues = gradedRows.map(
-
-    (row) => Number(row.新掉落战力) / Number(row.旧版战力) - 1,
-  );
-  const t5GainValues = gradedRows.map((row) => Number(row.全T5战力) / Number(row.新掉落战力) - 1);
+  const gradedMetrics = classMetrics.filter((metrics) => metrics.quality !== 'common');
+  const commonMetrics = classMetrics.filter((metrics) => metrics.quality === 'common');
+  const cpChangeValues = gradedMetrics.map((metrics) => metrics.freshCp / metrics.legacyCp - 1);
+  const t5GainValues = gradedMetrics.map((metrics) => metrics.t5Cp / metrics.freshCp - 1);
   const minFreshCpChange = Math.min(...cpChangeValues);
   const maxFreshCpChange = Math.max(...cpChangeValues);
   const minT5Gain = Math.min(...t5GainValues);
   const maxT5Gain = Math.max(...t5GainValues);
   /*
-   * 职业平衡按「有效击杀率 η / TTK」判，不能只看 TTK。
-   *
-   * 承伤模型上线后，一个职业的真实挂机产出等于击杀速度乘以承伤效率。
-   * 灵巫是高血续航定位，CLASS_ATK_MUL 有意只给它 86% 的攻击系数，
-   * 补偿放在生存上 —— 那份补偿只有算进 η 才看得见。
-   * 只按 TTK 排名，等于把它的设计优势当成劣势判罚。
+   * 必须直接聚合每个样本的 killsPerSecond，不能把已经求平均并 toFixed 的
+   * TTK 与 η 再相除。E[η/TTK] 不等于 E[η] / E[TTK]，后者会制造假绿。
    */
-  const classRateDeviation = (ttkKey: '新掉落TTK' | '全T5TTK', etaKey: '新掉落η' | '全T5η') =>
+  const classKpsDeviation = (key: 'freshKps' | 't5Kps') =>
     Math.max(
-      ...REFORGE_LEVELS.map((level) => {
-        const levelRows = rows.filter((row) => row.等级 === level);
-        const rates = levelRows.map((row) => Number(row[etaKey]) / Number(row[ttkKey]));
-        const average = rates.reduce((sum, value) => sum + value, 0) / rates.length;
-        return Math.max(...rates.map((value) => Math.abs(value - average) / average));
-      }),
+      ...REFORGE_ACCEPTANCE_CASES.map(({ level, quality }) =>
+        maxRelativeDeviation(
+          classMetrics
+            .filter((metrics) => metrics.level === level && metrics.quality === quality)
+            .map((metrics) => metrics[key]),
+        ),
+      ),
     );
-  const maxFreshClassDeviation = classRateDeviation('新掉落TTK', '新掉落η');
-  const maxT5ClassDeviation = classRateDeviation('全T5TTK', '全T5η');
+  const maxFreshClassDeviation = classKpsDeviation('freshKps');
+  const maxT5ClassDeviation = classKpsDeviation('t5Kps');
   const maxClassDeviation = Math.max(maxFreshClassDeviation, maxT5ClassDeviation);
-  const representativeRows = rows.filter((row) => row.等级 === REPRESENTATIVE_TTK_LEVEL);
-  const representativeTtks = representativeRows.map((row) => Number(row.新掉落TTK));
-  const freshEfficiencies = rows.map((row) => Number(row.新掉落η));
-  const t5Efficiencies = rows.map((row) => Number(row.全T5η));
+  const representativeTtks = classMetrics
+    .filter((metrics) => metrics.level === REPRESENTATIVE_TTK_LEVEL)
+    .map((metrics) => metrics.freshTtk);
+  const freshEfficiencies = classMetrics.map((metrics) => metrics.freshEfficiency);
+  const t5Efficiencies = classMetrics.map((metrics) => metrics.t5Efficiency);
   const minFreshEfficiency = Math.min(...freshEfficiencies);
   const maxFreshEfficiency = Math.max(...freshEfficiencies);
   const minT5Efficiency = Math.min(...t5Efficiencies);
   const maxT5Efficiency = Math.max(...t5Efficiencies);
 
   console.log('词条验收摘要：');
-  const commonChanges = commonRows.map(
-    (row) => Number(row.新掉落战力) / Number(row.旧版战力) - 1,
-  );
+  const commonChanges = commonMetrics.map((metrics) => metrics.freshCp / metrics.legacyCp - 1);
   console.log(
     `  普通品质（0→1 条词条，产品决定，不纳入门槛）：${percent(Math.min(...commonChanges))} ~ ${percent(Math.max(...commonChanges))}`,
   );
@@ -857,10 +1065,14 @@ function reforgeAcceptance() {
  * MONSTER_ATK_BASE，两项恢复为硬门禁 —— **不要再把它们降级**，
  * 它们现在是真的能过。
  *
- * 四职业平衡不在这里判：docs/13 的【四职业挂机效率】表用的是真实
- * killsPerSecond（已含 η），是唯一权威口径，重复判会得出互相矛盾的结论。
+ * 四职业平衡同样必须在这里硬判：基础、新掉落、全 T5 与玩家可定向追到的
+ * 全输出 T5 都统一读取真实 killsPerSecond，任何一层超过 20% 都退出非零。
  */
-function assertReforgeAcceptance(result: ReturnType<typeof reforgeAcceptance>): void {
+function assertReforgeAcceptance(
+  result: ReturnType<typeof reforgeAcceptance>,
+  baseBalance: ReturnType<typeof classBalance>,
+  offenseExtreme: ReturnType<typeof offenseExtremeAcceptance>,
+): void {
   const minRepresentativeTtk = Math.min(...result.representativeTtks);
   const maxRepresentativeTtk = Math.max(...result.representativeTtks);
 
@@ -889,9 +1101,23 @@ function assertReforgeAcceptance(result: ReturnType<typeof reforgeAcceptance>): 
       ok: result.minT5Gain >= MIN_ALL_T5_CP_GAIN && result.maxT5Gain <= MAX_ALL_T5_CP_GAIN,
       detail: `全 T5 总战力提升 ${percent(result.minT5Gain)}~${percent(result.maxT5Gain)}（目标 ${percent(MIN_ALL_T5_CP_GAIN)}~${percent(MAX_ALL_T5_CP_GAIN)}）`,
     },
+    {
+      ok: baseBalance.maxDeviation <= MAX_CLASS_DEVIATION,
+      detail: `基础四职业真实 KPS 最大偏离 ${percent(baseBalance.maxDeviation)}（目标 ≤ ${percent(MAX_CLASS_DEVIATION)}）`,
+    },
+    {
+      ok:
+        result.maxFreshClassDeviation <= MAX_CLASS_DEVIATION &&
+        result.maxT5ClassDeviation <= MAX_CLASS_DEVIATION,
+      detail: `词条四职业真实 KPS 最大偏离：新掉落 ${percent(result.maxFreshClassDeviation)}、全 T5 ${percent(result.maxT5ClassDeviation)}（目标均 ≤ ${percent(MAX_CLASS_DEVIATION)}）`,
+    },
+    {
+      ok: offenseExtreme.maxDeviation <= MAX_CLASS_DEVIATION,
+      detail: `八件定向输出 T5 的四职业真实 KPS 最大偏离 ${percent(offenseExtreme.maxDeviation)}（目标 ≤ ${percent(MAX_CLASS_DEVIATION)}）`,
+    },
   ];
 
-  console.log('【词条与承伤验收门禁】');
+  console.log('【词条、承伤与职业平衡验收门禁】');
   for (const check of checks) console.log(`  ${check.ok ? '✔' : '✘'} ${check.detail}`);
   const violations = checks.filter((check) => !check.ok).map((check) => check.detail);
   if (violations.length > 0) {
@@ -923,6 +1149,7 @@ function main() {
   const balance = classBalance();
   equipmentRandomHealth();
   const reforge = reforgeAcceptance();
+  const offenseExtreme = offenseExtremeAcceptance();
 
   mkdirSync(OUT_DIR, { recursive: true });
   writeFileSync(resolve(OUT_DIR, 'checkpoints.csv'), toCsv(checkpoints), 'utf8');
@@ -931,7 +1158,7 @@ function main() {
     toCsv(curve as unknown as Record<string, unknown>[]),
     'utf8',
   );
-  writeFileSync(resolve(OUT_DIR, 'class-balance.csv'), toCsv(balance), 'utf8');
+  writeFileSync(resolve(OUT_DIR, 'class-balance.csv'), toCsv(balance.rows), 'utf8');
   writeFileSync(
     resolve(OUT_DIR, 'reforge-acceptance.csv'),
     toCsv(reforge.rows as unknown as Record<string, unknown>[]),
@@ -939,22 +1166,21 @@ function main() {
   );
 
   console.log(`\n✔ CSV 已输出到 ${OUT_DIR}`);
-  console.log(
-    '  checkpoints.csv / growth-30d.csv / class-balance.csv / reforge-acceptance.csv\n',
-  );
+  console.log('  checkpoints.csv / growth-30d.csv / class-balance.csv / reforge-acceptance.csv\n');
 
   // 健康检查
   const day30 = curve[curve.length - 1]!;
   console.log('【健康检查】');
   console.log(`  30 天后等级：Lv${day30.等级}`);
   const stalled = curve.findIndex((r, i) => i > 0 && r.等级 < 120 && r.等级 === curve[i - 1]!.等级);
-  if (stalled > 0) {
-    console.log(`  ⚠ 第 ${curve[stalled]!.天} 天开始出现等级停滞（Lv${curve[stalled]!.等级}）`);
-  } else {
-    console.log('  ✔ 满级前无等级停滞');
+  if (stalled >= 0) {
+    throw new Error(
+      `[成长曲线验收失败] 第 ${curve[stalled]!.天} 天满级前等级未增长（Lv${curve[stalled]!.等级}）`,
+    );
   }
+  console.log('  ✔ 满级前无等级停滞');
 
-  assertReforgeAcceptance(reforge);
+  assertReforgeAcceptance(reforge, balance, offenseExtreme);
 }
 
 main();

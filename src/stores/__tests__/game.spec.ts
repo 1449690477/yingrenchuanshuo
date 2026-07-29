@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { battleMonsterIdAt } from '@/core/battleVisual';
 import { combatEfficiency } from '@/core/combat';
 import { decomposeGold } from '@/core/economy';
-import { createInstance } from '@/core/equipment';
+import { createInstance, rollAffixForKey } from '@/core/equipment';
 import { averageSkillMultiplier, expToNext, makeMonster, makePlayer } from '@/core/progression';
 import { CLASS_IDS, type EquipmentInstance } from '@/core/types';
 import { Rng } from '@/core/rng';
@@ -15,7 +15,7 @@ import { SHOP_OFFERS } from '@/data/shop';
 import { battleRhythmSkills } from '@/data/skills';
 import { ORDERED_STAGE_IDS, STAGES, nextStageId, totalMonsterCount } from '@/data/stages';
 import { createSave, SAVE_VERSION, type SaveData } from '@/save/schema';
-import { clearSave, loadSave } from '@/save/storage';
+import { clearSave, loadSave, saveSave } from '@/save/storage';
 import { useGameStore } from '../game';
 import { useInventoryStore } from '../inventory';
 import { usePlayerStore } from '../player';
@@ -73,6 +73,78 @@ describe('game store persistence', () => {
     expect(game.canIdle).toBe(true);
     expect(game.battleEfficiency).toBeGreaterThan(0);
     expect(game.kps).toBeGreaterThan(0);
+  });
+
+  it('玩家攻击元素只来自已穿武器，不被元素伤害词条反向伪造', () => {
+    const game = useGameStore();
+    const emptySave = createSave('元素权威测试', 'witch', 702, Date.now());
+    emptySave.player.level = 99;
+    game.loadFrom(emptySave);
+    expect(game.playerCombatElement).toBe('none');
+
+    const neutralSave = createSave('无属性武器测试', 'witch', 703, Date.now());
+    neutralSave.player.level = 99;
+    const neutralWeapon = createInstance(
+      requireEquipment('eq_r1_weapon_common'),
+      new Rng(703),
+      'neutral-weapon',
+      neutralSave.player.classId,
+    );
+    neutralWeapon.affixes = [{ key: 'elemDmg', tier: 5, value: 16, element: 'fire' }];
+    neutralSave.equipped.weapon = neutralWeapon;
+    game.loadFrom(neutralSave);
+    expect(game.playerCombatElement).toBe('none');
+
+    const fireSave = createSave('炎武器测试', 'witch', 704, Date.now());
+    fireSave.player.level = 99;
+    const fireWeapon = createInstance(
+      requireEquipment('eq_r2_weapon_fine'),
+      new Rng(704),
+      'fire-weapon',
+      fireSave.player.classId,
+    );
+    fireWeapon.affixes = [];
+    fireSave.equipped.weapon = fireWeapon;
+    game.loadFrom(fireSave);
+    expect(game.playerCombatElement).toBe('fire');
+  });
+
+  it('载入超容旧背包时不会清掉低战力装备上的 T4+ 战斗词条', async () => {
+    const save = createSave('清包保护测试', 'witch', 705, Date.now());
+    save.player.level = 99;
+    const common = requireEquipment('eq_r1_ring_common');
+    const rare = requireEquipment('eq_r1_ring_rare');
+    const champion = createInstance(rare, new Rng(706), 'slot-champion', save.player.classId);
+    champion.affixes = [rollAffixForKey('atk', rare.level, new Rng(707), true)];
+    const combatAffix = createInstance(
+      common,
+      new Rng(708),
+      'combat-affix-champion',
+      save.player.classId,
+    );
+    combatAffix.affixes = [rollAffixForKey('dmgReduce', common.level, new Rng(709), true)];
+    const junk = Array.from({ length: 300 }, (_, index) => {
+      const instance = createInstance(
+        common,
+        new Rng(800 + index),
+        `trim-junk-${index}`,
+        save.player.classId,
+      );
+      instance.affixes = [rollAffixForKey('atk', common.level, new Rng(2_000 + index))];
+      return instance;
+    });
+    save.bag.equipment = [champion, combatAffix, ...junk];
+    save.lastActiveAt = Date.now();
+    await saveSave(save);
+    vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1));
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+
+    const game = useGameStore();
+    await game.init();
+    game.stopLoop();
+
+    expect(game.save?.bag.equipment).toHaveLength(300);
+    expect(game.save?.bag.equipment.map((item) => item.uid)).toContain('combat-affix-champion');
   });
 
   it('离线击杀会推进通关、累计统计并发放首通奖励', async () => {
@@ -650,7 +722,7 @@ describe('encounter transaction', () => {
     expect(game.replayEncounterStory('enc_r1_petalsmith').at(-1)?.text).toContain('草图');
     expect(game.save).toEqual(before);
     expect(game.save?.rngState).toBe(303);
-    expect(SAVE_VERSION).toBe(10);
+    expect(SAVE_VERSION).toBe(11);
   });
   it('在线首通会在旧关结算结束后进入下一关，并保留新关的初始演出状态', async () => {
     const game = useGameStore();
@@ -1270,10 +1342,12 @@ describe('equipment dungeon transaction', () => {
         save.player.classId,
       );
       weapon.affixes = [
-        { key: 'wit_power', value: 10_000_000, tier: 3 },
         { key: 'def', value: 1_000_000, tier: 3 },
         { key: 'hp', value: 10_000_000, tier: 3 },
         { key: 'acc', value: 100_000, tier: 3 },
+        // 史诗武器的最后一格是唯一职业预留槽；超模测试值可以很大，
+        // 但结构本身仍必须是 v11 可持久化布局。
+        { key: 'wit_power', value: 10_000_000, tier: 3 },
       ];
       save.equipped.weapon = weapon;
     }

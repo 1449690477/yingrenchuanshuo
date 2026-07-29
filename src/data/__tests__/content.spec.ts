@@ -29,7 +29,13 @@ import { FIRST_STAGE_ID, ORDERED_STAGE_IDS, STAGES } from '../stages';
 import { SYSTEM_VISUALS } from '../systemVisuals';
 import { BOUTIQUE_THEME_LIST } from '../boutique';
 import { SHOP_OFFERS } from '../shop';
-import { ENHANCE_MATERIAL_IDS, QUALITY_AFFIX_COUNT, SLOT_ORDER } from '../constants';
+import {
+  AFFIX_ELEMENT_OPTIONS,
+  AFFIX_ELEMENT_UNLOCK_LEVELS,
+  ENHANCE_MATERIAL_IDS,
+  QUALITY_AFFIX_COUNT,
+  SLOT_ORDER,
+} from '../constants';
 import {
   ENHANCE_PROGRESSION,
   ENHANCE_PROGRESSION_MATERIAL_IDS,
@@ -37,6 +43,43 @@ import {
 } from '../enhanceProgression';
 
 describe('区域 1–4 内容完整性', () => {
+  it('每把武器显式登记攻击元素，非武器禁止携带元素字段', () => {
+    const validElements = new Set(['none', 'fire', 'ice', 'thunder']);
+    for (const definition of Object.values(EQUIPMENT)) {
+      if (definition.slot === 'weapon') {
+        expect(Object.hasOwn(definition, 'element'), `${definition.id} 必须显式登记武器元素`).toBe(
+          true,
+        );
+        expect(validElements.has(definition.element), `${definition.id} 元素非法`).toBe(true);
+      } else {
+        expect(
+          Object.hasOwn(definition, 'element'),
+          `${definition.id} 非武器不应携带 element`,
+        ).toBe(false);
+      }
+    }
+
+    expect(EQUIPMENT.eq_r1_weapon_common?.element).toBe('none');
+    expect(EQUIPMENT.eq_r2_weapon_fine?.element).toBe('fire');
+    expect(EQUIPMENT.eq_r3_weapon_rare?.element).toBe('fire');
+    expect(EQUIPMENT.eq_r4_weapon_rare?.element).toBe('none');
+  });
+
+  it('每种元素词条都有不晚于解锁等级的真实武器来源', () => {
+    const weapons = Object.values(EQUIPMENT).filter((definition) => definition.slot === 'weapon');
+
+    for (const element of AFFIX_ELEMENT_OPTIONS) {
+      const sources = weapons
+        .filter((definition) => definition.element === element)
+        .sort((a, b) => a.level - b.level || a.id.localeCompare(b.id));
+      expect(sources.length, `${element} 必须至少有一把真实武器`).toBeGreaterThan(0);
+      expect(
+        sources[0]!.level,
+        `${element} 最早来源 ${sources[0]!.id} 晚于词条解锁等级`,
+      ).toBeLessThanOrEqual(AFFIX_ELEMENT_UNLOCK_LEVELS[element]);
+    }
+  });
+
   it('已登记的职业立绘文件都真实存在', () => {
     for (const [classId, visual] of Object.entries(CLASS_VISUALS)) {
       for (const asset of [visual.portrait, visual.castPortrait]) {

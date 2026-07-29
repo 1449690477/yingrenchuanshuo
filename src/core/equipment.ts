@@ -9,6 +9,7 @@ import type {
   AffixTier,
   ClassId,
   CombatBonuses,
+  Element,
   EquipmentDef,
   EquipmentInstance,
   FixedAffix,
@@ -20,10 +21,10 @@ import type { Rng } from './rng';
 import { addStats, zeroStats } from './formula';
 import { shouldAutoLock } from './bag';
 import {
-  AFFIX_ELEMENT_OPTIONS,
   AFFIX_POOL,
   AFFIX_TIERS,
   AFFIX_VALUE_VARIANCE,
+  availableAffixElementsAtLevel,
   ENHANCE_GAIN_TIERS,
   ENHANCE_MAX,
   ENHANCE_TOTAL_GAIN_CAP_PERMILLE,
@@ -32,6 +33,7 @@ import {
   EQUIPMENT_BASE_ROLL_TIERS,
   FORGE_STAGE_THRESHOLDS,
   isAffixGenerationActive,
+  isAffixGenerationLevelUnlocked,
   isAffixSettlementActive,
   ITEM_BASE,
   ITEM_POW,
@@ -44,7 +46,11 @@ import {
   SLOT_PCT_WEIGHTS,
   SLOT_WEIGHTS,
 } from '@/data/constants';
-import type { AffixPoolEntry } from '@/data/constants';
+import type {
+  AffixPoolEntry,
+  ProfessionAffixPoolEntry,
+  ProfessionAffixRole,
+} from '@/data/constants';
 
 export type BaseRollGrade = (typeof EQUIPMENT_BASE_ROLL_TIERS)[number]['id'];
 export type EnhanceGainGrade = (typeof ENHANCE_GAIN_TIERS)[number]['id'];
@@ -58,6 +64,19 @@ export interface AffixValueRange {
   min: number;
   max: number;
   decimals: number;
+}
+
+/**
+ * 读取武器的权威攻击属性。
+ *
+ * EquipmentDef 在类型层保证武器必须显式填写 element；这里再拒绝非武器，
+ * 防止调用方把首饰、关卡属性或词条误接成玩家的基础攻击属性。
+ */
+export function weaponElementOf(definition: EquipmentDef): Element {
+  if (definition.slot !== 'weapon') {
+    throw new Error(`[配置错误] 只有武器能提供基础攻击属性：${definition.id}`);
+  }
+  return definition.element;
 }
 
 /** 装备基准值：随等级 L^1.35 与品质增长 */
@@ -177,8 +196,12 @@ export function applyAffix(stats: Stats, affix: FixedAffix): Stats {
       return addStats(stats, { critDmg: affix.value });
     case 'wit_power':
       return addStats(stats, { atk: affix.value });
+    case 'wit_veil':
+      return addStats(stats, { eva: affix.value });
     case 'sha_vitality':
       return addStats(stats, { hp: affix.value });
+    case 'sha_spirit':
+      return addStats(stats, { atk: affix.value });
     case 'cat_swift':
       return addStats(stats, { spd: affix.value });
     case 'cat_nimble':
@@ -418,6 +441,11 @@ export function rollAffixForKey(
   if (!isAffixGenerationActive(key)) {
     throw new Error(`[词条未开放] ${key} 不能生成新实例`);
   }
+  const availableElements =
+    key === 'elemDmg' || key === 'wit_elem' ? availableAffixElementsAtLevel(level) : null;
+  if (availableElements?.length === 0) {
+    throw new Error(`[配置错误] Lv${level} 尚无真实武器元素来源，不能生成 ${key}`);
+  }
 
   const tier = rollAffixTier(rng, guaranteedHigh);
   const affix: Affix = {
@@ -425,8 +453,8 @@ export function rollAffixForKey(
     tier,
     value: rollAffixValue(spec, level, tier, rng),
   };
-  if (key === 'elemDmg' || key === 'wit_elem') {
-    affix.element = rng.pick(AFFIX_ELEMENT_OPTIONS);
+  if (availableElements) {
+    affix.element = rng.pick(availableElements);
   }
   return affix;
 }
@@ -479,10 +507,16 @@ export function rollAffixes(def: EquipmentDef, rng: Rng, classId: ClassId): Affi
   const generalCount = count - professionCount;
 
   const generalPool = AFFIX_POOL.filter(
-    (entry) => isAffixGenerationActive(entry.key) && !fixedKeys.has(entry.key),
+    (entry) =>
+      isAffixGenerationActive(entry.key) &&
+      isAffixGenerationLevelUnlocked(entry.key, def.level) &&
+      !fixedKeys.has(entry.key),
   );
   const availableProfessionPool = professionPool.filter(
-    (entry) => isAffixGenerationActive(entry.key) && !fixedKeys.has(entry.key),
+    (entry) =>
+      isAffixGenerationActive(entry.key) &&
+      isAffixGenerationLevelUnlocked(entry.key, def.level) &&
+      !fixedKeys.has(entry.key),
   );
   if (generalPool.length < generalCount || availableProfessionPool.length < professionCount) {
     throw new Error(
@@ -498,11 +532,34 @@ export function rollAffixes(def: EquipmentDef, rng: Rng, classId: ClassId): Affi
     out.push(rollAffixForKey(picked.key, def.level, rng));
   }
   for (let i = 0; i < professionCount; i++) {
-    const picked = rng.weighted(availableProfessionPool, (entry) => entry.weight);
+    const picked = pickProfessionAffixSpec(availableProfessionPool, rng);
     availableProfessionPool.splice(availableProfessionPool.indexOf(picked), 1);
     out.push(rollAffixForKey(picked.key, def.level, rng));
   }
   return out;
+}
+
+/**
+ * 职业槽按“定位等概率、定位内按权重”抽取。
+ *
+ * 若某一定位已经被同件装备的前一个职业槽取尽，则只在仍有候选的定位中抽。
+ * 这保证词条池扩容不会因为某职业恰好多写了几条生存词条，就暗中把该职业的
+ * 整体掉落倾向改成纯生存。
+ */
+export function pickProfessionAffixSpec(
+  candidates: readonly ProfessionAffixPoolEntry[],
+  rng: Rng,
+): ProfessionAffixPoolEntry {
+  if (candidates.length === 0) {
+    throw new Error('pickProfessionAffixSpec: 职业词条候选为空');
+  }
+  const roleOrder: readonly ProfessionAffixRole[] = ['offense', 'sustain'];
+  const availableRoles = roleOrder.filter((role) =>
+    candidates.some((entry) => entry.balanceRole === role),
+  );
+  const role = rng.pick(availableRoles);
+  const roleCandidates = candidates.filter((entry) => entry.balanceRole === role);
+  return rng.weighted(roleCandidates, (entry) => entry.weight);
 }
 
 /** 生成一件装备实例 */
@@ -528,7 +585,7 @@ export function createInstance(
 }
 
 /** 职业上下文是生成装备的必要输入；缺失或非法时直接暴露主流程错误。 */
-function requireProfessionAffixPool(classId: ClassId): readonly AffixPoolEntry[] {
+function requireProfessionAffixPool(classId: ClassId): readonly ProfessionAffixPoolEntry[] {
   const pool = PROFESSION_AFFIX_POOLS[classId];
   if (!pool) {
     throw new Error(`[配置错误] 生成随机词条必须提供有效职业，收到 ${String(classId)}`);

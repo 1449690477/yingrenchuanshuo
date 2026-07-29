@@ -15,6 +15,7 @@ import { usePlayerStore } from '@/stores/player';
 import { requireEquipment } from '@/data/equipment';
 import { AFFIX_LABELS, QUALITY_LABELS, SLOT_LABELS, STAT_LABELS } from '@/data/constants';
 import { REFORGE_RESONANCE_MAX } from '@/data/reforgeRules';
+import { WEAPON_ELEMENT_LABELS } from '@/data/weaponElements';
 import {
   affixDisplayName,
   affixProfession,
@@ -72,6 +73,9 @@ const canEquip = computed(
 );
 const canReforge = computed(
   () => props.inst.affixes.length > 0 && def.value.fixedTemplate !== true,
+);
+const weaponElementLabel = computed(() =>
+  def.value.slot === 'weapon' ? WEAPON_ELEMENT_LABELS[def.value.element] : null,
 );
 
 /** 与当前已穿戴的同部位装备对比 */
@@ -140,6 +144,7 @@ function doDecompose() {
           <span class="sub">
             {{ SLOT_LABELS[def.slot] }} · {{ QUALITY_LABELS[def.quality] }} · 需求 Lv{{ def.level }}
           </span>
+          <span v-if="weaponElementLabel" class="weapon-element">{{ weaponElementLabel }}</span>
         </div>
         <button class="x" aria-label="关闭装备详情" @click="emit('close')">
           <X :size="17" :stroke-width="2.2" aria-hidden="true" />
@@ -341,6 +346,17 @@ function doDecompose() {
 .sub {
   font-size: 11px;
   color: var(--text-mid);
+}
+
+.weapon-element {
+  align-self: flex-start;
+  padding: 2px 7px;
+  color: #9a5b25;
+  font-size: 9px;
+  font-weight: 700;
+  background: rgb(255 246 218 / 82%);
+  border: 1px solid rgb(226 186 108 / 58%);
+  border-radius: 999px;
 }
 
 .x {

@@ -96,13 +96,13 @@ export const MONSTER_HP_POW = 1.45;
 /**
  * 怪物攻击。同理贴合玩家生命与防御的成长。
  *
- * ⚠ 由 10 下调到 5.5：怪物血量补上品质增长后 TTK 拉长到 5 秒左右，
+ * ⚠ 由 10 经 5.5 最终标定到 4.9：怪物血量补上品质增长后 TTK 拉长到 5 秒左右，
  * 同一场战斗里怪物的出手次数随之变多，承伤效率 η 掉到 0.56
  * （目标 0.75~1.00）。docs/45 第 2.4 节已预判这一步：
  * η 大面积偏低时优先下调本常数，而不是抬玩家生命 ——
  * 抬生命会连带抬战力，污染推荐战力判定。
  */
-export const MONSTER_ATK_BASE = 5.5;
+export const MONSTER_ATK_BASE = 4.9;
 export const MONSTER_ATK_POW = 1.35;
 
 /** 怪物经验 */
@@ -266,12 +266,9 @@ export const QUALITY_AFFIX_COUNT: Record<Quality, number> = {
  * 史诗以上装备固定留给当前职业专属池的槽位数。
  *
  * ⚠ 神话以上曾经是 2 个槽，实测把四职业 TTK 偏离顶到 39%。
- * 原因是每个职业当前只有 2 条**可结算**的专属词条
- * （其余依赖 M3-4 技能执行器等，尚未开放），
- * 两个槽等于强制两条都出，八件装备叠出十六条同类词条 ——
- * 喵喵的攻速是乘算的，直接把它推离其他职业 18%。
- *
- * 在每职业可用专属词条补到 3 条以上之前，神话以上维持 1 个槽。
+ * 当前虽已补齐每职业的输出 / 生存定位，但两个槽仍会把玩家可定向追逐的
+ * 同类 T5 极值放大一倍。恢复前必须扩展组合模拟并通过同一真实 KPS 门禁，
+ * 不能仅凭池中词条数量解除限制。
  * 补齐后再考虑恢复 2 槽，并重跑 npm run sim 验收。
  */
 export const QUALITY_PROFESSION_AFFIX_COUNT: Readonly<Record<Quality, number>> = {
@@ -298,17 +295,46 @@ export const AFFIX_TIERS: readonly AffixTierConfig[] = [
   { tier: 2, name: '普通', weight: 27, multiplier: 0.76 },
   { tier: 3, name: '优良', weight: 18, multiplier: 0.88 },
   { tier: 4, name: '卓越', weight: 11, multiplier: 1.1 },
-  { tier: 5, name: '极品', weight: 4, multiplier: 1.54 },
+  { tier: 5, name: '极品', weight: 4, multiplier: 1.64 },
 ];
 
 /** 品阶确定后仅保留 ±3% 微浮动，让品阶而不是小数点承担辨识度。 */
 export const AFFIX_VALUE_VARIANCE = 0.03;
 
-/** 属性伤害词条只会绑定三种可攻击属性；无属性不能成为词条目标。 */
+/** 属性伤害词条最终可绑定的三种攻击属性；无属性不能成为词条目标。 */
 export const AFFIX_ELEMENT_OPTIONS = ['fire', 'ice', 'thunder'] as const satisfies readonly Exclude<
   Element,
   'none'
 >[];
+
+export type AffixElement = (typeof AFFIX_ELEMENT_OPTIONS)[number];
+
+/**
+ * 元素词条的等级解锁必须晚于或等于真实武器来源。
+ *
+ * r2 在 Lv16 提供固定炎武器；同级精品 / 装备副本补上冰系，
+ * Lv20 精品武器再开放雷系。生成与洗练统一读取本表，禁止各自写死三元素。
+ */
+export const AFFIX_ELEMENT_UNLOCK_LEVELS = {
+  fire: 16,
+  ice: 16,
+  thunder: 20,
+} as const satisfies Readonly<Record<AffixElement, number>>;
+
+/** 返回指定装备等级已经可以生成的元素词条目标，顺序固定且可复现。 */
+export function availableAffixElementsAtLevel(level: number): readonly AffixElement[] {
+  if (!Number.isInteger(level) || level < 1) {
+    throw new Error(`[配置错误] 元素词条解锁等级必须是正整数，收到 ${level}`);
+  }
+  return AFFIX_ELEMENT_OPTIONS.filter((element) => level >= AFFIX_ELEMENT_UNLOCK_LEVELS[element]);
+}
+
+/** 元素词条在尚无可用元素时必须从候选池移除，其他词条不受等级门槛影响。 */
+export function isAffixGenerationLevelUnlocked(key: AffixKey, level: number): boolean {
+  return (
+    (key !== 'elemDmg' && key !== 'wit_elem') || availableAffixElementsAtLevel(level).length > 0
+  );
+}
 
 /**
  * 部位「数值型」属性权重。这些属性乘以装备基准值（随等级 L^1.35 增长）。
@@ -378,6 +404,16 @@ export interface AffixPoolEntry {
   label: string;
 }
 
+/**
+ * 职业槽先决定“输出 / 生存”定位，再在同定位内按权重抽具体词条。
+ * 这样职业池里词条数量不同也不会偷偷改变两类定位的总概率。
+ */
+export type ProfessionAffixRole = 'offense' | 'sustain';
+
+export interface ProfessionAffixPoolEntry extends AffixPoolEntry {
+  balanceRole: ProfessionAffixRole;
+}
+
 export type AffixRuntimeRule =
   | {
       generation: 'active';
@@ -423,9 +459,11 @@ export const AFFIX_RUNTIME_RULES = {
   swd_heavy: ACTIVE_AFFIX_RUNTIME,
   wit_power: ACTIVE_AFFIX_RUNTIME,
   wit_elem: ACTIVE_AFFIX_RUNTIME,
+  wit_veil: ACTIVE_AFFIX_RUNTIME,
   sha_vitality: ACTIVE_AFFIX_RUNTIME,
   sha_drain: ACTIVE_AFFIX_RUNTIME,
   sha_ward: ACTIVE_AFFIX_RUNTIME,
+  sha_spirit: ACTIVE_AFFIX_RUNTIME,
   cat_swift: ACTIVE_AFFIX_RUNTIME,
   cat_nimble: ACTIVE_AFFIX_RUNTIME,
 } as const satisfies Readonly<Record<AffixKey, AffixRuntimeRule>>;
@@ -531,10 +569,13 @@ export const AFFIX_POOL: AffixPoolEntry[] = [
  * 池按职业显式分开，生成装备时必须由调用方传入当前职业，不能静默选一个默认职业。
  * 数值沿用通用池公式：基准值 × L^1.3（若成长）× 品阶系数 × ±3%。
  */
-export const PROFESSION_AFFIX_POOLS: Readonly<Record<ClassId, readonly AffixPoolEntry[]>> = {
+export const PROFESSION_AFFIX_POOLS: Readonly<
+  Record<ClassId, readonly ProfessionAffixPoolEntry[]>
+> = {
   swordsman: [
     {
       key: 'swd_guard',
+      balanceRole: 'sustain',
       min: 0.59,
       max: 0.59,
       weight: 30,
@@ -544,8 +585,9 @@ export const PROFESSION_AFFIX_POOLS: Readonly<Record<ClassId, readonly AffixPool
     },
     {
       key: 'swd_heavy',
-      min: 9.1,
-      max: 9.1,
+      balanceRole: 'offense',
+      min: 27,
+      max: 27,
       weight: 25,
       scalesWithLevel: false,
       decimals: 1,
@@ -555,8 +597,9 @@ export const PROFESSION_AFFIX_POOLS: Readonly<Record<ClassId, readonly AffixPool
   witch: [
     {
       key: 'wit_power',
-      min: 0.78,
-      max: 0.78,
+      balanceRole: 'offense',
+      min: 0.53,
+      max: 0.53,
       weight: 30,
       scalesWithLevel: true,
       decimals: 1,
@@ -564,17 +607,29 @@ export const PROFESSION_AFFIX_POOLS: Readonly<Record<ClassId, readonly AffixPool
     },
     {
       key: 'wit_elem',
-      min: 8.5,
-      max: 8.5,
+      balanceRole: 'offense',
+      min: 4.3,
+      max: 4.3,
       weight: 25,
       scalesWithLevel: false,
       decimals: 1,
       label: '元素亲和',
     },
+    {
+      key: 'wit_veil',
+      balanceRole: 'sustain',
+      min: 0.91,
+      max: 0.91,
+      weight: 55,
+      scalesWithLevel: true,
+      decimals: 1,
+      label: '星纱',
+    },
   ],
   shaman: [
     {
       key: 'sha_vitality',
+      balanceRole: 'sustain',
       min: 7.8,
       max: 7.8,
       weight: 30,
@@ -584,6 +639,7 @@ export const PROFESSION_AFFIX_POOLS: Readonly<Record<ClassId, readonly AffixPool
     },
     {
       key: 'sha_drain',
+      balanceRole: 'sustain',
       min: 1.6,
       max: 1.6,
       weight: 25,
@@ -593,6 +649,7 @@ export const PROFESSION_AFFIX_POOLS: Readonly<Record<ClassId, readonly AffixPool
     },
     {
       key: 'sha_ward',
+      balanceRole: 'sustain',
       min: 2,
       max: 2,
       weight: 25,
@@ -600,12 +657,23 @@ export const PROFESSION_AFFIX_POOLS: Readonly<Record<ClassId, readonly AffixPool
       decimals: 1,
       label: '庇佑',
     },
+    {
+      key: 'sha_spirit',
+      balanceRole: 'offense',
+      min: 0.84,
+      max: 0.84,
+      weight: 80,
+      scalesWithLevel: true,
+      decimals: 1,
+      label: '灵击',
+    },
   ],
   catkin: [
     {
       key: 'cat_swift',
-      min: 0.039,
-      max: 0.039,
+      balanceRole: 'offense',
+      min: 0.027,
+      max: 0.027,
       weight: 30,
       scalesWithLevel: false,
       decimals: 3,
@@ -613,6 +681,7 @@ export const PROFESSION_AFFIX_POOLS: Readonly<Record<ClassId, readonly AffixPool
     },
     {
       key: 'cat_nimble',
+      balanceRole: 'sustain',
       min: 0.91,
       max: 0.91,
       weight: 25,
@@ -641,9 +710,11 @@ export const AFFIX_LABELS: Record<AffixKey, string> = {
   swd_heavy: '重压',
   wit_power: '灵能',
   wit_elem: '元素亲和',
+  wit_veil: '星纱',
   sha_vitality: '回响',
   sha_drain: '灵契',
   sha_ward: '庇佑',
+  sha_spirit: '灵击',
   cat_swift: '疾风',
   cat_nimble: '灵巧',
 };

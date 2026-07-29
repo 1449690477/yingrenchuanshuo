@@ -2,6 +2,8 @@ import type { AffixChangeOperation, AffixTier, ClassId } from '@/core/types';
 
 export const REFORGE_UNLOCK_LEVEL = 12;
 export const REFORGE_RESONANCE_MAX = 20;
+/** 卓越（T4）起才值得为洗练与自动清包提供额外保护。 */
+export const PROTECT_TIER_THRESHOLD: AffixTier = 4;
 
 export const REFORGE_MATERIAL_IDS = {
   reforge: 'stone_reforge',

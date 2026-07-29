@@ -17,6 +17,7 @@ import {
   instanceStats,
   itemBaseValue,
   isRolledAffixValue,
+  pickProfessionAffixSpec,
   rollAffixForKey,
   rollAffixes,
   rollAffixTier,
@@ -25,15 +26,18 @@ import {
   rollEnhanceGainPermille,
   totalEquipCombatBonuses,
   totalEquipStats,
+  weaponElementOf,
   zeroCombatBonuses,
 } from '../equipment';
 import { zeroStats } from '../formula';
 import { Rng } from '../rng';
 import {
   AFFIX_POOL,
+  AFFIX_ELEMENT_OPTIONS,
   AFFIX_LABELS,
   AFFIX_RUNTIME_RULES,
   AFFIX_TIERS,
+  availableAffixElementsAtLevel,
   ENHANCE_MAX,
   ENHANCE_PER_LEVEL,
   ENHANCE_TOTAL_GAIN_CAP_PERMILLE,
@@ -47,16 +51,20 @@ import {
 } from '@/data/constants';
 
 function def(overrides: Partial<EquipmentDef> = {}): EquipmentDef {
-  return {
+  const slot = overrides.slot ?? 'ring';
+  const { slot: _slot, element, ...rest } = overrides;
+  const common = {
     id: 'eq_test',
     name: '测试戒指',
-    slot: 'ring',
-    quality: 'rare',
+    quality: 'rare' as Quality,
     level: 20,
     icon: '',
     appearanceId: 'test-ring',
-    ...overrides,
+    ...rest,
   };
+  return slot === 'weapon'
+    ? { ...common, slot, element: element ?? 'none' }
+    : { ...common, slot, element: undefined };
 }
 
 function inst(overrides: Partial<EquipmentInstance> = {}): EquipmentInstance {
@@ -75,6 +83,11 @@ function inst(overrides: Partial<EquipmentInstance> = {}): EquipmentInstance {
 }
 
 describe('装备基础属性', () => {
+  it('武器元素只读取静态定义，且拒绝把非武器当作攻击属性来源', () => {
+    expect(weaponElementOf(def({ slot: 'weapon', element: 'fire' }))).toBe('fire');
+    expect(() => weaponElementOf(def({ slot: 'ring' }))).toThrow('只有武器');
+  });
+
   it('等级和品质越高，数值基准越高', () => {
     expect(itemBaseValue(20, 'common')).toBeGreaterThan(itemBaseValue(10, 'common'));
     expect(itemBaseValue(20, 'rare') / itemBaseValue(20, 'common')).toBeCloseTo(
@@ -165,16 +178,10 @@ describe('强化与实例属性', () => {
   it('全身属性累加，缺失的配置定义必须暴露错误', () => {
     const definition = def();
     const one = instanceStats(definition, inst());
-    const total = totalEquipStats(
-      [inst(), inst({ uid: 'e2' })],
-      () => definition,
-      'swordsman',
-    );
+    const total = totalEquipStats([inst(), inst({ uid: 'e2' })], () => definition, 'swordsman');
     expect(total.atk).toBeCloseTo(one.atk * 2, 8);
 
-    expect(() => totalEquipStats([inst()], () => undefined, 'swordsman')).toThrow(
-      '装备定义不存在',
-    );
+    expect(() => totalEquipStats([inst()], () => undefined, 'swordsman')).toThrow('装备定义不存在');
   });
 
   it('三类独立战斗词条按固定与随机来源统一累计', () => {
@@ -306,15 +313,14 @@ describe('随机词条', () => {
   });
 
   it('职业槽数严格为 0/0/0/1/1/1/1/1', () => {
-    // 神话以上曾经是 2 槽，实测把四职业偏离顶到 39%：每职业目前只有 2 条
-    // 可结算的专属词条，两个槽等于强制两条都出，八件装备叠出十六条同类。
-    // 等专属词条补到 3 条以上再考虑恢复。见 constants.ts 的说明。
+    // 神话以上曾经是 2 槽，实测会把八件装备的职业增益叠得过密，
+    // 四职业极值偏离一度达到 39%。因此所有史诗以上品质统一保留一个职业槽。
     expect(QUALITY_ORDER.map((quality) => QUALITY_PROFESSION_AFFIX_COUNT[quality])).toEqual([
       0, 0, 0, 1, 1, 1, 1, 1,
     ]);
   });
 
-  it('九条职业池配置、权重、基准值与中文名严格对应策划表', () => {
+  it('十一条职业池配置、权重、基准值与中文名严格对应策划表', () => {
     expect(
       Object.fromEntries(
         CLASS_IDS.map((classId) => [
@@ -345,8 +351,8 @@ describe('随机词条', () => {
         },
         {
           key: 'swd_heavy',
-          min: 9.1,
-          max: 9.1,
+          min: 27,
+          max: 27,
           weight: 25,
           scalesWithLevel: false,
           decimals: 1,
@@ -356,8 +362,8 @@ describe('随机词条', () => {
       witch: [
         {
           key: 'wit_power',
-          min: 0.78,
-          max: 0.78,
+          min: 0.53,
+          max: 0.53,
           weight: 30,
           scalesWithLevel: true,
           decimals: 1,
@@ -365,12 +371,21 @@ describe('随机词条', () => {
         },
         {
           key: 'wit_elem',
-          min: 8.5,
-          max: 8.5,
+          min: 4.3,
+          max: 4.3,
           weight: 25,
           scalesWithLevel: false,
           decimals: 1,
           label: '元素亲和',
+        },
+        {
+          key: 'wit_veil',
+          min: 0.91,
+          max: 0.91,
+          weight: 55,
+          scalesWithLevel: true,
+          decimals: 1,
+          label: '星纱',
         },
       ],
       shaman: [
@@ -401,12 +416,21 @@ describe('随机词条', () => {
           decimals: 1,
           label: '庇佑',
         },
+        {
+          key: 'sha_spirit',
+          min: 0.84,
+          max: 0.84,
+          weight: 80,
+          scalesWithLevel: true,
+          decimals: 1,
+          label: '灵击',
+        },
       ],
       catkin: [
         {
           key: 'cat_swift',
-          min: 0.039,
-          max: 0.039,
+          min: 0.027,
+          max: 0.027,
           weight: 30,
           scalesWithLevel: false,
           decimals: 3,
@@ -423,6 +447,30 @@ describe('随机词条', () => {
         },
       ],
     });
+  });
+
+  it('四职业池都同时具备输出与生存定位，定位抽取稳定为各半', () => {
+    for (const [classIndex, classId] of CLASS_IDS.entries()) {
+      const pool = PROFESSION_AFFIX_POOLS[classId];
+      expect(new Set(pool.map((entry) => entry.balanceRole))).toEqual(
+        new Set(['offense', 'sustain']),
+      );
+
+      const rng = new Rng(0x50_50_0000 + classIndex);
+      const samples = 20_000;
+      let offense = 0;
+      for (let sample = 0; sample < samples; sample++) {
+        if (pickProfessionAffixSpec(pool, rng).balanceRole === 'offense') offense++;
+      }
+      expect(offense / samples).toBeGreaterThan(0.485);
+      expect(offense / samples).toBeLessThan(0.515);
+    }
+  });
+
+  it('魔女星纱与灵巫灵击分别进入闪避、攻击真实结算', () => {
+    const base = zeroStats();
+    expect(applyAffix(base, { key: 'wit_veil', value: 42 })).toMatchObject({ eva: 42 });
+    expect(applyAffix(base, { key: 'sha_spirit', value: 39 })).toMatchObject({ atk: 39 });
   });
 
   it('各职业史诗以上装备按“通用在前、专属在末”生成规定数量的职业槽', () => {
@@ -562,7 +610,7 @@ describe('随机词条', () => {
     );
   });
 
-  it('品阶权重接近 40/28/18/10/4，保底只会生成 T4/T5', () => {
+  it('品阶权重接近 40/27/18/11/4，保底只会生成 T4/T5', () => {
     const rng = new Rng(20260728);
     const counts = new Map(AFFIX_TIERS.map(({ tier }) => [tier, 0]));
     const sampleCount = 50_000;
@@ -623,27 +671,56 @@ describe('随机词条', () => {
     expect(isRolledAffixValue('hp', level, 3, range.min + 0.01)).toBe(false);
   });
 
-  it('通用与魔女专属属性伤害均匀绑定三系且绝不绑定 none', () => {
-    const make = () => {
-      const rng = new Rng(2026);
-      return (['elemDmg', 'wit_elem'] as const).flatMap((key) =>
-        Array.from({ length: 20 }, () => rollAffixForKey(key, 30, rng)),
-      );
-    };
-    expect(make()).toEqual(make());
+  it('元素词条按真实来源等级解锁，直接生成只会绑定当级可用元素', () => {
+    expect(availableAffixElementsAtLevel(15)).toEqual([]);
+    expect(availableAffixElementsAtLevel(16)).toEqual(['fire', 'ice']);
+    expect(availableAffixElementsAtLevel(19)).toEqual(['fire', 'ice']);
+    expect(availableAffixElementsAtLevel(20)).toEqual(AFFIX_ELEMENT_OPTIONS);
 
     for (const key of ['elemDmg', 'wit_elem'] as const) {
-      const rng = new Rng(20260730);
-      const counts = { fire: 0, ice: 0, thunder: 0 };
-      for (let i = 0; i < 30_000; i++) {
-        const affix = rollAffixForKey(key, 30, rng);
-        expect(affix.element).not.toBe('none');
-        counts[affix.element as keyof typeof counts]++;
-      }
-      for (const count of Object.values(counts)) {
-        expect(Math.abs(count / 30_000 - 1 / 3)).toBeLessThan(0.015);
-      }
+      const lockedRng = new Rng(2026);
+      const stateBefore = lockedRng.getState();
+      expect(() => rollAffixForKey(key, 15, lockedRng)).toThrow(
+        `[配置错误] Lv15 尚无真实武器元素来源，不能生成 ${key}`,
+      );
+      expect(lockedRng.getState()).toBe(stateBefore);
+
+      const level16Rng = new Rng(20260730);
+      const level16Elements = new Set(
+        Array.from({ length: 400 }, () => rollAffixForKey(key, 16, level16Rng).element),
+      );
+      expect(level16Elements).toEqual(new Set(['fire', 'ice']));
+
+      const level20Rng = new Rng(20260730);
+      const level20Elements = new Set(
+        Array.from({ length: 600 }, () => rollAffixForKey(key, 20, level20Rng).element),
+      );
+      expect(level20Elements).toEqual(new Set(AFFIX_ELEMENT_OPTIONS));
     }
+  });
+
+  it('Lv16 前的新掉落排除元素词条，解锁后也只使用当级可用列表', () => {
+    const make = () => {
+      return Array.from({ length: 1_000 }, (_, seed) =>
+        rollAffixes(
+          def({ quality: 'divine', level: 15 }),
+          new Rng(seed + 1),
+          CLASS_IDS[seed % CLASS_IDS.length]!,
+        ),
+      ).flat();
+    };
+    expect(make()).toEqual(make());
+    expect(make().some((affix) => affix.key === 'elemDmg' || affix.key === 'wit_elem')).toBe(false);
+
+    const level16ElementAffixes = Array.from({ length: 1_000 }, (_, seed) =>
+      rollAffixes(def({ quality: 'divine', level: 16 }), new Rng(seed + 1), 'witch'),
+    )
+      .flat()
+      .filter((affix) => affix.key === 'elemDmg' || affix.key === 'wit_elem');
+    expect(level16ElementAffixes.length).toBeGreaterThan(0);
+    expect(new Set(level16ElementAffixes.map((affix) => affix.element))).toEqual(
+      new Set(['fire', 'ice']),
+    );
   });
 
   it('所有随等级成长的词条保留一位小数，Lv1 真实小数不会被抹成 0', () => {
@@ -659,7 +736,9 @@ describe('随机词条', () => {
       'eva',
       'swd_guard',
       'wit_power',
+      'wit_veil',
       'sha_vitality',
+      'sha_spirit',
       'cat_nimble',
     ]);
 
@@ -684,11 +763,11 @@ describe('随机词条', () => {
     expect(lowDef).toBeLessThan(1);
   });
 
-  it('rollAffixForKey 可解析全部九条职业词条', () => {
+  it('rollAffixForKey 可解析全部十一条职业词条', () => {
     const professionKeys = Object.values(PROFESSION_AFFIX_POOLS)
       .flat()
       .map((entry) => entry.key);
-    expect(professionKeys).toHaveLength(9);
+    expect(professionKeys).toHaveLength(11);
     for (const key of professionKeys) {
       const affix = rollAffixForKey(key, 20, new Rng(42));
       expect(affix.key).toBe(key);

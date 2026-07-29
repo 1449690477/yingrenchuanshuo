@@ -73,14 +73,14 @@ export const useInventoryStore = defineStore('inventory', () => {
     operation: AffixChangeOperation,
     lockedIndices: readonly number[] = [],
     targetIndex?: number,
-  ): AffixChangeActionResult {
+  ): Promise<AffixChangeActionResult> {
     return game.startAffixChange(uid, operation, lockedIndices, targetIndex);
   }
 
   function resolveAffixChange(
     uid: string,
     decision: 'adopt' | 'keep',
-  ): ResolveAffixChangeActionResult {
+  ): Promise<ResolveAffixChangeActionResult> {
     return game.resolveAffixChange(uid, decision);
   }
 

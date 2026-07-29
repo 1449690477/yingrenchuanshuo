@@ -185,7 +185,7 @@ describe('save schema', () => {
     expect(parsed.bag.equipment[0]?.reforgeResonance).toBe(12);
   });
 
-  it('v10 可持久化已接入结算的职业词条，并约束元素亲和必须绑定系别', () => {
+  it('v11 可持久化预留槽职业词条，并约束元素亲和必须绑定系别', () => {
     const save = createSave('专属词条少女', 'witch', 13, 1_800_000_000_000);
     save.nextUid = 2;
     save.bag.equipment.push({
@@ -196,8 +196,8 @@ describe('save schema', () => {
       enhanceGainPermille: Array<number>(ENHANCE_MAX).fill(0),
       enhanceLuck: {},
       affixes: [
-        { key: 'wit_power', value: 12.4, tier: 3 },
         { key: 'critRate', value: 2.6, tier: 4 },
+        rolledAffix('eq_r2_ring_epic', 'wit_veil', 3),
       ],
       reforgeResonance: 0,
       pendingAffixChange: {
@@ -209,12 +209,36 @@ describe('save schema', () => {
     });
 
     expect(parseSave(save).bag.equipment[0]?.affixes.map((affix) => affix.key)).toEqual([
-      'wit_power',
       'critRate',
+      'wit_veil',
     ]);
 
     delete save.bag.equipment[0]!.pendingAffixChange!.candidate.element;
     expect(looksLikeSave(save)).toBe(false);
+  });
+
+  it('v10 无需迁移即可持久化灵巫输出补位词条', () => {
+    const save = createSave('灵击少女', 'shaman', 14, 1_800_000_000_000);
+    save.nextUid = 2;
+    save.bag.equipment.push({
+      uid: 'e1',
+      defId: 'eq_r2_ring_epic',
+      enhance: 0,
+      baseRollPermille: 1000,
+      enhanceGainPermille: Array<number>(ENHANCE_MAX).fill(0),
+      enhanceLuck: {},
+      affixes: [
+        rolledAffix('eq_r2_ring_epic', 'critRate', 3),
+        rolledAffix('eq_r2_ring_epic', 'sha_spirit', 4),
+      ],
+      reforgeResonance: 0,
+      locked: false,
+    });
+
+    expect(parseSave(save).bag.equipment[0]?.affixes.map((affix) => affix.key)).toEqual([
+      'critRate',
+      'sha_spirit',
+    ]);
   });
 
   it('v10 拒绝缺失或越界品阶，以及非整数或越界共鸣值', () => {
@@ -450,7 +474,7 @@ describe('save schema', () => {
     expect(looksLikeSave(changedResonateElement)).toBe(false);
   });
 
-  it('v10 铭刻校验采用后的唯一性，但不按当前职业拒绝切换前留下的候选', () => {
+  it('v11 铭刻校验预留槽与采用后的唯一性，但不按当前职业拒绝切换前候选', () => {
     const switchedClassCandidate = saveWithEquipment(
       testEquipment(
         'eq_r2_ring_epic',
@@ -460,7 +484,7 @@ describe('save schema', () => {
         ],
         {
           operation: 'inscribe',
-          affixIndex: 0,
+          affixIndex: 1,
           candidate: rolledAffix('eq_r2_ring_epic', 'swd_guard', 3),
         },
       ),
@@ -482,6 +506,32 @@ describe('save schema', () => {
       tier: 3,
     };
     expect(looksLikeSave(switchedClassCandidate)).toBe(false);
+  });
+
+  it('v11 拒绝现有职业词条落在通用槽，也拒绝铭刻指向非预留槽', () => {
+    const wrongAdoptedSlot = saveWithEquipment(
+      testEquipment('eq_r2_ring_epic', [
+        rolledAffix('eq_r2_ring_epic', 'wit_power', 3),
+        rolledAffix('eq_r2_ring_epic', 'critRate', 3),
+      ]),
+    );
+    expect(() => parseSave(wrongAdoptedSlot)).toThrow(/只能位于品质预留的职业槽/);
+
+    const wrongInscribeIndex = saveWithEquipment(
+      testEquipment(
+        'eq_r2_ring_epic',
+        [
+          rolledAffix('eq_r2_ring_epic', 'atk', 3),
+          rolledAffix('eq_r2_ring_epic', 'critRate', 3),
+        ],
+        {
+          operation: 'inscribe',
+          affixIndex: 0,
+          candidate: rolledAffix('eq_r2_ring_epic', 'swd_guard', 3),
+        },
+      ),
+    );
+    expect(() => parseSave(wrongInscribeIndex)).toThrow(/铭刻只能作用于品质预留的职业槽/);
   });
 
   it('导入档保留既有 skillMul，但拒绝任何延后词条候选及继续淬炼或同调', () => {
@@ -767,6 +817,22 @@ describe('save schema', () => {
 
     save.nextUid = 2;
     expect(looksLikeSave(save)).toBe(true);
+  });
+
+  it('v11 严格拒绝装备定义槽位与 equipped 键不一致的坏档', () => {
+    const wrongSlot = createSave('错槽少女', 'witch', 34, 1_800_000_000_000);
+    wrongSlot.nextUid = 2;
+    wrongSlot.equipped.weapon = testEquipment('eq_r2_ring_epic', []);
+
+    expect(looksLikeSave(wrongSlot)).toBe(false);
+    expect(() => parseSave(wrongSlot)).toThrow(/属于 ring 槽，不能穿戴在 weapon 槽/);
+    expect(() => importFromJson(JSON.stringify(wrongSlot))).toThrow(
+      /属于 ring 槽，不能穿戴在 weapon 槽/,
+    );
+
+    wrongSlot.equipped.weapon = null;
+    wrongSlot.equipped.ring = testEquipment('eq_r2_ring_epic', []);
+    expect(parseSave(wrongSlot).equipped.ring?.defId).toBe('eq_r2_ring_epic');
   });
 
   it('装备副本次数、日期和通关合计必须自洽', () => {

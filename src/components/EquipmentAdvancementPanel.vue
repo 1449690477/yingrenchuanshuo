@@ -4,10 +4,11 @@ import { ArrowRight, Check, Coins, LockKeyhole, ShieldCheck, Sparkles, X } from 
 import { createFocusTrap, type FocusTrap } from 'focus-trap';
 import { equipmentAdvancementCost } from '@/core/equipmentAdvancement';
 import { abbr } from '@/core/format';
-import type { Element, EquipmentInstance } from '@/core/types';
+import type { EquipmentInstance } from '@/core/types';
 import { QUALITY_LABELS, SLOT_LABELS } from '@/data/constants';
 import { requireEquipment } from '@/data/equipment';
 import { requireItem, type ItemDef } from '@/data/items';
+import { WEAPON_ELEMENT_LABELS } from '@/data/weaponElements';
 import { useInventoryStore } from '@/stores/inventory';
 import { usePlayerStore } from '@/stores/player';
 import type { EquipmentAdvancementActionResult } from '@/stores/game';
@@ -49,13 +50,6 @@ const cost = openingOption
   : null;
 const teleportDisabled = typeof document === 'undefined';
 
-const BASE_ELEMENT_LABELS: Readonly<Record<Element, string>> = {
-  fire: '炎属性',
-  ice: '冰属性',
-  thunder: '雷属性',
-  none: '无属性',
-};
-
 /**
  * 元素权威数据合入后才展示；旧配置没有显式 element 时保持空白，
  * 不能用地区名或词条反推基础攻击属性。
@@ -74,8 +68,8 @@ const baseElementChange = (() => {
     return null;
   }
   return {
-    sourceLabel: BASE_ELEMENT_LABELS[sourceElement],
-    targetLabel: BASE_ELEMENT_LABELS[targetElement],
+    sourceLabel: WEAPON_ELEMENT_LABELS[sourceElement],
+    targetLabel: WEAPON_ELEMENT_LABELS[targetElement],
   };
 })();
 

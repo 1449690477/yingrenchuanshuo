@@ -25,6 +25,7 @@ import {
 } from '@/core/types';
 import {
   AFFIX_POOL,
+  AFFIX_RUNTIME_RULES,
   CLASS_BASE_STATS,
   ENHANCE_GAIN_TIERS,
   ENHANCE_MAX,
@@ -48,7 +49,7 @@ import { AFFECTION_RULES } from '@/data/affectionRules';
 import { getEquipment } from '@/data/equipment';
 
 /** 当前存档版本。加字段就 +1。 */
-export const SAVE_VERSION = 10;
+export const SAVE_VERSION = 11;
 
 export const SAVE_KEY = 'main';
 
@@ -207,34 +208,12 @@ const qualitySchema = z.enum(QUALITY_ORDER);
 const affectionMoodSchema = z.enum(['calm', 'bright', 'shy', 'moved', 'playful']);
 const elementSchema = z.enum(['fire', 'ice', 'thunder', 'none']);
 /**
- * 已接入真实结算的随机词条持久化白名单。
+ * 随机词条持久化键直接派生自发布状态表。
  *
- * 依赖后续战斗状态机的专属词条不会提前加入：这样存档校验与实际可生成池保持一致，
- * 避免把尚未生效的展示字段写进玩家存档。
+ * active / deferred 都必须能读取既有存档；能否生成和继续投入仍由同一张
+ * AFFIX_RUNTIME_RULES 控制，避免类型、存档白名单与实际发布状态三处漂移。
  */
-const persistedAffixKeys = [
-  'atk',
-  'def',
-  'hp',
-  'acc',
-  'eva',
-  'critRate',
-  'critDmg',
-  'spd',
-  'dmgReduce',
-  'elemDmg',
-  'lifesteal',
-  'skillMul',
-  'swd_guard',
-  'swd_heavy',
-  'wit_power',
-  'wit_elem',
-  'sha_vitality',
-  'sha_drain',
-  'sha_ward',
-  'cat_swift',
-  'cat_nimble',
-] as const satisfies readonly AffixKey[];
+const persistedAffixKeys = Object.keys(AFFIX_RUNTIME_RULES) as [AffixKey, ...AffixKey[]];
 const affixKeySchema = z.enum(persistedAffixKeys);
 const generalAffixKeys = new Set<AffixKey>(AFFIX_POOL.map((entry) => entry.key));
 const professionAffixKeys = new Set<AffixKey>(
@@ -397,6 +376,16 @@ const equipmentInstanceSchema = z
         });
       }
       randomKeys.add(affix.key);
+      if (
+        professionAffixKeys.has(affix.key) &&
+        !isProfessionAffixSlot(definition.quality, instance.affixes.length, index)
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['affixes', index, 'key'],
+          message: `职业词条 ${affix.key} 只能位于品质预留的职业槽`,
+        });
+      }
     }
 
     const pending = instance.pendingAffixChange;
@@ -465,6 +454,20 @@ const equipmentInstanceSchema = z
         code: 'custom',
         path: ['pendingAffixChange', 'candidate', 'key'],
         message: '铭刻候选必须属于职业专属词条池',
+      });
+    }
+    if (
+      pending.operation === 'inscribe' &&
+      !isProfessionAffixSlot(
+        definition.quality,
+        instance.affixes.length,
+        pending.affixIndex,
+      )
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['pendingAffixChange', 'affixIndex'],
+        message: '铭刻只能作用于品质预留的职业槽',
       });
     }
 
@@ -776,6 +779,20 @@ export const saveDataSchema = z
 
     const seenUids = new Set<string>();
     let maxNumericUid = 0;
+    for (const [slot, instance] of Object.entries(save.equipped)) {
+      if (!instance) continue;
+      const definition = getEquipment(instance.defId);
+      // equipmentInstanceSchema 已负责拒绝未知定义；这里只校验穿戴位置，
+      // 不把错槽装备静默挪回背包，避免坏档继续污染运行时状态。
+      if (definition && definition.slot !== slot) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['equipped', slot, 'defId'],
+          message: `装备 ${definition.id} 属于 ${definition.slot} 槽，不能穿戴在 ${slot} 槽`,
+        });
+      }
+    }
+
     const instances: { instance: EquipmentInstance; path: (string | number)[] }[] = [
       ...save.bag.equipment.map((instance, index) => ({
         instance,

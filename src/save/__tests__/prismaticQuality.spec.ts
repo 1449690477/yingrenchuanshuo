@@ -4,7 +4,7 @@ import { ENHANCE_MAX } from '@/data/constants';
 import { affectionEquipmentIdsForClass } from '@/data/affectionEquipment';
 
 describe('心虹装备存档校验', () => {
-  it('v10 存档可保存心虹品质设置和装备，不改版本或迁移链', () => {
+  it('v11 存档可保存心虹品质设置和装备，不改版本或迁移链', () => {
     const save = createSave('心虹测试', 'witch', 42, Date.UTC(2026, 6, 28));
     save.settings.autoDecomposeBelow = 'prismatic';
     const affectionEquipmentId = affectionEquipmentIdsForClass('witch')[0];
@@ -22,6 +22,6 @@ describe('心虹装备存档校验', () => {
     });
 
     expect(saveDataSchema.safeParse(save).success).toBe(true);
-    expect(save.version).toBe(10);
+    expect(save.version).toBe(11);
   });
 });

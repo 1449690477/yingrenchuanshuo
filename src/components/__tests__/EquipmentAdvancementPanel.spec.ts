@@ -111,11 +111,7 @@ describe('跨区装备升阶移动端面板', () => {
   });
 
   it('权威元素数据明确变化时提示炎属性武器升阶为无属性', async () => {
-    inventory.equipmentAdvancementOption.mockReturnValue({
-      ...region34RouteOption,
-      source: { ...region34RouteOption.source, element: 'fire' },
-      target: { ...region34RouteOption.target, element: 'none' },
-    });
+    inventory.equipmentAdvancementOption.mockReturnValue(region34RouteOption);
 
     const html = await renderPanel(makeInstance({ defId: region3FineWeapon.id }));
 

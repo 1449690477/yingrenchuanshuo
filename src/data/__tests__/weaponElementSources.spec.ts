@@ -12,21 +12,12 @@ describe('属性克制教学的确定性装备来源', () => {
     expect(requireChapter('2-5').tutorial).toContain('上一章首通送的炎属性武器');
   });
 
-  it('元素权威表尚未合入时不伪造，合入后必须一次性覆盖教学与升阶武器', () => {
+  it('元素权威表硬覆盖教学与连续升阶武器', () => {
     const weapons = [
       requireEquipment('eq_r2_weapon_fine'),
       requireEquipment('eq_r3_weapon_fine'),
       requireEquipment('eq_r4_weapon_fine'),
     ];
-
-    if (weapons.every((definition) => definition.element === undefined)) {
-      expect(weapons.map((definition) => definition.element)).toEqual([
-        undefined,
-        undefined,
-        undefined,
-      ]);
-      return;
-    }
 
     expect(weapons.map((definition) => definition.element)).toEqual(['fire', 'fire', 'none']);
   });

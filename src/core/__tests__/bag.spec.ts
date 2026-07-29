@@ -7,7 +7,7 @@ import {
   trimBag,
   type TrimContext,
 } from '../bag';
-import type { EquipmentInstance, EquipSlot, Quality } from '../types';
+import type { Affix, Element, EquipmentInstance, EquipSlot, Quality } from '../types';
 
 /** 造一件测试装备。value 直接当战力用，方便断言。 */
 function mk(
@@ -19,13 +19,15 @@ function mk(
     locked?: boolean;
     enhance?: number;
     pending?: boolean;
+    affixes?: Affix[];
+    weaponElement?: Element;
   } = {},
 ): EquipmentInstance & { _v: number; _slot: EquipSlot; _q: Quality } {
   return {
     uid,
     defId: 'def_' + uid,
     enhance: opts.enhance ?? 0,
-    affixes: [{ key: 'atk', value: 1, tier: 1 }],
+    affixes: opts.affixes ?? [{ key: 'atk', value: 1, tier: 1 }],
     ...(opts.pending
       ? {
           pendingAffixChange: {
@@ -39,6 +41,7 @@ function mk(
     _v: opts.value ?? 1,
     _slot: opts.slot ?? 'weapon',
     _q: opts.quality ?? 'common',
+    _element: opts.weaponElement,
   } as never;
 }
 
@@ -46,6 +49,7 @@ const ctx: TrimContext = {
   valueOf: (i) => (i as never as { _v: number })._v,
   slotOf: (i) => (i as never as { _slot: EquipSlot })._slot,
   qualityOf: (i) => (i as never as { _q: Quality })._q,
+  weaponElementOf: (i) => (i as never as { _element?: Element })._element,
 };
 
 describe('trimBag', () => {
@@ -132,6 +136,124 @@ describe('trimBag', () => {
     expect(keptIds.has('w2')).toBe(true);
     expect(keptIds.has('h2')).toBe(true);
     expect(keptIds.has('b1')).toBe(true); // body 只有这一件，是该部位最高
+  });
+
+  it('低战力蓝装上的 T4/T5 战斗词条仍动态保留', () => {
+    const list = [
+      mk('slot-best', { value: 100, slot: 'ring' }),
+      mk('reduce-t4', {
+        value: 1,
+        slot: 'ring',
+        quality: 'rare',
+        affixes: [{ key: 'dmgReduce', value: 2.2, tier: 4 }],
+      }),
+      mk('lifesteal-t5', {
+        value: 2,
+        slot: 'ring',
+        quality: 'rare',
+        affixes: [{ key: 'lifesteal', value: 2.8, tier: 5 }],
+      }),
+      mk('junk', { value: 3, slot: 'ring' }),
+    ];
+
+    const result = trimBag(list, 1, ctx);
+    const kept = result.kept.map((item) => item.uid);
+    expect(kept).toEqual(expect.arrayContaining(['slot-best', 'reduce-t4', 'lifesteal-t5']));
+    expect(result.removed.map((item) => item.uid)).toContain('junk');
+  });
+
+  it('炎冰雷分别占一个动态保护组，不会互相覆盖', () => {
+    const list = [
+      mk('slot-best', { value: 100, slot: 'weapon' }),
+      ...(['fire', 'ice', 'thunder'] as const).map((element, index) =>
+        mk(element, {
+          value: index + 1,
+          slot: 'weapon',
+          quality: 'fine',
+          affixes: [{ key: 'elemDmg', value: 8 + index, tier: 4, element }],
+        }),
+      ),
+      mk('junk', { value: 5, slot: 'weapon' }),
+    ];
+
+    const kept = trimBag(list, 1, ctx).kept.map((item) => item.uid);
+    expect(kept).toEqual(expect.arrayContaining(['fire', 'ice', 'thunder']));
+  });
+
+  it('每种真实武器元素动态保留评分最高的一把，教学来源不会被清包', () => {
+    const list = [
+      mk('neutral-slot-best', { value: 100, slot: 'weapon', weaponElement: 'none' }),
+      mk('fire-old', { value: 2, slot: 'weapon', quality: 'fine', weaponElement: 'fire' }),
+      mk('fire-best', { value: 3, slot: 'weapon', quality: 'fine', weaponElement: 'fire' }),
+      mk('ice-only', { value: 1, slot: 'weapon', quality: 'fine', weaponElement: 'ice' }),
+      mk('junk', { value: 4, slot: 'weapon' }),
+    ];
+
+    const result = trimBag(list, 1, ctx);
+    expect(result.kept.map((item) => item.uid)).toEqual([
+      'neutral-slot-best',
+      'fire-best',
+      'ice-only',
+    ]);
+    expect(result.removed.map((item) => item.uid)).toEqual(
+      expect.arrayContaining(['fire-old', 'junk']),
+    );
+  });
+
+  it('通用与职业同用途合并成一个冠军，先比品阶、再比词条值、最后比装备评分', () => {
+    const list = [
+      mk('slot-best', { value: 100, slot: 'belt' }),
+      mk('t4-high-value', {
+        value: 90,
+        slot: 'belt',
+        affixes: [{ key: 'dmgReduce', value: 99, tier: 4 }],
+      }),
+      mk('t5-low-value', {
+        value: 1,
+        slot: 'belt',
+        affixes: [{ key: 'dmgReduce', value: 1, tier: 5 }],
+      }),
+      mk('t5-better-value-low-cp', {
+        value: 2,
+        slot: 'belt',
+        affixes: [{ key: 'dmgReduce', value: 2, tier: 5 }],
+      }),
+      mk('t5-better-value-high-cp', {
+        value: 3,
+        slot: 'belt',
+        affixes: [{ key: 'sha_ward', value: 2, tier: 5 }],
+      }),
+    ];
+
+    const result = trimBag(list, 1, ctx);
+    expect(result.kept.map((item) => item.uid)).toEqual([
+      'slot-best',
+      't5-better-value-high-cp',
+    ]);
+  });
+
+  it('T3、基础属性与待开放词条不占动态保护位', () => {
+    const list = [
+      mk('slot-best', { value: 100, slot: 'bracelet' }),
+      mk('reduce-t3', {
+        value: 1,
+        slot: 'bracelet',
+        affixes: [{ key: 'dmgReduce', value: 2.5, tier: 3 }],
+      }),
+      mk('atk-t5', {
+        value: 2,
+        slot: 'bracelet',
+        affixes: [{ key: 'atk', value: 999, tier: 5 }],
+      }),
+      mk('skill-t5', {
+        value: 3,
+        slot: 'bracelet',
+        affixes: [{ key: 'skillMul', value: 4, tier: 5 }],
+      }),
+    ];
+
+    const result = trimBag(list, 1, ctx);
+    expect(result.kept.map((item) => item.uid)).toEqual(['slot-best']);
   });
 
   it('全是受保护装备时宁可超出上限也不删', () => {

@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { baseEquipStats, instanceStats } from '@/core/equipment';
+import { affixValueRange, baseEquipStats, instanceStats } from '@/core/equipment';
+import { promoteAffix } from '@/core/reforge';
 import type { EquipmentInstance } from '@/core/types';
-import { AFFIX_POOL, ENHANCE_MAX, ENHANCE_PER_LEVEL } from '@/data/constants';
+import { AFFIX_POOL, ENHANCE_MAX, ENHANCE_PER_LEVEL, SLOT_ORDER } from '@/data/constants';
 import { requireEquipment } from '@/data/equipment';
 import { createSave, SAVE_VERSION, SaveValidationError } from '../schema';
 import { migrate, MigrationError, migrations, SaveTooNewError } from '../migrations';
+import { V10_EQUIPMENT_DEFINITION_IDS } from '../v10EquipmentDefinitions';
 
 function v0Save(): Record<string, unknown> {
   const current = createSave('旧档少女', 'witch', 42, 1_800_000_000_000);
@@ -178,6 +180,97 @@ function v9Save(): Record<string, unknown> {
   };
 }
 
+const V10_REBASED_VALUES = {
+  swd_heavy: { old: 7.8, current: 23.1 },
+  wit_power: { old: 32.7, current: 22.2 },
+  wit_elem: { old: 7.3, current: 3.7 },
+  cat_swift: { old: 0.033, current: 0.023 },
+} as const;
+
+type V10RebasedKey = keyof typeof V10_REBASED_VALUES;
+
+function v10ProfessionAffix(
+  key: V10RebasedKey,
+  element?: 'fire' | 'ice' | 'thunder',
+): Record<string, unknown> {
+  return {
+    key,
+    value: V10_REBASED_VALUES[key].old,
+    tier: 3,
+    ...(element ? { element } : {}),
+  };
+}
+
+function v10PendingEquipment(
+  uid: string,
+  targetKey: V10RebasedKey,
+  candidateKey: V10RebasedKey,
+): Record<string, unknown> {
+  return {
+    uid,
+    defId: 'eq_r2_ring_epic',
+    enhance: 0,
+    baseRollPermille: 1000,
+    enhanceGainPermille: Array<number>(ENHANCE_MAX).fill(0),
+    enhanceLuck: {},
+    affixes: [
+      { key: 'atk', value: affixValueRange('atk', 20, 2).min, tier: 2 },
+      {
+        key: 'critRate',
+        value: affixValueRange('critRate', 20, 2).min,
+        tier: 2,
+      },
+      v10ProfessionAffix(targetKey, targetKey === 'wit_elem' ? 'fire' : undefined),
+    ],
+    reforgeResonance: 7,
+    pendingAffixChange: {
+      operation: 'reforge',
+      affixIndex: 2,
+      candidate: v10ProfessionAffix(candidateKey, candidateKey === 'wit_elem' ? 'ice' : undefined),
+    },
+    locked: false,
+  };
+}
+
+function v10Equipment(
+  uid: string,
+  defId: string,
+  affixes: Record<string, unknown>[],
+  pendingAffixChange?: Record<string, unknown>,
+): Record<string, unknown> {
+  return {
+    uid,
+    defId,
+    enhance: 0,
+    baseRollPermille: 1000,
+    enhanceGainPermille: Array<number>(ENHANCE_MAX).fill(0),
+    enhanceLuck: {},
+    affixes,
+    reforgeResonance: 0,
+    ...(pendingAffixChange ? { pendingAffixChange } : {}),
+    locked: false,
+  };
+}
+
+function v10Save(): Record<string, unknown> {
+  const current = createSave('v10 少女', 'witch', 33, 1_800_000_000_000);
+  current.player.gold = 1_234_567;
+  current.rngState = 987_654_321;
+  current.nextUid = 5;
+  current.bag.items.crystal_temper = 77;
+  current.bag.equipment.push(
+    v10PendingEquipment('e1', 'swd_heavy', 'wit_power') as unknown as EquipmentInstance,
+    v10PendingEquipment('e2', 'wit_power', 'wit_elem') as unknown as EquipmentInstance,
+    v10PendingEquipment('e3', 'wit_elem', 'cat_swift') as unknown as EquipmentInstance,
+  );
+  current.equipped.ring = v10PendingEquipment(
+    'e4',
+    'cat_swift',
+    'swd_heavy',
+  ) as unknown as EquipmentInstance;
+  return { ...current, version: 10 };
+}
+
 describe('save migrations', () => {
   it('v0 依次迁移到当前版本且不丢旧数据', () => {
     const migrated = migrate(v0Save());
@@ -210,7 +303,7 @@ describe('save migrations', () => {
     expect(migrated.player.name).toBe('v2 少女');
   });
 
-  it('v3 → v4 为全部装备补齐胚子、逐级强化增幅和幸运桶，旧 CP 不变', () => {
+  it('v3 → 当前补齐强化字段，并在后续 v11 迁移中应用 T5 系数重标', () => {
     const migrated = migrate(v3Save());
     const bagInstance = migrated.bag.equipment[0]!;
     const equippedInstance = migrated.equipped.weapon!;
@@ -232,9 +325,14 @@ describe('save migrations', () => {
     );
 
     const definition = requireEquipment(equippedInstance.defId);
-    const expectedOldAtk =
-      baseEquipStats(definition).atk * (1 + ENHANCE_PER_LEVEL * equippedInstance.enhance) + 7;
-    expect(instanceStats(definition, equippedInstance).atk).toBeCloseTo(expectedOldAtk, 8);
+    // v3 发布结构已经接受并保存 value=7；v11 只应用 T5 1.54→1.64 比例，
+    // 不能为了贴合后来新增的掷骰区间把历史资产夹到当前 max。
+    const migratedAtk = 7.5;
+    expect(equippedInstance.affixes[0]?.value).toBe(migratedAtk);
+    const expectedCurrentAtk =
+      baseEquipStats(definition).atk * (1 + ENHANCE_PER_LEVEL * equippedInstance.enhance) +
+      migratedAtk;
+    expect(instanceStats(definition, equippedInstance).atk).toBeCloseTo(expectedCurrentAtk, 8);
   });
 
   it('v3 → v4 迁移函数重复执行结果一致，并忽略伪造的新版字段', () => {
@@ -432,6 +530,46 @@ describe('save migrations', () => {
     expect(ring.pendingAffixChange).toBeUndefined();
   });
 
+  it('v9 → v10 持久化的非掷骰网格旧值可继续迁到 v11，数值不被夹洗', () => {
+    const persistedV10 = migrations[9]!(v9Save());
+    const v10Ring = (persistedV10.bag as { equipment: Record<string, unknown>[] }).equipment[0]!;
+    const v10SkillMul = (v10Ring.affixes as Record<string, unknown>[]).find(
+      (affix) => affix.key === 'skillMul',
+    );
+
+    // 这是官方 v9→v10 迁移真实产物；发布版 v10 的 existing affix schema
+    // 只校验 finite，不要求重新落到后来洗练使用的小数精度网格。
+    expect(v10SkillMul).toEqual({ key: 'skillMul', value: 3.125, tier: 4 });
+
+    const migrated = migrate(persistedV10);
+    const migratedSkillMul = migrated.bag.equipment[0]?.affixes.find(
+      (affix) => affix.key === 'skillMul',
+    );
+    expect(migratedSkillMul).toEqual({ key: 'skillMul', value: 3.125, tier: 4 });
+  });
+
+  it('v9 直升与先持久化 v10 再升 v11 都按发布版 1.54 推断旧 T5', () => {
+    const rawV9 = v9Save();
+    const ring = (rawV9.bag as { equipment: { affixes: Record<string, unknown>[] }[] })
+      .equipment[0]!;
+    const skillMul = ring.affixes.find((affix) => affix.key === 'skillMul')!;
+    skillMul.value = 3.35;
+
+    const persistedV10 = migrations[9]!(structuredClone(rawV9));
+    const persistedSkillMul = (
+      (persistedV10.bag as { equipment: { affixes: Record<string, unknown>[] }[] }).equipment[0]!
+        .affixes
+    ).find((affix) => affix.key === 'skillMul');
+    expect(persistedSkillMul).toEqual({ key: 'skillMul', value: 3.35, tier: 5 });
+
+    const direct = migrate(structuredClone(rawV9));
+    const throughPersistedV10 = migrate(persistedV10);
+    const findSkillMul = (save: typeof direct) =>
+      save.bag.equipment[0]?.affixes.find((affix) => affix.key === 'skillMul');
+    expect(findSkillMul(direct)).toEqual({ key: 'skillMul', value: 3.6, tier: 5 });
+    expect(findSkillMul(throughPersistedV10)).toEqual(findSkillMul(direct));
+  });
+
   it('v9 → v10 遇到未知装备、未知词条或坏装备结构时明确报 MigrationError(9)', () => {
     const unknownDefinition = v9Save();
     (unknownDefinition.bag as { equipment: Record<string, unknown>[] }).equipment[0]!.defId =
@@ -449,6 +587,567 @@ describe('save migrations', () => {
     const malformed = v9Save();
     (malformed.bag as { equipment: Record<string, unknown>[] }).equipment[0]!.affixes = null;
     expect(() => migrate(malformed)).toThrow(MigrationError);
+  });
+
+  it('v10 → v11 等比重标背包、穿戴与待决候选的四条职业词条，不改其他资产', () => {
+    const raw = v10Save();
+    const migrated = migrate(raw);
+    const instances = [
+      ...migrated.bag.equipment,
+      ...Object.values(migrated.equipped).filter(
+        (instance): instance is EquipmentInstance => instance !== null,
+      ),
+    ];
+
+    expect(migrated.version).toBe(11);
+    expect(migrated.player.gold).toBe(1_234_567);
+    expect(migrated.rngState).toBe(987_654_321);
+    expect(migrated.bag.items.crystal_temper).toBe(77);
+    expect(instances).toHaveLength(4);
+
+    for (const instance of instances) {
+      const target = instance.affixes[2]!;
+      const targetExpected = V10_REBASED_VALUES[target.key as V10RebasedKey].current;
+      expect(target.value).toBe(targetExpected);
+      expect(instance.affixes[0]).toEqual({
+        key: 'atk',
+        value: affixValueRange('atk', 20, 2).min,
+        tier: 2,
+      });
+      expect(instance.affixes[1]).toEqual({
+        key: 'critRate',
+        value: affixValueRange('critRate', 20, 2).min,
+        tier: 2,
+      });
+      expect(instance.reforgeResonance).toBe(7);
+
+      const pending = instance.pendingAffixChange;
+      expect(pending).toBeDefined();
+      expect(pending).toMatchObject({ operation: 'reforge', affixIndex: 2 });
+      const candidate = pending!.candidate;
+      expect(candidate.value).toBe(V10_REBASED_VALUES[candidate.key as V10RebasedKey].current);
+    }
+  });
+
+  it('v10 → v11 对普通 T5 追加全局品阶系数，对职业 T5 组合应用两层比例', () => {
+    const raw = v10Save();
+    const equipment = (raw.bag as { equipment: { affixes: Record<string, unknown>[] }[] })
+      .equipment;
+    const first = equipment[0]!;
+    first.affixes[0] = { key: 'atk', value: 46, tier: 5 };
+    first.affixes[1] = { key: 'critRate', value: 2.8, tier: 5 };
+    first.affixes[2] = { key: 'swd_heavy', value: 14, tier: 5 };
+    equipment[1]!.affixes[2] = { key: 'cat_swift', value: 0.06, tier: 5 };
+
+    const migrated = migrate(raw);
+    expect(migrated.bag.equipment[0]?.affixes[0]).toEqual({
+      key: 'atk',
+      value: 49,
+      tier: 5,
+    });
+    expect(migrated.bag.equipment[0]?.affixes[1]).toEqual({
+      key: 'critRate',
+      value: 3,
+      tier: 5,
+    });
+    expect(migrated.bag.equipment[0]?.affixes[2]).toEqual({
+      key: 'swd_heavy',
+      value: 44.2,
+      tier: 5,
+    });
+    expect(migrated.bag.equipment[1]?.affixes[2]).toEqual({
+      key: 'cat_swift',
+      value: 0.044,
+      tier: 5,
+    });
+  });
+
+  it('v10 → v11 将职业 T5 同调候选归一到迁移后 target 的精确 promoteAffix 结果', () => {
+    const raw = v10Save();
+    const first = (raw.bag as { equipment: Record<string, unknown>[] }).equipment[0]!;
+    first.affixes = [{ key: 'swd_heavy', value: 10, tier: 4 }];
+    first.pendingAffixChange = {
+      operation: 'resonate',
+      affixIndex: 0,
+      candidate: { key: 'swd_heavy', value: 14, tier: 5 },
+    };
+
+    const migrated = migrate(raw);
+    const instance = migrated.bag.equipment[0]!;
+    const target = instance.affixes[0]!;
+    const candidate = instance.pendingAffixChange!.candidate;
+
+    expect(target).toEqual({ key: 'swd_heavy', value: 29.7, tier: 4 });
+    // 旧候选直接做组合缩放会得到 44.2；新共鸣公式从迁移后的 target
+    // 精确复算为 44.3，必须以后者为准，否则存档严格校验会拒绝。
+    expect(candidate).toEqual({ key: 'swd_heavy', value: 44.3, tier: 5 });
+    expect(candidate).toEqual(promoteAffix(target));
+  });
+
+  it('v10 → v11 迁移函数幂等，并把旧 general-slot 铭刻候选重定向到预留槽', () => {
+    const raw = v10Save();
+    const bag = (raw.bag as { equipment: Record<string, unknown>[] }).equipment;
+    bag[0]!.pendingAffixChange = {
+      operation: 'inscribe',
+      affixIndex: 0,
+      candidate: v10ProfessionAffix('wit_power'),
+    };
+
+    const once = migrations[10]!(raw);
+    const twice = migrations[10]!(once);
+    expect(twice).toEqual(once);
+
+    const parsed = migrate(raw);
+    expect(parsed.bag.equipment[0]?.pendingAffixChange).toMatchObject({
+      operation: 'inscribe',
+      affixIndex: 2,
+      candidate: {
+        key: 'wit_power',
+        value: V10_REBASED_VALUES.wit_power.current,
+        tier: 3,
+      },
+    });
+  });
+
+  it('v10 → v11 无损交换通用区职业词条与预留槽通用词条，pending 跟随原目标', () => {
+    const raw = v10Save();
+    const first = (raw.bag as { equipment: Record<string, unknown>[] }).equipment[0]!;
+    const target = {
+      key: 'atk',
+      value: affixValueRange('atk', 20, 2).min,
+      tier: 2,
+    };
+    const candidate = {
+      key: 'atk',
+      value: affixValueRange('atk', 20, 4).max,
+      tier: 4,
+    };
+    first.affixes = [
+      v10ProfessionAffix('swd_heavy'),
+      {
+        key: 'critRate',
+        value: affixValueRange('critRate', 20, 2).min,
+        tier: 2,
+      },
+      target,
+    ];
+    first.pendingAffixChange = {
+      operation: 'temper',
+      affixIndex: 2,
+      candidate,
+    };
+
+    const migrated = migrate(raw);
+    const instance = migrated.bag.equipment[0]!;
+    expect(instance.affixes.map((affix) => affix.key)).toEqual(['atk', 'critRate', 'swd_heavy']);
+    expect(instance.affixes[0]).toEqual(target);
+    expect(instance.affixes[2]?.value).toBe(V10_REBASED_VALUES.swd_heavy.current);
+    expect(instance.pendingAffixChange).toEqual({
+      operation: 'temper',
+      affixIndex: 0,
+      candidate,
+    });
+    expect(migrated.bag.items.sigil_swordsman).toBeUndefined();
+  });
+
+  it('v10 → v11 只保留百分位更高的职业词条，超额项映射通用词条并退对应徽记', () => {
+    const raw = v10Save();
+    const first = (raw.bag as { equipment: Record<string, unknown>[] }).equipment[0]!;
+    const shamanLow = affixValueRange('sha_vitality', 20, 4).min;
+    const oldCatHigh = 0.044;
+    first.affixes = [
+      { key: 'sha_vitality', value: shamanLow, tier: 4 },
+      { key: 'atk', value: affixValueRange('atk', 20, 3).min, tier: 3 },
+      { key: 'cat_swift', value: oldCatHigh, tier: 4 },
+    ];
+    delete first.pendingAffixChange;
+    (raw.bag as { items: Record<string, number> }).items.sigil_shaman = 4;
+
+    const migrated = migrate(raw);
+    const instance = migrated.bag.equipment[0]!;
+    expect(instance.affixes.map((affix) => affix.key)).toEqual(['hp', 'atk', 'cat_swift']);
+    expect(instance.affixes[0]).toEqual({
+      key: 'hp',
+      value: affixValueRange('hp', 20, 4).min,
+      tier: 4,
+    });
+    expect(instance.affixes[2]).toEqual({
+      key: 'cat_swift',
+      value: 0.03,
+      tier: 4,
+    });
+    expect(migrated.bag.items.sigil_shaman).toBe(5);
+    expect(migrated.bag.items.sigil_catkin).toBeUndefined();
+    const repeated = migrations[10]!(migrated as unknown as Record<string, unknown>);
+    expect(repeated).toEqual(migrated);
+    expect(
+      (repeated.bag as { items: Record<string, number> }).items.sigil_shaman,
+    ).toBe(5);
+  });
+
+  it('v10 → v11 已采用职业 target 转通用后，temper 候选同步到同 key 与百分位', () => {
+    const raw = v10Save();
+    const first = (raw.bag as { equipment: Record<string, unknown>[] }).equipment[0]!;
+    first.affixes = [
+      {
+        key: 'sha_vitality',
+        value: affixValueRange('sha_vitality', 20, 3).max,
+        tier: 3,
+      },
+      { key: 'atk', value: affixValueRange('atk', 20, 3).min, tier: 3 },
+      { key: 'cat_swift', value: 0.06, tier: 5 },
+    ];
+    first.pendingAffixChange = {
+      operation: 'temper',
+      affixIndex: 0,
+      candidate: {
+        key: 'sha_vitality',
+        value: affixValueRange('sha_vitality', 20, 4).max,
+        tier: 4,
+      },
+    };
+
+    const migrated = migrate(raw);
+    const instance = migrated.bag.equipment[0]!;
+    expect(instance.affixes[0]).toEqual({
+      key: 'hp',
+      value: affixValueRange('hp', 20, 3).max,
+      tier: 3,
+    });
+    expect(instance.pendingAffixChange).toEqual({
+      operation: 'temper',
+      affixIndex: 0,
+      candidate: {
+        key: 'hp',
+        value: affixValueRange('hp', 20, 4).max,
+        tier: 4,
+      },
+    });
+  });
+
+  it('v10 → v11 已采用职业 target 转通用后，resonate 候选精确重算', () => {
+    const raw = v10Save();
+    const first = (raw.bag as { equipment: Record<string, unknown>[] }).equipment[0]!;
+    const oldTargetValue = affixValueRange('sha_vitality', 20, 4).max;
+    const oldCandidateValue = Math.round(oldTargetValue * (1.54 / 1.1) * 10) / 10;
+    first.affixes = [
+      { key: 'sha_vitality', value: oldTargetValue, tier: 4 },
+      { key: 'atk', value: affixValueRange('atk', 20, 3).min, tier: 3 },
+      { key: 'cat_swift', value: 0.06, tier: 5 },
+    ];
+    first.pendingAffixChange = {
+      operation: 'resonate',
+      affixIndex: 0,
+      candidate: {
+        key: 'sha_vitality',
+        value: oldCandidateValue,
+        tier: 5,
+      },
+    };
+
+    const migrated = migrate(raw);
+    const instance = migrated.bag.equipment[0]!;
+    expect(instance.affixes[0]?.key).toBe('hp');
+    expect(instance.pendingAffixChange?.affixIndex).toBe(0);
+    expect(instance.pendingAffixChange?.candidate).toEqual(promoteAffix(instance.affixes[0]!));
+  });
+
+  it('v10 → v11 把 rare 无职业槽的铭刻候选转为同百分位通用重铸并退徽记', () => {
+    const raw = v10Save();
+    const bag = raw.bag as { equipment: Record<string, unknown>[]; items: Record<string, number> };
+    bag.equipment[0] = v10Equipment(
+      'e1',
+      'eq_r2_ring_rare',
+      [
+        { key: 'atk', value: affixValueRange('atk', 18, 2).min, tier: 2 },
+        { key: 'critRate', value: affixValueRange('critRate', 18, 2).min, tier: 2 },
+      ],
+      {
+        operation: 'inscribe',
+        affixIndex: 0,
+        candidate: {
+          key: 'swd_guard',
+          value: affixValueRange('swd_guard', 18, 3).max,
+          tier: 3,
+        },
+      },
+    );
+    bag.items.sigil_swordsman = 2;
+
+    const migrated = migrate(raw);
+    const pending = migrated.bag.equipment[0]!.pendingAffixChange!;
+    expect(pending.operation).toBe('reforge');
+    expect(pending.affixIndex).toBe(0);
+    expect(pending.candidate).toEqual({
+      key: 'def',
+      value: affixValueRange('def', 18, 3).max,
+      tier: 3,
+    });
+    expect(migrated.bag.items.sigil_swordsman).toBe(3);
+  });
+
+  it('v10 → v11 reforge 目标从通用区换到职业槽时索引随目标，候选投影当前职业池', () => {
+    const raw = v10Save();
+    const first = (raw.bag as { equipment: Record<string, unknown>[] }).equipment[0]!;
+    first.affixes = [
+      v10ProfessionAffix('swd_heavy'),
+      {
+        key: 'critRate',
+        value: affixValueRange('critRate', 20, 2).min,
+        tier: 2,
+      },
+      { key: 'atk', value: affixValueRange('atk', 20, 2).min, tier: 2 },
+    ];
+    first.pendingAffixChange = {
+      operation: 'reforge',
+      affixIndex: 0,
+      candidate: {
+        key: 'hp',
+        value: affixValueRange('hp', 20, 3).max,
+        tier: 3,
+      },
+    };
+
+    const migrated = migrate(raw);
+    const pending = migrated.bag.equipment[0]!.pendingAffixChange!;
+    expect(pending.affixIndex).toBe(2);
+    expect(pending.candidate.key).toBe('wit_power');
+    expect(pending.candidate.value).toBe(affixValueRange('wit_power', 20, 3).max);
+  });
+
+  it('v10 → v11 从最终槽位重算占用，已转换的旧职业 key 可成为迁移候选', () => {
+    const raw = v10Save();
+    (raw.player as { classId: string }).classId = 'swordsman';
+    const first = (raw.bag as { equipment: Record<string, unknown>[] }).equipment[0]!;
+    first.affixes = [
+      {
+        key: 'swd_guard',
+        value: affixValueRange('swd_guard', 20, 4).max,
+        tier: 4,
+      },
+      { key: 'swd_heavy', value: 7, tier: 2 },
+      { key: 'atk', value: affixValueRange('atk', 20, 2).min, tier: 2 },
+    ];
+    first.pendingAffixChange = {
+      operation: 'reforge',
+      affixIndex: 0,
+      candidate: {
+        key: 'hp',
+        value: affixValueRange('hp', 20, 3).max,
+        tier: 3,
+      },
+    };
+
+    const migrated = migrate(raw);
+    const instance = migrated.bag.equipment[0]!;
+    expect(instance.affixes.map((affix) => affix.key)).toEqual(['atk', 'critDmg', 'swd_guard']);
+    expect(instance.pendingAffixChange).toEqual({
+      operation: 'reforge',
+      affixIndex: 2,
+      candidate: {
+        key: 'swd_heavy',
+        value: affixValueRange('swd_heavy', 20, 3).max,
+        tier: 3,
+      },
+    });
+  });
+
+  it('v10 → v11 先拒绝重复职业 key，不能归一化后补发职业徽记', () => {
+    const raw = v10Save();
+    (raw.player as { classId: string }).classId = 'swordsman';
+    const bag = raw.bag as {
+      equipment: Record<string, unknown>[];
+      items: Record<string, number>;
+    };
+    bag.equipment[0]!.affixes = [
+      { key: 'swd_heavy', value: 7.8, tier: 3 },
+      { key: 'swd_heavy', value: 7.8, tier: 3 },
+      { key: 'swd_heavy', value: 7.8, tier: 3 },
+    ];
+    delete bag.equipment[0]!.pendingAffixChange;
+    const itemsBefore = structuredClone(bag.items);
+
+    expect(() => migrations[10]!(raw)).toThrow(/与现有词条重复：swd_heavy/);
+    expect(bag.items).toEqual(itemsBefore);
+  });
+
+  it('v10 装备定义白名单冻结发布时 235 个 ID，不反向接纳 v11 新增的 R3/R4 精良装', () => {
+    expect(V10_EQUIPMENT_DEFINITION_IDS.size).toBe(235);
+    for (const id of V10_EQUIPMENT_DEFINITION_IDS) {
+      expect(requireEquipment(id).id).toBe(id);
+    }
+
+    for (const regionId of ['r3', 'r4'] as const) {
+      for (const slot of SLOT_ORDER) {
+        const raw = v10Save();
+        const bag = raw.bag as { equipment: Record<string, unknown>[] };
+        bag.equipment[0]!.defId = `eq_${regionId}_${slot}_fine`;
+        expect(() => migrations[10]!(raw)).toThrow(/defId 不存在于发布版 v10/);
+      }
+    }
+
+    const positive = v10Save();
+    const bag = positive.bag as { equipment: Record<string, unknown>[] };
+    bag.equipment = [
+      v10Equipment('e1', 'eq_r3_weapon_rare', []),
+      v10Equipment('e2', 'eq_r4_ring_epic', []),
+    ];
+    const migrated = migrate(positive);
+    expect(migrated.bag.equipment.map((instance) => instance.defId)).toEqual([
+      'eq_r3_weapon_rare',
+      'eq_r4_ring_epic',
+    ]);
+  });
+
+  it('v10 → v11 不会用转换过程洗掉旧词条未知字段、非有限值或非法候选值', () => {
+    const unknownField = v10Save();
+    const unknownAffix = (
+      unknownField.bag as { equipment: { affixes: Record<string, unknown>[] }[] }
+    ).equipment[0]!.affixes[2]!;
+    unknownAffix.debugRoll = true;
+    expect(() => migrations[10]!(unknownField)).toThrow(/debugRoll 不是 v10 允许字段/);
+
+    const invalidAffix = v10Save();
+    (
+      invalidAffix.bag as { equipment: { affixes: Record<string, unknown>[] }[] }
+    ).equipment[0]!.affixes[2]!.value = Number.POSITIVE_INFINITY;
+    expect(() => migrations[10]!(invalidAffix)).toThrow(/affixes\.2\.value 必须是有限数字/);
+
+    const invalidCandidate = v10Save();
+    const pending = (
+      invalidCandidate.bag as {
+        equipment: {
+          pendingAffixChange: { candidate: Record<string, unknown> };
+        }[];
+      }
+    ).equipment[0]!.pendingAffixChange;
+    pending.candidate.value = 999_999;
+    expect(() => migrations[10]!(invalidCandidate)).toThrow(
+      /candidate\.value 不符合 v10 等级、品阶或精度范围/,
+    );
+  });
+
+  it('v10 → v11 reforge 目标从职业槽换到通用区时索引随目标，候选投影通用池', () => {
+    const raw = v10Save();
+    const first = (raw.bag as { equipment: Record<string, unknown>[] }).equipment[0]!;
+    first.affixes = [
+      v10ProfessionAffix('swd_heavy'),
+      {
+        key: 'critRate',
+        value: affixValueRange('critRate', 20, 2).min,
+        tier: 2,
+      },
+      { key: 'atk', value: affixValueRange('atk', 20, 2).min, tier: 2 },
+    ];
+    first.pendingAffixChange = {
+      operation: 'reforge',
+      affixIndex: 2,
+      candidate: {
+        key: 'swd_guard',
+        value: affixValueRange('swd_guard', 20, 3).max,
+        tier: 3,
+      },
+    };
+
+    const migrated = migrate(raw);
+    const pending = migrated.bag.equipment[0]!.pendingAffixChange!;
+    expect(pending.affixIndex).toBe(0);
+    expect(pending.candidate.key).toBe('def');
+    expect(pending.candidate.value).toBe(affixValueRange('def', 20, 3).max);
+  });
+
+  it('v10 → v11 existing 按比例保值不夹洗，随机 pending 候选才投影到当前可生成边界', () => {
+    const current = createSave('边界少女', 'witch', 35, 1_800_000_000_000);
+    current.nextUid = 6;
+    current.bag.equipment.push(
+      v10Equipment('e1', 'eq_r2_ring_epic', [
+        { key: 'swd_heavy', value: 5.5, tier: 1 },
+      ]) as unknown as EquipmentInstance,
+      v10Equipment('e2', 'eq_r2_ring_epic', [
+        { key: 'wit_power', value: 23, tier: 1 },
+      ]) as unknown as EquipmentInstance,
+      v10Equipment('e3', 'eq_r2_ring_epic', [
+        { key: 'sha_ward', value: 3.2, tier: 5 },
+      ]) as unknown as EquipmentInstance,
+      v10Equipment('e4', 'eq_r2_ring_epic', [
+        { key: 'cat_swift', value: 0.062, tier: 5 },
+      ]) as unknown as EquipmentInstance,
+      v10Equipment('e5', 'eq_r2_ring_epic', [
+        { key: 'def', value: 33, tier: 5 },
+      ]) as unknown as EquipmentInstance,
+    );
+    current.bag.equipment[1]!.pendingAffixChange = {
+      operation: 'temper',
+      affixIndex: 0,
+      candidate: { key: 'wit_power', value: 23, tier: 1 },
+    };
+    current.bag.equipment[4]!.pendingAffixChange = {
+      operation: 'temper',
+      affixIndex: 0,
+      candidate: { key: 'def', value: 33, tier: 5 },
+    };
+
+    const migrated = migrate({
+      ...(current as unknown as Record<string, unknown>),
+      version: 10,
+    });
+    expect(migrated.bag.equipment.map((instance) => instance.affixes[0]?.value)).toEqual([
+      16.3,
+      15.6,
+      3.4,
+      0.046,
+      35.1,
+    ]);
+    expect(migrated.bag.equipment[1]?.pendingAffixChange?.candidate.value).toBe(
+      affixValueRange('wit_power', 20, 1).min,
+    );
+    expect(migrated.bag.equipment[4]?.pendingAffixChange?.candidate.value).toBe(
+      affixValueRange('def', 20, 5).min,
+    );
+  });
+
+  it('v10 → v11 将多个错槽穿戴按固定槽序无损移回背包，不覆盖已占目标槽', () => {
+    const raw = v10Save();
+    (raw.player as { classId: string }).classId = 'swordsman';
+    raw.nextUid = 9;
+    const equipped = raw.equipped as Record<string, Record<string, unknown> | null>;
+    equipped.weapon = v10Equipment('e5', 'eq_r2_weapon_epic', []);
+    equipped.head = v10Equipment('e8', 'eq_r2_necklace_epic', []);
+    equipped.necklace = v10Equipment('e7', 'eq_r2_necklace_epic', []);
+    equipped.ring = v10Equipment('e6', 'eq_r2_weapon_epic', [
+      {
+        key: 'swd_guard',
+        value: affixValueRange('swd_guard', 20, 4).max,
+        tier: 4,
+      },
+      { key: 'atk', value: affixValueRange('atk', 20, 2).min, tier: 2 },
+      { key: 'swd_heavy', value: 7.8, tier: 3 },
+    ]);
+
+    const migrated = migrate(raw);
+    expect(migrated.equipped.weapon?.uid).toBe('e5');
+    expect(migrated.equipped.necklace?.uid).toBe('e7');
+    expect(migrated.equipped.head).toBeNull();
+    expect(migrated.equipped.ring).toBeNull();
+    expect(migrated.bag.equipment.map((instance) => instance.uid)).toEqual([
+      'e1',
+      'e2',
+      'e3',
+      'e8',
+      'e6',
+    ]);
+    expect(
+      migrated.bag.equipment
+        .find((instance) => instance.uid === 'e6')
+        ?.affixes.map((affix) => affix.key),
+    ).toEqual(['critDmg', 'atk', 'swd_guard']);
+    expect(migrated.bag.items.sigil_swordsman).toBe(1);
+
+    const allUids = [
+      ...migrated.bag.equipment.map((instance) => instance.uid),
+      ...Object.values(migrated.equipped).flatMap((instance) => (instance ? [instance.uid] : [])),
+    ];
+    expect(new Set(allUids).size).toBe(allUids.length);
   });
 
   it('当前版本不迁移，只做严格结构校验', () => {

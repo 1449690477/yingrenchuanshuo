@@ -8,7 +8,7 @@
  */
 
 import { defineStore } from 'pinia';
-import { computed, ref } from 'vue';
+import { computed, ref, toRaw } from 'vue';
 
 import type {
   AffixChangeOperation,
@@ -76,11 +76,11 @@ import {
   rollEnhanceGainPermille,
   totalEquipCombatBonuses,
   totalEquipStats,
+  weaponElementOf,
   zeroCombatBonuses,
   type PermilleRoll,
   type EnhanceGainGrade,
 } from '@/core/equipment';
-import { dominantAffixElement } from '@/core/combatBonuses';
 import {
   planAffixChange,
   resolvePendingAffixChange,
@@ -183,7 +183,7 @@ import {
 import { getEquipmentSet } from '@/data/equipmentSets';
 
 import { createSave, type SaveData } from '@/save/schema';
-import { clearSave, loadSave, saveSave } from '@/save/storage';
+import { clearSave, loadSave, saveSave, SaveConflictError, SaveWriteError } from '@/save/storage';
 
 /** 掉落流水的一条记录，UI 用 */
 export interface LootLogEntry {
@@ -269,11 +269,29 @@ export type DecomposeResult =
     };
 
 export type AffixChangeActionResult =
-  | { ok: false; reason: 'no-save' | 'not-found' | 'level-locked' }
+  | {
+      ok: false;
+      reason:
+        | 'no-save'
+        | 'not-found'
+        | 'level-locked'
+        | 'persistence-pending'
+        | 'persistence-conflict'
+        | 'persistence-failed';
+    }
   | PlanAffixChangeResult;
 
 export type ResolveAffixChangeActionResult =
-  | { ok: false; reason: 'no-save' | 'not-found' | 'no-pending-result' }
+  | {
+      ok: false;
+      reason:
+        | 'no-save'
+        | 'not-found'
+        | 'no-pending-result'
+        | 'persistence-pending'
+        | 'persistence-conflict'
+        | 'persistence-failed';
+    }
   | {
       ok: true;
       adopted: boolean;
@@ -437,6 +455,31 @@ export const useGameStore = defineStore('game', () => {
   let lastTickAt = 0;
   let lastSaveAt = 0;
   let rafId = 0;
+  /** 付费洗练必须等 IndexedDB 真正提交；等待期间拒绝第二笔同类事务。 */
+  let affixPersistencePending = false;
+  /** 事务等待期间若后台切换等流程请求保存，事务结束后必须补写最新状态。 */
+  let persistRequestedDuringAffixTransaction = false;
+  /**
+   * pagehide 不保证把 document.visibilityState 改成 hidden，因此必须单独记录
+   * 「页面已明确暂停」。否则洗练写盘结束时只看 visibility 会错误重启实时循环。
+   */
+  let backgroundPaused = false;
+  /** 洗练写盘期间回到前台时只登记请求，等事务回滚/提交完成后统一结算一次。 */
+  let resumeRequestedDuringAffixTransaction = false;
+  /**
+   * 跨标签 CAS 冲突表示本页整份内存已落后于 IndexedDB 主槽。
+   * 这不是可重试的网络错误：必须停机并要求刷新，绝不能继续拿旧快照自动覆盖。
+   */
+  let storageConflict = false;
+  /**
+   * 清档等待 IDB 提交期间把 save 暂时从所有业务入口隔离。
+   * 这样 pagehide、导入或其他点击都不能在清档墓碑之后排入一份旧快照。
+   */
+  let resetPersistencePending = false;
+  /** 清档期间收到的前台恢复请求，只能在清档失败后恢复旧角色。 */
+  let resumeRequestedDuringReset = false;
+  /** 重开流程若主动停掉了原有循环，新角色落盘后只恢复那一条既有循环。 */
+  let resumeRealtimeForNextNewGame = false;
   let affectionDay = affectionDayKey(affectionNow.value, AFFECTION_RULES.resetHourCst);
 
   // ─────────── 派生数据 ───────────
@@ -463,16 +506,11 @@ export const useGameStore = defineStore('game', () => {
     );
   });
 
-  /**
-   * 武器若显式带属性则优先；否则由属性伤害词条中加成最高的一系附魔。
-   * 这样 elemDmg 在当前无技能属性系统的阶段也会进入真实挂机与副本结算。
-   */
+  /** 基础攻击属性只来自当前武器；词条只能加成，不能反向赋予属性。 */
   const playerCombatElement = computed(() => {
     const weapon = save.value?.equipped.weapon;
-    const weaponElement = weapon ? getEquipment(weapon.defId)?.element : undefined;
-    return weaponElement && weaponElement !== 'none'
-      ? weaponElement
-      : dominantAffixElement(equipCombatBonuses.value);
+    if (!weapon) return 'none';
+    return weaponElementOf(requireEquipment(weapon.defId));
   });
 
   const equipmentSetResolution = computed(() =>
@@ -729,8 +767,10 @@ export const useGameStore = defineStore('game', () => {
   }
 
   async function init(): Promise<void> {
+    if (resetPersistencePending) return;
     try {
       const data = await loadSave();
+      if (resetPersistencePending) return;
       if (data) {
         save.value = data;
         rng = new Rng(data.rngState);
@@ -743,10 +783,14 @@ export const useGameStore = defineStore('game', () => {
       loadError.value = error instanceof Error ? error.message : '未知存档读取错误';
     }
     loaded.value = true;
-    if (!loadError.value) startLoop();
+    if (!loadError.value && realtimeMayRun()) startLoop();
   }
 
   async function startNewGame(name: string, classId: SaveData['player']['classId']): Promise<void> {
+    if (resetPersistencePending) {
+      saveError.value = '旧角色正在清除，请等待完成后再创建新角色。';
+      return;
+    }
     const now = Date.now();
     const seed = createSeed();
     save.value = createSave(name.trim() || '无名少女', classId, seed, now);
@@ -754,14 +798,59 @@ export const useGameStore = defineStore('game', () => {
     lootLog.value = [];
     resetBattleVisualState();
     await persist();
+    if (resumeRealtimeForNextNewGame && realtimeMayRun()) startLoop();
+    resumeRealtimeForNextNewGame = false;
   }
 
-  async function resetGame(): Promise<void> {
-    await clearSave();
+  async function resetGame(): Promise<boolean> {
+    if (affixPersistencePending) {
+      saveError.value = '洗练结果正在写入存档，请等待完成后再重开角色。';
+      return false;
+    }
+    if (resetPersistencePending) {
+      saveError.value = '旧角色正在清除，请勿重复操作。';
+      return false;
+    }
+    // 先停掉产出源，再把清档排到所有已发出的保存之后；否则迟到的自动保存会复活旧角色。
+    const resumeRealtime = rafId !== 0;
+    const previousSave = save.value;
+    resetPersistencePending = true;
+    resumeRequestedDuringReset = false;
+    stopLoop();
+    // 事务期间让所有既有业务入口自然得到 no-save；startNewGame / loadFrom /
+    // persist / resume 另有显式门禁，不能把旧角色或导入档排到清档墓碑之后。
     save.value = null;
+    try {
+      await clearSave();
+    } catch (error) {
+      save.value = previousSave;
+      resetPersistencePending = false;
+      const shouldResume =
+        (resumeRealtime || resumeRequestedDuringReset) && realtimeMayRun();
+      resumeRequestedDuringReset = false;
+      if (error instanceof SaveConflictError) {
+        enterStorageConflict();
+        return false;
+      }
+      saveError.value = error instanceof Error ? error.message : '清除存档失败';
+      if (shouldResume) {
+        refreshAffectionClock();
+        settleOfflineNow();
+        startLoop();
+        void persist();
+      }
+      throw error;
+    }
+    resetPersistencePending = false;
     lootLog.value = [];
     offlineResult.value = null;
+    storageConflict = false;
+    saveError.value = null;
+    loadError.value = null;
+    resumeRealtimeForNextNewGame = resumeRealtime || resumeRequestedDuringReset;
+    resumeRequestedDuringReset = false;
     resetBattleVisualState();
+    return true;
   }
 
   /**
@@ -874,7 +963,7 @@ export const useGameStore = defineStore('game', () => {
   }
 
   function startLoop(): void {
-    if (rafId) return;
+    if (rafId || storageConflict || resetPersistencePending) return;
     lastTickAt = performance.now();
 
     const loop = () => {
@@ -896,19 +985,84 @@ export const useGameStore = defineStore('game', () => {
     publishRhythmRunning(false);
   }
 
+  function documentIsVisible(): boolean {
+    return typeof document === 'undefined' || document.visibilityState !== 'hidden';
+  }
+
+  function realtimeMayRun(): boolean {
+    return !storageConflict && !backgroundPaused && documentIsVisible();
+  }
+
+  function enterStorageConflict(): void {
+    storageConflict = true;
+    const message =
+      '另一页面已经更新了这份存档。为防止旧进度覆盖新进度，本页面已停止运行；请刷新后继续。';
+    saveError.value = message;
+    loadError.value = message;
+    stopLoop();
+  }
+
   /** 进入后台时停止实时循环，并把离线计时起点立即写入存档。 */
   function pauseForBackground(): void {
-    if (save.value) save.value.lastActiveAt = Date.now();
+    const enteringBackground = !backgroundPaused;
+    backgroundPaused = true;
     stopLoop();
+    if (resetPersistencePending || !enteringBackground) return;
+    // 写盘期间的前台恢复尚未真正结算时，随后再次进入后台不能覆盖原离线起点；
+    // 整段等待时间仍由事务完成后的第一次有效恢复统一结算。
+    if (affixPersistencePending && resumeRequestedDuringAffixTransaction) return;
+    if (save.value) save.value.lastActiveAt = Date.now();
     void persist();
   }
 
   /** 回到前台时按离线规则结算，再恢复实时循环。 */
   function resumeFromBackground(): void {
+    if (storageConflict) return;
+    // 某些浏览器会在 visibility 仍为 hidden 时派发 pageshow；此时不能抢跑。
+    if (!documentIsVisible()) {
+      backgroundPaused = true;
+      return;
+    }
+    backgroundPaused = false;
+    if (resetPersistencePending) {
+      resumeRequestedDuringReset = true;
+      return;
+    }
+    if (affixPersistencePending) {
+      // 付费事务尚未真正写盘：现在结算会让失败回滚吞掉新收益/RNG，
+      // 因此只登记意图，finally 在提交或回滚完成后统一执行。
+      resumeRequestedDuringAffixTransaction = true;
+      persistRequestedDuringAffixTransaction = true;
+      return;
+    }
     refreshAffectionClock();
     settleOfflineNow();
     startLoop();
     void persist();
+  }
+
+  /**
+   * 结束付费洗练写盘。
+   *
+   * 回到前台的离线结算必须晚于事务提交/回滚，并且至多发生一次；实时循环只恢复
+   * 事务开始前确实运行过的那一条。显式 pagehide 状态优先于 visibility，避免
+   * pagehide 时 visibility 仍为 visible 而提前重启。
+   */
+  function finishAffixPersistenceTransaction(resumeRealtime: boolean): void {
+    affixPersistencePending = false;
+    const shouldSettleDeferredResume = resumeRequestedDuringAffixTransaction && realtimeMayRun();
+    resumeRequestedDuringAffixTransaction = false;
+
+    if (shouldSettleDeferredResume) {
+      refreshAffectionClock();
+      settleOfflineNow();
+    }
+    if ((resumeRealtime || shouldSettleDeferredResume) && realtimeMayRun()) startLoop();
+
+    if (persistRequestedDuringAffixTransaction) {
+      persistRequestedDuringAffixTransaction = false;
+      void persist();
+    }
   }
 
   /**
@@ -1100,6 +1254,10 @@ export const useGameStore = defineStore('game', () => {
       valueOf: (inst) => itemCp(inst),
       slotOf: (inst) => requireEquipment(inst.defId).slot,
       qualityOf: (inst) => requireEquipment(inst.defId).quality,
+      weaponElementOf: (inst) => {
+        const definition = requireEquipment(inst.defId);
+        return definition.slot === 'weapon' ? definition.element : undefined;
+      },
     });
     if (removed.length === 0) return 0;
 
@@ -1660,15 +1818,8 @@ export const useGameStore = defineStore('game', () => {
       return { ok: false, reason: 'gift-locked' };
     }
 
-    const pointsAfterGift = Math.min(
-      AFFECTION_RULES.maxPoints,
-      progress.points + gift.points,
-    );
-    const gearPoolIds = eligibleAffectionEquipmentIds(
-      classId,
-      pointsAfterGift,
-      s.player.level,
-    );
+    const pointsAfterGift = Math.min(AFFECTION_RULES.maxPoints, progress.points + gift.points);
+    const gearPoolIds = eligibleAffectionEquipmentIds(classId, pointsAfterGift, s.player.level);
     const result = performAffectionGift(
       s.affection,
       s.bag.items,
@@ -1841,13 +1992,15 @@ export const useGameStore = defineStore('game', () => {
    * 开始洗练：纯逻辑层先在克隆钱包/RNG/装备上生成完整候选，
    * 成功后才一次性扣材料并写入可持久化 pending；原词条此时绝不覆盖。
    */
-  function startAffixChange(
+  async function startAffixChange(
     uid: string,
     operation: AffixChangeOperation,
     lockedIndices: readonly number[] = [],
     targetIndex?: number,
-  ): AffixChangeActionResult {
+  ): Promise<AffixChangeActionResult> {
     if (!save.value) return { ok: false, reason: 'no-save' };
+    if (storageConflict) return { ok: false, reason: 'persistence-conflict' };
+    if (affixPersistencePending) return { ok: false, reason: 'persistence-pending' };
     const located = findOwnedEquipment(uid);
     if (!located) return { ok: false, reason: 'not-found' };
     if (save.value.player.level < REFORGE_UNLOCK_LEVEL) {
@@ -1872,21 +2025,53 @@ export const useGameStore = defineStore('game', () => {
     });
     if (!result.ok) return result;
 
-    // 从这里开始只做不会抛错的同步赋值，形成一次原子提交。
-    save.value.player.gold = result.wallet.gold;
-    save.value.bag.items = result.wallet.items;
-    rng.setState(result.nextRngState);
-    commitAffixState(located.instance, result.instance);
-    void persist();
-    return result;
+    const previousGold = save.value.player.gold;
+    const previousItems = { ...save.value.bag.items };
+    const previousRngState = rng.getState();
+    const previousSavedRngState = save.value.rngState;
+    const previousInstance = cloneEquipmentInstance(located.instance);
+    const resumeRealtime = rafId !== 0;
+
+    affixPersistencePending = true;
+    stopLoop();
+    try {
+      // 同步写入后立刻保存；实时 tick 已暂停，不会在等待 IndexedDB 时消费 RNG
+      // 或混入挂机产出，失败时可以精确恢复到操作前状态。
+      save.value.player.gold = result.wallet.gold;
+      save.value.bag.items = result.wallet.items;
+      rng.setState(result.nextRngState);
+      commitAffixState(located.instance, result.instance);
+
+      try {
+        await persistStrict();
+      } catch (error) {
+        save.value.player.gold = previousGold;
+        save.value.bag.items = previousItems;
+        rng.setState(previousRngState);
+        save.value.rngState = previousSavedRngState;
+        commitAffixState(located.instance, previousInstance);
+        if (error instanceof SaveConflictError) {
+          return { ok: false, reason: 'persistence-conflict' };
+        }
+        if (error instanceof SaveWriteError) {
+          return { ok: false, reason: 'persistence-failed' };
+        }
+        throw error;
+      }
+      return result;
+    } finally {
+      finishAffixPersistenceTransaction(resumeRealtime);
+    }
   }
 
   /** 玩家确认候选后采用或保留；费用已在生成候选时扣除，这里不再收费。 */
-  function resolveAffixChange(
+  async function resolveAffixChange(
     uid: string,
     decision: 'adopt' | 'keep',
-  ): ResolveAffixChangeActionResult {
+  ): Promise<ResolveAffixChangeActionResult> {
     if (!save.value) return { ok: false, reason: 'no-save' };
+    if (storageConflict) return { ok: false, reason: 'persistence-conflict' };
+    if (affixPersistencePending) return { ok: false, reason: 'persistence-pending' };
     const located = findOwnedEquipment(uid);
     if (!located) return { ok: false, reason: 'not-found' };
     if (!located.instance.pendingAffixChange) {
@@ -1895,16 +2080,37 @@ export const useGameStore = defineStore('game', () => {
 
     const beforeCp = cp.value;
     const result = resolvePendingAffixChange(located.instance, decision);
-    commitAffixState(located.instance, result.instance);
-    if (result.adopted) noteCpDelta(beforeCp);
-    void persist();
-    return {
-      ok: true,
-      adopted: result.adopted,
-      previous: result.previous,
-      candidate: result.candidate,
-      cpDelta: cp.value - beforeCp,
-    };
+    const previousInstance = cloneEquipmentInstance(located.instance);
+    const resumeRealtime = rafId !== 0;
+
+    affixPersistencePending = true;
+    stopLoop();
+    try {
+      commitAffixState(located.instance, result.instance);
+      const delta = cp.value - beforeCp;
+      try {
+        await persistStrict();
+      } catch (error) {
+        commitAffixState(located.instance, previousInstance);
+        if (error instanceof SaveConflictError) {
+          return { ok: false, reason: 'persistence-conflict' };
+        }
+        if (error instanceof SaveWriteError) {
+          return { ok: false, reason: 'persistence-failed' };
+        }
+        throw error;
+      }
+      if (result.adopted) noteCpDelta(beforeCp);
+      return {
+        ok: true,
+        adopted: result.adopted,
+        previous: result.previous,
+        candidate: result.candidate,
+        cpDelta: delta,
+      };
+    } finally {
+      finishAffixPersistenceTransaction(resumeRealtime);
+    }
   }
 
   /** 强化报价只接收装备 UID 与保护选择，费用和成功率全部从可信配置重算。 */
@@ -2282,20 +2488,46 @@ export const useGameStore = defineStore('game', () => {
 
   // ─────────── 持久化 ───────────
 
-  async function persist(): Promise<void> {
-    if (!save.value) return;
+  async function persistStrict(): Promise<void> {
+    if (!save.value || storageConflict || resetPersistencePending) return;
     lastSaveAt = Date.now();
     save.value.rngState = rng.getState();
     try {
-      await saveSave(save.value);
+      // Zod 仍会完整校验并产出独立快照；先剥掉 Vue 深层 Proxy，可避免大背包
+      // 在校验遍历时反复触发代理读取（5,000 件装备约从 67ms 降到 17ms）。
+      await saveSave(toRaw(save.value));
       saveError.value = null;
     } catch (e) {
-      saveError.value = e instanceof Error ? e.message : '未知存档错误';
+      if (e instanceof SaveConflictError) {
+        enterStorageConflict();
+      } else {
+        saveError.value = e instanceof Error ? e.message : '未知存档错误';
+      }
       console.error('[存档] 保存失败：', e);
+      lastSaveAt = 0;
+      throw e;
+    }
+  }
+
+  async function persist(): Promise<void> {
+    if (storageConflict || resetPersistencePending) return;
+    if (affixPersistencePending) {
+      persistRequestedDuringAffixTransaction = true;
+      return;
+    }
+    try {
+      await persistStrict();
+    } catch {
+      // 普通自动保存通过 saveError 告知玩家并在下一轮重试；只有显式付费事务
+      // 调 persistStrict，才能把写盘失败反馈给调用方并回滚。
     }
   }
 
   function loadFrom(data: SaveData): void {
+    if (resetPersistencePending) {
+      saveError.value = '旧角色正在清除，暂时不能导入存档。';
+      return;
+    }
     save.value = data;
     refreshAffectionClock();
     rng = new Rng(data.rngState);

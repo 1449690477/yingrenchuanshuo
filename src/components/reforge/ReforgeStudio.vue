@@ -3,19 +3,19 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Lock, Sparkles, X } from '@lucide/vue';
 import { createFocusTrap, type FocusTrap } from 'focus-trap';
 import type { Affix, AffixChangeOperation, EquipmentInstance } from '@/core/types';
-import { affixChangeCost, bindMaterialCost, type AffixChangeBlockReason } from '@/core/reforge';
+import {
+  affixChangeCost,
+  bindMaterialCost,
+  isProfessionAffixSlot,
+  type AffixChangeBlockReason,
+} from '@/core/reforge';
 import { abbr } from '@/core/format';
 import { useGameStore } from '@/stores/game';
 import { useInventoryStore } from '@/stores/inventory';
 import { usePlayerStore } from '@/stores/player';
 import { requireEquipment } from '@/data/equipment';
 import { requireItem } from '@/data/items';
-import {
-  isAffixSettlementActive,
-  QUALITY_LABELS,
-  SLOT_LABELS,
-  SLOT_ORDER,
-} from '@/data/constants';
+import { isAffixSettlementActive, QUALITY_LABELS, SLOT_LABELS, SLOT_ORDER } from '@/data/constants';
 import {
   REFORGE_RESONANCE_MAX,
   REFORGE_UNLOCK_LEVEL,
@@ -57,6 +57,7 @@ const operation = ref<AffixChangeOperation>('reforge');
 const lockedIndices = ref<number[]>([]);
 const resonateTarget = ref<number | null>(null);
 const rolling = ref(false);
+const saving = ref(false);
 const feedback = ref('');
 const shellRef = ref<HTMLElement | null>(null);
 const closeButtonRef = ref<HTMLButtonElement | null>(null);
@@ -186,10 +187,13 @@ const unlockedIndices = computed(() => {
     .filter((index) => !lockedIndices.value.includes(index));
 });
 const hasDeferredAffix = computed(() =>
-  Boolean(
-    selectedInstance.value?.affixes.some((affix) => !isAffixSettlementActive(affix.key)),
-  ),
+  Boolean(selectedInstance.value?.affixes.some((affix) => !isAffixSettlementActive(affix.key))),
 );
+const isReservedProfessionSlot = (index: number) => {
+  const inst = selectedInstance.value;
+  const def = selectedDefinition.value;
+  return Boolean(inst && def && isProfessionAffixSlot(def.quality, inst.affixes.length, index));
+};
 const operationTargets = computed(() => {
   const inst = selectedInstance.value;
   if (!inst) return [];
@@ -200,6 +204,9 @@ const operationTargets = computed(() => {
     return unlockedIndices.value.filter((index) =>
       isAffixSettlementActive(inst.affixes[index]!.key),
     );
+  }
+  if (operation.value === 'inscribe') {
+    return unlockedIndices.value.filter(isReservedProfessionSlot);
   }
   return unlockedIndices.value;
 });
@@ -213,7 +220,7 @@ const operationOptions: readonly {
   // 完整解释在下方洗练台的说明里，这里只做区分
   { id: 'reforge', name: '重铸', desc: '类型品阶全随机' },
   { id: 'temper', name: '淬炼', desc: '保留类型洗品阶' },
-  { id: 'inscribe', name: '铭刻', desc: '必出本职专属' },
+  { id: 'inscribe', name: '铭刻', desc: '只洗预留职业槽' },
   { id: 'resonate', name: '同调', desc: '指定一条升品阶' },
 ];
 const activeOperationName = computed(() => {
@@ -239,7 +246,9 @@ const costRange = computed<CostRange | null>(() => {
       operation.value,
       def.level,
       inst.affixes[index]!.tier,
-      operation.value === 'resonate' ? 0 : lockedIndices.value.length,
+      operation.value === 'resonate' || operation.value === 'inscribe'
+        ? 0
+        : lockedIndices.value.length,
       currentPlayer.classId,
       regionMaterials.value,
     ),
@@ -271,6 +280,7 @@ const canStart = computed(() => {
     inst !== null &&
     !pending.value &&
     !rolling.value &&
+    !saving.value &&
     operationTargets.value.length > 0 &&
     canAffordPreview.value &&
     !(
@@ -282,12 +292,19 @@ const canStart = computed(() => {
 });
 
 const bindCost = computed(() =>
-  operation.value === 'resonate' ? 0 : bindMaterialCost(lockedIndices.value.length),
+  operation.value === 'resonate' || operation.value === 'inscribe'
+    ? 0
+    : bindMaterialCost(lockedIndices.value.length),
 );
 const rollHint = computed(() => {
   const inst = selectedInstance.value;
   if (!inst) return '';
   if (operation.value === 'resonate') return '点选一条未满阶词条作为同调目标。';
+  if (operation.value === 'inscribe') {
+    return operationTargets.value.length > 0
+      ? '只改写品质预留的职业槽，不能把通用槽扩成第二条职业词条。'
+      : '当前品质没有可铭刻的职业槽。';
+  }
   if (operation.value === 'temper') {
     return `本次会从 ${operationTargets.value.length} 条已结算词条中随机选 1 条；延后词条不会参与。`;
   }
@@ -308,7 +325,7 @@ const protectAdvice = computed<{ names: string; risk: number; indices: number[] 
   const advice = selectedAssessment.value?.recommendation;
   const inst = selectedInstance.value;
   if (!advice?.protectIndices?.length || !inst) return null;
-  if (operation.value === 'resonate') return null;
+  if (operation.value === 'resonate' || operation.value === 'inscribe') return null;
 
   // 只提示尚未定契的那些
   const exposed = advice.protectIndices.filter((index) => !lockedIndices.value.includes(index));
@@ -327,7 +344,7 @@ const protectAdvice = computed<{ names: string; risk: number; indices: number[] 
 
 function protectSuggested(): void {
   const advice = protectAdvice.value;
-  if (rolling.value || !advice) return;
+  if (rolling.value || saving.value || !advice) return;
   lockedIndices.value = [...new Set([...lockedIndices.value, ...advice.indices])].sort(
     (a, b) => a - b,
   );
@@ -359,7 +376,7 @@ function adoptRecommendation(assessment: EquipmentAssessment | undefined): void 
 }
 
 function selectGear(uid: string): void {
-  if (rolling.value) return;
+  if (rolling.value || saving.value) return;
   if (uid === selectedUid.value) return;
   selectedUid.value = uid;
   feedback.value = '';
@@ -372,18 +389,17 @@ function applyRecommendation(pick: {
   assessment: EquipmentAssessment;
   recommendation: ReforgeRecommendation;
 }): void {
-  if (rolling.value) return;
+  if (rolling.value || saving.value) return;
   selectedUid.value = pick.assessment.uid;
   operation.value = pick.recommendation.operation;
-  resonateTarget.value = pick.recommendation.operation === 'resonate'
-    ? (pick.recommendation.targetIndex ?? null)
-    : null;
+  resonateTarget.value =
+    pick.recommendation.operation === 'resonate' ? (pick.recommendation.targetIndex ?? null) : null;
   lockedIndices.value = [];
   feedback.value = '';
 }
 
 function selectOperation(next: AffixChangeOperation): void {
-  if (pending.value || rolling.value) return;
+  if (pending.value || rolling.value || saving.value) return;
   operation.value = next;
   feedback.value = '';
   lockedIndices.value = [];
@@ -392,8 +408,9 @@ function selectOperation(next: AffixChangeOperation): void {
 
 function toggleAffix(index: number): void {
   const inst = selectedInstance.value;
-  if (!inst || pending.value || rolling.value) return;
+  if (!inst || pending.value || rolling.value || saving.value) return;
   feedback.value = '';
+  if (operation.value === 'inscribe') return;
   if (operation.value === 'resonate') {
     const selected = inst.affixes[index];
     if (selected && isAffixSettlementActive(selected.key) && selected.tier < 5) {
@@ -409,16 +426,21 @@ function toggleAffix(index: number): void {
     : [...lockedIndices.value, index].sort((a, b) => a - b);
 }
 
-function startChange(): void {
+async function startChange(): Promise<void> {
   const inst = selectedInstance.value;
   if (!inst || !canStart.value) return;
   feedback.value = '';
-  const result = inventory.startAffixChange(
-    inst.uid,
-    operation.value,
-    lockedIndices.value,
-    operation.value === 'resonate' ? (resonateTarget.value ?? undefined) : undefined,
-  );
+  saving.value = true;
+  const result = await inventory
+    .startAffixChange(
+      inst.uid,
+      operation.value,
+      lockedIndices.value,
+      operation.value === 'resonate' ? (resonateTarget.value ?? undefined) : undefined,
+    )
+    .finally(() => {
+      saving.value = false;
+    });
   if (!result.ok) {
     feedback.value = blockMessage(result.reason, 'itemId' in result ? result.itemId : undefined);
     return;
@@ -430,10 +452,13 @@ function startChange(): void {
   }, 520);
 }
 
-function decide(decision: 'adopt' | 'keep'): void {
+async function decide(decision: 'adopt' | 'keep'): Promise<void> {
   const inst = selectedInstance.value;
-  if (!inst) return;
-  const result = inventory.resolveAffixChange(inst.uid, decision);
+  if (!inst || saving.value) return;
+  saving.value = true;
+  const result = await inventory.resolveAffixChange(inst.uid, decision).finally(() => {
+    saving.value = false;
+  });
   if (!result.ok) {
     feedback.value = blockMessage(result.reason);
     return;
@@ -444,7 +469,14 @@ function decide(decision: 'adopt' | 'keep'): void {
 }
 
 type UiBlockReason =
-  AffixChangeBlockReason | 'no-save' | 'not-found' | 'level-locked' | 'no-pending-result';
+  | AffixChangeBlockReason
+  | 'no-save'
+  | 'not-found'
+  | 'level-locked'
+  | 'no-pending-result'
+  | 'persistence-pending'
+  | 'persistence-conflict'
+  | 'persistence-failed';
 
 function blockMessage(reason: UiBlockReason, itemId?: string): string {
   switch (reason) {
@@ -465,11 +497,13 @@ function blockMessage(reason: UiBlockReason, itemId?: string): string {
     case 'invalid-target':
       return '请先选择同调目标。';
     case 'deferred-affix':
-      return '该词条等待后续技能结算，只能通过重铸或铭刻换掉。';
+      return '该词条等待后续技能结算：通用槽可通过重铸换掉；预留职业槽也可通过铭刻换掉。';
     case 'max-tier':
       return '极品词条已经达到最高品阶。';
     case 'no-candidate':
-      return '当前组合没有不重复的新词条，请少锁一条或换一种操作。';
+      return operation.value === 'inscribe'
+        ? '当前品质没有可铭刻的职业槽。'
+        : '当前组合没有不重复的新词条，请少锁一条或换一种操作。';
     case 'insufficient-gold':
       return '金币不足。';
     case 'insufficient-item':
@@ -477,6 +511,12 @@ function blockMessage(reason: UiBlockReason, itemId?: string): string {
       return `${requireItem(itemId).name}不足。`;
     case 'no-pending-result':
       return '洗练候选已经处理过了。';
+    case 'persistence-pending':
+      return '上一笔洗练正在写入存档，请稍候。';
+    case 'persistence-conflict':
+      return '另一页面已更新存档，本页面已停止写入；请刷新后继续。';
+    case 'persistence-failed':
+      return '存档写入失败，已回滚本次操作；请检查浏览器存储后重试。';
     default: {
       const exhaustive: never = reason;
       throw new Error(`[洗练错误] 未处理的阻止原因：${exhaustive}`);
@@ -495,7 +535,8 @@ onMounted(async () => {
   dialogFocusTrap = createFocusTrap(shell, {
     initialFocus: () => closeButtonRef.value ?? shell,
     fallbackFocus: () => shell,
-    clickOutsideDeactivates: true,
+    clickOutsideDeactivates: () => !saving.value,
+    escapeDeactivates: () => !saving.value,
     isolateSubtrees: 'aria-hidden',
     onDeactivate: () => emit('close'),
   });
@@ -503,6 +544,7 @@ onMounted(async () => {
 });
 
 function requestClose(): void {
+  if (saving.value) return;
   if (dialogFocusTrap?.active) {
     dialogFocusTrap.deactivate();
     return;
@@ -607,7 +649,11 @@ onBeforeUnmount(() => {
                 <span class="gear-grade" :class="`grade-${gradeOf(entry.affixScore).grade}`">
                   {{ gradeOf(entry.affixScore).label }}
                 </span>
-                <img class="gear-icon" :src="`${BASE}${requireEquipment(entry.defId).icon}`" :alt="requireEquipment(entry.defId).name" />
+                <img
+                  class="gear-icon"
+                  :src="`${BASE}${requireEquipment(entry.defId).icon}`"
+                  :alt="requireEquipment(entry.defId).name"
+                />
                 <span class="gear-name">{{ requireEquipment(entry.defId).name }}</span>
                 <span class="gear-meta">
                   {{ QUALITY_LABELS[requireEquipment(entry.defId).quality] }} ·
@@ -632,7 +678,11 @@ onBeforeUnmount(() => {
             :style="{ '--gear-q': `var(--q-${selectedDefinition.quality})` }"
           >
             <div class="anvil-head">
-              <img class="anvil-icon" :src="`${BASE}${selectedDefinition.icon}`" :alt="selectedDefinition.name" />
+              <img
+                class="anvil-icon"
+                :src="`${BASE}${selectedDefinition.icon}`"
+                :alt="selectedDefinition.name"
+              />
               <div class="anvil-title">
                 <b>{{ selectedDefinition.name }}</b>
                 <small>
@@ -643,7 +693,10 @@ onBeforeUnmount(() => {
                   </template>
                 </small>
               </div>
-              <span class="anvil-grade" :class="`grade-${gradeOf(selectedAssessment.affixScore).grade}`">
+              <span
+                class="anvil-grade"
+                :class="`grade-${gradeOf(selectedAssessment.affixScore).grade}`"
+              >
                 词条 {{ gradeOf(selectedAssessment.affixScore).label }}
               </span>
             </div>
@@ -673,7 +726,7 @@ onBeforeUnmount(() => {
               />
               <div class="result-title">
                 <Sparkles :size="17" aria-hidden="true" />
-                <b>洗练结果已保留在存档</b>
+                <b>{{ saving ? '正在把结果写入存档…' : '洗练结果已保留在存档' }}</b>
               </div>
               <div v-if="oldPendingAffix" class="compare-affix">
                 <div>
@@ -681,7 +734,10 @@ onBeforeUnmount(() => {
                   <span :class="`tier-${oldPendingAffix.tier}`">
                     T{{ oldPendingAffix.tier }} {{ affixTierName(oldPendingAffix.tier) }}
                   </span>
-                  <b>{{ affixDisplayName(oldPendingAffix) }} {{ formatAffixValue(oldPendingAffix) }}</b>
+                  <b
+                    >{{ affixDisplayName(oldPendingAffix) }}
+                    {{ formatAffixValue(oldPendingAffix) }}</b
+                  >
                   <em v-if="affixProfessionLabel(oldPendingAffix.key)">
                     {{ affixProfessionLabel(oldPendingAffix.key) }}
                   </em>
@@ -708,9 +764,14 @@ onBeforeUnmount(() => {
                 </div>
               </div>
               <p>材料已经消耗；采用与否由你决定，保留原样不会把装备洗坏。</p>
+              <p v-if="feedback" class="feedback">{{ feedback }}</p>
               <div class="decision-row">
-                <button class="btn btn-plain" @click="decide('keep')">保留原样</button>
-                <button class="btn btn-pink" @click="decide('adopt')">采用新词条</button>
+                <button class="btn btn-plain" :disabled="saving" @click="decide('keep')">
+                  保留原样
+                </button>
+                <button class="btn btn-pink" :disabled="saving" @click="decide('adopt')">
+                  {{ saving ? '正在写入存档…' : '采用新词条' }}
+                </button>
               </div>
             </div>
 
@@ -720,7 +781,7 @@ onBeforeUnmount(() => {
                   v-for="option in operationOptions"
                   :key="option.id"
                   :class="{ active: operation === option.id }"
-                  :disabled="Boolean(pending) || rolling"
+                  :disabled="Boolean(pending) || rolling || saving"
                   @click="selectOperation(option.id)"
                 >
                   <img class="op-emblem" :src="emblemUrls[option.id]" alt="" aria-hidden="true" />
@@ -749,6 +810,8 @@ onBeforeUnmount(() => {
                   "
                   :disabled="
                     rolling ||
+                    saving ||
+                    operation === 'inscribe' ||
                     (operation === 'resonate' && value.tier === 5) ||
                     ((operation === 'temper' || operation === 'resonate') &&
                       !isAffixSettlementActive(value.key))
@@ -781,6 +844,9 @@ onBeforeUnmount(() => {
                             : '选择'
                     }}
                   </span>
+                  <span v-else-if="operation === 'inscribe'" class="row-state">
+                    {{ isReservedProfessionSlot(index) ? '铭刻目标' : '通用槽' }}
+                  </span>
                   <span v-else class="row-state">
                     <template v-if="operation === 'temper' && !isAffixSettlementActive(value.key)">
                       待开放
@@ -807,9 +873,10 @@ onBeforeUnmount(() => {
                   <button class="protect-apply" @click="protectSuggested">定契保护</button>
                 </p>
                 <small v-if="hasDeferredAffix">
-                  「待 M3-4 技能结算」词条仍可查看，并可通过重铸或铭刻换掉；淬炼、同调不会继续投入。
+                  「待 M3-4
+                  技能结算」词条仍可查看；通用槽可通过重铸换掉，预留职业槽也可通过铭刻换掉；淬炼、同调不会继续投入。
                 </small>
-                <small v-if="operation !== 'resonate'">
+                <small v-if="operation !== 'resonate' && operation !== 'inscribe'">
                   定契本次消耗 {{ bindCost }} 张；完成洗练后自动解除。
                 </small>
                 <small v-if="selectedAssessment.recommendation">
@@ -846,7 +913,7 @@ onBeforeUnmount(() => {
 
               <button class="start-button" :disabled="!canStart" @click="startChange">
                 <img class="start-emblem" :src="emblemUrls[operation]" alt="" aria-hidden="true" />
-                {{ activeOperationName }}一次
+                {{ saving ? '正在写入存档…' : `${activeOperationName}一次` }}
               </button>
             </template>
           </section>
@@ -925,7 +992,12 @@ onBeforeUnmount(() => {
   position: absolute;
   z-index: 1;
   inset: 0;
-  background: linear-gradient(180deg, rgb(255 246 251 / 8%) 0%, rgb(255 244 250 / 55%) 58%, rgb(255 250 253 / 96%) 100%);
+  background: linear-gradient(
+    180deg,
+    rgb(255 246 251 / 8%) 0%,
+    rgb(255 244 250 / 55%) 58%,
+    rgb(255 250 253 / 96%) 100%
+  );
 }
 
 .head-sparkle {
@@ -940,11 +1012,37 @@ onBeforeUnmount(() => {
   pointer-events: none;
 }
 
-.head-sparkle.sp-1 { top: 22%; left: 12%; animation-delay: 0ms; }
-.head-sparkle.sp-2 { top: 30%; left: 34%; width: 5px; height: 5px; animation-delay: 700ms; }
-.head-sparkle.sp-3 { top: 18%; right: 30%; animation-delay: 1300ms; }
-.head-sparkle.sp-4 { top: 40%; right: 14%; width: 5px; height: 5px; animation-delay: 1900ms; }
-.head-sparkle.sp-5 { top: 52%; left: 22%; width: 4px; height: 4px; animation-delay: 2500ms; }
+.head-sparkle.sp-1 {
+  top: 22%;
+  left: 12%;
+  animation-delay: 0ms;
+}
+.head-sparkle.sp-2 {
+  top: 30%;
+  left: 34%;
+  width: 5px;
+  height: 5px;
+  animation-delay: 700ms;
+}
+.head-sparkle.sp-3 {
+  top: 18%;
+  right: 30%;
+  animation-delay: 1300ms;
+}
+.head-sparkle.sp-4 {
+  top: 40%;
+  right: 14%;
+  width: 5px;
+  height: 5px;
+  animation-delay: 1900ms;
+}
+.head-sparkle.sp-5 {
+  top: 52%;
+  left: 22%;
+  width: 4px;
+  height: 4px;
+  animation-delay: 2500ms;
+}
 
 .head-copy {
   position: relative;
@@ -1098,7 +1196,12 @@ onBeforeUnmount(() => {
   right: -38px;
   width: 150px;
   height: 150px;
-  background: radial-gradient(circle, rgb(255 183 224 / 55%), rgb(149 205 255 / 32%) 55%, transparent 72%);
+  background: radial-gradient(
+    circle,
+    rgb(255 183 224 / 55%),
+    rgb(149 205 255 / 32%) 55%,
+    transparent 72%
+  );
   animation: advisor-breathe 2.6s ease-in-out infinite;
   pointer-events: none;
 }
@@ -1224,10 +1327,22 @@ onBeforeUnmount(() => {
   place-items: center;
 }
 
-.grade-s { color: #8a5b00; background: linear-gradient(135deg, #ffe9ae, #ffd35e); }
-.grade-a { color: #8d3a63; background: linear-gradient(135deg, #ffd9ec, #ffb3d6); }
-.grade-b { color: #275d85; background: linear-gradient(135deg, #d2ecff, #aad9ff); }
-.grade-c { color: #5c6672; background: #e8ebef; }
+.grade-s {
+  color: #8a5b00;
+  background: linear-gradient(135deg, #ffe9ae, #ffd35e);
+}
+.grade-a {
+  color: #8d3a63;
+  background: linear-gradient(135deg, #ffd9ec, #ffb3d6);
+}
+.grade-b {
+  color: #275d85;
+  background: linear-gradient(135deg, #d2ecff, #aad9ff);
+}
+.grade-c {
+  color: #5c6672;
+  background: #e8ebef;
+}
 
 .gear-icon {
   width: 44px;
@@ -1507,8 +1622,12 @@ onBeforeUnmount(() => {
   box-shadow: 0 0 0 2px rgb(126 202 241 / 14%);
 }
 
-.affix-row.maxed { opacity: 0.58; }
-.affix-row.deferred { opacity: 0.66; }
+.affix-row.maxed {
+  opacity: 0.58;
+}
+.affix-row.deferred {
+  opacity: 0.66;
+}
 
 .tier-badge {
   width: 68px;
@@ -1605,7 +1724,9 @@ onBeforeUnmount(() => {
 }
 
 .cost-gold span,
-.cost-item b { font-size: 9px; }
+.cost-item b {
+  font-size: 9px;
+}
 
 .cost-gold b {
   color: #ae7134;
@@ -1787,15 +1908,27 @@ onBeforeUnmount(() => {
 }
 
 /* ── 品阶色 ── */
-.tier-1 { color: #7c828b; }
-.tier-2 { color: #526276; }
-.tier-3 { color: #3b9967; }
-.tier-4 { color: #397db5; }
-.tier-5 { color: #b37722; }
+.tier-1 {
+  color: #7c828b;
+}
+.tier-2 {
+  color: #526276;
+}
+.tier-3 {
+  color: #3b9967;
+}
+.tier-4 {
+  color: #397db5;
+}
+.tier-5 {
+  color: #b37722;
+}
 
 /* ── 动画 ── */
 @keyframes studio-fade {
-  from { opacity: 0; }
+  from {
+    opacity: 0;
+  }
 }
 
 @keyframes studio-rise {
@@ -1806,7 +1939,8 @@ onBeforeUnmount(() => {
 }
 
 @keyframes sparkle-float {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 0.35;
     transform: translateY(0) scale(0.85);
   }
@@ -1817,7 +1951,8 @@ onBeforeUnmount(() => {
 }
 
 @keyframes advisor-breathe {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 0.6;
     transform: scale(0.94);
   }

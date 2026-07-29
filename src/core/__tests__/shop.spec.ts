@@ -16,6 +16,7 @@ const equipment: EquipmentDef = {
   id: 'eq_test',
   name: '测试法杖',
   slot: 'weapon',
+  element: 'none',
   quality: 'epic',
   level: 12,
   icon: '',

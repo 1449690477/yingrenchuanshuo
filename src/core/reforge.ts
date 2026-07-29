@@ -6,16 +6,23 @@ import type {
   EquipmentDef,
   EquipmentInstance,
 } from './types';
-import { rollAffixForKey, rollAffixTier, rollAffixValue } from './equipment';
+import {
+  pickProfessionAffixSpec,
+  rollAffixForKey,
+  rollAffixTier,
+  rollAffixValue,
+} from './equipment';
 import { Rng } from './rng';
 import {
   AFFIX_POOL,
   AFFIX_TIERS,
   isAffixGenerationActive,
+  isAffixGenerationLevelUnlocked,
   isAffixSettlementActive,
   PROFESSION_AFFIX_POOLS,
   QUALITY_PROFESSION_AFFIX_COUNT,
   type AffixPoolEntry,
+  type ProfessionAffixPoolEntry,
 } from '@/data/constants';
 import {
   CLASS_SIGIL_IDS,
@@ -142,6 +149,9 @@ export function planAffixChange(input: PlanAffixChangeInput): PlanAffixChangeRes
   if (!randomOperation && lockedIndices.length > 0) {
     return { ok: false, reason: 'invalid-locks' };
   }
+  if (input.operation === 'inscribe' && lockedIndices.length > 0) {
+    return { ok: false, reason: 'invalid-locks' };
+  }
 
   const txRng = new Rng(1);
   txRng.setState(input.rngState);
@@ -153,7 +163,16 @@ export function planAffixChange(input: PlanAffixChangeInput): PlanAffixChangeRes
   }
 
   const eligible = randomOperation
-    ? unlocked.filter((index) => hasCandidateForTarget(input, index))
+    ? unlocked.filter(
+        (index) =>
+          (input.operation !== 'inscribe' ||
+            isProfessionAffixSlot(
+              input.definition.quality,
+              input.instance.affixes.length,
+              index,
+            )) &&
+          hasCandidateForTarget(input, index),
+      )
     : unlocked;
   if (randomOperation && eligible.length === 0) {
     if (
@@ -262,6 +281,9 @@ export function affixChangeCost(
   if (!Number.isInteger(currentTier) || currentTier < 1 || currentTier > 5) {
     throw new Error(`affixChangeCost: 词条品阶必须在 1~5，收到 ${currentTier}`);
   }
+  if (operation === 'inscribe' && lockedCount !== 0) {
+    throw new Error('affixChangeCost: 铭刻只改写预留职业槽，不接受定契');
+  }
   const items: Record<string, number> = {};
   const add = (itemId: string, count: number) => {
     if (!itemId) throw new Error('affixChangeCost: 材料 id 不能为空');
@@ -296,7 +318,7 @@ export function affixChangeCost(
     add(REFORGE_MATERIAL_IDS.resonance, currentTier);
   }
 
-  if (isRandomOperation(operation)) {
+  if (isRandomOperation(operation) && operation !== 'inscribe') {
     add(REFORGE_MATERIAL_IDS.bind, bindMaterialCost(lockedCount));
   } else if (lockedCount !== 0) {
     throw new Error('affixChangeCost: 同调不接受临时锁定');
@@ -329,7 +351,9 @@ function rollCandidate(
   if (candidates.length === 0) {
     throw new Error(`[内部错误] 已选中的洗练槽 ${targetIndex} 没有候选，目标过滤与生成逻辑不一致`);
   }
-  const picked = rng.weighted(candidates, (spec) => spec.weight);
+  const picked = isProfessionTarget(input, targetIndex)
+    ? pickProfessionAffixSpec(asProfessionCandidates(candidates), rng)
+    : rng.weighted(candidates, (spec) => spec.weight);
   return rollAffixForKey(picked.key, input.definition.level, rng, guaranteedHigh);
 }
 
@@ -351,17 +375,37 @@ function replacementCandidates(
   targetIndex: number,
 ): readonly AffixPoolEntry[] {
   const previous = input.instance.affixes[targetIndex]!;
-  const pool =
-    input.operation === 'inscribe' ||
-    isProfessionAffixSlot(input.definition.quality, input.instance.affixes.length, targetIndex)
-      ? PROFESSION_AFFIX_POOLS[input.classId]
-      : AFFIX_POOL;
+  const pool = isProfessionTarget(input, targetIndex)
+    ? PROFESSION_AFFIX_POOLS[input.classId]
+    : AFFIX_POOL;
   const occupied = new Set<AffixKey>([
     ...(input.definition.fixedAffixes ?? []).map((affix) => affix.key),
     ...input.instance.affixes.filter((_, index) => index !== targetIndex).map((affix) => affix.key),
     previous.key,
   ]);
-  return pool.filter((spec) => isAffixGenerationActive(spec.key) && !occupied.has(spec.key));
+  return pool.filter(
+    (spec) =>
+      isAffixGenerationActive(spec.key) &&
+      isAffixGenerationLevelUnlocked(spec.key, input.definition.level) &&
+      !occupied.has(spec.key),
+  );
+}
+
+function isProfessionTarget(input: PlanAffixChangeInput, targetIndex: number): boolean {
+  return isProfessionAffixSlot(
+    input.definition.quality,
+    input.instance.affixes.length,
+    targetIndex,
+  );
+}
+
+function asProfessionCandidates(
+  candidates: readonly AffixPoolEntry[],
+): readonly ProfessionAffixPoolEntry[] {
+  if (candidates.some((entry) => !('balanceRole' in entry))) {
+    throw new Error('[配置错误] 职业词条候选缺少 balanceRole');
+  }
+  return candidates as readonly ProfessionAffixPoolEntry[];
 }
 
 export function promoteAffix(affix: Affix): Affix {

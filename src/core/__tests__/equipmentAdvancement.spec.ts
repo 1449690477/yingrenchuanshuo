@@ -14,6 +14,7 @@ const source: EquipmentDef = {
   level: 18,
   icon: 'old.png',
   appearanceId: 'r2-weapon',
+  element: 'fire',
 };
 
 const target: EquipmentDef = {
@@ -251,7 +252,16 @@ describe('装备跨区升阶纯函数', () => {
     expect(() => call(source, { ...target, level: source.level })).toThrow(
       '目标等级必须高于来源',
     );
-    expect(() => call(source, { ...target, slot: 'head' })).toThrow('不得改变部位');
+    const wrongSlotTarget: EquipmentDef = {
+      id: target.id,
+      name: target.name,
+      slot: 'head',
+      quality: target.quality,
+      level: target.level,
+      icon: target.icon,
+      appearanceId: target.appearanceId,
+    };
+    expect(() => call(source, wrongSlotTarget)).toThrow('不得改变部位');
     expect(() => call(source, { ...target, quality: 'epic' })).toThrow(
       '不得偷偷改变品质',
     );

@@ -3,7 +3,12 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import { Lock, Sparkles, X } from '@lucide/vue';
 import { createFocusTrap, type FocusTrap } from 'focus-trap';
 import type { Affix, AffixChangeOperation, EquipmentInstance } from '@/core/types';
-import { affixChangeCost, bindMaterialCost, type AffixChangeBlockReason } from '@/core/reforge';
+import {
+  affixChangeCost,
+  bindMaterialCost,
+  isProfessionAffixSlot,
+  type AffixChangeBlockReason,
+} from '@/core/reforge';
 import { abbr } from '@/core/format';
 import { useGameStore } from '@/stores/game';
 import { useInventoryStore } from '@/stores/inventory';
@@ -36,6 +41,7 @@ const operation = ref<AffixChangeOperation>('reforge');
 const lockedIndices = ref<number[]>([]);
 const resonateTarget = ref<number | null>(null);
 const rolling = ref(false);
+const saving = ref(false);
 const feedback = ref('');
 const sheetRef = ref<HTMLElement | null>(null);
 const closeButtonRef = ref<HTMLButtonElement | null>(null);
@@ -66,6 +72,8 @@ const unlockedIndices = computed(() =>
 const hasDeferredAffix = computed(() =>
   props.inst.affixes.some((affix) => !isAffixSettlementActive(affix.key)),
 );
+const isReservedProfessionSlot = (index: number) =>
+  isProfessionAffixSlot(definition.value.quality, props.inst.affixes.length, index);
 const operationTargets = computed(() => {
   if (operation.value === 'resonate') {
     return resonateTarget.value === null ? [] : [resonateTarget.value];
@@ -74,6 +82,9 @@ const operationTargets = computed(() => {
     return unlockedIndices.value.filter((index) =>
       isAffixSettlementActive(props.inst.affixes[index]!.key),
     );
+  }
+  if (operation.value === 'inscribe') {
+    return unlockedIndices.value.filter(isReservedProfessionSlot);
   }
   return unlockedIndices.value;
 });
@@ -85,7 +96,7 @@ const operationOptions: readonly {
 }[] = [
   { id: 'reforge', name: '重铸', desc: '随机一条：类型与品阶都变' },
   { id: 'temper', name: '淬炼', desc: '随机一条：保留类型，只洗品阶' },
-  { id: 'inscribe', name: '铭刻', desc: '随机一条：必出当前职业专属' },
+  { id: 'inscribe', name: '铭刻', desc: '只洗职业槽：必出本职专属' },
   { id: 'resonate', name: '同调', desc: '指定一条：直接提升一个品阶' },
 ];
 const activeOperationName = computed(() => {
@@ -117,7 +128,9 @@ const costRange = computed<CostRange | null>(() => {
       operation.value,
       definition.value.level,
       props.inst.affixes[index]!.tier,
-      operation.value === 'resonate' ? 0 : lockedIndices.value.length,
+      operation.value === 'resonate' || operation.value === 'inscribe'
+        ? 0
+        : lockedIndices.value.length,
       currentPlayer.classId,
       regionMaterials.value,
     ),
@@ -147,6 +160,7 @@ const canStart = computed(
     levelUnlocked.value &&
     !pending.value &&
     !rolling.value &&
+    !saving.value &&
     operationTargets.value.length > 0 &&
     canAffordPreview.value &&
     !(
@@ -157,10 +171,17 @@ const canStart = computed(
 );
 
 const bindCost = computed(() =>
-  operation.value === 'resonate' ? 0 : bindMaterialCost(lockedIndices.value.length),
+  operation.value === 'resonate' || operation.value === 'inscribe'
+    ? 0
+    : bindMaterialCost(lockedIndices.value.length),
 );
 const rollHint = computed(() => {
   if (operation.value === 'resonate') return '点选一条未满阶词条作为同调目标。';
+  if (operation.value === 'inscribe') {
+    return operationTargets.value.length > 0
+      ? '只改写品质预留的职业槽，不能把通用槽扩成第二条职业词条。'
+      : '当前品质没有可铭刻的职业槽。';
+  }
   if (operation.value === 'temper') {
     return `本次会从 ${operationTargets.value.length} 条已结算词条中随机选 1 条；延后词条不会参与。`;
   }
@@ -171,7 +192,7 @@ const rollHint = computed(() => {
 });
 
 function selectOperation(next: AffixChangeOperation) {
-  if (pending.value || rolling.value) return;
+  if (pending.value || rolling.value || saving.value) return;
   operation.value = next;
   feedback.value = '';
   lockedIndices.value = [];
@@ -179,8 +200,9 @@ function selectOperation(next: AffixChangeOperation) {
 }
 
 function toggleAffix(index: number) {
-  if (pending.value || rolling.value) return;
+  if (pending.value || rolling.value || saving.value) return;
   feedback.value = '';
+  if (operation.value === 'inscribe') return;
   if (operation.value === 'resonate') {
     const selected = props.inst.affixes[index];
     if (selected && isAffixSettlementActive(selected.key) && selected.tier < 5) {
@@ -188,10 +210,7 @@ function toggleAffix(index: number) {
     }
     return;
   }
-  if (
-    operation.value === 'temper' &&
-    !isAffixSettlementActive(props.inst.affixes[index]!.key)
-  ) {
+  if (operation.value === 'temper' && !isAffixSettlementActive(props.inst.affixes[index]!.key)) {
     return;
   }
   lockedIndices.value = lockedIndices.value.includes(index)
@@ -199,15 +218,20 @@ function toggleAffix(index: number) {
     : [...lockedIndices.value, index].sort((a, b) => a - b);
 }
 
-function startChange() {
+async function startChange() {
   if (!canStart.value) return;
   feedback.value = '';
-  const result = inventory.startAffixChange(
-    props.inst.uid,
-    operation.value,
-    lockedIndices.value,
-    operation.value === 'resonate' ? (resonateTarget.value ?? undefined) : undefined,
-  );
+  saving.value = true;
+  const result = await inventory
+    .startAffixChange(
+      props.inst.uid,
+      operation.value,
+      lockedIndices.value,
+      operation.value === 'resonate' ? (resonateTarget.value ?? undefined) : undefined,
+    )
+    .finally(() => {
+      saving.value = false;
+    });
   if (!result.ok) {
     feedback.value = blockMessage(result.reason, 'itemId' in result ? result.itemId : undefined);
     return;
@@ -219,8 +243,12 @@ function startChange() {
   }, 520);
 }
 
-function decide(decision: 'adopt' | 'keep') {
-  const result = inventory.resolveAffixChange(props.inst.uid, decision);
+async function decide(decision: 'adopt' | 'keep') {
+  if (saving.value) return;
+  saving.value = true;
+  const result = await inventory.resolveAffixChange(props.inst.uid, decision).finally(() => {
+    saving.value = false;
+  });
   if (!result.ok) {
     feedback.value = blockMessage(result.reason);
     return;
@@ -232,7 +260,14 @@ function decide(decision: 'adopt' | 'keep') {
 }
 
 type UiBlockReason =
-  AffixChangeBlockReason | 'no-save' | 'not-found' | 'level-locked' | 'no-pending-result';
+  | AffixChangeBlockReason
+  | 'no-save'
+  | 'not-found'
+  | 'level-locked'
+  | 'no-pending-result'
+  | 'persistence-pending'
+  | 'persistence-conflict'
+  | 'persistence-failed';
 
 function blockMessage(reason: UiBlockReason, itemId?: string): string {
   switch (reason) {
@@ -253,11 +288,13 @@ function blockMessage(reason: UiBlockReason, itemId?: string): string {
     case 'invalid-target':
       return '请先选择同调目标。';
     case 'deferred-affix':
-      return '该词条等待后续技能结算，只能通过重铸或铭刻换掉。';
+      return '该词条等待后续技能结算：通用槽可通过重铸换掉；预留职业槽也可通过铭刻换掉。';
     case 'max-tier':
       return '极品词条已经达到最高品阶。';
     case 'no-candidate':
-      return '当前组合没有不重复的新词条，请少锁一条或换一种操作。';
+      return operation.value === 'inscribe'
+        ? '当前品质没有可铭刻的职业槽。'
+        : '当前组合没有不重复的新词条，请少锁一条或换一种操作。';
     case 'insufficient-gold':
       return '金币不足。';
     case 'insufficient-item':
@@ -265,6 +302,12 @@ function blockMessage(reason: UiBlockReason, itemId?: string): string {
       return `${requireItem(itemId).name}不足。`;
     case 'no-pending-result':
       return '洗练候选已经处理过了。';
+    case 'persistence-pending':
+      return '上一笔洗练正在写入存档，请稍候。';
+    case 'persistence-conflict':
+      return '另一页面已更新存档，本页面已停止写入；请刷新后继续。';
+    case 'persistence-failed':
+      return '存档写入失败，已回滚本次操作；请检查浏览器存储后重试。';
     default: {
       const exhaustive: never = reason;
       throw new Error(`[洗练错误] 未处理的阻止原因：${exhaustive}`);
@@ -283,7 +326,8 @@ onMounted(async () => {
   dialogFocusTrap = createFocusTrap(sheet, {
     initialFocus: () => closeButtonRef.value ?? sheet,
     fallbackFocus: () => sheet,
-    clickOutsideDeactivates: true,
+    clickOutsideDeactivates: () => !saving.value,
+    escapeDeactivates: () => !saving.value,
     isolateSubtrees: 'aria-hidden',
     onDeactivate: () => emit('close'),
   });
@@ -291,6 +335,7 @@ onMounted(async () => {
 });
 
 function requestClose(): void {
+  if (saving.value) return;
   if (dialogFocusTrap?.active) {
     dialogFocusTrap.deactivate();
     return;
@@ -342,7 +387,7 @@ onBeforeUnmount(() => {
       <div v-if="pending && !rolling" class="result-card" aria-live="polite">
         <div class="result-title">
           <Sparkles :size="17" aria-hidden="true" />
-          <b>洗练结果已保留在存档</b>
+          <b>{{ saving ? '正在把结果写入存档…' : '洗练结果已保留在存档' }}</b>
         </div>
         <div v-if="oldPendingAffix" class="compare-affix">
           <div>
@@ -377,9 +422,12 @@ onBeforeUnmount(() => {
           </div>
         </div>
         <p>材料已经消耗；采用与否由你决定，保留原样不会把装备洗坏。</p>
+        <p v-if="feedback" class="feedback">{{ feedback }}</p>
         <div class="decision-row">
-          <button class="btn btn-plain" @click="decide('keep')">保留原样</button>
-          <button class="btn btn-pink" @click="decide('adopt')">采用新词条</button>
+          <button class="btn btn-plain" :disabled="saving" @click="decide('keep')">保留原样</button>
+          <button class="btn btn-pink" :disabled="saving" @click="decide('adopt')">
+            {{ saving ? '正在写入存档…' : '采用新词条' }}
+          </button>
         </div>
       </div>
 
@@ -389,7 +437,7 @@ onBeforeUnmount(() => {
             v-for="option in operationOptions"
             :key="option.id"
             :class="{ active: operation === option.id }"
-            :disabled="Boolean(pending) || rolling"
+            :disabled="Boolean(pending) || rolling || saving"
             @click="selectOperation(option.id)"
           >
             <b>{{ option.name }}</b>
@@ -415,6 +463,8 @@ onBeforeUnmount(() => {
             "
             :disabled="
               rolling ||
+              saving ||
+              operation === 'inscribe' ||
               (operation === 'resonate' && value.tier === 5) ||
               ((operation === 'temper' || operation === 'resonate') &&
                 !isAffixSettlementActive(value.key))
@@ -447,6 +497,9 @@ onBeforeUnmount(() => {
                       : '选择'
               }}
             </span>
+            <span v-else-if="operation === 'inscribe'" class="row-state">
+              {{ isReservedProfessionSlot(index) ? '铭刻目标' : '通用槽' }}
+            </span>
             <span v-else class="row-state">
               <template v-if="operation === 'temper' && !isAffixSettlementActive(value.key)">
                 待开放
@@ -469,9 +522,10 @@ onBeforeUnmount(() => {
         <div class="operation-note">
           <p>{{ rollHint }}</p>
           <small v-if="hasDeferredAffix">
-            「待 M3-4 技能结算」词条仍可查看，并可通过重铸或铭刻换掉；淬炼、同调不会继续投入。
+            「待 M3-4
+            技能结算」词条仍可查看；通用槽可通过重铸换掉，预留职业槽也可通过铭刻换掉；淬炼、同调不会继续投入。
           </small>
-          <small v-if="operation !== 'resonate'">
+          <small v-if="operation !== 'resonate' && operation !== 'inscribe'">
             定契本次消耗 {{ bindCost }} 张；完成洗练后自动解除。
           </small>
         </div>
@@ -503,7 +557,7 @@ onBeforeUnmount(() => {
         <p v-else-if="costRange && !canAffordPreview" class="feedback">材料不足，暂时无法操作。</p>
 
         <button class="start-button" :disabled="!canStart" @click="startChange">
-          {{ activeOperationName }}一次
+          {{ saving ? '正在写入存档…' : `${activeOperationName}一次` }}
         </button>
       </template>
 

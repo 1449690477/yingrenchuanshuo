@@ -57,7 +57,7 @@ describe('planClassSwitch', () => {
       equipped: loadout({ weapon: staff, head: sword }),
       bagEquipment: [],
       definitionOf: (id) =>
-        id === 'sword' ? { ...DEFINITIONS.sword!, slot: 'head' } : DEFINITIONS[id],
+        id === 'sword' ? definition('sword', 'head', 'swordsman') : DEFINITIONS[id],
     });
 
     expect(result.ok).toBe(true);
@@ -123,16 +123,18 @@ describe('planClassSwitch', () => {
 });
 
 function definition(id: string, slot: EquipSlot, classId?: ClassId): EquipmentDef {
-  return {
+  const common = {
     id,
     name: id,
-    slot,
-    quality: 'epic',
+    quality: 'epic' as const,
     level: 1,
     icon: `assets/${id}.png`,
     appearanceId: id,
     ...(classId ? { classId } : {}),
   };
+  return slot === 'weapon'
+    ? { ...common, slot, element: 'none' }
+    : { ...common, slot };
 }
 
 function instance(uid: string, defId: string, locked: boolean): EquipmentInstance {

@@ -8,6 +8,7 @@ import {
   resolvePendingAffixChange,
   type ReforgeWallet,
 } from '../reforge';
+import { AFFIX_ELEMENT_OPTIONS, PROFESSION_AFFIX_POOLS } from '@/data/constants';
 
 const regionMaterials = {
   commonIds: ['petal_sakura', 'grass_soft'],
@@ -15,17 +16,20 @@ const regionMaterials = {
 } as const;
 
 function definition(overrides: Partial<EquipmentDef> = {}): EquipmentDef {
-  return {
+  const slot = overrides.slot ?? 'weapon';
+  const { slot: _slot, element, ...rest } = overrides;
+  const common = {
     id: 'test_epic',
     name: '测试史诗',
-    slot: 'weapon',
-    quality: 'epic',
+    quality: 'epic' as const,
     level: 20,
-    element: 'fire',
     icon: 'assets/test.png',
     appearanceId: 'test',
-    ...overrides,
+    ...rest,
   };
+  return slot === 'weapon'
+    ? { ...common, slot, element: element ?? 'fire' }
+    : { ...common, slot, element: undefined };
 }
 
 function affix(key: Affix['key'], tier: Affix['tier'], value: number): Affix {
@@ -95,9 +99,7 @@ describe('洗练消耗', () => {
   });
 
   it('重铸同时消耗专用材料与当前区域 common/fine', () => {
-    expect(
-      affixChangeCost('reforge', 20, 4, 3, 'swordsman', regionMaterials),
-    ).toEqual({
+    expect(affixChangeCost('reforge', 20, 4, 3, 'swordsman', regionMaterials)).toEqual({
       gold: 1000,
       items: {
         stone_reforge: 5,
@@ -128,6 +130,9 @@ describe('洗练消耗', () => {
       gold: 6000,
       items: { crystal_resonance: 4 },
     });
+    expect(() => affixChangeCost('inscribe', 20, 2, 1, 'swordsman', regionMaterials)).toThrow(
+      '铭刻只改写预留职业槽',
+    );
   });
 });
 
@@ -245,18 +250,42 @@ describe('洗练候选事务', () => {
       definition: definition(),
       operation: 'inscribe',
       classId: 'witch',
-      lockedIndices: [1, 2, 3],
       regionMaterials,
       wallet: wallet({ items: { ...wallet().items, sigil_witch: 1 } }),
       rngState: 41,
     });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(['wit_power', 'wit_elem']).toContain(result.candidate.key);
+    expect(PROFESSION_AFFIX_POOLS.witch.map((entry) => entry.key)).toContain(result.candidate.key);
   });
 
+  it('铭刻只允许改写品质保留的职业槽，不能把通用槽扩成额外职业槽', () => {
+    const inscribeRejectsBinding = planAffixChange({
+      instance: instance(),
+      definition: definition(),
+      operation: 'inscribe',
+      classId: 'swordsman',
+      lockedIndices: [0],
+      regionMaterials,
+      wallet: wallet(),
+      rngState: 7,
+    });
+    expect(inscribeRejectsBinding).toEqual({ ok: false, reason: 'invalid-locks' });
 
-
+    const rareDefinition = definition({ quality: 'rare' });
+    const noProfessionSlot = planAffixChange({
+      instance: instance({
+        affixes: [affix('atk', 2, 20), affix('def', 2, 18)],
+      }),
+      definition: rareDefinition,
+      operation: 'inscribe',
+      classId: 'swordsman',
+      regionMaterials,
+      wallet: wallet(),
+      rngState: 8,
+    });
+    expect(noProfessionSlot).toEqual({ ok: false, reason: 'no-candidate' });
+  });
 
   it('重铸命中职业槽必给职业词条，命中通用槽必给通用词条', () => {
     // 神话只有 1 个职业槽（索引 4）。槽位性质决定候选来源，不会串池。
@@ -287,6 +316,35 @@ describe('洗练候选事务', () => {
     expect(hitCommonSlot).toBeGreaterThan(0);
   });
 
+  it('重铸按装备等级过滤尚无真实武器来源的元素词条', () => {
+    const collectElements = (level: number) => {
+      const elements = new Set<string>();
+      for (let rngState = 1; rngState <= 1_000; rngState++) {
+        const result = planAffixChange({
+          instance: instance(),
+          definition: definition({ level }),
+          operation: 'reforge',
+          classId: 'witch',
+          regionMaterials,
+          wallet: wallet(),
+          rngState,
+        });
+        expect(result.ok).toBe(true);
+        if (
+          result.ok &&
+          (result.candidate.key === 'elemDmg' || result.candidate.key === 'wit_elem')
+        ) {
+          elements.add(result.candidate.element!);
+        }
+      }
+      return elements;
+    };
+
+    expect(collectElements(15)).toEqual(new Set());
+    expect(collectElements(16)).toEqual(new Set(['fire', 'ice']));
+    expect(collectElements(20)).toEqual(new Set(AFFIX_ELEMENT_OPTIONS));
+  });
+
   it('铭刻把职业槽换成另一条可用的职业词条', () => {
     const result = planAffixChange({
       instance: mythicInstance(),
@@ -301,6 +359,35 @@ describe('洗练候选事务', () => {
     if (!result.ok) return;
     expect(result.targetIndex).toBe(4);
     expect(result.candidate.key).toBe('swd_heavy');
+  });
+
+  it('连续铭刻始终只替换同一个预留槽，不会增加职业词条数量', () => {
+    const professionKeys = new Set(PROFESSION_AFFIX_POOLS.swordsman.map((entry) => entry.key));
+    let current = mythicInstance();
+    let currentWallet = wallet();
+
+    for (const rngState of [11, 22, 33]) {
+      const planned = planAffixChange({
+        instance: current,
+        definition: mythicDefinition(),
+        operation: 'inscribe',
+        classId: 'swordsman',
+        regionMaterials,
+        wallet: currentWallet,
+        rngState,
+      });
+      expect(planned.ok).toBe(true);
+      if (!planned.ok) return;
+      expect(planned.targetIndex).toBe(4);
+
+      current = resolvePendingAffixChange(planned.instance, 'adopt').instance;
+      currentWallet = planned.wallet;
+      expect(current.affixes).toHaveLength(5);
+      expect(current.affixes.slice(0, 4).some((entry) => professionKeys.has(entry.key))).toBe(
+        false,
+      );
+      expect(professionKeys.has(current.affixes[4]!.key)).toBe(true);
+    }
   });
 
   it('五槽全锁才是 all-affixes-locked，且不扣费、不推进 RNG', () => {
@@ -341,31 +428,26 @@ describe('洗练候选事务', () => {
     expect(result.resonanceAfter).toBe(11);
   });
 
-  it('旧档技能倍率只能重铸或铭刻换掉，淬炼与同调不扣费也不推进 RNG', () => {
+  it('旧档通用槽技能倍率只能重铸换掉，淬炼与同调不扣费也不推进 RNG', () => {
     const legacy = instance({
-      affixes: [
-        affix('skillMul', 3, 2.5),
-        affix('atk', 3, 30),
-        affix('swd_guard', 3, 42),
-      ],
+      affixes: [affix('skillMul', 3, 2.5), affix('atk', 3, 30), affix('swd_guard', 3, 42)],
     });
     const sourceWallet = wallet();
 
-    for (const operation of ['reforge', 'inscribe'] as const) {
-      const result = planAffixChange({
-        instance: legacy,
-        definition: definition(),
-        operation,
-        classId: 'swordsman',
-        lockedIndices: [1, 2],
-        regionMaterials,
-        wallet: sourceWallet,
-        rngState: 20260728,
-      });
-      expect(result.ok, operation).toBe(true);
-      if (!result.ok) continue;
-      expect(result.targetIndex).toBe(0);
-      expect(result.candidate.key).not.toBe('skillMul');
+    const reforge = planAffixChange({
+      instance: legacy,
+      definition: definition(),
+      operation: 'reforge',
+      classId: 'swordsman',
+      lockedIndices: [1, 2],
+      regionMaterials,
+      wallet: sourceWallet,
+      rngState: 20260728,
+    });
+    expect(reforge.ok).toBe(true);
+    if (reforge.ok) {
+      expect(reforge.targetIndex).toBe(0);
+      expect(reforge.candidate.key).not.toBe('skillMul');
     }
 
     const temper = planAffixChange({

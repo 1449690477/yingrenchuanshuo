@@ -15,6 +15,7 @@ import {
   QUALITY_PROFESSION_AFFIX_COUNT,
   QUALITY_RANK,
 } from '@/data/constants';
+import { PROTECT_TIER_THRESHOLD } from '@/data/reforgeRules';
 
 /**
  * 推荐洗练引擎（纯函数，不消耗 RNG、不读存档）。
@@ -50,9 +51,10 @@ export interface ReforgeRecommendation {
   /**
    * 随机操作前建议定契（保护）的词条下标。
    *
-   * 重铸/淬炼/铭刻都是「从未定契的词条里随机挑一条改掉」——
+   * 重铸 / 淬炼才会「从未定契的词条里随机挑一条改掉」——
    * 一件三词条的装备只要有一条是好的，不定契就有三分之一的概率把它洗没，
    * 而界面此前完全没有提示。这里把该保护的挑出来，UI 负责告知风险。
+   * 铭刻固定命中预留职业槽且不接受定契，因此不会携带 protectIndices。
    */
   protectIndices?: readonly number[];
 }
@@ -193,13 +195,16 @@ function buildRecommendation(
   const dead = affixes.filter((affix) => affix.status === 'dead');
   const foreign = affixes.filter((affix) => affix.status === 'foreign');
   const useful = affixes.filter(isUseful);
-  const hasProfession = useful.some((affix) => affix.status === 'profession');
   const professionSlots = Math.min(
     QUALITY_PROFESSION_AFFIX_COUNT[definition.quality],
     affixes.length,
   );
   const inProfessionSlot = (index: number) =>
     professionSlots > 0 && index >= affixes.length - professionSlots;
+  const professionSlotAffixes = affixes.filter((affix) => inProfessionSlot(affix.index));
+  const hasProfession = professionSlotAffixes.some(
+    (affix) => affix.status === 'profession',
+  );
 
   // 1. 死词条最优先：待开放词条完全不生效，先换掉。
   if (dead.length > 0) {
@@ -208,7 +213,7 @@ function buildRecommendation(
       return {
         operation: 'inscribe',
         headline: '铭刻必出本职专属，顺便替换死词条',
-        reason: `「待开放」词条不会生效，而这台装备的职业槽还空着；铭刻随机一条时必出本职业专属。`,
+        reason: '「待开放」词条不会生效，而它正占着预留职业槽；铭刻会直接改写该槽。',
         expected: '死词条必被替换成一条生效的本职专属词条',
         priority: 118 + dead.length * 12 + worthScore * 0.2,
       };
@@ -224,6 +229,18 @@ function buildRecommendation(
 
   // 2. 他职专属对当前职业零收益。
   if (foreign.length > 0) {
+    const foreignInProfessionSlot = foreign.some((affix) =>
+      inProfessionSlot(affix.index),
+    );
+    if (foreignInProfessionSlot && !hasProfession) {
+      return {
+        operation: 'inscribe',
+        headline: '职业槽不匹配，铭刻为当前职业专属',
+        reason: '预留职业槽现在属于其他职业；铭刻只改写这个槽，不会碰通用词条。',
+        expected: '他职专属必被替换成当前职业可用的专属词条',
+        priority: 106 + foreign.length * 10 + worthScore * 0.2,
+      };
+    }
     return {
       operation: 'reforge',
       headline: `洗掉 ${foreign.length} 条他职业专属词条`,
@@ -253,22 +270,20 @@ function buildRecommendation(
     };
   }
 
-  // 4. 缺本职专属且装备有职业槽：铭刻必出。
-  // 但铭刻的目标是随机一条——只有当装备里存在 T1~T2 的可牺牲词条时才推荐，
-  // 避免玩家把已经很好的高阶词条赌掉。
-  const sacrificeable = useful.filter((affix) => affix.tier <= 2);
+  // 4. 缺本职专属且预留槽仍是低阶通用词条：铭刻只改该槽，不碰其他通用槽。
+  const professionSlotsAreReplaceable =
+    professionSlotAffixes.length > 0 &&
+    professionSlotAffixes.every((affix) => affix.tier <= 2);
   if (
     !hasProfession &&
     professionSlots > 0 &&
     QUALITY_RANK[definition.quality] >= 3 &&
-    sacrificeable.length > 0
+    professionSlotsAreReplaceable
   ) {
     return {
       operation: 'inscribe',
       headline: '缺一条本职业专属，铭刻必出',
-      reason:
-        '这件装备的品质带有职业专属槽，铭刻随机一条时必出本职业专属词条；' +
-        `当前有 ${sacrificeable.length} 条低阶词条可承担替换风险。`,
+      reason: '这件装备的预留职业槽仍是低阶通用词条；铭刻只改写该槽，必出本职业专属。',
       expected: '必得一条生效的本职专属词条',
       priority: 68 + worthScore * 0.3,
     };
@@ -307,8 +322,6 @@ function buildRecommendation(
  * 门槛定在 T4 而不是 T3：T3 还在随机洗练的期望附近，锁它等于花材料
  * 保护一条本来就容易再摇出来的词条；T4/T5 才是真正洗坏了会心疼的。
  */
-export const PROTECT_TIER_THRESHOLD: AffixTier = 4;
-
 function protectIndicesOf(affixes: readonly AffixAssessment[]): number[] {
   return affixes
     .filter((affix) => isUseful(affix) && affix.tier >= PROTECT_TIER_THRESHOLD)
@@ -349,14 +362,17 @@ export function assessEquipment(
   };
 }
 
-/** 随机操作（重铸/淬炼/铭刻）才会误伤别的词条；同调是指定的，不需要保护。 */
-const RANDOM_OPERATIONS: readonly AffixChangeOperation[] = ['reforge', 'temper', 'inscribe'];
+/**
+ * 只有会在多个通用槽之间随机选目标的操作才需要定契建议。
+ * 铭刻固定改写预留职业槽，同调由玩家指定；两者都不接受临时锁定。
+ */
+const LOCKABLE_RANDOM_OPERATIONS: readonly AffixChangeOperation[] = ['reforge', 'temper'];
 
 function withProtection(
   recommendation: ReforgeRecommendation | null,
   affixes: readonly AffixAssessment[],
 ): ReforgeRecommendation | null {
-  if (!recommendation || !RANDOM_OPERATIONS.includes(recommendation.operation)) {
+  if (!recommendation || !LOCKABLE_RANDOM_OPERATIONS.includes(recommendation.operation)) {
     return recommendation;
   }
   const protectIndices = protectIndicesOf(affixes);

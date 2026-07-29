@@ -8,18 +8,28 @@
  * 这里只负责：名字、等级、品质、槽位、图标。
  */
 
-import type { AffixKey, EquipmentDef, EquipSlot, FixedAffix, Quality } from '@/core/types';
+import type {
+  AffixKey,
+  Element,
+  EquipmentDef,
+  EquipSlot,
+  FixedAffix,
+  Quality,
+} from '@/core/types';
 import { QUALITY_AFFIX_COUNT, SLOT_ORDER } from './constants';
 import { AFFECTION_EQUIPMENT_LIST } from './affectionEquipment';
 import { BOUTIQUE_THEME_LIST, boutiqueAppearanceId, boutiqueEquipmentId } from './boutique';
 import { EQUIPMENT_DUNGEON_GEAR_LIST } from './equipmentDungeonGear';
 import { REGION_34_EQUIPMENT_THEMES } from './region34';
+import { BOUTIQUE_WEAPON_ELEMENTS, REGION_WEAPON_ELEMENTS } from './weaponElements';
 
 /** 每个区域一套命名主题：8 个槽位各一个词根 */
 interface NamingTheme {
   regionId: string;
   /** 装备等级基准 */
   level: number;
+  /** 本区域武器的基础攻击属性；必须显式填写，禁止由词条反推。 */
+  weaponElement: Element;
   /** 该区域产出的品质档 */
   qualities: Quality[];
   /** 同区域同部位共用基础图，品质由 UI 边框和光效表达 */
@@ -32,6 +42,7 @@ const THEMES: NamingTheme[] = [
     regionId: 'r1',
     // 白装 Lv2 即可穿，和 docs/14 的「Lv2 解锁装备穿戴」一致。
     level: 4,
+    weaponElement: REGION_WEAPON_ELEMENTS.r1,
     qualities: ['common', 'fine', 'rare'],
     icons: {
       weapon: 'assets/equipment/r1/weapon.png',
@@ -57,6 +68,7 @@ const THEMES: NamingTheme[] = [
   {
     regionId: 'r2',
     level: 16,
+    weaponElement: REGION_WEAPON_ELEMENTS.r2,
     qualities: ['fine', 'rare', 'epic'],
     icons: {
       weapon: 'assets/equipment/r2/weapon.png',
@@ -86,6 +98,7 @@ const THEMES: NamingTheme[] = [
   ...REGION_34_EQUIPMENT_THEMES.map((theme) => ({
     regionId: theme.regionId,
     level: theme.regionId === 'r3' ? 26 : 36,
+    weaponElement: REGION_WEAPON_ELEMENTS[theme.regionId],
     qualities: ['fine', 'rare', 'epic'] as Quality[],
     icons: Object.fromEntries(
       SLOT_ORDER.map((slot) => [slot, `assets/equipment/${theme.regionId}/${slot}.png`]),
@@ -125,15 +138,18 @@ function buildEquipment(): Record<string, EquipmentDef> {
     for (const slot of SLOT_ORDER) {
       for (const quality of theme.qualities) {
         const id = `eq_${theme.regionId}_${slot}_${quality}`;
-        out[id] = {
+        const common = {
           id,
           name: QUALITY_PREFIX[quality] + theme.names[slot],
-          slot,
           quality,
           level: Math.max(1, theme.level + QUALITY_LEVEL_OFFSET[quality]),
           icon: theme.icons[slot],
           appearanceId: `${theme.regionId}-${slot}`,
         };
+        out[id] =
+          slot === 'weapon'
+            ? { ...common, slot, element: theme.weaponElement }
+            : { ...common, slot };
       }
     }
   }
@@ -143,10 +159,9 @@ function buildEquipment(): Record<string, EquipmentDef> {
     for (const item of theme.items) {
       const id = boutiqueEquipmentId(theme.id, item.slot, item.classId);
       const iconName = item.classId ? `${item.slot}-${item.classId}.png` : `${item.slot}.png`;
-      out[id] = {
+      const common = {
         id,
         name: item.name,
-        slot: item.slot,
         quality: theme.quality,
         level: theme.level,
         icon: `assets/equipment/shop/${theme.id}/${iconName}`,
@@ -162,6 +177,10 @@ function buildEquipment(): Record<string, EquipmentDef> {
         boutiqueTheme: theme.id,
         ...(item.classId ? { classId: item.classId } : {}),
       };
+      out[id] =
+        item.slot === 'weapon'
+          ? { ...common, slot: item.slot, element: BOUTIQUE_WEAPON_ELEMENTS[theme.id] }
+          : { ...common, slot: item.slot };
     }
   }
 
