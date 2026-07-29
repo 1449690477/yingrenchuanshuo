@@ -31,12 +31,7 @@ import {
 } from '@/data/trialRules';
 import { estimateDps } from '../combat';
 import { addStats } from '../formula';
-import {
-  applyClassMods,
-  averageSkillMultiplier,
-  baseStatsFor,
-  makePlayer,
-} from '../progression';
+import { applyClassMods, averageSkillMultiplier, baseStatsFor, makePlayer } from '../progression';
 import { expectedGearStats, typicalQualityAt } from '@/data/expectedPower';
 import { createInstance } from '../equipment';
 import { EQUIPMENT } from '@/data/equipment';
@@ -228,10 +223,38 @@ describe('runTrial / 试炼模拟', () => {
     const runA = runTrial(build, boss, seed);
     const runB = runTrial(build, boss, seed);
     expect(runA.damage).toBe(runB.damage);
+    expect(runA.damageTaken).toBe(runB.damageTaken);
     expect(runA.survived).toBe(runB.survived);
+    expect(runA.timeline).toEqual(runB.timeline);
+    expect(runA.playerHpRemaining).toBe(runB.playerHpRemaining);
+    expect(runA.bossHpRemaining).toBe(runB.bossHpRemaining);
     // 不修改入参
     expect(boss.currentHp).toBe(boss.stats.hp);
     expect(build.combatant.currentHp).toBe(build.combatant.stats.hp);
+  });
+
+  it('回放逐击与最终战果使用同一份模拟数据', () => {
+    const build = buildTrialCombatant({
+      name: '回放校验',
+      classId: 'witch',
+      level: 45,
+      equipped: EMPTY_EQUIPPED,
+    });
+    const boss = weeklyTrialBoss(SEASON, 30, 'feiyue').combatant;
+    const result = runTrial(build, boss, trialScoreSeed(SEASON, 30, 'feiyue', build.buildHash));
+    const playerDamage = result.timeline
+      .filter((event) => event.source === 'player')
+      .reduce((sum, event) => sum + event.event.damage, 0);
+    const monsterDamage = result.timeline
+      .filter((event) => event.source === 'monster')
+      .reduce((sum, event) => sum + event.event.damage, 0);
+
+    expect(Math.round(playerDamage)).toBe(result.damage);
+    expect(Math.round(monsterDamage)).toBe(result.damageTaken);
+    expect(Math.round(result.bossHpMax - result.bossHpRemaining)).toBe(result.damage);
+    expect(result.playerHpRemaining).toBeGreaterThanOrEqual(0);
+    expect(result.playerHpRemaining).toBeLessThanOrEqual(result.playerHpMax);
+    expect(result.bossHpRemaining).toBeGreaterThan(0);
   });
 
   it('不设失败状态：任何人都能打出一个非负成绩', () => {

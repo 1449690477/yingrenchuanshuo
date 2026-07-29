@@ -34,6 +34,7 @@ import { ELEMENT_LABELS } from '@/data/trialRules';
 import { useGameStore } from '@/stores/game';
 import { useLeaderboardStore, type TrialChallengeOutcome } from '@/stores/leaderboard';
 import type { TrialSubmitResult } from '@/net/leaderboard';
+import TrialBattleScene from '@/components/TrialBattleScene.vue';
 
 const game = useGameStore();
 const lb = useLeaderboardStore();
@@ -63,6 +64,9 @@ const remainingText = computed(() => {
 // ─────────── 挑战（确定性模拟，成绩与服务端复算逐点一致） ───────────
 const challenging = ref(false);
 const outcome = ref<TrialChallengeOutcome | null>(null);
+const pendingOutcome = ref<TrialChallengeOutcome | null>(null);
+const battleRun = ref<TrialChallengeOutcome['result'] | null>(null);
+const playbackKey = ref(0);
 const displayDamage = ref(0);
 let countUpFrame = 0;
 
@@ -85,19 +89,25 @@ function animateCountUp(target: number, durationMs = 900): void {
 function onChallenge(): void {
   if (challenging.value) return;
   challenging.value = true;
-  // 短暂的交锋演出后才揭晓数字；模拟本身是即时的确定性计算
-  window.setTimeout(
-    () => {
-      try {
-        outcome.value = lb.challengeTrial();
-        displayDamage.value = 0;
-        animateCountUp(outcome.value.result.damage);
-      } finally {
-        challenging.value = false;
-      }
-    },
-    motionReduced.value ? 60 : 720,
-  );
+  outcome.value = null;
+  try {
+    const next = lb.challengeTrial();
+    pendingOutcome.value = next;
+    battleRun.value = next.result;
+    playbackKey.value++;
+  } catch (error) {
+    challenging.value = false;
+    throw error;
+  }
+}
+
+function onBattleComplete(completedKey: number): void {
+  if (completedKey !== playbackKey.value || !pendingOutcome.value) return;
+  outcome.value = pendingOutcome.value;
+  pendingOutcome.value = null;
+  challenging.value = false;
+  displayDamage.value = 0;
+  animateCountUp(outcome.value.result.damage);
 }
 
 function closeOutcome(): void {
@@ -191,16 +201,12 @@ onUnmounted(() => {
         >
       </header>
 
-      <div class="boss-body">
-        <div class="emblem" aria-hidden="true">
-          <span class="emblem-ring ring-a" />
-          <span class="emblem-ring ring-b" />
-          <span class="emblem-core">
-            <component :is="elementIcon" :size="26" :stroke-width="2" />
-          </span>
-        </div>
+      <div class="boss-body brief-body">
         <div class="boss-copy">
-          <span class="boss-week">本周 Boss · {{ elementLabel }}属性</span>
+          <span class="boss-week brief-element">
+            <component :is="elementIcon" :size="12" :stroke-width="2.2" aria-hidden="true" />
+            本周 Boss · {{ elementLabel }}属性
+          </span>
           <strong class="boss-name">{{ lb.boss.name }}</strong>
           <em class="boss-hint">「{{ lb.boss.tilt.hint }}」</em>
           <span class="boss-badges">
@@ -210,6 +216,18 @@ onUnmounted(() => {
         </div>
       </div>
     </section>
+
+    <TrialBattleScene
+      :boss="lb.boss"
+      :class-id="lb.classId"
+      :level="game.player?.level ?? 1"
+      :equipped="game.save?.equipped ?? null"
+      :player-name="game.player?.name ?? '挑战者'"
+      :run="battleRun"
+      :playback-key="playbackKey"
+      :reduce-motion="motionReduced"
+      @complete="onBattleComplete"
+    />
 
     <!-- ═══ 我的成绩卡 ═══ -->
     <section class="card my-score">
@@ -235,7 +253,7 @@ onUnmounted(() => {
       <div class="score-actions">
         <button class="btn btn-pink challenge-btn" :disabled="challenging" @click="onChallenge">
           <Swords :size="14" aria-hidden="true" />
-          {{ challenging ? '交锋中…' : lb.myBestThisWeek ? '再次挑战' : '挑战试炼' }}
+          {{ challenging ? '试炼进行中…' : lb.myBestThisWeek ? '再次挑战' : '挑战试炼' }}
           <i v-if="challenging" class="clash" aria-hidden="true" />
         </button>
         <button
@@ -698,6 +716,23 @@ onUnmounted(() => {
   background: rgb(255 255 255 / 70%);
   border: 1px solid color-mix(in srgb, var(--elem-deep) 26%, transparent);
   border-radius: 999px;
+}
+
+.brief-body {
+  align-items: flex-start;
+  gap: 0;
+  margin-top: 8px;
+}
+
+.brief-body .boss-copy {
+  width: 100%;
+}
+
+.brief-element {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--elem-deep);
 }
 
 /* ═══════════ 我的成绩卡 ═══════════ */

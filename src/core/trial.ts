@@ -13,16 +13,10 @@
  *   - 所有随机都来自 src/core/rng.ts（AGENTS.md 铁律 4）
  */
 
-import type {
-  ClassId,
-  Combatant,
-  CombatBonuses,
-  EquipmentInstance,
-  Stats,
-} from './types';
+import type { ClassId, Combatant, CombatBonuses, EquipmentInstance, Stats } from './types';
 import { Rng } from './rng';
 import { addStats, combatPower } from './formula';
-import { estimateDps, simulateFight } from './combat';
+import { estimateDps, simulateFight, type CombatTimelineEvent } from './combat';
 import { type OnHitElementalDamageTrigger } from './equipmentSets';
 import {
   applyClassMods,
@@ -316,9 +310,17 @@ function canonicalInstance(inst: EquipmentInstance): string {
 export interface TrialRunResult {
   /** 60 秒内造成的总伤害（即试炼成绩） */
   damage: number;
+  /** 60 秒内承受的总伤害；只供战斗回放与结果说明使用。 */
+  damageTaken: number;
   /** 是否活满全程；狂怒周可能提前倒下，伤害定格在倒下那一刻 */
   survived: boolean;
   durationSec: number;
+  /** 同一次确定性模拟产生的真实逐击事件，表现层只能消费、不得反写成绩。 */
+  timeline: readonly CombatTimelineEvent[];
+  playerHpRemaining: number;
+  playerHpMax: number;
+  bossHpRemaining: number;
+  bossHpMax: number;
 }
 
 /**
@@ -339,8 +341,14 @@ export function runTrial(build: TrialBuild, boss: Combatant, seed: number): Tria
   });
   return {
     damage: Math.max(0, Math.round(result.damageDealt)),
+    damageTaken: Math.max(0, Math.round(result.damageTaken)),
     survived: player.currentHp > 0,
     durationSec: result.duration,
+    timeline: result.events,
+    playerHpRemaining: player.currentHp,
+    playerHpMax: player.stats.hp,
+    bossHpRemaining: target.currentHp,
+    bossHpMax: target.stats.hp,
   };
 }
 
