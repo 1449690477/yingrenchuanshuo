@@ -58,6 +58,7 @@ describe('区域材料来源分层', () => {
       egg_broodmother: 12,
       tear_eternal: 12,
       core_moltenheart: 12,
+      stone_void: 12,
     });
     for (const materialId of Object.keys(REGION_MATERIAL_PITY_COUNT_BY_ID)) {
       expect(requireRegionMaterialPityCount(materialId)).toBe(12);

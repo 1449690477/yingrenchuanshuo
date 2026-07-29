@@ -19,7 +19,9 @@ import {
   hitChance,
 } from './formula';
 import {
+  assertOnLethalRecoveryTrigger,
   assertOnHitElementalDamageTrigger,
+  type OnLethalRecoveryTrigger,
   type OnHitElementalDamageTrigger,
 } from './equipmentSets';
 import { IDLE_FREE_DAMAGE_RATIO, IDLE_SUSTAIN_HINT_EFFICIENCY } from '@/data/constants';
@@ -39,6 +41,10 @@ export interface FightOptions {
   playerOnHitTriggers?: readonly OnHitElementalDamageTrigger[];
   /** 为未来怪物机制预留的同一逐击接口。 */
   monsterOnHitTriggers?: readonly OnHitElementalDamageTrigger[];
+  /** 玩家受到致命伤害时可触发的每场战斗防护。 */
+  playerOnLethalTriggers?: readonly OnLethalRecoveryTrigger[];
+  /** 怪物受到致命伤害时可触发的同一接口。 */
+  monsterOnLethalTriggers?: readonly OnLethalRecoveryTrigger[];
   /** 时间上限 */
   maxSeconds?: number;
 }
@@ -60,6 +66,14 @@ export interface OnHitElementalDamageEvent {
 
 export type DamageSegmentEvent = DirectDamageSegmentEvent | OnHitElementalDamageEvent;
 
+export interface LethalRecoveryEvent {
+  kind: 'lethal-recovery';
+  /** 回复事件本身不造成伤害，保留字段让通用时间线可直接累计伤害。 */
+  damage: 0;
+  healing: number;
+  triggerId: string;
+}
+
 export interface DamageSegmentResolution {
   direct: DirectDamageSegmentEvent;
   /** 顺序固定为直接伤害、随后各个已触发追加段；视觉只能消费这些结算事件。 */
@@ -70,7 +84,7 @@ export interface CombatTimelineEvent {
   sequence: number;
   source: 'player' | 'monster';
   target: 'player' | 'monster';
-  event: DamageSegmentEvent;
+  event: DamageSegmentEvent | LethalRecoveryEvent;
 }
 
 export interface SimulatedFightResult extends CombatResult {
@@ -173,6 +187,8 @@ export function simulateFight(
   let damageDealt = 0;
   let damageTaken = 0;
   const events: CombatTimelineEvent[] = [];
+  const playerLethalUses = createLethalTriggerUses(opts.playerOnLethalTriggers);
+  const monsterLethalUses = createLethalTriggerUses(opts.monsterOnLethalTriggers);
 
   const playerInterval = 1 / Math.max(0.01, player.stats.spd);
   const monsterInterval = 1 / Math.max(0.01, monster.stats.spd);
@@ -185,14 +201,30 @@ export function simulateFight(
     if (playerCd <= 0) {
       playerCd += playerInterval;
       const segment = resolveDamageSegment(player, monster, pMul, rng, opts.playerOnHitTriggers);
-      damageDealt += applyDamageSegment(player, monster, segment, 'player', events);
+      damageDealt += applyDamageSegment(
+        player,
+        monster,
+        segment,
+        'player',
+        events,
+        opts.monsterOnLethalTriggers,
+        monsterLethalUses,
+      );
       if (monster.currentHp <= 0) break;
     }
 
     if (monsterCd <= 0) {
       monsterCd += monsterInterval;
       const segment = resolveDamageSegment(monster, player, mMul, rng, opts.monsterOnHitTriggers);
-      damageTaken += applyDamageSegment(monster, player, segment, 'monster', events);
+      damageTaken += applyDamageSegment(
+        monster,
+        player,
+        segment,
+        'monster',
+        events,
+        opts.playerOnLethalTriggers,
+        playerLethalUses,
+      );
     }
   }
 
@@ -354,18 +386,42 @@ export function canSustain(
  *
  * 吸血只按目标剩余生命内的非过量伤害计算；回复后生命不得超过最大生命。
  */
+interface AppliedDamage {
+  damage: number;
+  recovery: LethalRecoveryEvent | null;
+}
+
+function createLethalTriggerUses(
+  triggers: readonly OnLethalRecoveryTrigger[] = [],
+): Map<string, number> {
+  const uses = new Map<string, number>();
+  for (const trigger of triggers) {
+    assertOnLethalRecoveryTrigger(trigger);
+    if (uses.has(trigger.id)) {
+      throw new Error(`[配置错误] 重复的致命伤触发 ID：${trigger.id}`);
+    }
+    uses.set(trigger.id, 0);
+  }
+  return uses;
+}
+
 function applyDamageAndLifesteal(
   attacker: Combatant,
   defender: Combatant,
   rolledDamage: number,
-): number {
+  lethalTriggers: readonly OnLethalRecoveryTrigger[] = [],
+  lethalUses: Map<string, number> = new Map(),
+): AppliedDamage {
   const actualDamage = Math.min(Math.max(0, defender.currentHp), Math.max(0, rolledDamage));
   defender.currentHp = Math.max(0, defender.currentHp - actualDamage);
 
   const lifestealPoints = attacker.combatBonuses?.lifesteal ?? 0;
   const healing = actualDamage * (Math.max(0, lifestealPoints) / 100);
   attacker.currentHp = Math.min(attacker.stats.hp, attacker.currentHp + healing);
-  return actualDamage;
+  return {
+    damage: actualDamage,
+    recovery: resolveLethalRecovery(defender, lethalTriggers, lethalUses),
+  };
 }
 
 function applyDamageSegment(
@@ -374,13 +430,27 @@ function applyDamageSegment(
   resolution: DamageSegmentResolution,
   source: 'player' | 'monster',
   timeline: CombatTimelineEvent[],
+  defenderLethalTriggers: readonly OnLethalRecoveryTrigger[] = [],
+  defenderLethalUses: Map<string, number> = new Map(),
 ): number {
   let total = 0;
   for (const event of resolution.events) {
-    const actualDamage =
+    const applied =
       event.kind === 'direct-damage'
-        ? applyDamageAndLifesteal(attacker, defender, event.damage)
-        : applyDamageOnly(defender, event.damage);
+        ? applyDamageAndLifesteal(
+            attacker,
+            defender,
+            event.damage,
+            defenderLethalTriggers,
+            defenderLethalUses,
+          )
+        : applyDamageOnly(
+            defender,
+            event.damage,
+            defenderLethalTriggers,
+            defenderLethalUses,
+          );
+    const actualDamage = applied.damage;
     total += actualDamage;
 
     // 命中失败也作为直接段事件保留，方便未来表现层显示 MISS；追加段若因直接段
@@ -392,12 +462,54 @@ function applyDamageSegment(
       target: source === 'player' ? 'monster' : 'player',
       event: { ...event, damage: actualDamage },
     });
+    if (applied.recovery) {
+      timeline.push({
+        sequence: timeline.length + 1,
+        source: source === 'player' ? 'monster' : 'player',
+        target: source === 'player' ? 'monster' : 'player',
+        event: applied.recovery,
+      });
+    }
   }
   return total;
 }
 
-function applyDamageOnly(defender: Combatant, rolledDamage: number): number {
+function applyDamageOnly(
+  defender: Combatant,
+  rolledDamage: number,
+  lethalTriggers: readonly OnLethalRecoveryTrigger[] = [],
+  lethalUses: Map<string, number> = new Map(),
+): AppliedDamage {
   const actualDamage = Math.min(Math.max(0, defender.currentHp), Math.max(0, rolledDamage));
   defender.currentHp = Math.max(0, defender.currentHp - actualDamage);
-  return actualDamage;
+  return {
+    damage: actualDamage,
+    recovery: resolveLethalRecovery(defender, lethalTriggers, lethalUses),
+  };
+}
+
+function resolveLethalRecovery(
+  defender: Combatant,
+  triggers: readonly OnLethalRecoveryTrigger[],
+  uses: Map<string, number>,
+): LethalRecoveryEvent | null {
+  if (defender.currentHp > 0) return null;
+  for (const trigger of triggers) {
+    assertOnLethalRecoveryTrigger(trigger);
+    const used = uses.get(trigger.id);
+    if (used === undefined) {
+      throw new Error(`[战斗错误] 致命伤触发没有初始化：${trigger.id}`);
+    }
+    if (used >= trigger.activationsPerFight) continue;
+    uses.set(trigger.id, used + 1);
+    const healing = defender.stats.hp * trigger.healRatio;
+    defender.currentHp = Math.min(defender.stats.hp, Math.max(Number.EPSILON, healing));
+    return {
+      kind: 'lethal-recovery',
+      damage: 0,
+      healing: defender.currentHp,
+      triggerId: trigger.id,
+    };
+  }
+  return null;
 }

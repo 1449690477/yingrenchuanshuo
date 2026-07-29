@@ -1,6 +1,7 @@
 import type {
   CombatTimelineEvent,
   DirectDamageSegmentEvent,
+  LethalRecoveryEvent,
   OnHitElementalDamageEvent,
 } from '@/core/combat';
 import { requireTrialMotionTiming, type TrialBossMotion } from '@/data/trialVisuals';
@@ -15,6 +16,7 @@ export interface TrialPresentationBeat {
   playerHitOrdinal: number;
   direct: DirectDamageSegmentEvent;
   extras: readonly OnHitElementalDamageEvent[];
+  recoveries: readonly LethalRecoveryEvent[];
   totalDamage: number;
   startMs: number;
   impactMs: number;
@@ -90,6 +92,7 @@ export function createTrialPlaybackPlan(
       playerHitOrdinal: group.source === 'player' ? playerHitOrdinal : 0,
       direct: group.direct,
       extras: group.extras,
+      recoveries: group.recoveries,
       totalDamage: group.direct.damage + group.extras.reduce((sum, extra) => sum + extra.damage, 0),
       startMs,
       impactMs,
@@ -105,6 +108,7 @@ interface GroupedTimelineBeat {
   target: CombatTimelineEvent['target'];
   direct: DirectDamageSegmentEvent;
   extras: OnHitElementalDamageEvent[];
+  recoveries: LethalRecoveryEvent[];
 }
 
 function groupTimeline(timeline: readonly CombatTimelineEvent[]): GroupedTimelineBeat[] {
@@ -123,13 +127,18 @@ function groupTimeline(timeline: readonly CombatTimelineEvent[]): GroupedTimelin
         target: item.target,
         direct: item.event,
         extras: [],
+        recoveries: [],
       });
       continue;
     }
 
     const current = groups.at(-1);
     if (!current) {
-      throw new Error(`[试炼演出] 元素追加段 ${item.sequence} 前没有直接伤害`);
+      throw new Error(`[试炼演出] 追加事件 ${item.sequence} 前没有直接伤害`);
+    }
+    if (item.event.kind === 'lethal-recovery') {
+      current.recoveries.push(item.event);
+      continue;
     }
     if (current.source !== item.source || current.target !== item.target) {
       throw new Error(`[试炼演出] 元素追加段 ${item.sequence} 与前一击攻守方不一致`);

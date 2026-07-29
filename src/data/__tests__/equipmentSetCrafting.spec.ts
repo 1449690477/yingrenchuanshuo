@@ -240,7 +240,24 @@ describe('套装通用碎片配方注册器', () => {
     });
     expect(Object.keys(EQUIPMENT_SET_CRAFTING_RECIPES)).toEqual([
       'craft_set_crimson',
+      'craft_set_shadow',
     ]);
+    expect(getEquipmentSetCraftingRecipe('craft_set_shadow')).toEqual({
+      id: 'craft_set_shadow',
+      setId: 'set_region_shadow',
+      fragmentItemId: 'frag_shadow',
+      fragmentCount: 55,
+      targetDefIds: {
+        weapon: 'eq_set_region_shadow_weapon',
+        head: 'eq_set_region_shadow_head',
+        body: 'eq_set_region_shadow_body',
+        necklace: 'eq_set_region_shadow_necklace',
+        bracelet: 'eq_set_region_shadow_bracelet',
+        ring: 'eq_set_region_shadow_ring',
+        belt: 'eq_set_region_shadow_belt',
+        shoes: 'eq_set_region_shadow_shoes',
+      },
+    });
     expect(requireEquipmentSetCraftingRecipe('craft_set_crimson')).toBe(production);
     expect(Object.isFrozen(production)).toBe(true);
   });

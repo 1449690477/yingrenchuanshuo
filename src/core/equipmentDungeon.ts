@@ -10,7 +10,10 @@ import type { PityCounters } from './loot';
 import { Rng } from './rng';
 import { rollLoot } from './loot';
 import { simulateFight, type SimulatedFightResult } from './combat';
-import type { OnHitElementalDamageTrigger } from './equipmentSets';
+import type {
+  OnHitElementalDamageTrigger,
+  OnLethalRecoveryTrigger,
+} from './equipmentSets';
 import { makeMonster } from './progression';
 import { mergeLootResults } from './stageLoot';
 import type { EquipmentDungeonStage } from '@/data/equipmentDungeons';
@@ -79,6 +82,7 @@ export interface EquipmentDungeonChallengeInput {
   classId: ClassId;
   playerSkillMultiplier: number;
   playerOnHitTriggers?: readonly OnHitElementalDamageTrigger[];
+  playerOnLethalTriggers?: readonly OnLethalRecoveryTrigger[];
   rngState: number;
   now: number;
 }
@@ -179,6 +183,7 @@ export function resolveEquipmentDungeonChallenge(
     const result = simulateFight(player, monster, challengeRng, {
       playerSkillMultiplier: input.playerSkillMultiplier,
       playerOnHitTriggers: input.playerOnHitTriggers,
+      playerOnLethalTriggers: input.playerOnLethalTriggers,
       maxSeconds: EQUIPMENT_DUNGEON_RULES.maxFightSeconds,
     });
     waves.push({

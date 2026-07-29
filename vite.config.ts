@@ -5,6 +5,8 @@ import { fileURLToPath, URL } from 'node:url';
 import {
   createRegion5RuntimeCacheRule,
   createRegion5SetCacheRule,
+  createRegion6RuntimeCacheRule,
+  createRegion6SetCacheRule,
 } from './pwa-region-cache';
 
 // GitHub Pages 部署在 https://1449690477.github.io/yingrenchuanshuo/
@@ -47,18 +49,21 @@ export default defineConfig({
           'assets/monsters/equipment-dungeon/**',
           'assets/equipment/dungeon/**',
           'assets/encounters/**',
-          'assets/maps/r{3,4,5}.webp',
-          'assets/maps/chapter-{3,4,5}-*.webp',
-          'assets/battlefields/chapter-{3,4,5}-*.webp',
-          'assets/monsters/{r3,r4,r5}/**',
-          'assets/equipment/{r3,r4,r5}/**',
+          'assets/maps/r{3,4,5,6}.webp',
+          'assets/maps/chapter-{3,4,5,6}-*.webp',
+          'assets/battlefields/chapter-{3,4,5,6}-*.webp',
+          'assets/monsters/{r3,r4,r5,r6}/**',
+          'assets/equipment/{r3,r4,r5,r6}/**',
           'assets/equipment/sets/r5-crimson/**',
+          'assets/equipment/sets/r6-shadow/**',
         ],
         runtimeCaching: [
           // 必须排在通用 modular 路由之前，否则 Workbox 首个命中会把 R5
           // 换装层塞进 character-appearance，独立容量契约形同虚设。
           createRegion5RuntimeCacheRule(),
           createRegion5SetCacheRule(),
+          createRegion6RuntimeCacheRule(),
+          createRegion6SetCacheRule(),
           {
             urlPattern: ({ url }) =>
               /\/assets\/maps\/(?:r[34]|chapter-[34]-\d)\.webp$/.test(url.pathname) ||

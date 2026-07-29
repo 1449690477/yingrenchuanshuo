@@ -6,6 +6,7 @@ import {
   Flame,
   Hammer,
   LockKeyhole,
+  MoonStar,
   ShieldCheck,
   Sparkles,
   X,
@@ -21,6 +22,7 @@ import { requireEquipmentSetCraftingRecipe } from '@/data/equipmentSetCrafting';
 import { requireItem } from '@/data/items';
 import { requireMonster } from '@/data/monsters';
 import { REGION_5_FRAGMENT_LOOT_SOURCES } from '@/data/region5Loot';
+import { REGION_6_FRAGMENT_LOOT_SOURCES } from '@/data/region6Loot';
 import { useInventoryStore } from '@/stores/inventory';
 import { usePlayerStore } from '@/stores/player';
 import type { EquipmentSetCraftingActionResult } from '@/stores/game';
@@ -32,13 +34,29 @@ const emit = defineEmits<{
   crafted: [result: { equipmentName: string; targetSlot: EquipSlot }];
 }>();
 
-const RECIPE_ID = 'craft_set_crimson';
-const recipe = requireEquipmentSetCraftingRecipe(RECIPE_ID);
+const props = withDefaults(
+  defineProps<{
+    recipeId?: 'craft_set_crimson' | 'craft_set_shadow';
+  }>(),
+  {
+    recipeId: 'craft_set_crimson',
+  },
+);
+
+const recipe = requireEquipmentSetCraftingRecipe(props.recipeId);
 const setDefinition = requireEquipmentSet(recipe.setId);
 const fragment = requireItem(recipe.fragmentItemId);
 const targetSlots = Object.keys(recipe.targetDefIds) as EquipSlot[];
 const inventory = useInventoryStore();
 const player = usePlayerStore();
+const isShadow = recipe.id === 'craft_set_shadow';
+const themeIcon = isShadow ? MoonStar : Flame;
+const regionName = isShadow ? '幽影祀塔' : '熔岩神殿';
+const setDisplayName = setDefinition.name.replace(/套$/, '');
+const forgeTitle = `${setDisplayName}重铸`;
+const entryTitleId = `${recipe.id}-entry-title`;
+const dialogTitleId = `${recipe.id}-forge-title`;
+const dialogNoteId = `${recipe.id}-forge-note`;
 
 if (targetSlots.length !== setDefinition.pieceSlots.length) {
   throw new Error(`[配置错误] ${recipe.id} 合成部位与 ${setDefinition.id} 套装部位数量不一致`);
@@ -63,7 +81,7 @@ const selectedDefinition = computed(() =>
 );
 const activeClassId = computed(() => {
   const classId = player.player?.classId;
-  if (!classId) throw new Error('[绯焰重铸错误] 存档未载入，无法解析职业武器外观');
+  if (!classId) throw new Error(`[${setDefinition.name}重铸错误] 存档未载入，无法解析职业武器外观`);
   return classId;
 });
 const selectedPresentation = computed(() =>
@@ -101,12 +119,16 @@ const equippedSetCount = computed(
 );
 
 const sourceNames = [
-  ...new Set(REGION_5_FRAGMENT_LOOT_SOURCES.map((source) => requireMonster(source.monsterId).name)),
+  ...new Set(
+    (isShadow ? REGION_6_FRAGMENT_LOOT_SOURCES : REGION_5_FRAGMENT_LOOT_SOURCES).map(
+      (source) => requireMonster(source.monsterId).name,
+    ),
+  ),
 ];
 
 function previewInstance(slot: EquipSlot): EquipmentInstance {
   return {
-    uid: `crimson-preview-${slot}`,
+    uid: `${recipe.id}-preview-${slot}`,
     defId: recipe.targetDefIds[slot]!,
     enhance: 0,
     baseRollPermille: 1000,
@@ -119,18 +141,18 @@ function previewInstance(slot: EquipSlot): EquipmentInstance {
 }
 
 /**
- * 预览只换上绯焰自身的三个可见图层，避免玩家当前礼服或武器混进来，
+ * 预览只换上当前套装自身的可见图层，避免玩家当前礼服或武器混进来，
  * 造成“合成后就是这套混搭”的错误承诺。首饰仍按现有规则只在装备槽显示。
  */
 const previewEquipped = computed<EquippedRecord>(() => ({
-  weapon: previewInstance('weapon'),
-  head: previewInstance('head'),
-  body: previewInstance('body'),
-  necklace: previewInstance('necklace'),
-  bracelet: previewInstance('bracelet'),
-  ring: previewInstance('ring'),
-  belt: null,
-  shoes: null,
+  weapon: targetSlots.includes('weapon') ? previewInstance('weapon') : null,
+  head: targetSlots.includes('head') ? previewInstance('head') : null,
+  body: targetSlots.includes('body') ? previewInstance('body') : null,
+  necklace: targetSlots.includes('necklace') ? previewInstance('necklace') : null,
+  bracelet: targetSlots.includes('bracelet') ? previewInstance('bracelet') : null,
+  ring: targetSlots.includes('ring') ? previewInstance('ring') : null,
+  belt: targetSlots.includes('belt') ? previewInstance('belt') : null,
+  shoes: targetSlots.includes('shoes') ? previewInstance('shoes') : null,
 }));
 
 const canCraft = computed(() => fragmentOwned.value >= recipe.fragmentCount && !submitting.value);
@@ -141,7 +163,7 @@ const readyMessage = computed(() => {
   }
   const duplicates = ownedCounts.value[selectedSlot.value];
   if (duplicates > 0) {
-    return `已经拥有 ${duplicates} 件同部位绯焰装备；仍可继续重铸，确认后会进入背包。`;
+    return `已经拥有 ${duplicates} 件同部位${setDisplayName}装备；仍可继续重铸，确认后会进入背包。`;
   }
   return `材料齐备，将重铸 ${selectedPresentation.value.name} 并放入背包。`;
 });
@@ -153,7 +175,7 @@ function failureMessage(result: Exclude<EquipmentSetCraftingActionResult, { ok: 
     case 'no-recipe':
       return '重铸配方已经变化，请关闭面板后重新进入。';
     case 'unsupported-slot':
-      return '所选部位不属于绯焰套，请重新选择。';
+      return `所选部位不属于${setDisplayName}套，请重新选择。`;
     case 'insufficient-fragment':
       return `${requireItem(result.itemId).name}不足：持有 ${result.owned}，需要 ${result.required}。`;
     case 'persistence-pending':
@@ -164,7 +186,9 @@ function failureMessage(result: Exclude<EquipmentSetCraftingActionResult, { ok: 
       return '存档写入失败，碎片与装备已全部恢复；请检查浏览器空间后重试。';
     default: {
       const exhaustive: never = result;
-      throw new Error(`[绯焰重铸错误] 未处理的动作结果：${JSON.stringify(exhaustive)}`);
+      throw new Error(
+        `[${setDefinition.name}重铸错误] 未处理的动作结果：${JSON.stringify(exhaustive)}`,
+      );
     }
   }
 }
@@ -247,15 +271,19 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="forge-entry" aria-labelledby="crimson-entry-title">
+  <section
+    class="forge-entry"
+    :class="{ 'is-shadow': isShadow }"
+    :aria-labelledby="entryTitleId"
+  >
     <i class="entry-glow entry-glow-one" aria-hidden="true" />
     <i class="entry-glow entry-glow-two" aria-hidden="true" />
     <span class="entry-sigil" aria-hidden="true">
-      <Flame :size="25" :stroke-width="1.8" />
+      <component :is="themeIcon" :size="25" :stroke-width="1.8" />
     </span>
     <span class="entry-copy">
-      <small>熔岩神殿 · 定向套装</small>
-      <strong id="crimson-entry-title">绯焰重铸台</strong>
+      <small>{{ regionName }} · 套装图鉴</small>
+      <strong :id="entryTitleId">{{ forgeTitle }}台</strong>
       <span>
         <b class="num">{{ fragmentOwned }}</b
         >/{{ recipe.fragmentCount }} 枚 · 已收集 {{ collectedSlotCount }}/{{ targetSlots.length }}
@@ -276,11 +304,11 @@ onBeforeUnmount(() => {
         <section
           ref="sheetRef"
           class="forge-sheet"
-          :class="{ 'is-success': lastCraftedSlot }"
+          :class="{ 'is-success': lastCraftedSlot, 'is-shadow': isShadow }"
           role="dialog"
           aria-modal="true"
-          aria-labelledby="crimson-forge-title"
-          aria-describedby="crimson-forge-note"
+          :aria-labelledby="dialogTitleId"
+          :aria-describedby="dialogNoteId"
           :aria-busy="submitting"
           tabindex="-1"
         >
@@ -292,14 +320,14 @@ onBeforeUnmount(() => {
               <Hammer :size="20" :stroke-width="2" />
             </span>
             <span>
-              <small>六槽自选 · 不随机部位</small>
-              <h2 id="crimson-forge-title">绯焰重铸</h2>
+              <small>{{ targetSlots.length }} 槽自选 · 不随机部位</small>
+              <h2 :id="dialogTitleId">{{ forgeTitle }}</h2>
             </span>
             <button
               ref="closeButtonRef"
               type="button"
               class="close-button"
-              aria-label="关闭绯焰重铸"
+              :aria-label="`关闭${forgeTitle}`"
               :disabled="submitting"
               @click="requestClose"
             >
@@ -307,7 +335,7 @@ onBeforeUnmount(() => {
             </button>
           </header>
 
-          <p id="crimson-forge-note" class="forge-note">
+          <p :id="dialogNoteId" class="forge-note">
             {{ recipe.fragmentCount }} 枚通用碎片可指定一件，结果不会随机成别的部位，也不会直接替换身上装备。
           </p>
 
@@ -315,7 +343,7 @@ onBeforeUnmount(() => {
             <section class="material-ribbon" aria-label="重铸材料">
               <ItemIcon :item="fragment" size="md" />
               <span>
-                <small>重铸火种</small>
+                <small>定向重铸素材</small>
                 <strong>{{ fragment.name }}</strong>
                 <em>来自 {{ sourceNames.join('、') }}</em>
               </span>
@@ -328,7 +356,10 @@ onBeforeUnmount(() => {
             </section>
 
             <div class="forge-showcase">
-              <section class="outfit-preview" aria-label="当前角色绯焰整套外观预览">
+              <section
+                class="outfit-preview"
+                :aria-label="`当前角色${setDefinition.name}整套外观预览`"
+              >
                 <span class="preview-label">整套外观</span>
                 <span v-if="player.player" class="doll-preview">
                   <CharacterAppearance
@@ -357,7 +388,11 @@ onBeforeUnmount(() => {
                   </span>
                   <em>{{ SLOT_LABELS[selectedSlot] }}</em>
                 </div>
-                <div class="slot-grid" role="group" aria-label="绯焰套重铸部位">
+                <div
+                  class="slot-grid"
+                  role="group"
+                  :aria-label="`${setDefinition.name}重铸部位`"
+                >
                   <button
                     v-for="slot in targetSlots"
                     :key="slot"
@@ -442,7 +477,7 @@ onBeforeUnmount(() => {
               @click="confirmCraft"
             >
               <span v-if="submitting" class="write-spinner" aria-hidden="true" />
-              <Flame v-else :size="17" aria-hidden="true" />
+              <component :is="themeIcon" v-else :size="17" aria-hidden="true" />
               {{
                 submitting
                   ? '正在安全写入'
@@ -486,6 +521,43 @@ onBeforeUnmount(() => {
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 90%),
     0 9px 22px rgb(151 78 104 / 9%);
+}
+
+.forge-entry.is-shadow {
+  background:
+    radial-gradient(circle at 8% 20%, rgb(255 255 255 / 91%), transparent 34%),
+    radial-gradient(circle at 92% 88%, rgb(122 220 255 / 23%), transparent 39%),
+    linear-gradient(122deg, rgb(238 232 255 / 88%), rgb(250 244 255 / 86%) 54%, rgb(228 247 255 / 84%));
+  border-color: rgb(161 143 222 / 48%);
+}
+
+.forge-entry.is-shadow .entry-sigil {
+  background: linear-gradient(145deg, #7662b9, #9c82dc 54%, #6cc9e4);
+  box-shadow: 0 7px 16px rgb(96 72 165 / 24%);
+}
+
+.forge-sheet.is-shadow {
+  background:
+    radial-gradient(circle at 84% 3%, rgb(146 208 255 / 17%), transparent 31%),
+    radial-gradient(circle at 3% 32%, rgb(176 137 239 / 16%), transparent 29%),
+    linear-gradient(160deg, rgb(252 250 255 / 97%), rgb(244 241 255 / 96%) 52%, rgb(237 249 255 / 96%));
+}
+
+.forge-sheet.is-shadow .head-emblem,
+.forge-sheet.is-shadow .confirm-button {
+  background:
+    radial-gradient(circle at 30% 0, rgb(255 255 255 / 27%), transparent 35%),
+    linear-gradient(135deg, #8c78d8, #7a68c4 58%, #54b7d4);
+  box-shadow:
+    0 9px 18px rgb(93 73 170 / 22%),
+    inset 0 1px 0 rgb(255 255 255 / 40%);
+}
+
+.forge-sheet.is-shadow .slot-choice.selected {
+  border-color: rgb(132 106 214 / 62%);
+  box-shadow:
+    0 0 0 3px rgb(145 113 224 / 10%),
+    0 8px 16px rgb(98 79 169 / 12%);
 }
 
 .entry-glow {

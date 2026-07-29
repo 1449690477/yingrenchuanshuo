@@ -5,6 +5,7 @@
 
 import { REGION_34_MATERIALS } from './region34';
 import { REGION_5_MATERIALS, type Region5MaterialSpec } from './region5';
+import { REGION_6_MATERIALS, type Region6MaterialSpec } from './region6';
 
 export type ItemKind = 'material' | 'consumable' | 'currency' | 'fragment';
 
@@ -40,7 +41,7 @@ function mat(
   };
 }
 
-function region5Item(spec: Region5MaterialSpec): ItemDef {
+function regionSetItem(spec: Region5MaterialSpec | Region6MaterialSpec): ItemDef {
   return {
     id: spec.id,
     name: spec.name,
@@ -150,7 +151,12 @@ export const ITEMS: Record<string, ItemDef> = {
   // ── 区域 5：熔岩神殿 ──
   // frag_crimson 是套装碎片，不属于 ChapterSpec.materials，必须保留 fragment 类型。
   ...Object.fromEntries(
-    REGION_5_MATERIALS.map((spec) => [spec.id, region5Item(spec)]),
+    REGION_5_MATERIALS.map((spec) => [spec.id, regionSetItem(spec)]),
+  ),
+
+  // ── 区域 6：幽影祀塔 ──
+  ...Object.fromEntries(
+    REGION_6_MATERIALS.map((spec) => [spec.id, regionSetItem(spec)]),
   ),
 
   // ── 消耗品 ──

@@ -77,6 +77,7 @@ const hitstop = ref(false);
 const shakeTier = ref<ImpactTier | null>(null);
 /** 收尾那下打出击杀时立刻进入倒地演出，而不是罚站到结算面板 */
 const monsterDying = ref(false);
+const lethalRecovery = ref<{ id: string; healing: number } | null>(null);
 /** 本波已打出的下数，底部连击计数用 */
 const comboCount = ref(0);
 /** 换波横幅：intro 阶段显示「第 X 波」，开打即收起 */
@@ -190,6 +191,7 @@ function prepareWave(index: number): void {
   waveIndex.value = index;
   monsterDying.value = false;
   comboCount.value = 0;
+  lethalRecovery.value = null;
   const wave = props.result.waves[index]!;
   displayedPlayerHp.value = wave.playerHpBefore;
   displayedMonsterHp.value = wave.enemyMaxHp;
@@ -213,6 +215,9 @@ function playWaveStrikes(index: number): void {
   const hpBefore = wave.playerHpBefore;
   const hpAfter = wave.playerHpAfter;
   const enemyMax = wave.enemyMaxHp;
+  const recovery = wave.result.events.find(
+    (event) => event.event.kind === 'lethal-recovery',
+  );
 
   let dealt = 0;
   hits.forEach((hit, i) => {
@@ -232,6 +237,15 @@ function playWaveStrikes(index: number): void {
       const playerHp = isLast ? hpAfter : hpBefore + ((hpAfter - hpBefore) * (i + 1)) / hits.length;
       displayedPlayerHp.value = playerHp;
       playerHpPercent.value = clampPercent((playerHp / props.playerMaxHp) * 100);
+      if (recovery?.event.kind === 'lethal-recovery' && i === Math.floor(hits.length / 2)) {
+        lethalRecovery.value = {
+          id: recovery.event.triggerId,
+          healing: recovery.event.healing,
+        };
+        schedule(760, () => {
+          lethalRecovery.value = null;
+        });
+      }
 
       // 收尾那下按「技能暴击」给满反馈，中途各下按普攻处理
       const tier: ImpactTier = hit.finisher ? 'ultimate' : 'light';
@@ -253,6 +267,7 @@ function play(): void {
   strikeIndex.value = 0;
   monsterDying.value = false;
   comboCount.value = 0;
+  lethalRecovery.value = null;
   waveBanner.value = 0;
 
   // 关掉动效时直接给最终状态：这些玩家要的是结果，不是过程
@@ -423,6 +438,12 @@ onUnmounted(() => {
         <span v-if="waveBanner" :key="`banner-${waveIndex}`" class="wave-banner num">
           第 {{ waveBanner }} 波
         </span>
+        <Transition name="shadow-save">
+          <span v-if="lethalRecovery" class="shadow-save" role="status">
+            <Sparkles :size="13" aria-hidden="true" />
+            幽影护命 · +{{ Math.round(lethalRecovery.healing).toLocaleString() }}
+          </span>
+        </Transition>
 
         <div class="combatants">
           <div class="hero-unit">
@@ -767,6 +788,41 @@ onUnmounted(() => {
     opacity: 1;
     transform: translateX(-50%) scale(1);
   }
+}
+
+.shadow-save {
+  position: absolute;
+  z-index: 8;
+  top: 46%;
+  left: 24%;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+  font-size: 10px;
+  font-weight: 900;
+  color: #f4eaff;
+  white-space: nowrap;
+  background: linear-gradient(115deg, rgb(58 42 103 / 88%), rgb(132 91 175 / 82%));
+  border: 1px solid rgb(231 210 255 / 62%);
+  border-radius: 999px;
+  box-shadow:
+    0 0 20px rgb(168 116 230 / 42%),
+    inset 0 1px 0 rgb(255 255 255 / 34%);
+  pointer-events: none;
+}
+
+.shadow-save-enter-active,
+.shadow-save-leave-active {
+  transition:
+    opacity 220ms ease,
+    transform 320ms var(--ease-out-back, ease-out);
+}
+
+.shadow-save-enter-from,
+.shadow-save-leave-to {
+  opacity: 0;
+  transform: translateY(8px) scale(0.82);
 }
 
 .combatants {
@@ -1284,6 +1340,7 @@ onUnmounted(() => {
     .hit-number,
     .impact-flash,
     .wave-banner,
+    .shadow-save,
     .combo,
     .monster-unit.flinch img,
     .monster-unit.dying img,
@@ -1318,6 +1375,7 @@ onUnmounted(() => {
   .hit-number,
   .impact-flash,
   .wave-banner,
+  .shadow-save,
   .combo,
   .monster-unit.flinch img,
   .monster-unit.dying img,

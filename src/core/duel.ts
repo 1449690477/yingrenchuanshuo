@@ -25,7 +25,10 @@ import { simulateFight, type CombatTimelineEvent } from './combat';
 import { Rng } from './rng';
 import { businessDayKey } from './dayKey';
 import { fnv1a32 } from './trial';
-import type { OnHitElementalDamageTrigger } from './equipmentSets';
+import type {
+  OnHitElementalDamageTrigger,
+  OnLethalRecoveryTrigger,
+} from './equipmentSets';
 import type { Combatant, Element } from './types';
 import {
   ARENA_MAX_ROUNDS,
@@ -49,6 +52,7 @@ export interface DuelSide {
   combatant: Combatant;
   skillMultiplier: number;
   onHitTriggers?: readonly OnHitElementalDamageTrigger[];
+  onLethalTriggers?: readonly OnLethalRecoveryTrigger[];
 }
 
 export type DuelRole = 'attacker' | 'defender';
@@ -64,11 +68,12 @@ export interface DuelLogEvent {
   sequence: number;
   source: DuelRole;
   target: DuelRole;
-  kind: 'direct-damage' | 'on-hit-elemental-damage';
+  kind: 'direct-damage' | 'on-hit-elemental-damage' | 'lethal-recovery';
   damage: number;
+  healing?: number;
   hit: boolean;
   crit: boolean;
-  element: Element;
+  element?: Element;
   triggerId?: string;
 }
 
@@ -149,6 +154,8 @@ export function simulateDuelWithFirst(
     monsterSkillMultiplier: second.skillMultiplier,
     playerOnHitTriggers: first.onHitTriggers,
     monsterOnHitTriggers: second.onHitTriggers,
+    playerOnLethalTriggers: first.onLethalTriggers,
+    monsterOnLethalTriggers: second.onLethalTriggers,
   });
 
   const pPct = Math.max(0, p.currentHp) / p.stats.hp;
@@ -191,15 +198,28 @@ export function simulateDuelWithFirst(
         element: ev.event.element,
       };
     }
+    if (ev.event.kind === 'on-hit-elemental-damage') {
+      return {
+        sequence: ev.sequence,
+        source,
+        target,
+        kind: ev.event.kind,
+        damage: ev.event.damage,
+        hit: true,
+        crit: false,
+        element: ev.event.element,
+        triggerId: ev.event.triggerId,
+      };
+    }
     return {
       sequence: ev.sequence,
       source,
       target,
       kind: ev.event.kind,
       damage: ev.event.damage,
+      healing: ev.event.healing,
       hit: true,
       crit: false,
-      element: ev.event.element,
       triggerId: ev.event.triggerId,
     };
   });
@@ -282,6 +302,9 @@ function duelSideDigest(side: DuelSide): string {
   const triggers = (side.onHitTriggers ?? [])
     .map((t) => `${t.id}:${t.chance}:${t.atkMultiplier}:${t.element}`)
     .join(',');
+  const lethalTriggers = (side.onLethalTriggers ?? [])
+    .map((t) => `${t.id}:${t.healRatio}:${t.activationsPerFight}`)
+    .join(',');
   return [
     s.hp,
     s.atk,
@@ -295,6 +318,7 @@ function duelSideDigest(side: DuelSide): string {
     side.combatant.element,
     JSON.stringify(side.combatant.combatBonuses ?? null),
     triggers,
+    lethalTriggers,
   ].join('|');
 }
 

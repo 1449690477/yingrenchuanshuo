@@ -26,6 +26,19 @@ export interface OnHitElementalDamageTrigger {
   element: Exclude<Element, 'none'>;
 }
 
+/**
+ * 受到致命伤害后免于倒下并按最大生命回复。
+ *
+ * 触发次数属于一次真实战斗实例；开始下一关/下一次挑战时由 simulateFight
+ * 创建新状态，因此不会把次数写进存档，也不会跨关残留。
+ */
+export interface OnLethalRecoveryTrigger {
+  id: string;
+  kind: 'lethal-recovery';
+  healRatio: number;
+  activationsPerFight: number;
+}
+
 export interface EquipmentSetBonus {
   pieces: 2 | 4 | 6 | 8;
   label: string;
@@ -36,6 +49,8 @@ export interface EquipmentSetBonus {
   combatBonuses?: EquipmentSetCombatBonus;
   /** 每个直接真实命中独立触发；不得折算进 skillMultiplierBonus。 */
   onHitTriggers?: readonly OnHitElementalDamageTrigger[];
+  /** 每场战斗独立计数的致命伤保护。 */
+  onLethalTriggers?: readonly OnLethalRecoveryTrigger[];
   /** 加到技能倍率上的绝对值，例如 0.08 表示平均技能倍率 +0.08。 */
   skillMultiplierBonus?: number;
 }
@@ -68,6 +83,7 @@ export interface EquipmentSetResolution {
   statFlat: Stats;
   combatBonuses: CombatBonuses;
   onHitTriggers: readonly OnHitElementalDamageTrigger[];
+  onLethalTriggers: readonly OnLethalRecoveryTrigger[];
   skillMultiplierBonus: number;
 }
 
@@ -117,6 +133,7 @@ export function resolveEquipmentSetBonuses(
   const statFlat = zeroStats();
   const combatBonuses = zeroSetCombatBonuses();
   const onHitTriggers: OnHitElementalDamageTrigger[] = [];
+  const onLethalTriggers: OnLethalRecoveryTrigger[] = [];
   let skillMultiplierBonus = 0;
   const sets: ActiveEquipmentSet[] = [];
 
@@ -134,6 +151,12 @@ export function resolveEquipmentSetBonuses(
         }
         onHitTriggers.push(trigger);
       }
+      for (const trigger of bonus.onLethalTriggers ?? []) {
+        if (onLethalTriggers.some((existing) => existing.id === trigger.id)) {
+          throw new Error(`[配置错误] 重复的致命伤触发 ID：${trigger.id}`);
+        }
+        onLethalTriggers.push(trigger);
+      }
       skillMultiplierBonus += bonus.skillMultiplierBonus ?? 0;
     }
     sets.push({ definition, equippedPieces, activeBonuses, nextBonus });
@@ -146,6 +169,7 @@ export function resolveEquipmentSetBonuses(
     statFlat,
     combatBonuses,
     onHitTriggers,
+    onLethalTriggers,
     skillMultiplierBonus,
   };
 }
@@ -200,6 +224,7 @@ function assertSetDefinition(definition: EquipmentSetDefinition): void {
   }
   let previousPieces = 0;
   const triggerIds = new Set<string>();
+  const lethalTriggerIds = new Set<string>();
   for (const bonus of definition.bonuses) {
     if (bonus.pieces <= previousPieces || bonus.pieces > definition.pieceSlots.length) {
       throw new Error(`[配置错误] 套装激活件数非法：${definition.id} / ${bonus.pieces}`);
@@ -211,7 +236,32 @@ function assertSetDefinition(definition: EquipmentSetDefinition): void {
       }
       triggerIds.add(trigger.id);
     }
+    for (const trigger of bonus.onLethalTriggers ?? []) {
+      assertOnLethalRecoveryTrigger(trigger);
+      if (lethalTriggerIds.has(trigger.id)) {
+        throw new Error(`[配置错误] 重复的致命伤触发 ID：${trigger.id}`);
+      }
+      lethalTriggerIds.add(trigger.id);
+    }
     previousPieces = bonus.pieces;
+  }
+}
+
+export function assertOnLethalRecoveryTrigger(trigger: OnLethalRecoveryTrigger): void {
+  if (trigger.kind !== 'lethal-recovery') {
+    throw new Error(`[配置错误] 未知致命伤触发类型：${trigger.id}`);
+  }
+  if (!trigger.id.trim()) {
+    throw new Error('[配置错误] 致命伤触发缺少稳定 ID');
+  }
+  if (!Number.isFinite(trigger.healRatio) || trigger.healRatio <= 0 || trigger.healRatio > 1) {
+    throw new Error(`[配置错误] 致命伤回复比例必须在 (0, 1]：${trigger.id}`);
+  }
+  if (
+    !Number.isSafeInteger(trigger.activationsPerFight) ||
+    trigger.activationsPerFight <= 0
+  ) {
+    throw new Error(`[配置错误] 致命伤触发次数必须是正整数：${trigger.id}`);
   }
 }
 

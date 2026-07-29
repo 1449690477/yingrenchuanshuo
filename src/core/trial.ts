@@ -17,7 +17,10 @@ import type { ClassId, Combatant, CombatBonuses, EquipmentInstance, Stats } from
 import { Rng } from './rng';
 import { addStats, combatPower } from './formula';
 import { estimateDps, simulateFight, type CombatTimelineEvent } from './combat';
-import { type OnHitElementalDamageTrigger } from './equipmentSets';
+import type {
+  OnHitElementalDamageTrigger,
+  OnLethalRecoveryTrigger,
+} from './equipmentSets';
 import {
   applyClassMods,
   averageSkillMultiplier,
@@ -236,6 +239,7 @@ export interface TrialBuild {
   combatant: Combatant;
   skillMultiplier: number;
   onHitTriggers: readonly OnHitElementalDamageTrigger[];
+  onLethalTriggers: readonly OnLethalRecoveryTrigger[];
   combatPower: number;
   /** 搭配哈希：提交服务端查重与成绩种子的输入之一 */
   buildHash: string;
@@ -273,6 +277,7 @@ export function buildTrialCombatant(input: TrialBuildInput): TrialBuild {
     combatant: makePlayer(input.name, input.level, stats, element, bonuses),
     skillMultiplier: averageSkillMultiplier(input.level) + setResolution.skillMultiplierBonus,
     onHitTriggers: setResolution.onHitTriggers,
+    onLethalTriggers: setResolution.onLethalTriggers,
     combatPower: combatPower(stats),
     buildHash: canonicalBuildHash(input.equipped),
   };
@@ -338,6 +343,7 @@ export function runTrial(build: TrialBuild, boss: Combatant, seed: number): Tria
     maxSeconds: TRIAL_DURATION_SEC,
     playerSkillMultiplier: build.skillMultiplier,
     playerOnHitTriggers: build.onHitTriggers,
+    playerOnLethalTriggers: build.onLethalTriggers,
   });
   return {
     damage: Math.max(0, Math.round(result.damageDealt)),

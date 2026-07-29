@@ -151,14 +151,14 @@ describe('区域 1–5 内容完整性', () => {
     }
   });
 
-  it('数量达到区域 1–5 的内容目标', () => {
-    expect(REGIONS).toHaveLength(5);
-    expect(ALL_CHAPTERS).toHaveLength(25);
-    expect(Object.keys(STAGES)).toHaveLength(150);
-    expect(Object.keys(MONSTERS)).toHaveLength(120);
-    // 既有 251 件 + R5 普通 24 件 + 绯焰 6 件。
-    expect(Object.keys(EQUIPMENT)).toHaveLength(281);
-    expect(Object.keys(LOOT_TABLES)).toHaveLength(75);
+  it('数量达到区域 1–6 的内容目标', () => {
+    expect(REGIONS).toHaveLength(6);
+    expect(ALL_CHAPTERS).toHaveLength(30);
+    expect(Object.keys(STAGES)).toHaveLength(180);
+    expect(Object.keys(MONSTERS)).toHaveLength(144);
+    // 既有 251 件 + R5 普通 24 件 + 绯焰 6 件 + R6 普通 24 件 + 幽影 8 件。
+    expect(Object.keys(EQUIPMENT)).toHaveLength(313);
+    expect(Object.keys(LOOT_TABLES)).toHaveLength(90);
   });
 
   it('区域 3/4 各有八部位 × 精良/稀有/史诗 24 件装备', () => {
@@ -260,7 +260,7 @@ describe('区域 1–5 内容完整性', () => {
     );
     expect(region2Monsters).toHaveLength(25);
     expect(Object.keys(MONSTER_VISUALS).filter((id) => id.startsWith('mon_2-'))).toHaveLength(25);
-    expect(Object.keys(MONSTER_VISUALS)).toHaveLength(120);
+    expect(Object.keys(MONSTER_VISUALS)).toHaveLength(144);
     for (const monster of region2Monsters) {
       expect(monster.sprite, monster.id).toBe(MONSTER_VISUALS[monster.id]?.asset);
       expect(
@@ -270,9 +270,9 @@ describe('区域 1–5 内容完整性', () => {
     }
   });
 
-  it('120 张怪物运行时贴图均为统一尺寸、透明画布与脚底锚点', async () => {
+  it('144 张怪物运行时贴图均为统一尺寸、透明画布与脚底锚点', async () => {
     const assets = Object.values(MONSTER_VISUALS).map((visual) => visual.asset);
-    expect(assets).toHaveLength(120);
+    expect(assets).toHaveLength(144);
 
     for (const asset of assets) {
       expect(asset.endsWith('.webp'), asset).toBe(true);
@@ -513,7 +513,7 @@ describe('区域 1–5 内容完整性', () => {
       ]),
     ];
     // 4 底模 + 4 无靴底模 + 区域 1～5 普通层 + R5 套装层 + 精品店 + 装备副本。
-    expect(assets).toHaveLength(178);
+    expect(assets).toHaveLength(202);
 
     for (const asset of assets) {
       const assetPath = resolve('public', asset);
@@ -697,7 +697,7 @@ describe('区域 1–5 内容完整性', () => {
   });
 
   it('全部物品都引用真实存在的正式图标', () => {
-    expect(Object.keys(ITEMS)).toHaveLength(36);
+    expect(Object.keys(ITEMS)).toHaveLength(41);
     for (const [id, item] of Object.entries(ITEMS)) {
       expect(item.icon).toBe(`assets/items/${id}.png`);
       expect(existsSync(resolve('public', item.icon)), `${id} → ${item.icon}`).toBe(true);

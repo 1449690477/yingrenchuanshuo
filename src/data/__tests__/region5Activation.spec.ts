@@ -11,7 +11,7 @@ import { STAGES } from '../stages';
 
 describe('R5 原子激活', () => {
   it('区域、五章、三十关与二十四只怪物同时进入运行时', () => {
-    expect(REGIONS.at(-1)).toBe(REGION_5);
+    expect(REGIONS).toContain(REGION_5);
     expect(REGION_5.chapters).toHaveLength(5);
     expect(Object.values(STAGES).filter((stage) => stage.chapterId.startsWith('5-'))).toHaveLength(
       30,

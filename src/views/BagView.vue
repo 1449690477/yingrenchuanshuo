@@ -516,7 +516,17 @@ onUnmounted(() => {
       </template>
 
       <template v-else>
-        <CrimsonForgePanel @crafted="onCrimsonCrafted" />
+        <section class="set-atlas" aria-labelledby="set-atlas-title">
+          <header class="set-atlas-head">
+            <span>
+              <small>定向套装 · 缺件与来源</small>
+              <strong id="set-atlas-title">套装图鉴</strong>
+            </span>
+            <em>2 套</em>
+          </header>
+          <CrimsonForgePanel recipe-id="craft_set_crimson" @crafted="onCrimsonCrafted" />
+          <CrimsonForgePanel recipe-id="craft_set_shadow" @crafted="onCrimsonCrafted" />
+        </section>
         <p v-if="bagItems.length === 0" class="empty">
           <PackageOpen class="empty-icon" :size="27" :stroke-width="1.8" aria-hidden="true" />
           还没有材料。
@@ -796,6 +806,46 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+.set-atlas {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 9px;
+}
+
+.set-atlas-head {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  padding: 2px 4px;
+}
+
+.set-atlas-head small,
+.set-atlas-head strong {
+  display: block;
+}
+
+.set-atlas-head small {
+  font-size: 8px;
+  color: var(--text-dim);
+}
+
+.set-atlas-head strong {
+  margin-top: 2px;
+  font-family: var(--font-display);
+  font-size: 14px;
+  color: #665362;
+}
+
+.set-atlas-head em {
+  padding: 4px 8px;
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 800;
+  color: #7868ad;
+  background: rgb(238 232 255 / 76%);
+  border-radius: 999px;
+}
+
 .bag {
   display: flex;
   flex-direction: column;

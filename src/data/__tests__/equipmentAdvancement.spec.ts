@@ -37,6 +37,12 @@ describe('区域装备升阶数据规则', () => {
         fineItemId: 'ember_ritual',
         rareItemId: 'core_moltenheart',
       },
+      {
+        sourceRegionId: 'r5',
+        targetRegionId: 'r6',
+        fineItemId: 'wisp_shadow',
+        rareItemId: 'stone_void',
+      },
     ]);
     expect(EQUIPMENT_ADVANCEMENT_FINE_COUNT).toBe(15);
     expect(EQUIPMENT_ADVANCEMENT_RARE_COUNT).toBe(3);
@@ -54,7 +60,7 @@ describe('区域装备升阶数据规则', () => {
     const options = Object.values(EQUIPMENT)
       .map(equipmentAdvancementOption)
       .filter((option) => option !== undefined);
-    expect(options).toHaveLength(80);
+    expect(options).toHaveLength(104);
 
     for (const option of options) {
       expect(option.target.slot).toBe(option.source.slot);
@@ -82,6 +88,9 @@ describe('区域装备升阶数据规则', () => {
       ['r3', 'r4', 'epic'],
       ['r4', 'r5', 'rare'],
       ['r4', 'r5', 'epic'],
+      ['r5', 'r6', 'rare'],
+      ['r5', 'r6', 'epic'],
+      ['r5', 'r6', 'legendary'],
     ] as const;
 
     for (const [sourceRegion, targetRegion, quality] of validPairs) {
@@ -110,6 +119,7 @@ describe('区域装备升阶数据规则', () => {
       'r2->r3': 24,
       'r3->r4': 24,
       'r4->r5': 16,
+      'r5->r6': 24,
     });
   });
 
@@ -120,9 +130,10 @@ describe('区域装备升阶数据规则', () => {
     expect(
       equipmentAdvancementOption(requireEquipment('eq_r4_weapon_fine')),
     ).toBeUndefined();
-    expect(
-      equipmentAdvancementOption(requireEquipment('eq_r5_weapon_rare')),
-    ).toBeUndefined();
+    expect(equipmentAdvancementOption(requireEquipment('eq_r5_weapon_rare'))?.target.id).toBe(
+      'eq_r6_weapon_rare',
+    );
+    expect(equipmentAdvancementOption(requireEquipment('eq_r6_weapon_rare'))).toBeUndefined();
 
     const nonRegional = Object.values(EQUIPMENT).find(
       (definition) => !definition.id.startsWith('eq_r'),

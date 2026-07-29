@@ -18,6 +18,13 @@ import {
   REGION_5_SET_SLOTS,
   region5SetEquipmentId,
 } from './region5';
+import {
+  REGION_6_FRAGMENT_COST,
+  REGION_6_FRAGMENT_ID,
+  REGION_6_SET_ID,
+  REGION_6_SET_SLOTS,
+  region6SetEquipmentId,
+} from './region6';
 
 const EQUIP_SLOTS = new Set<string>([
   'weapon',
@@ -165,6 +172,15 @@ const EQUIPMENT_SET_CRAFTING_RECIPE_LIST: readonly EquipmentSetCraftingRecipe[] 
     fragmentCount: REGION_5_FRAGMENT_COST,
     targetDefIds: Object.fromEntries(
       REGION_5_SET_SLOTS.map((slot) => [slot, region5SetEquipmentId(slot)]),
+    ),
+  },
+  {
+    id: 'craft_set_shadow',
+    setId: REGION_6_SET_ID,
+    fragmentItemId: REGION_6_FRAGMENT_ID,
+    fragmentCount: REGION_6_FRAGMENT_COST,
+    targetDefIds: Object.fromEntries(
+      REGION_6_SET_SLOTS.map((slot) => [slot, region6SetEquipmentId(slot)]),
     ),
   },
 ];

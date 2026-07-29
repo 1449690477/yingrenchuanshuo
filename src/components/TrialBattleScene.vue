@@ -339,6 +339,16 @@ function resolveImpact(beat: TrialPresentationBeat, nowMs: number): void {
     effectResetAt = nowMs + (skill ? 620 : 420);
   } else {
     playerHp.value = Math.max(0, playerHp.value - beat.totalDamage);
+    if (beat.recoveries.length > 0 && props.run) {
+      playerHp.value = Math.min(
+        props.run.playerHpMax,
+        playerHp.value +
+          beat.recoveries.reduce((sum, recovery) => sum + recovery.healing, 0),
+      );
+      calloutText.value = '幽影护命';
+      signatureSeq.value++;
+      signatureResetAt = nowMs + 720;
+    }
     if (!miss) {
       heroAction.value = 'react';
       heroSeq.value++;

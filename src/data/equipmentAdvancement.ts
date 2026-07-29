@@ -54,6 +54,12 @@ export const EQUIPMENT_ADVANCEMENT_ROUTES: readonly EquipmentAdvancementRoute[] 
     fineItemId: 'ember_ritual',
     rareItemId: 'core_moltenheart',
   },
+  {
+    sourceRegionId: 'r5',
+    targetRegionId: 'r6',
+    fineItemId: 'wisp_shadow',
+    rareItemId: 'stone_void',
+  },
 ];
 
 interface RegionalEquipmentIdentity {

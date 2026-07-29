@@ -23,6 +23,7 @@ import {
 } from './materialSources';
 import { regionLootProfile } from './regionLootProfiles';
 import { region5FragmentLootForTable } from './region5Loot';
+import { region6FragmentLootForTable } from './region6Loot';
 
 const REFORGE_DROP = {
   temper: 'sand_crystal',
@@ -121,6 +122,8 @@ function buildTable(spec: ChapterSpec, type: MonsterType): LootTable {
   // R5 套装碎片使用独立来源表，只向真实精英 / BOSS 对应的表注入。
   const region5Fragment = region5FragmentLootForTable(id);
   if (region5Fragment) entries.push(region5Fragment);
+  const region6Fragment = region6FragmentLootForTable(id);
+  if (region6Fragment) entries.push(region6Fragment);
 
   // ── 装备 ──
   let pityGroups: LootTable['pityGroups'];
