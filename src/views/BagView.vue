@@ -11,6 +11,7 @@ import { equipmentAdvancementOption as resolveEquipmentAdvancementOption } from 
 import { requireItem } from '@/data/items';
 import { QUALITY_LABELS, SLOT_LABELS } from '@/data/constants';
 import EquipDetail from '@/components/EquipDetail.vue';
+import CrimsonForgePanel from '@/components/CrimsonForgePanel.vue';
 import EquipmentAdvancementPanel from '@/components/EquipmentAdvancementPanel.vue';
 import EquipmentIcon from '@/components/EquipmentIcon.vue';
 import ItemIcon from '@/components/ItemIcon.vue';
@@ -359,6 +360,10 @@ function onEquipmentUpgraded(result: { targetName: string; cpDelta: number }): v
   show(`已升阶为 ${result.targetName}${delta}`);
 }
 
+function onCrimsonCrafted(result: { equipmentName: string }): void {
+  show(`${result.equipmentName}已重铸完成，放入背包`);
+}
+
 let toastTimer = 0;
 let effectTimer = 0;
 let effectFrame = 0;
@@ -497,6 +502,7 @@ onUnmounted(() => {
       </template>
 
       <template v-else>
+        <CrimsonForgePanel @crafted="onCrimsonCrafted" />
         <p v-if="bagItems.length === 0" class="empty">
           <PackageOpen class="empty-icon" :size="27" :stroke-width="1.8" aria-hidden="true" />
           还没有材料。

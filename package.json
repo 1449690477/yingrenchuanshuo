@@ -32,6 +32,7 @@
     "qa:affection-save": "tsx scripts/create-affection-round3-qa-save.mts",
     "qa:encounter-save": "tsx scripts/create-encounter-galgame-qa-save.mts",
     "qa:reforge-save": "tsx scripts/create-reforge-qa-save.mts",
+    "qa:region5-save": "tsx scripts/create-region5-qa-save.mts",
     "balance:equipment-dungeon": "tsx scripts/equipment-dungeon-balance.mts",
     "typecheck": "vue-tsc --noEmit",
     "verify": "npm run lint && npm run typecheck && npm run test && npm run sim && npm run assets:encounters:check && npm run assets:affection:check && npm run assets:reforge:check && npm run assets:region34:check",
