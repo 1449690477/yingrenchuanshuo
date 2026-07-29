@@ -2,6 +2,10 @@ import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import { VitePWA } from 'vite-plugin-pwa';
 import { fileURLToPath, URL } from 'node:url';
+import {
+  createRegion5RuntimeCacheRule,
+  createRegion5SetCacheRule,
+} from './pwa-region-cache';
 
 // GitHub Pages 部署在 https://1449690477.github.io/yingrenchuanshuo/
 // base 必须与仓库名一致，否则线上资源全部 404。
@@ -43,14 +47,36 @@ export default defineConfig({
           'assets/monsters/equipment-dungeon/**',
           'assets/equipment/dungeon/**',
           'assets/encounters/**',
-          'assets/maps/r{3,4}.webp',
-          'assets/maps/chapter-{3,4}-*.webp',
-          'assets/battlefields/chapter-{3,4}-*.webp',
-          'assets/monsters/{r3,r4}/**',
-          'assets/equipment/{r3,r4}/**',
-          'assets/characters/modular/*/r{3,4}-{body,head,weapon}.png',
+          'assets/maps/r{3,4,5}.webp',
+          'assets/maps/chapter-{3,4,5}-*.webp',
+          'assets/battlefields/chapter-{3,4,5}-*.webp',
+          'assets/monsters/{r3,r4,r5}/**',
+          'assets/equipment/{r3,r4,r5}/**',
+          'assets/equipment/sets/r5-crimson/**',
         ],
         runtimeCaching: [
+          // 必须排在通用 modular 路由之前，否则 Workbox 首个命中会把 R5
+          // 换装层塞进 character-appearance，独立容量契约形同虚设。
+          createRegion5RuntimeCacheRule(),
+          createRegion5SetCacheRule(),
+          {
+            urlPattern: ({ url }) =>
+              /\/assets\/maps\/(?:r[34]|chapter-[34]-\d)\.webp$/.test(url.pathname) ||
+              /\/assets\/battlefields\/chapter-[34]-\d\.webp$/.test(url.pathname) ||
+              /\/assets\/(?:monsters|equipment)\/r[34]\//.test(url.pathname) ||
+              /\/assets\/characters\/modular\/(?:swordsman|witch|shaman|catkin)\/r[34]-(?:body|head|weapon)\.png$/.test(
+                url.pathname,
+              ),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'region-content-v1',
+              cacheableResponse: { statuses: [0, 200] },
+              expiration: {
+                maxEntries: 128,
+                maxAgeSeconds: 60 * 60 * 24 * 30,
+              },
+            },
+          },
           {
             urlPattern: ({ url }) => url.pathname.includes('/assets/characters/modular/'),
             handler: 'CacheFirst',
@@ -88,24 +114,6 @@ export default defineConfig({
               cacheableResponse: { statuses: [0, 200] },
               expiration: {
                 maxEntries: 56,
-                maxAgeSeconds: 60 * 60 * 24 * 30,
-              },
-            },
-          },
-          {
-            urlPattern: ({ url }) =>
-              /\/assets\/maps\/(?:r[34]|chapter-[34]-\d)\.webp$/.test(url.pathname) ||
-              /\/assets\/battlefields\/chapter-[34]-\d\.webp$/.test(url.pathname) ||
-              /\/assets\/(?:monsters|equipment)\/r[34]\//.test(url.pathname) ||
-              /\/assets\/characters\/modular\/(?:swordsman|witch|shaman|catkin)\/r[34]-(?:body|head|weapon)\.png$/.test(
-                url.pathname,
-              ),
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'region-content-v1',
-              cacheableResponse: { statuses: [0, 200] },
-              expiration: {
-                maxEntries: 128,
                 maxAgeSeconds: 60 * 60 * 24 * 30,
               },
             },
