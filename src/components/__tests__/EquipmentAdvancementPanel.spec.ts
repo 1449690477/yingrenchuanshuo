@@ -170,11 +170,17 @@ describe('跨区装备升阶移动端面板', () => {
 
     expect(panelSource).toContain('const expectedSourceDefId = props.inst.defId');
     expect(panelSource).toContain(
-      'inventory.advanceEquipment(props.inst.uid, expectedSourceDefId)',
+      'await inventory.advanceEquipment(props.inst.uid, expectedSourceDefId)',
     );
     expect(panelSource).toContain("case 'source-changed'");
+    expect(panelSource).toContain("case 'persistence-pending'");
+    expect(panelSource).toContain("case 'persistence-conflict'");
+    expect(panelSource).toContain("case 'persistence-failed'");
     expect(panelSource).toContain('createFocusTrap(sheet');
-    expect(panelSource).toContain('escapeDeactivates: true');
+    expect(panelSource).toContain('escapeDeactivates: () => !submitting.value');
+    expect(panelSource).toContain('clickOutsideDeactivates: () => !submitting.value');
+    expect(panelSource).toContain('if (submitting.value) return');
+    expect(panelSource).toContain(':aria-busy="submitting"');
     expect(panelSource).toContain('returnFocusOnDeactivate: true');
     expect(panelSource).toContain('@media (prefers-reduced-motion: reduce)');
     expect(panelSource).toContain('.confirm-button:active:not(:disabled)');

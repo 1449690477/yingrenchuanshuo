@@ -173,6 +173,12 @@ function failureMessage(result: Exclude<EquipmentAdvancementActionResult, { ok: 
       return '升阶路线已经变化，请关闭后重新查看。';
     case 'source-changed':
       return '装备已经变化，本次旧确认不会再次扣除材料。';
+    case 'persistence-pending':
+      return '上一笔付费养成仍在安全写入，请等待完成后再试。';
+    case 'persistence-conflict':
+      return '另一页面已经更新存档。为防止进度被覆盖，本页面已停机，请刷新后继续。';
+    case 'persistence-failed':
+      return '存档写入失败，金币、材料与装备已全部恢复；请检查浏览器空间后重试。';
     case 'pending-affix-change':
       return '请先处理这件装备待确认的洗练候选。';
     case 'level-locked':
@@ -190,25 +196,30 @@ function failureMessage(result: Exclude<EquipmentAdvancementActionResult, { ok: 
   }
 }
 
-function confirmAdvancement(): void {
+async function confirmAdvancement(): Promise<void> {
   if (!canAdvance.value || submitting.value) return;
-  feedback.value = '';
+  feedback.value = '正在安全写入存档，请不要关闭窗口…';
   submitting.value = true;
 
-  const result = inventory.advanceEquipment(props.inst.uid, expectedSourceDefId);
-  submitting.value = false;
-  if (!result.ok) {
-    feedback.value = failureMessage(result);
-    return;
-  }
+  try {
+    const result = await inventory.advanceEquipment(props.inst.uid, expectedSourceDefId);
+    if (!result.ok) {
+      feedback.value = failureMessage(result);
+      return;
+    }
 
-  succeeded.value = true;
-  successCpDelta.value = result.cpDelta;
-  const targetName = requireEquipment(result.targetDefId).name;
-  emit('upgraded', { targetName, cpDelta: result.cpDelta });
+    succeeded.value = true;
+    successCpDelta.value = result.cpDelta;
+    feedback.value = '';
+    const targetName = requireEquipment(result.targetDefId).name;
+    emit('upgraded', { targetName, cpDelta: result.cpDelta });
+  } finally {
+    submitting.value = false;
+  }
 }
 
 function requestClose(): void {
+  if (submitting.value) return;
   if (dialogFocusTrap?.active) {
     dialogFocusTrap.deactivate();
     return;
@@ -223,8 +234,8 @@ onMounted(async () => {
   dialogFocusTrap = createFocusTrap(sheet, {
     initialFocus: () => closeButtonRef.value ?? sheet,
     fallbackFocus: () => sheet,
-    escapeDeactivates: true,
-    clickOutsideDeactivates: true,
+    escapeDeactivates: () => !submitting.value,
+    clickOutsideDeactivates: () => !submitting.value,
     returnFocusOnDeactivate: true,
     isolateSubtrees: 'aria-hidden',
     onDeactivate: () => emit('close'),
@@ -254,6 +265,7 @@ onBeforeUnmount(() => {
         aria-modal="true"
         aria-labelledby="advance-title"
         aria-describedby="advance-note"
+        :aria-busy="submitting"
         tabindex="-1"
       >
         <i class="glass-orb orb-pink" aria-hidden="true" />
@@ -272,6 +284,7 @@ onBeforeUnmount(() => {
             type="button"
             class="icon-button close-button"
             aria-label="关闭装备升阶"
+            :disabled="submitting"
             @click="requestClose"
           >
             <X :size="19" aria-hidden="true" />
@@ -423,7 +436,7 @@ onBeforeUnmount(() => {
             succeeded
               ? '升阶完成'
               : submitting
-                ? '正在升阶…'
+                ? '正在安全写入…'
                 : canAdvance
                   ? '确认升阶'
                   : '暂不可升阶'
@@ -552,6 +565,12 @@ onBeforeUnmount(() => {
 .close-button:active {
   background: #fff;
   transform: scale(0.91) rotate(-5deg);
+}
+
+.close-button:disabled {
+  cursor: wait;
+  opacity: 0.45;
+  transform: none;
 }
 
 .advance-note {

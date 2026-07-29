@@ -353,7 +353,7 @@ describe('game store 洗练事务', () => {
     const action = game.startAffixChange(instance.uid, 'reforge');
     expect(await game.resetGame()).toBe(false);
     expect(game.save).not.toBeNull();
-    expect(game.saveError).toContain('洗练结果正在写入');
+    expect(game.saveError).toContain('付费养成结果正在安全写入');
 
     finishWrite!();
     expect((await action).ok).toBe(true);

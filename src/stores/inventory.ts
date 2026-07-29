@@ -64,7 +64,7 @@ export const useInventoryStore = defineStore('inventory', () => {
   function advanceEquipment(
     uid: string,
     expectedSourceDefId: string,
-  ): EquipmentAdvancementActionResult {
+  ): Promise<EquipmentAdvancementActionResult> {
     return game.advanceEquipment(uid, expectedSourceDefId);
   }
 

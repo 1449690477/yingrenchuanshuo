@@ -305,7 +305,16 @@ type EquipmentAdvancementCoreSuccess = Extract<EquipmentAdvancementResult, { ok:
 
 export type EquipmentAdvancementActionResult =
   | EquipmentAdvancementCoreFailure
-  | { ok: false; reason: 'no-save' | 'not-found' | 'no-route' }
+  | {
+      ok: false;
+      reason:
+        | 'no-save'
+        | 'not-found'
+        | 'no-route'
+        | 'persistence-pending'
+        | 'persistence-conflict'
+        | 'persistence-failed';
+    }
   | {
       ok: false;
       reason: 'source-changed';
@@ -455,17 +464,17 @@ export const useGameStore = defineStore('game', () => {
   let lastTickAt = 0;
   let lastSaveAt = 0;
   let rafId = 0;
-  /** 付费洗练必须等 IndexedDB 真正提交；等待期间拒绝第二笔同类事务。 */
-  let affixPersistencePending = false;
+  /** 付费养成必须等 IndexedDB 真正提交；等待期间拒绝任何第二笔付费事务。 */
+  let paidPersistencePending = false;
   /** 事务等待期间若后台切换等流程请求保存，事务结束后必须补写最新状态。 */
-  let persistRequestedDuringAffixTransaction = false;
+  let persistRequestedDuringPaidTransaction = false;
   /**
    * pagehide 不保证把 document.visibilityState 改成 hidden，因此必须单独记录
-   * 「页面已明确暂停」。否则洗练写盘结束时只看 visibility 会错误重启实时循环。
+   * 「页面已明确暂停」。否则付费写盘结束时只看 visibility 会错误重启实时循环。
    */
   let backgroundPaused = false;
-  /** 洗练写盘期间回到前台时只登记请求，等事务回滚/提交完成后统一结算一次。 */
-  let resumeRequestedDuringAffixTransaction = false;
+  /** 付费写盘期间回到前台时只登记请求，等事务回滚/提交完成后统一结算一次。 */
+  let resumeRequestedDuringPaidTransaction = false;
   /**
    * 跨标签 CAS 冲突表示本页整份内存已落后于 IndexedDB 主槽。
    * 这不是可重试的网络错误：必须停机并要求刷新，绝不能继续拿旧快照自动覆盖。
@@ -787,6 +796,10 @@ export const useGameStore = defineStore('game', () => {
   }
 
   async function startNewGame(name: string, classId: SaveData['player']['classId']): Promise<void> {
+    if (paidPersistencePending) {
+      saveError.value = '付费养成结果正在安全写入，请等待完成后再创建新角色。';
+      return;
+    }
     if (resetPersistencePending) {
       saveError.value = '旧角色正在清除，请等待完成后再创建新角色。';
       return;
@@ -803,8 +816,8 @@ export const useGameStore = defineStore('game', () => {
   }
 
   async function resetGame(): Promise<boolean> {
-    if (affixPersistencePending) {
-      saveError.value = '洗练结果正在写入存档，请等待完成后再重开角色。';
+    if (paidPersistencePending) {
+      saveError.value = '付费养成结果正在安全写入，请等待完成后再重开角色。';
       return false;
     }
     if (resetPersistencePending) {
@@ -963,7 +976,7 @@ export const useGameStore = defineStore('game', () => {
   }
 
   function startLoop(): void {
-    if (rafId || storageConflict || resetPersistencePending) return;
+    if (rafId || storageConflict || resetPersistencePending || paidPersistencePending) return;
     lastTickAt = performance.now();
 
     const loop = () => {
@@ -1010,7 +1023,7 @@ export const useGameStore = defineStore('game', () => {
     if (resetPersistencePending || !enteringBackground) return;
     // 写盘期间的前台恢复尚未真正结算时，随后再次进入后台不能覆盖原离线起点；
     // 整段等待时间仍由事务完成后的第一次有效恢复统一结算。
-    if (affixPersistencePending && resumeRequestedDuringAffixTransaction) return;
+    if (paidPersistencePending && resumeRequestedDuringPaidTransaction) return;
     if (save.value) save.value.lastActiveAt = Date.now();
     void persist();
   }
@@ -1028,11 +1041,11 @@ export const useGameStore = defineStore('game', () => {
       resumeRequestedDuringReset = true;
       return;
     }
-    if (affixPersistencePending) {
+    if (paidPersistencePending) {
       // 付费事务尚未真正写盘：现在结算会让失败回滚吞掉新收益/RNG，
       // 因此只登记意图，finally 在提交或回滚完成后统一执行。
-      resumeRequestedDuringAffixTransaction = true;
-      persistRequestedDuringAffixTransaction = true;
+      resumeRequestedDuringPaidTransaction = true;
+      persistRequestedDuringPaidTransaction = true;
       return;
     }
     refreshAffectionClock();
@@ -1042,16 +1055,16 @@ export const useGameStore = defineStore('game', () => {
   }
 
   /**
-   * 结束付费洗练写盘。
+   * 结束付费养成写盘。
    *
    * 回到前台的离线结算必须晚于事务提交/回滚，并且至多发生一次；实时循环只恢复
    * 事务开始前确实运行过的那一条。显式 pagehide 状态优先于 visibility，避免
    * pagehide 时 visibility 仍为 visible 而提前重启。
    */
-  function finishAffixPersistenceTransaction(resumeRealtime: boolean): void {
-    affixPersistencePending = false;
-    const shouldSettleDeferredResume = resumeRequestedDuringAffixTransaction && realtimeMayRun();
-    resumeRequestedDuringAffixTransaction = false;
+  function finishPaidPersistenceTransaction(resumeRealtime: boolean): void {
+    paidPersistencePending = false;
+    const shouldSettleDeferredResume = resumeRequestedDuringPaidTransaction && realtimeMayRun();
+    resumeRequestedDuringPaidTransaction = false;
 
     if (shouldSettleDeferredResume) {
       refreshAffectionClock();
@@ -1059,8 +1072,8 @@ export const useGameStore = defineStore('game', () => {
     }
     if ((resumeRealtime || shouldSettleDeferredResume) && realtimeMayRun()) startLoop();
 
-    if (persistRequestedDuringAffixTransaction) {
-      persistRequestedDuringAffixTransaction = false;
+    if (persistRequestedDuringPaidTransaction) {
+      persistRequestedDuringPaidTransaction = false;
       void persist();
     }
   }
@@ -1932,17 +1945,19 @@ export const useGameStore = defineStore('game', () => {
   }
 
   /**
-   * 跨区升阶原子事务。
+   * 跨区升阶耐久事务。
    *
    * `expectedSourceDefId` 是确认弹层打开时看到的来源定义。连续点击或旧弹层
-   * 再次提交时，第一次升阶已改变 defId，第二次会返回 source-changed，绝不
-   * 顺势再跨一个区域。纯逻辑完整成功后才同步扣资产并原地改 defId。
+   * 再次提交时，第一笔写盘期间统一返回 persistence-pending；只有 CAS 真正
+   * 提交后才返回成功。失败会精确恢复金币、材料、定义与 RNG，不留下半扣状态。
    */
-  function advanceEquipment(
+  async function advanceEquipment(
     uid: string,
     expectedSourceDefId: string,
-  ): EquipmentAdvancementActionResult {
+  ): Promise<EquipmentAdvancementActionResult> {
     if (!save.value) return { ok: false, reason: 'no-save' };
+    if (storageConflict) return { ok: false, reason: 'persistence-conflict' };
+    if (paidPersistencePending) return { ok: false, reason: 'persistence-pending' };
     const located = findOwnedEquipment(uid);
     if (!located) return { ok: false, reason: 'not-found' };
     if (located.instance.defId !== expectedSourceDefId) {
@@ -1971,21 +1986,50 @@ export const useGameStore = defineStore('game', () => {
     });
     if (!result.ok) return result;
 
-    // 到这里所有会抛错的配置验证与所有玩家态预检都已经结束。
-    // 只做同步且不会失败的赋值，形成金币、材料、装备三者的一次原子提交。
+    const previousGold = save.value.player.gold;
+    const previousItems = { ...save.value.bag.items };
+    const previousDefId = located.instance.defId;
+    const previousRngState = rng.getState();
+    const previousSavedRngState = save.value.rngState;
     const beforeCp = cp.value;
-    save.value.player.gold = result.wallet.gold;
-    save.value.bag.items = { ...result.wallet.items };
-    located.instance.defId = result.targetDefId;
-    const cpChange = cp.value - beforeCp;
-    noteCpDelta(beforeCp);
-    void persist();
+    const resumeRealtime = rafId !== 0;
 
-    return {
-      ...result,
-      equipment: located.instance,
-      cpDelta: cpChange,
-    };
+    paidPersistencePending = true;
+    stopLoop();
+    try {
+      // 所有配置校验与玩家态预检都已经结束。先原地写入可响应状态，再等待
+      // IndexedDB/CAS；事务门禁保证等待期间没有第二笔付费操作或实时 RNG 混入。
+      save.value.player.gold = result.wallet.gold;
+      save.value.bag.items = { ...result.wallet.items };
+      located.instance.defId = result.targetDefId;
+      const cpChange = cp.value - beforeCp;
+
+      try {
+        await persistStrict();
+      } catch (error) {
+        save.value.player.gold = previousGold;
+        save.value.bag.items = previousItems;
+        located.instance.defId = previousDefId;
+        rng.setState(previousRngState);
+        save.value.rngState = previousSavedRngState;
+        if (error instanceof SaveConflictError) {
+          return { ok: false, reason: 'persistence-conflict' };
+        }
+        if (error instanceof SaveWriteError) {
+          return { ok: false, reason: 'persistence-failed' };
+        }
+        throw error;
+      }
+
+      noteCpDelta(beforeCp);
+      return {
+        ...result,
+        equipment: located.instance,
+        cpDelta: cpChange,
+      };
+    } finally {
+      finishPaidPersistenceTransaction(resumeRealtime);
+    }
   }
 
   /**
@@ -2000,7 +2044,7 @@ export const useGameStore = defineStore('game', () => {
   ): Promise<AffixChangeActionResult> {
     if (!save.value) return { ok: false, reason: 'no-save' };
     if (storageConflict) return { ok: false, reason: 'persistence-conflict' };
-    if (affixPersistencePending) return { ok: false, reason: 'persistence-pending' };
+    if (paidPersistencePending) return { ok: false, reason: 'persistence-pending' };
     const located = findOwnedEquipment(uid);
     if (!located) return { ok: false, reason: 'not-found' };
     if (save.value.player.level < REFORGE_UNLOCK_LEVEL) {
@@ -2032,7 +2076,7 @@ export const useGameStore = defineStore('game', () => {
     const previousInstance = cloneEquipmentInstance(located.instance);
     const resumeRealtime = rafId !== 0;
 
-    affixPersistencePending = true;
+    paidPersistencePending = true;
     stopLoop();
     try {
       // 同步写入后立刻保存；实时 tick 已暂停，不会在等待 IndexedDB 时消费 RNG
@@ -2060,7 +2104,7 @@ export const useGameStore = defineStore('game', () => {
       }
       return result;
     } finally {
-      finishAffixPersistenceTransaction(resumeRealtime);
+      finishPaidPersistenceTransaction(resumeRealtime);
     }
   }
 
@@ -2071,7 +2115,7 @@ export const useGameStore = defineStore('game', () => {
   ): Promise<ResolveAffixChangeActionResult> {
     if (!save.value) return { ok: false, reason: 'no-save' };
     if (storageConflict) return { ok: false, reason: 'persistence-conflict' };
-    if (affixPersistencePending) return { ok: false, reason: 'persistence-pending' };
+    if (paidPersistencePending) return { ok: false, reason: 'persistence-pending' };
     const located = findOwnedEquipment(uid);
     if (!located) return { ok: false, reason: 'not-found' };
     if (!located.instance.pendingAffixChange) {
@@ -2083,7 +2127,7 @@ export const useGameStore = defineStore('game', () => {
     const previousInstance = cloneEquipmentInstance(located.instance);
     const resumeRealtime = rafId !== 0;
 
-    affixPersistencePending = true;
+    paidPersistencePending = true;
     stopLoop();
     try {
       commitAffixState(located.instance, result.instance);
@@ -2109,7 +2153,7 @@ export const useGameStore = defineStore('game', () => {
         cpDelta: delta,
       };
     } finally {
-      finishAffixPersistenceTransaction(resumeRealtime);
+      finishPaidPersistenceTransaction(resumeRealtime);
     }
   }
 
@@ -2511,8 +2555,8 @@ export const useGameStore = defineStore('game', () => {
 
   async function persist(): Promise<void> {
     if (storageConflict || resetPersistencePending) return;
-    if (affixPersistencePending) {
-      persistRequestedDuringAffixTransaction = true;
+    if (paidPersistencePending) {
+      persistRequestedDuringPaidTransaction = true;
       return;
     }
     try {
@@ -2524,6 +2568,10 @@ export const useGameStore = defineStore('game', () => {
   }
 
   function loadFrom(data: SaveData): void {
+    if (paidPersistencePending) {
+      saveError.value = '付费养成结果正在安全写入，暂时不能导入存档。';
+      return;
+    }
     if (resetPersistencePending) {
       saveError.value = '旧角色正在清除，暂时不能导入存档。';
       return;

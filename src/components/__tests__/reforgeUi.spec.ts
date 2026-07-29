@@ -20,6 +20,7 @@ const inventory = vi.hoisted(() => ({
   decompose: vi.fn(),
   toggleLock: vi.fn(),
   equipBest: vi.fn(() => 0),
+  equipmentAdvancementOption: vi.fn(() => undefined),
   startAffixChange: vi.fn(),
   resolveAffixChange: vi.fn(),
 }));

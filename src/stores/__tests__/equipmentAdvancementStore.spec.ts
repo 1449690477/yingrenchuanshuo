@@ -6,21 +6,37 @@ import { Rng } from '@/core/rng';
 import type { EquipmentInstance } from '@/core/types';
 import { requireEquipment } from '@/data/equipment';
 import { createSave } from '@/save/schema';
-import { clearSave, loadSave } from '@/save/storage';
+import * as saveStorage from '@/save/storage';
+import {
+  clearSave,
+  createSaveStorageClient,
+  loadSave,
+  SaveWriteError,
+} from '@/save/storage';
 import { useGameStore } from '../game';
 import { useInventoryStore } from '../inventory';
 
 const SOURCE_ID = 'eq_r1_weapon_rare';
 const TARGET_ID = 'eq_r2_weapon_rare';
 
+async function synchronizeAndClear(): Promise<void> {
+  try {
+    await loadSave();
+  } catch {
+    // 即使前一用例制造了冲突，先读取也会同步默认客户端 revision，随后可安全清档。
+  }
+  await clearSave();
+}
+
 beforeEach(async () => {
   setActivePinia(createPinia());
-  await clearSave();
+  await synchronizeAndClear();
 });
 
 afterEach(async () => {
   vi.restoreAllMocks();
-  await clearSave();
+  vi.unstubAllGlobals();
+  await synchronizeAndClear();
 });
 
 function jsonClone<T>(value: T): T {
@@ -88,7 +104,7 @@ describe('game store 装备跨区升阶事务', () => {
     });
 
     const reactiveInstance = owned(game, instance.uid);
-    const result = inventory.advanceEquipment(instance.uid, SOURCE_ID);
+    const result = await inventory.advanceEquipment(instance.uid, SOURCE_ID);
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -112,7 +128,6 @@ describe('game store 装备跨区升阶事务', () => {
     expect(game.save?.rngState).toBe(beforeRng);
     expect(game.save?.nextUid).toBe(beforeNextUid);
 
-    await game.persist();
     const persisted = await loadSave();
     expect(persisted?.bag.equipment[0]).toEqual({ ...investment, defId: TARGET_ID });
     expect(persisted?.player.gold).toBe(6_400);
@@ -125,13 +140,13 @@ describe('game store 装备跨区升阶事务', () => {
     expect(persisted?.nextUid).toBe(beforeNextUid);
   });
 
-  it('穿戴装备走同一事务且不替换响应式实例引用', () => {
+  it('穿戴装备走同一事务且不替换响应式实例引用', async () => {
     const game = useGameStore();
     const { save, instance } = advancementSave('equipped');
     game.loadFrom(save);
     const reactiveInstance = game.save!.equipped.weapon!;
 
-    const result = game.advanceEquipment(instance.uid, SOURCE_ID);
+    const result = await game.advanceEquipment(instance.uid, SOURCE_ID);
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -141,14 +156,14 @@ describe('game store 装备跨区升阶事务', () => {
     expect(game.save?.bag.equipment).toHaveLength(0);
   });
 
-  it('旧弹层或双击只成功一次，第二次不会顺势再跨一个区域', () => {
+  it('旧弹层在首笔落盘后不会顺势再跨一个区域', async () => {
     const game = useGameStore();
     const { save, instance } = advancementSave();
     game.loadFrom(save);
 
-    expect(game.advanceEquipment(instance.uid, SOURCE_ID).ok).toBe(true);
+    expect((await game.advanceEquipment(instance.uid, SOURCE_ID)).ok).toBe(true);
     const afterFirst = jsonClone(game.save);
-    const second = game.advanceEquipment(instance.uid, SOURCE_ID);
+    const second = await game.advanceEquipment(instance.uid, SOURCE_ID);
 
     expect(second).toEqual({
       ok: false,
@@ -159,29 +174,184 @@ describe('game store 装备跨区升阶事务', () => {
     expect(game.save).toEqual(afterFirst);
   });
 
-  it('无存档、装备不存在与没有同品质路线都返回明确原因', () => {
+  it('首笔尚未落盘时拒绝第二次升阶与洗练，成功后旧来源才变为 source-changed', async () => {
     const game = useGameStore();
-    expect(game.advanceEquipment('missing', SOURCE_ID)).toEqual({
+    const { save, instance } = advancementSave();
+    game.loadFrom(save);
+    await game.persist();
+
+    let finishWrite: (() => void) | undefined;
+    vi.spyOn(saveStorage, 'saveSave').mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        finishWrite = resolve;
+      }),
+    );
+
+    const first = game.advanceEquipment(instance.uid, SOURCE_ID);
+    expect(await game.advanceEquipment(instance.uid, SOURCE_ID)).toEqual({
+      ok: false,
+      reason: 'persistence-pending',
+    });
+    expect(await game.startAffixChange(instance.uid, 'reforge')).toEqual({
+      ok: false,
+      reason: 'persistence-pending',
+    });
+
+    finishWrite!();
+    expect((await first).ok).toBe(true);
+    expect(await game.advanceEquipment(instance.uid, SOURCE_ID)).toEqual({
+      ok: false,
+      reason: 'source-changed',
+      expectedSourceDefId: SOURCE_ID,
+      currentSourceDefId: TARGET_ID,
+    });
+  });
+
+  it('写盘失败时精确恢复金币、材料、定义、RNG 与战力提示，磁盘也保持旧快照', async () => {
+    const game = useGameStore();
+    const { save, instance } = advancementSave();
+    game.loadFrom(save);
+    await game.persist();
+    const reactiveInstance = owned(game, instance.uid);
+    const before = jsonClone(game.save);
+    const durableBefore = await loadSave();
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    vi.spyOn(saveStorage, 'saveSave').mockRejectedValueOnce(
+      new SaveWriteError(new Error('quota exceeded')),
+    );
+
+    const result = await game.advanceEquipment(instance.uid, SOURCE_ID);
+
+    expect(result).toEqual({ ok: false, reason: 'persistence-failed' });
+    expect(game.save).toEqual(before);
+    expect(owned(game, instance.uid)).toBe(reactiveInstance);
+    expect(reactiveInstance.defId).toBe(SOURCE_ID);
+    expect(game.cpDelta).toBeNull();
+    expect(game.saveError).toContain('IndexedDB 写入失败');
+    expect(await loadSave()).toEqual(durableBefore);
+  });
+
+  it('另一标签先写入时 CAS 冲突会回滚并停机，绝不覆盖权威新档', async () => {
+    let nextRafId = 0;
+    const requestFrame = vi.fn(() => ++nextRafId);
+    vi.stubGlobal('document', { visibilityState: 'visible' });
+    vi.stubGlobal('requestAnimationFrame', requestFrame);
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    const game = useGameStore();
+    const { save, instance } = advancementSave();
+    game.loadFrom(save);
+    await game.persist();
+
+    const otherTab = createSaveStorageClient();
+    const authoritative = await otherTab.loadSave();
+    if (!authoritative) throw new Error('跨标签测试缺少初始存档');
+    authoritative.player.gold += 777;
+    await otherTab.saveSave(authoritative);
+
+    const before = jsonClone(game.save);
+    game.startLoop();
+    requestFrame.mockClear();
+    const result = await game.advanceEquipment(instance.uid, SOURCE_ID);
+
+    expect(result).toEqual({ ok: false, reason: 'persistence-conflict' });
+    expect(game.save).toEqual(before);
+    expect(owned(game, instance.uid).defId).toBe(SOURCE_ID);
+    expect(game.cpDelta).toBeNull();
+    expect(game.loadError).toContain('另一页面已经更新');
+    expect(requestFrame).not.toHaveBeenCalled();
+    expect((await otherTab.loadSave())?.player.gold).toBe(authoritative.player.gold);
+  });
+
+  it('写盘期间 hidden→visible 不提前结算或重启，提交后至多恢复一条循环', async () => {
+    let now = Date.UTC(2026, 6, 29, 8);
+    let visibilityState: DocumentVisibilityState = 'visible';
+    let nextRafId = 0;
+    const requestFrame = vi.fn(() => ++nextRafId);
+    vi.spyOn(Date, 'now').mockImplementation(() => now);
+    vi.stubGlobal('document', {
+      get visibilityState() {
+        return visibilityState;
+      },
+    });
+    vi.stubGlobal('requestAnimationFrame', requestFrame);
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+
+    const game = useGameStore();
+    const { save, instance } = advancementSave();
+    game.loadFrom(save);
+    await game.persist();
+    game.startLoop();
+
+    let finishWrite: (() => void) | undefined;
+    vi.spyOn(saveStorage, 'saveSave').mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        finishWrite = resolve;
+      }),
+    );
+
+    const action = game.advanceEquipment(instance.uid, SOURCE_ID);
+    requestFrame.mockClear();
+    visibilityState = 'hidden';
+    game.pauseForBackground();
+    const killsBeforeResume = game.save!.stats.totalKills;
+
+    now += 60_000;
+    visibilityState = 'visible';
+    game.resumeFromBackground();
+    expect(requestFrame).not.toHaveBeenCalled();
+    expect(game.save!.stats.totalKills).toBe(killsBeforeResume);
+
+    finishWrite!();
+    expect((await action).ok).toBe(true);
+    expect(requestFrame).toHaveBeenCalledTimes(1);
+    expect(game.save!.stats.totalKills).toBeGreaterThan(killsBeforeResume);
+    game.stopLoop();
+  });
+
+  it('非存储异常先恢复完整现场再继续抛出，不能伪装成浏览器写盘失败', async () => {
+    const game = useGameStore();
+    const { save, instance } = advancementSave();
+    game.loadFrom(save);
+    await game.persist();
+    const before = jsonClone(game.save);
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    vi.spyOn(saveStorage, 'saveSave').mockRejectedValueOnce(
+      new Error('schema invariant broken'),
+    );
+
+    await expect(game.advanceEquipment(instance.uid, SOURCE_ID)).rejects.toThrow(
+      'schema invariant broken',
+    );
+    expect(game.save).toEqual(before);
+    expect(owned(game, instance.uid).defId).toBe(SOURCE_ID);
+    expect(game.cpDelta).toBeNull();
+  });
+
+  it('无存档、装备不存在与没有同品质路线都返回明确原因', async () => {
+    const game = useGameStore();
+    expect(await game.advanceEquipment('missing', SOURCE_ID)).toEqual({
       ok: false,
       reason: 'no-save',
     });
 
     const { save, instance } = advancementSave();
     game.loadFrom(save);
-    expect(game.advanceEquipment('missing', SOURCE_ID)).toEqual({
+    expect(await game.advanceEquipment('missing', SOURCE_ID)).toEqual({
       ok: false,
       reason: 'not-found',
     });
 
     instance.defId = 'eq_r1_weapon_common';
     expect(game.equipmentAdvancementOption(instance.uid)).toBeUndefined();
-    expect(game.advanceEquipment(instance.uid, 'eq_r1_weapon_common')).toEqual({
+    expect(await game.advanceEquipment(instance.uid, 'eq_r1_weapon_common')).toEqual({
       ok: false,
       reason: 'no-route',
     });
   });
 
-  it('等级、金币、两档材料与待确认洗练不足时资产和装备完全不变', () => {
+  it('等级、金币、两档材料与待确认洗练不足时资产和装备完全不变', async () => {
     const cases: ReadonlyArray<{
       mutate: (game: ReturnType<typeof useGameStore>, instance: EquipmentInstance) => void;
       expected: object;
@@ -250,7 +420,7 @@ describe('game store 装备跨区升阶事务', () => {
       testCase.mutate(game, reactiveInstance);
       const before = jsonClone(game.save);
 
-      expect(game.advanceEquipment(instance.uid, SOURCE_ID)).toEqual(testCase.expected);
+      expect(await game.advanceEquipment(instance.uid, SOURCE_ID)).toEqual(testCase.expected);
       expect(game.save).toEqual(before);
     }
   });

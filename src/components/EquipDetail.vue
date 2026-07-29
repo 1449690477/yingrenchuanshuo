@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { Sparkles, X } from '@lucide/vue';
+import { ArrowUpRight, Sparkles, X } from '@lucide/vue';
 import { abbr, signed } from '@/core/format';
 import { zeroStats } from '@/core/formula';
 import {
@@ -25,6 +25,7 @@ import {
   formatAffixValue,
 } from '@/ui/affixPresentation';
 import EquipmentIcon from '@/components/EquipmentIcon.vue';
+import EquipmentAdvancementPanel from '@/components/EquipmentAdvancementPanel.vue';
 import ReforgePanel from '@/components/ReforgePanel.vue';
 
 const props = defineProps<{ inst: EquipmentInstance; from: 'bag' | 'equipped' }>();
@@ -33,7 +34,9 @@ const emit = defineEmits<{ close: [] }>();
 const inventory = useInventoryStore();
 const player = usePlayerStore();
 const showReforge = ref(false);
+const showAdvancement = ref(false);
 const def = computed(() => requireEquipment(props.inst.defId));
+const advancementOption = computed(() => inventory.equipmentAdvancementOption(props.inst.uid));
 
 const stats = computed<Stats>(() =>
   def.value && player.player
@@ -232,6 +235,14 @@ function doDecompose() {
       </div>
 
       <footer class="foot">
+        <button
+          v-if="advancementOption"
+          class="btn advancement-entry"
+          @click="showAdvancement = true"
+        >
+          <ArrowUpRight :size="16" aria-hidden="true" />
+          跨区升阶
+        </button>
         <button v-if="canReforge" class="btn reforge-entry" @click="showReforge = true">
           <Sparkles :size="16" aria-hidden="true" />
           {{ inst.pendingAffixChange ? '查看洗练候选' : '词条洗练' }}
@@ -262,6 +273,11 @@ function doDecompose() {
       </footer>
 
       <ReforgePanel v-if="showReforge" :inst="inst" @close="showReforge = false" />
+      <EquipmentAdvancementPanel
+        v-if="showAdvancement"
+        :inst="inst"
+        @close="showAdvancement = false"
+      />
     </div>
   </div>
 </template>
@@ -644,6 +660,22 @@ function doDecompose() {
   background: linear-gradient(100deg, rgb(228 245 255 / 92%), rgb(255 230 244 / 92%)), #fff;
   border: 1px solid #eab9d1;
   box-shadow: inset 0 0 0 1px rgb(255 255 255 / 75%);
+}
+
+.advancement-entry {
+  min-width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #80551f;
+  font-size: 12px;
+  font-weight: 800;
+  background:
+    linear-gradient(100deg, rgb(255 245 216 / 94%), rgb(232 247 255 / 94%)),
+    #fff;
+  border: 1px solid #ecd09b;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 76%);
 }
 
 .f {
