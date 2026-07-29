@@ -58,7 +58,12 @@ export function writeClaims(doc, claims) {
 
 /** 追加一条消息到文件末尾 */
 export function appendMessage(name, type, text) {
-  fs.appendFileSync(DOC, `- [${now()}] 【${type}】**${name}**：${text}\n`, 'utf8');
+  // 一条消息必须占且只占一行。
+  // messageLines() 只认 `- [20xx-` 开头的行，所以多行文本原样写入时，
+  // 第二行起会被当成普通正文永远读不到 —— 消息写进去了却没人看得见。
+  // 这里把换行折成「 / 」，长交接贴多行也不会丢内容。
+  const single = String(text).replace(/\r?\n+/g, ' / ');
+  fs.appendFileSync(DOC, `- [${now()}] 【${type}】**${name}**：${single}\n`, 'utf8');
 }
 
 /** 原始消息行（兼容旧行为） */
