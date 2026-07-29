@@ -21,6 +21,10 @@ import ItemIcon from '@/components/ItemIcon.vue';
 import EncounterPanel from '@/components/EncounterPanel.vue';
 import EncounterJournalPanel from '@/components/EncounterJournalPanel.vue';
 import CollapsibleCard from '@/components/CollapsibleCard.vue';
+import EquipDetail from '@/components/EquipDetail.vue';
+import ItemPeekSheet from '@/components/ItemPeekSheet.vue';
+import type { EquipmentInstance } from '@/core/types';
+import type { ItemDef } from '@/data/items';
 
 const player = usePlayerStore();
 const inventory = useInventoryStore();
@@ -139,6 +143,9 @@ const recentDrop = computed(() => {
     : requireItem(entry.itemId).icon;
   return {
     id: entry.id,
+    itemId: entry.itemId,
+    isEquipment: entry.isEquipment,
+    count: entry.count,
     name: entry.name,
     quality: entry.quality,
     assetUrl: `${import.meta.env.BASE_URL}${asset}`,
@@ -147,6 +154,71 @@ const recentDrop = computed(() => {
 
 /** 真实承伤结算给出的效率提示；推荐战力只保留为右侧参考值。 */
 const efficiencyStatus = computed(() => idleEfficiencyPresentation(stage.battleEfficiency));
+
+/* ── 第二轮：掉落互动化 ── */
+
+/** 挂机窗口眉部的战利品流水线：最近 6 件，新货在最左。 */
+const lootFeed = computed(() =>
+  stage.lootLog.slice(0, 6).map((entry) => ({
+    id: entry.id,
+    itemId: entry.itemId,
+    name: entry.name,
+    count: entry.count,
+    quality: entry.quality,
+    isEquipment: entry.isEquipment,
+    assetUrl: `${import.meta.env.BASE_URL}${
+      entry.isEquipment ? requireEquipment(entry.itemId).icon : requireItem(entry.itemId).icon
+    }`,
+  })),
+);
+
+/** 掉落日志满员提示：40 条之后最旧的记录会被冲掉，别让玩家误以为丢装备了。 */
+const LOOT_LOG_DISPLAY_MAX = 40;
+const lootSubtitle = computed(() =>
+  stage.lootLog.length >= LOOT_LOG_DISPLAY_MAX
+    ? `${LOOT_LOG_DISPLAY_MAX}/${LOOT_LOG_DISPLAY_MAX} 条 · 旧记录正被冲掉`
+    : `${stage.lootLog.length}/${LOOT_LOG_DISPLAY_MAX} 条 · ${groupedLoot.value.length} 类`,
+);
+
+const selectedEquip = ref<EquipmentInstance | null>(null);
+const peekItem = ref<{ def: ItemDef; owned: number } | null>(null);
+const lootNotice = ref<string | null>(null);
+let noticeTimer = 0;
+
+function notice(text: string): void {
+  lootNotice.value = text;
+  clearTimeout(noticeTimer);
+  noticeTimer = window.setTimeout(() => (lootNotice.value = null), 2200);
+}
+
+/**
+ * 点开一件掉落：装备找背包里同定义的最新实例弹详情；
+ * 材料/货币弹轻量速览。实例不在背包（已分解/出售）时给一句兜底提示。
+ */
+function openLootEntry(entry: { itemId: string; isEquipment: boolean; count: number }): void {
+  if (entry.isEquipment) {
+    const list = inventory.bag?.equipment ?? [];
+    let found: EquipmentInstance | null = null;
+    for (let i = list.length - 1; i >= 0; i--) {
+      if (list[i].defId === entry.itemId) {
+        found = list[i];
+        break;
+      }
+    }
+    if (found) {
+      peekItem.value = null;
+      selectedEquip.value = found;
+    } else {
+      notice('这件装备已不在背包（可能已分解或出售）');
+    }
+    return;
+  }
+  selectedEquip.value = null;
+  peekItem.value = {
+    def: requireItem(entry.itemId),
+    owned: inventory.bag?.items[entry.itemId] ?? entry.count,
+  };
+}
 </script>
 
 <template>
@@ -195,6 +267,20 @@ const efficiencyStatus = computed(() => idleEfficiencyPresentation(stage.battleE
             }"
           />
         </div>
+        <!-- 战利品流水线：最新掉落在最左，新货滑入弹跳；点图标直接看详情 -->
+        <TransitionGroup v-if="lootFeed.length" name="feed" tag="div" class="loot-feed">
+          <button
+            v-for="item in lootFeed"
+            :key="item.id"
+            type="button"
+            class="feed-chip"
+            :class="['q-' + item.quality, { eq: item.isEquipment }]"
+            :aria-label="`查看${item.name}`"
+            @click="openLootEntry(item)"
+          >
+            <img :src="item.assetUrl" :alt="item.name" draggable="false" />
+          </button>
+        </TransitionGroup>
         <BattleScene
           v-if="player.player && battleVitals"
           :class-id="player.player.classId"
@@ -251,7 +337,7 @@ const efficiencyStatus = computed(() => idleEfficiencyPresentation(stage.battleE
     <CollapsibleCard
       class="loot"
       title="最近掉落"
-      :subtitle="`${stage.lootLog.length}/40 条 · ${groupedLoot.length} 类`"
+      :subtitle="lootSubtitle"
       persist-key="lootPanel"
       :default-open="lootDefaultOpen"
     >
@@ -286,12 +372,15 @@ const efficiencyStatus = computed(() => idleEfficiencyPresentation(stage.battleE
             {{ allLootCollapsed ? '全部展开' : '全部折叠' }}
           </button>
         </div>
-        <!-- 最新掉落聚焦：key 随掉落 id 变化，每次出新货重播入场动画 -->
-        <div
+        <!-- 最新掉落聚焦：可点，直接弹出详情 -->
+        <button
           v-if="recentDrop"
           :key="recentDrop.id"
+          type="button"
           class="loot-spot"
           :class="'q-' + recentDrop.quality"
+          :aria-label="`查看${recentDrop.name}详情`"
+          @click="openLootEntry(recentDrop)"
         >
           <span class="spot-tag">✨ 最新掉落</span>
           <img class="spot-icon" :src="recentDrop.assetUrl" :alt="recentDrop.name" />
@@ -299,8 +388,12 @@ const efficiencyStatus = computed(() => idleEfficiencyPresentation(stage.battleE
           <span class="spot-quality" :class="'q-' + recentDrop.quality">{{
             qualityLabels[recentDrop.quality] ?? recentDrop.quality
           }}</span>
+        </button>
+        <div v-if="stage.lootLog.length === 0" class="loot-empty">
+          <Gift :size="22" aria-hidden="true" />
+          <strong>战利品正在路上</strong>
+          <small>挂机击败魔物后，掉落会实时出现在这里</small>
         </div>
-        <div v-if="stage.lootLog.length === 0" class="loot-empty">还没有掉落，稍等一下…</div>
         <div v-else class="loot-list scroll-y">
           <section v-for="group in groupedLoot" :key="group.category" class="loot-group">
             <button
@@ -322,24 +415,47 @@ const efficiencyStatus = computed(() => idleEfficiencyPresentation(stage.battleE
             </button>
             <Transition name="loot-fold">
               <div v-if="!collapsedLoot[group.category]" class="loot-items">
-                <div
+                <button
                   v-for="(e, i) in group.items"
                   :key="e.itemId"
+                  type="button"
                   class="loot-row"
                   :class="'q-' + e.quality"
                   :style="{ '--row-delay': `${Math.min(i, 8) * 28}ms` }"
+                  :aria-label="`查看${e.name}详情`"
+                  @click="openLootEntry(e)"
                 >
                   <EquipmentIcon v-if="e.isEquipment" :def="requireEquipment(e.itemId)" size="sm" />
                   <ItemIcon v-else :item="requireItem(e.itemId)" />
                   <span class="loot-name" :class="'q-' + e.quality">{{ e.name }}</span>
                   <span class="loot-count num">×{{ e.count }}</span>
-                </div>
+                </button>
               </div>
             </Transition>
           </section>
         </div>
       </div>
     </CollapsibleCard>
+
+    <!-- 掉落详情：装备走完整详情（可比可穿），材料走轻量速览 -->
+    <Transition name="modal-pop">
+      <EquipDetail
+        v-if="selectedEquip"
+        :inst="selectedEquip"
+        from="bag"
+        @close="selectedEquip = null"
+      />
+    </Transition>
+    <ItemPeekSheet
+      v-if="peekItem"
+      :item="peekItem.def"
+      :owned="peekItem.owned"
+      @close="peekItem = null"
+    />
+
+    <Transition name="toast-up">
+      <div v-if="lootNotice" class="loot-toast">{{ lootNotice }}</div>
+    </Transition>
 
     <!-- 合并：保留 UI 打磨的 modal-pop 过渡，同时接入奇遇面板并统一用同一套过渡 -->
     <Transition name="modal-pop">
@@ -357,6 +473,7 @@ const efficiencyStatus = computed(() => idleEfficiencyPresentation(stage.battleE
 
 <style scoped>
 .idle {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -674,6 +791,73 @@ const efficiencyStatus = computed(() => idleEfficiencyPresentation(stage.battleE
   background: linear-gradient(90deg, #63c98e, #8fe0c8);
 }
 
+/* ── 战利品流水线：窗口眉部的最近掉落图标流 ── */
+.loot-feed {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  overflow: hidden;
+  padding: 5px 13px 3px;
+}
+
+.feed-chip {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  place-items: center;
+  background: rgb(255 255 255 / 88%);
+  border: 1.5px solid currentcolor;
+  border-radius: 9px;
+  box-shadow: 0 2px 6px rgb(53 69 91 / 10%);
+  transition: transform var(--t-fast) var(--ease-spring);
+}
+
+.feed-chip:active {
+  transform: scale(0.88);
+}
+
+/* 装备图标比方角材料多一道内发光，扫一眼能分清 */
+.feed-chip.eq {
+  box-shadow:
+    0 2px 6px rgb(53 69 91 / 10%),
+    inset 0 0 6px color-mix(in srgb, currentcolor 22%, transparent);
+}
+
+.feed-chip img {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  filter: drop-shadow(0 1px 2px rgb(24 38 52 / 18%));
+}
+
+/* 新货从最左弹进来，其余顺势右移让位 */
+.feed-enter-from {
+  opacity: 0;
+  transform: translateX(-12px) scale(0.6);
+}
+
+.feed-enter-active {
+  transition:
+    opacity var(--t-mid) var(--ease-soft),
+    transform var(--t-slow) var(--ease-out-back);
+}
+
+.feed-leave-to {
+  opacity: 0;
+  transform: scale(0.6);
+}
+
+.feed-leave-active {
+  transition:
+    opacity var(--t-fast) ease,
+    transform var(--t-fast) ease;
+}
+
+.feed-move {
+  transition: transform var(--t-mid) var(--ease-soft);
+}
+
 .idle-stats {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -724,8 +908,10 @@ const efficiencyStatus = computed(() => idleEfficiencyPresentation(stage.battleE
   overflow: hidden;
   align-items: center;
   gap: 8px;
+  width: 100%;
   margin-bottom: 8px;
   padding: 7px 10px;
+  text-align: left;
   background: linear-gradient(100deg, rgb(255 240 246 / 92%), rgb(255 255 255 / 88%));
   border: 1px solid rgb(245 121 159 / 26%);
   border-radius: 13px;
@@ -1026,10 +1212,45 @@ const efficiencyStatus = computed(() => idleEfficiencyPresentation(stage.battleE
 }
 
 .loot-empty {
-  padding: 16px;
-  font-size: 11px;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  gap: 3px;
+  padding: 18px 16px;
   color: var(--text-dim);
+  text-align: center;
+}
+
+.loot-empty svg {
+  margin-bottom: 2px;
+  color: var(--pink);
+  opacity: 0.75;
+}
+
+.loot-empty strong {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--text-mid);
+}
+
+.loot-empty small {
+  font-size: 10px;
+}
+
+/* 兜底轻提示：装备已不在背包等情况 */
+.loot-toast {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  z-index: 30;
+  max-width: 88%;
+  padding: 8px 15px;
+  font-size: 11px;
+  color: #fff;
+  text-align: center;
+  background: rgb(70 89 107 / 92%);
+  border-radius: 999px;
+  transform: translateX(-50%);
 }
 
 /*
@@ -1123,9 +1344,12 @@ const efficiencyStatus = computed(() => idleEfficiencyPresentation(stage.battleE
   display: flex;
   align-items: center;
   gap: clamp(6px, 2vw, 9px);
+  width: 100%;
   min-height: 40px;
   padding: 4px clamp(6px, 2vw, 9px) 4px 11px;
   font-size: clamp(11px, 3.1vw, 12.5px);
+  text-align: left;
+  cursor: pointer;
   background: linear-gradient(
     100deg,
     color-mix(in srgb, currentcolor 7%, transparent),
@@ -1309,15 +1533,21 @@ const efficiencyStatus = computed(() => idleEfficiencyPresentation(stage.battleE
   }
 
   .wave-fill,
+  .feed-chip,
   .loot-group-head svg {
     transition: none;
   }
 
+  .feed-enter-from,
+  .feed-leave-to,
   .loot-fold-enter-from,
   .loot-fold-leave-to {
     transform: none;
   }
 
+  .feed-enter-active,
+  .feed-leave-active,
+  .feed-move,
   .loot-fold-enter-active,
   .loot-fold-leave-active {
     transition: none;
