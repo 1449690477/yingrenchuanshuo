@@ -1,4 +1,5 @@
 import type { MonsterType } from '@/core/types';
+import { REGION_34_MATERIALS } from './region34';
 
 export type RegionMaterialTier = 'common' | 'fine' | 'rare';
 
@@ -15,6 +16,26 @@ export const REGION_MATERIAL_TIER_BY_MONSTER_TYPE: Readonly<
   elite: 'fine',
   boss: 'rare',
 };
+
+/**
+ * 所有区域稀有材料的真实 BOSS 保底。
+ *
+ * 前两区的材料早于独立区域规格表存在，因此在这里补登记；区域 3/4 则直接读取
+ * 同源规格，避免写了 `pityCount` 却没有进入运行时。新增区域的 rare 材料如果
+ * 没有登记，掉落表生成会直接报错，不能让 UI 继续显示一条假的保底承诺。
+ */
+export const REGION_MATERIAL_PITY_COUNT_BY_ID: Readonly<Record<string, number>> =
+  Object.freeze({
+    core_barrier: 12,
+    crystal_altar: 12,
+    ...Object.fromEntries(
+      REGION_34_MATERIALS.flatMap((material) =>
+        material.tier === 'rare' && material.pityCount !== undefined
+          ? [[material.id, material.pityCount] as const]
+          : [],
+      ),
+    ),
+  });
 
 export function monsterTypeForRegionMaterialTier(
   tier: RegionMaterialTier,
@@ -48,4 +69,13 @@ export function regionMaterialIdsForMonsterType(
     }
     return tier === expectedTier;
   });
+}
+
+/** rare 区域材料必须有正整数保底；缺配置时在启动生成掉落表阶段硬失败。 */
+export function requireRegionMaterialPityCount(materialId: string): number {
+  const pityCount = REGION_MATERIAL_PITY_COUNT_BY_ID[materialId];
+  if (!Number.isInteger(pityCount) || (pityCount ?? 0) <= 0) {
+    throw new Error(`[配置错误] 稀有区域材料缺少 BOSS 保底：${materialId}`);
+  }
+  return pityCount;
 }

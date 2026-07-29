@@ -79,7 +79,7 @@ describe('区域 3/4 独立内容清单', () => {
       ['chitin_wing', 'moss_cave'],
       ['chitin_wing', 'moss_cave', 'silk_spider'],
       ['chitin_wing', 'moss_cave'],
-      ['chitin_wing', 'moss_cave', 'silk_spider'],
+      ['chitin_wing', 'moss_cave'],
       ['chitin_wing', 'moss_cave', 'silk_spider', 'egg_broodmother'],
     ]);
     expect(REGION_4.chapters.map((chapter) => chapter.materials)).toEqual([
@@ -157,7 +157,7 @@ describe('区域 3/4 独立内容清单', () => {
 
   it('虫娘区统一为冰属性，属性教学只写入真实计划中的首章', () => {
     expect(REGION_3.chapters.every((chapter) => chapter.element === 'ice')).toBe(true);
-    expect(REGION_3.chapters[0]?.tutorial).toContain('炎属性装备');
+    expect(REGION_3.chapters[0]?.tutorial).toContain('炎属性武器');
     expect(REGION_3.chapters.slice(1).every((chapter) => chapter.tutorial === undefined)).toBe(
       true,
     );

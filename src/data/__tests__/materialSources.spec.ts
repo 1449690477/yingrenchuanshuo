@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import type { MonsterType } from '@/core/types';
 import {
   monsterTypeForRegionMaterialTier,
+  REGION_MATERIAL_PITY_COUNT_BY_ID,
   REGION_MATERIAL_TIER_BY_MONSTER_TYPE,
   regionMaterialIdsForMonsterType,
+  requireRegionMaterialPityCount,
   type RegionMaterialTier,
 } from '../materialSources';
 
@@ -47,5 +49,23 @@ describe('区域材料来源分层', () => {
     expect(() =>
       regionMaterialIdsForMonsterType(['leaf', 'missing'], 'normal', (id) => TIERS[id]),
     ).toThrow('章节材料未登记区域材料档位：missing');
+  });
+
+  it('四个已开放区域的 rare 材料都有同一口径的真实 BOSS 保底', () => {
+    expect(REGION_MATERIAL_PITY_COUNT_BY_ID).toEqual({
+      core_barrier: 12,
+      crystal_altar: 12,
+      egg_broodmother: 12,
+      tear_eternal: 12,
+    });
+    for (const materialId of Object.keys(REGION_MATERIAL_PITY_COUNT_BY_ID)) {
+      expect(requireRegionMaterialPityCount(materialId)).toBe(12);
+    }
+  });
+
+  it('rare 材料没有登记保底时直接报错，不让 UI 产生假承诺', () => {
+    expect(() => requireRegionMaterialPityCount('missing_rare')).toThrow(
+      '稀有区域材料缺少 BOSS 保底：missing_rare',
+    );
   });
 });

@@ -15,6 +15,12 @@ import { equipIdsOf, requireEquipment } from './equipment';
 import { lootTableIdFor } from './monsters';
 import { boutiqueBossDropIds } from './shop';
 import { requireEnhanceProgression } from './enhanceProgression';
+import { requireItem } from './items';
+import {
+  regionMaterialIdsForMonsterType,
+  requireRegionMaterialPityCount,
+  type RegionMaterialTier,
+} from './materialSources';
 
 const REFORGE_DROP = {
   temper: 'sand_crystal',
@@ -62,12 +68,21 @@ function buildTable(spec: ChapterSpec, type: MonsterType): LootTable {
   const guaranteed: LootTable['entries'] = enhanceLoot.guaranteed.map((drop) => ({ ...drop }));
 
   // ── 材料 ──
-  for (const matId of spec.materials) {
+  const regionMaterialIds = regionMaterialIdsForMonsterType(
+    spec.materials,
+    type,
+    (materialId): RegionMaterialTier | undefined => {
+      const tier = requireItem(materialId).tier;
+      return tier === 'common' || tier === 'fine' || tier === 'rare' ? tier : undefined;
+    },
+  );
+  for (const matId of regionMaterialIds) {
     entries.push({
       itemId: matId,
       weight: MATERIAL_WEIGHT[type],
       minCount: type === 'boss' ? 3 : 1,
       maxCount: type === 'boss' ? 6 : type === 'elite' ? 3 : 2,
+      ...(type === 'boss' ? { pityCount: requireRegionMaterialPityCount(matId) } : {}),
     });
   }
 

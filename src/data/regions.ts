@@ -200,7 +200,8 @@ const REGION_2: RegionSpec = {
       elite: '祭坛祭司',
       boss: '大史莱姆女王',
       materials: ['crystal_altar', 'jelly_cotton'],
-      tutorial: '有些关卡的怪带属性。炎克冰、冰克雷、雷克炎，穿对属性装备伤害更高。',
+      tutorial:
+        '有些关卡的怪带属性。上一章首通送的炎属性武器可以克制冰怪，换上后伤害更高。',
       mapAsset: 'assets/maps/chapter-2-5.webp',
       battleAsset: 'assets/battlefields/chapter-2-5.webp',
     },

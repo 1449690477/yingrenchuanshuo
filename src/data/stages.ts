@@ -17,6 +17,19 @@ import { bossOfChapter, eliteOfChapter, lootTableIdFor, normalsOfChapter } from 
 import { DEFAULT_MAX_KILLS_PER_SEC } from './constants';
 import { enhanceFirstClearRewards } from './enhanceProgression';
 
+/**
+ * 教学依赖的确定性装备来源。
+ *
+ * 2-5 开始正式教学炎克冰，因此上一章最终关固定给一把炎属性武器；这不是
+ * “掉率高一点”的随机兜底，而是教程主流程的硬前置。后续若增加教学装备，
+ * 必须在这里逐关登记并配来源测试。
+ */
+const STAGE_FIRST_CLEAR_GEAR_REWARDS: Readonly<
+  Record<string, readonly { itemId: string; count: number }[]>
+> = {
+  'stage_2-4_6': [{ itemId: 'eq_r2_weapon_fine', count: 1 }],
+};
+
 /** 关卡等级：在章节区间内按关卡序号递增 */
 function stageLevel(spec: ChapterSpec, idx: number): number {
   const t = STAGES_PER_CHAPTER <= 1 ? 0 : idx / (STAGES_PER_CHAPTER - 1);
@@ -87,6 +100,7 @@ function buildStages(): Record<string, Stage> {
       const level = stageLevel(spec, idx);
       const { waves, bossId } = buildWaves(spec, idx);
       const id = `stage_${spec.id}_${idx + 1}`;
+      const firstClearGearRewards = STAGE_FIRST_CLEAR_GEAR_REWARDS[id] ?? [];
 
       out[id] = {
         id,
@@ -96,7 +110,10 @@ function buildStages(): Record<string, Stage> {
         waves,
         ...(bossId ? { bossId } : {}),
         recommendCP: estimateRecommendCP(level),
-        firstClearRewards: enhanceFirstClearRewards(spec.id, idx, Boolean(bossId)),
+        firstClearRewards: [
+          ...enhanceFirstClearRewards(spec.id, idx, Boolean(bossId)),
+          ...firstClearGearRewards.map((reward) => ({ ...reward })),
+        ],
         // 挂机基础收益统一掷普通表；store 再按真实波次为精英/BOSS 追加专属表。
         lootTableId: lootTableIdFor(spec.id, 'normal'),
         maxKillsPerSec: DEFAULT_MAX_KILLS_PER_SEC,
