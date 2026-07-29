@@ -165,6 +165,9 @@ describe('跨区装备升阶移动端面板', () => {
     expect(panelSource).toContain('.confirm-button:active:not(:disabled)');
 
     expect(bagSource).toContain('class="advance-quick"');
+    expect(bagSource).toContain('v-if="row.canAdvance"');
+    expect(bagSource).toContain('resolveEquipmentAdvancementOption(def)');
+    expect(bagSource).toContain("class=\"{ 'has-advance': row.canAdvance }\"");
     expect(bagSource).toContain('<EquipmentAdvancementPanel');
     expect(bagSource).toContain('@upgraded="onEquipmentUpgraded"');
   });

@@ -7,6 +7,7 @@ import { abbr } from '@/core/format';
 import type { EquipmentInstance, Quality } from '@/core/types';
 import { useInventoryStore } from '@/stores/inventory';
 import { requireEquipment } from '@/data/equipment';
+import { equipmentAdvancementOption as resolveEquipmentAdvancementOption } from '@/data/equipmentAdvancement';
 import { requireItem } from '@/data/items';
 import { QUALITY_LABELS, SLOT_LABELS } from '@/data/constants';
 import EquipDetail from '@/components/EquipDetail.vue';
@@ -90,11 +91,16 @@ const bagEquips = computed(() => {
   // ⚠ 关键：战力只算一遍。
   // 早先写成 sort((a,b) => scoreOf(b) - scoreOf(a))，
   // 1.5 万件时 sort 会触发约 43 万次战力计算，页面直接假死。
-  const scored = list.map((inst) => ({
-    inst,
-    def: requireEquipment(inst.defId),
-    score: scoreOf(inst),
-  }));
+  const scored = list.map((inst) => {
+    const def = requireEquipment(inst.defId);
+    return {
+      inst,
+      def,
+      score: scoreOf(inst),
+      // 直接用已经解析出的定义做 O(1) 路线判断；不要为每一行再按 UID 扫描背包。
+      canAdvance: Boolean(resolveEquipmentAdvancementOption(def)),
+    };
+  });
   scored.sort((a, b) => b.score - a.score);
   return scored;
 });
@@ -430,6 +436,7 @@ onUnmounted(() => {
           v-for="(row, i) in visibleEquips"
           :key="row.inst.uid"
           class="equip-row-shell"
+          :class="{ 'has-advance': row.canAdvance }"
           :style="{ '--row-delay': `${Math.min(i, 9) * 32}ms` }"
         >
           <button
@@ -461,6 +468,7 @@ onUnmounted(() => {
             </span>
           </button>
           <button
+            v-if="row.canAdvance"
             type="button"
             class="advance-quick"
             :aria-label="`升阶 ${row.def.name}`"
@@ -947,8 +955,12 @@ onUnmounted(() => {
 .equip-row-shell {
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 52px;
+  grid-template-columns: minmax(0, 1fr);
   gap: 6px;
+}
+
+.equip-row-shell.has-advance {
+  grid-template-columns: minmax(0, 1fr) 52px;
 }
 
 .equip-row {
