@@ -13,6 +13,7 @@ import IdleView from '@/views/IdleView.vue';
 import BagView from '@/views/BagView.vue';
 import GrowthView from '@/views/GrowthView.vue';
 import DungeonView from '@/views/DungeonView.vue';
+import RankView from '@/views/RankView.vue';
 import MoreView from '@/views/MoreView.vue';
 
 const ui = useUiStore();
@@ -24,6 +25,7 @@ const views = {
   bag: BagView,
   growth: GrowthView,
   dungeon: DungeonView,
+  rank: RankView,
   more: MoreView,
 } as const;
 

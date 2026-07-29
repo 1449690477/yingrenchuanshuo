@@ -187,8 +187,9 @@ import {
 } from '@/data/equipmentAdvancement';
 import { getEquipmentSetCraftingRecipe } from '@/data/equipmentSetCrafting';
 import { getEquipmentSet } from '@/data/equipmentSets';
+import { TRIAL_BEST_KEEP } from '@/data/trialRules';
 
-import { createSave, type SaveData } from '@/save/schema';
+import { createSave, type SaveData, type TrialBest } from '@/save/schema';
 import { clearSave, loadSave, saveSave, SaveConflictError, SaveWriteError } from '@/save/storage';
 
 /** 掉落流水的一条记录，UI 用 */
@@ -2634,6 +2635,42 @@ export const useGameStore = defineStore('game', () => {
     return true;
   }
 
+  /**
+   * 记录一周试炼的个人最好成绩。
+   *
+   * 只升不降（docs/51 红线「永不倒退、永不清空」）：已有更高纪录时直接忽略；
+   * 刷新纪录会把 submitted 复位为 false，等待玩家主动点「上传成绩」复核入榜。
+   */
+  function recordTrialBest(record: TrialBest): void {
+    if (!save.value) return;
+    const list = save.value.trial.bests;
+    const index = list.findIndex(
+      (b) =>
+        b.seasonId === record.seasonId &&
+        b.weekIndex === record.weekIndex &&
+        b.bracketId === record.bracketId,
+    );
+    if (index >= 0) {
+      if (list[index]!.damage >= record.damage) return;
+      list[index] = { ...record, submitted: false };
+    } else {
+      list.unshift({ ...record, submitted: false });
+      if (list.length > TRIAL_BEST_KEEP) list.length = TRIAL_BEST_KEEP;
+    }
+    void persist();
+  }
+
+  /** 服务端复核通过后标记本周成绩已入榜，之后不再提示上传。 */
+  function markTrialBestSubmitted(seasonId: string, weekIndex: number, bracketId: string): void {
+    if (!save.value) return;
+    const entry = save.value.trial.bests.find(
+      (b) => b.seasonId === seasonId && b.weekIndex === weekIndex && b.bracketId === bracketId,
+    );
+    if (!entry || entry.submitted) return;
+    entry.submitted = true;
+    void persist();
+  }
+
   function noteCpDelta(before: number): void {
     const d = cp.value - before;
     if (d !== 0) cpDelta.value = { value: d, at: Date.now() };
@@ -2778,6 +2815,8 @@ export const useGameStore = defineStore('game', () => {
     toggleLock,
     setLockBulk,
     setHaptics,
+    recordTrialBest,
+    markTrialBestSubmitted,
     equipmentCandidateCp,
     equipmentCpDelta,
     equipmentContributionCp,

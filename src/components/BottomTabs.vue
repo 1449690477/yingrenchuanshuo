@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, type Component } from 'vue';
-import { Backpack, Castle, Menu, Sparkles, Swords } from '@lucide/vue';
+import { Backpack, Castle, Menu, Sparkles, Swords, Trophy } from '@lucide/vue';
 import { useUiStore, type TabKey } from '@/stores/ui';
 
 const ui = useUiStore();
@@ -10,6 +10,7 @@ const tabs: { key: TabKey; label: string; icon: Component }[] = [
   { key: 'bag', label: '背包', icon: Backpack },
   { key: 'growth', label: '养成', icon: Sparkles },
   { key: 'dungeon', label: '副本', icon: Castle },
+  { key: 'rank', label: '排行', icon: Trophy },
   { key: 'more', label: '更多', icon: Menu },
 ];
 
@@ -17,7 +18,7 @@ const activeIndex = computed(() => tabs.findIndex((t) => t.key === ui.activeTab)
 </script>
 
 <template>
-  <nav class="tabbar">
+  <nav class="tabbar" :style="{ '--tab-count': tabs.length }">
     <!-- 跟随激活项滑动的粉晕胶囊 -->
     <span class="active-pill" :style="{ '--pill-x': activeIndex }" aria-hidden="true" />
     <button
@@ -48,14 +49,14 @@ const activeIndex = computed(() => tabs.findIndex((t) => t.key === ui.activeTab)
   flex-shrink: 0;
 }
 
-/* 激活胶囊：在五个等分 tab 之间弹簧滑动 */
+/* 激活胶囊：在等分 tab 之间弹簧滑动 */
 .active-pill {
   position: absolute;
   top: 6px;
   bottom: calc(6px + var(--sab));
   left: 0;
   z-index: 0;
-  width: 20%;
+  width: calc(100% / var(--tab-count, 5));
   border-radius: 14px;
   background:
     radial-gradient(120% 130% at 50% 0%, rgb(255 190 216 / 46%), transparent 62%),

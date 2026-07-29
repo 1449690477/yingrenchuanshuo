@@ -1,0 +1,197 @@
+/**
+ * submit-trial —— 周常试炼成绩提交（docs/51 §6.3 服务端复算）。
+ *
+ * 这是整套反作弊的核心，流程：
+ *   1. 校验玩家身份（匿名登录 JWT）
+ *   2. 客户端只提交【搭配快照】（职业/等级/八件装备实例），没有伤害数字
+ *   3. 用与客户端完全相同的 src/core 代码（_core.ts，由
+ *      scripts/build-edge-function.mjs 打包）重算这场 60 秒战斗
+ *   4. 伤害由服务端产生，写入 trial_scores —— 客户端根本没有机会伪造它
+ *
+ * 务实分级（§6.3 威胁模型）：
+ *   L1 服务端复算伤害            ✅ 本函数
+ *   L2 装备结构/取值 schema 校验  ✅ equipmentInstanceSchema
+ *   L3 战力合理性上界            ✅ 超出标 verified=false
+ *   L4 账号年龄合理性            ✅ 同上
+ *   L5 服务端权威存档            ❌ 后续阶段（伪造「合法但未获得的装备」挡不住）
+ *
+ * 部署前必须先运行：npm run edge:build（生成 _core.ts）
+ */
+
+import { createClient } from '@supabase/supabase-js';
+import { z } from 'zod';
+import {
+  buildTrialCombatant,
+  CLASS_IDS,
+  equipmentInstanceSchema,
+  getEquipment,
+  runTrial,
+  SLOT_ORDER,
+  trialBracketFor,
+  trialPlausibilityCap,
+  trialScoreSeed,
+  trialWeekIndex,
+  weeklyTrialBoss,
+} from './_core.ts';
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+const submissionSchema = z
+  .object({
+    seasonId: z.string().min(1).max(16),
+    weekIndex: z.number().int().nonnegative(),
+    bracketId: z.string().min(1),
+    classId: z.enum(CLASS_IDS),
+    level: z.number().int().min(1).max(120),
+    displayName: z.string().min(1).max(20),
+    /** 八槽位穿戴快照，顺序与 SLOT_ORDER 一致 */
+    equipped: z.array(equipmentInstanceSchema.nullable()).length(8),
+  })
+  .strict();
+
+function json(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+}
+
+Deno.serve(async (req: Request) => {
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+
+  try {
+    // ── 1. 身份 ──
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) return json({ error: '缺少登录凭证' }, 401);
+
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+
+    const userClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const {
+      data: { user },
+      error: userError,
+    } = await userClient.auth.getUser();
+    if (userError || !user) return json({ error: '登录状态无效，请重新打开排行榜' }, 401);
+
+    // ── 2. 载荷结构与取值（L2）──
+    const body = await req.json();
+    const parsed = submissionSchema.safeParse(body);
+    if (!parsed.success) return json({ error: '提交的搭配快照不合法' }, 400);
+    const sub = parsed.data;
+
+    // 周次必须与服务器当前周一致：防「穿越」到已结算的周次刷榜
+    const serverWeek = trialWeekIndex(Date.now());
+    if (sub.weekIndex !== serverWeek) return json({ error: '试炼周次已过期' }, 400);
+    // 分段必须与等级一致：防压级去低段虐菜、防越段偷高段奖励
+    if (trialBracketFor(sub.level).id !== sub.bracketId) {
+      return json({ error: '分段与等级不符' }, 400);
+    }
+
+    // 槽位与职业限制（schema 只保证单件合法，不保证穿在对的位置）
+    for (let i = 0; i < SLOT_ORDER.length; i++) {
+      const inst = sub.equipped[i];
+      if (!inst) continue;
+      const def = getEquipment(inst.defId);
+      if (!def) return json({ error: '装备定义不存在' }, 400);
+      if (def.slot !== SLOT_ORDER[i]) return json({ error: '装备槽位不符' }, 400);
+      if (def.classId && def.classId !== sub.classId) {
+        return json({ error: '装备职业限制不符' }, 400);
+      }
+    }
+
+    // ── 3. 服务端复算（与客户端同一份 core，逐点一致）──
+    const build = buildTrialCombatant({
+      name: sub.displayName,
+      classId: sub.classId,
+      level: sub.level,
+      equipped: sub.equipped,
+    });
+    const boss = weeklyTrialBoss(sub.seasonId, sub.weekIndex, sub.bracketId);
+    const seed = trialScoreSeed(sub.seasonId, sub.weekIndex, sub.bracketId, build.buildHash);
+    const damage = runTrial(build, boss.combatant, seed).damage;
+
+    // ── 4. 合理性（L3/L4：不封号，只移出榜单展示，避免误伤）──
+    let verified = true;
+    if (build.combatPower > trialPlausibilityCap(sub.level, sub.classId)) verified = false;
+    const accountAgeMs = Date.now() - new Date(user.created_at).getTime();
+    if (sub.level >= 100 && accountAgeMs < 3 * 86_400_000) verified = false;
+
+    // ── 5. 写入（service role；成绩表对客户端无写权限）──
+    const admin = createClient(supabaseUrl, serviceKey);
+    await admin.from('profiles').upsert({
+      id: user.id,
+      display_name: sub.displayName,
+      class_id: sub.classId,
+      level: sub.level,
+      combat_power: build.combatPower,
+      updated_at: new Date().toISOString(),
+    });
+
+    const { data: existing } = await admin
+      .from('trial_scores')
+      .select('id, damage')
+      .eq('user_id', user.id)
+      .eq('season_id', sub.seasonId)
+      .eq('week_index', sub.weekIndex)
+      .eq('bracket_id', sub.bracketId)
+      .maybeSingle();
+
+    // 永不倒退：只保留每人每周每分段的最好成绩
+    let improved = false;
+    if (!existing) {
+      await admin.from('trial_scores').insert({
+        user_id: user.id,
+        season_id: sub.seasonId,
+        week_index: sub.weekIndex,
+        bracket_id: sub.bracketId,
+        class_id: sub.classId,
+        damage,
+        build_hash: build.buildHash,
+        verified,
+      });
+      improved = true;
+    } else if (damage > Number(existing.damage)) {
+      await admin
+        .from('trial_scores')
+        .update({
+          damage,
+          build_hash: build.buildHash,
+          verified,
+          created_at: new Date().toISOString(),
+        })
+        .eq('id', existing.id);
+      improved = true;
+    }
+    const bestDamage = improved ? damage : Number((existing as { damage: number }).damage);
+
+    // ── 6. 名次（同职业子榜内；未通过复核不入榜）──
+    let rank = 0;
+    let total = 0;
+    if (verified) {
+      const board = () =>
+        admin
+          .from('trial_scores')
+          .select('id', { count: 'exact', head: true })
+          .eq('season_id', sub.seasonId)
+          .eq('week_index', sub.weekIndex)
+          .eq('bracket_id', sub.bracketId)
+          .eq('class_id', sub.classId)
+          .eq('verified', true);
+      const { count: totalCount } = await board();
+      const { count: betterCount } = await board().gt('damage', bestDamage);
+      rank = (betterCount ?? 0) + 1;
+      total = totalCount ?? 0;
+    }
+
+    return json({ damage: bestDamage, rank, total, verified, improved });
+  } catch (error) {
+    return json({ error: `服务端复算失败：${(error as Error).message}` }, 500);
+  }
+});

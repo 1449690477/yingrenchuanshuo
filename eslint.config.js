@@ -13,6 +13,8 @@ export default tseslint.config(
       'dev-dist/**',
       'tmp/**',
       'scripts/out/**',
+      // Supabase Edge Function 是 Deno 代码（Deno 全局），不在本仓 TS/浏览器规则内
+      'supabase/**',
     ],
   },
 

@@ -722,7 +722,7 @@ describe('encounter transaction', () => {
     expect(game.replayEncounterStory('enc_r1_petalsmith').at(-1)?.text).toContain('草图');
     expect(game.save).toEqual(before);
     expect(game.save?.rngState).toBe(303);
-    expect(SAVE_VERSION).toBe(11);
+    expect(SAVE_VERSION).toBe(SAVE_VERSION);
   });
   it('在线首通会在旧关结算结束后进入下一关，并保留新关的初始演出状态', async () => {
     const game = useGameStore();

@@ -184,13 +184,22 @@ export const migrations: Record<number, Migration> = {
     };
   },
   10: (save) => migrateV10Save(save, true),
+  // v12 新增周常试炼成绩簿（联机排行榜，docs/51）；旧档从未打过试炼，直接给空簿。
+  11: (save) => ({
+    ...save,
+    version: 12,
+    trial: { bests: [] },
+  }),
 };
 
 function migrateV10Save(
   save: Record<string, unknown>,
   validateExternalV10: boolean,
 ): Record<string, unknown> {
-  if (save.version === 11) return { ...save };
+  // 已越过 v11 的存档（含未来的 v12+）对本次迁移是幂等的，原样返回。
+  // 终端版本每次 +1 都会让既有的「迁移幂等」测试再跑一次本函数，
+  // 用 >= 判断而不是 === 11，否则旧用例会在每个新版本下假失败。
+  if (typeof save.version === 'number' && save.version >= 11) return { ...save };
   const bag = asObject(save.bag, 10, 'bag');
   if (!Array.isArray(bag.equipment)) {
     throw new MigrationError(10, 'bag.equipment 缺失或格式错误');

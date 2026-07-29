@@ -599,7 +599,7 @@ describe('save migrations', () => {
       ),
     ];
 
-    expect(migrated.version).toBe(11);
+    expect(migrated.version).toBe(SAVE_VERSION);
     expect(migrated.player.gold).toBe(1_234_567);
     expect(migrated.rngState).toBe(987_654_321);
     expect(migrated.bag.items.crystal_temper).toBe(77);
@@ -1148,6 +1148,24 @@ describe('save migrations', () => {
       ...Object.values(migrated.equipped).flatMap((instance) => (instance ? [instance.uid] : [])),
     ];
     expect(new Set(allUids).size).toBe(allUids.length);
+  });
+
+  it('v11 → v12 新增空试炼成绩簿，不改写任何旧资产', () => {
+    const current = createSave('试炼前旧档', 'witch', 9, 1_800_000_000_000) as unknown as Record<
+      string,
+      unknown
+    >;
+    const raw = structuredClone(current);
+    delete raw.trial;
+    raw.version = 11;
+
+    const migrated = migrate(raw);
+
+    expect(migrated.version).toBe(SAVE_VERSION);
+    expect(migrated.trial).toEqual({ bests: [] });
+    expect(migrated.player).toEqual(current.player);
+    expect(migrated.bag).toEqual(current.bag);
+    expect(migrated.affection).toEqual(current.affection);
   });
 
   it('当前版本不迁移，只做严格结构校验', () => {

@@ -39,7 +39,8 @@
     "typecheck": "vue-tsc --noEmit",
     "verify": "npm run lint && npm run typecheck && npm run test && npm run sim && npm run assets:encounters:check && npm run assets:affection:check && npm run assets:reforge:check && npm run assets:region34:check && npm run assets:region5:check",
     "sim": "tsx scripts/simulate.ts && tsx scripts/region5-economy.mts",
-    "sim:r5": "tsx scripts/region5-economy.mts"
+    "sim:r5": "tsx scripts/region5-economy.mts",
+    "edge:build": "tsx scripts/build-edge-function.mts"
   },
   "repository": {
     "type": "git",
@@ -51,6 +52,7 @@
   },
   "dependencies": {
     "@lucide/vue": "^1.27.0",
+    "@supabase/supabase-js": "^2.111.0",
     "focus-trap": "^8.2.2",
     "idb": "^8.0.3",
     "pinia": "^4.0.2",

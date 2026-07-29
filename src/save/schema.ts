@@ -46,10 +46,11 @@ import { EQUIPMENT_DUNGEON_STAGES, EQUIPMENT_DUNGEON_STAGE_LIST } from '@/data/e
 import { AFFECTION_CHARACTERS } from '@/data/affection';
 import { affectionEquipmentIdsForClass } from '@/data/affectionEquipment';
 import { AFFECTION_RULES } from '@/data/affectionRules';
+import { TRIAL_BEST_KEEP, TRIAL_BRACKETS } from '@/data/trialRules';
 import { getEquipment } from '@/data/equipment';
 
 /** 当前存档版本。加字段就 +1。 */
-export const SAVE_VERSION = 11;
+export const SAVE_VERSION = 12;
 
 export const SAVE_KEY = 'main';
 
@@ -112,6 +113,30 @@ export interface ShopSave {
   purchasedOfferIds: string[];
 }
 
+/**
+ * 一周试炼的最好成绩（docs/51 联机排行榜）。
+ *
+ * 永不倒退、永不清空：只记录每周的最高伤害，即便之后打得更差或不上线，
+ * 已写下的纪录也不会被覆盖。这是方案「不上线也不损失」红线在存档层的落地。
+ */
+export interface TrialBest {
+  seasonId: string;
+  weekIndex: number;
+  bracketId: string;
+  classId: ClassId;
+  /** 60 秒总伤害（本地挑战与服务端复算逐点一致的确定性成绩） */
+  damage: number;
+  /** 达成时刻（毫秒时间戳） */
+  at: number;
+  /** 是否已成功上传服务端复核并入榜 */
+  submitted: boolean;
+}
+
+export interface TrialSave {
+  /** 每周最好成绩，新纪录在前；最多保留 TRIAL_BEST_KEEP 条（约半年）。 */
+  bests: TrialBest[];
+}
+
 export interface SaveData {
   version: number;
   createdAt: number;
@@ -138,6 +163,8 @@ export interface SaveData {
   equipmentDungeon: EquipmentDungeonState;
   /** 四位可玩角色彼此独立的好感、剧情、保底与心虹图鉴。 */
   affection: AffectionState;
+  /** 周常试炼个人最好成绩（联机排行榜的本地纪录）。 */
+  trial: TrialSave;
 }
 
 export function emptyEquipped(): Record<EquipSlot, EquipmentInstance | null> {
@@ -192,7 +219,13 @@ export function createSave(name: string, classId: ClassId, seed: number, now: nu
     encounters: createEncounterState(),
     equipmentDungeon: createEquipmentDungeonState(now),
     affection: createAffectionState(now, AFFECTION_RULES),
+    trial: createTrialSave(),
   };
+}
+
+/** 新建试炼成绩簿 */
+export function createTrialSave(): TrialSave {
+  return { bests: [] };
 }
 
 /** 职业初始属性存在，说明 classId 合法 */
@@ -294,7 +327,14 @@ const enhanceGainSchema = z
   .length(ENHANCE_MAX);
 const enhanceLuckKeySchema = z.string().regex(/^(?:[1-9]|1[0-5])$/);
 
-const equipmentInstanceSchema = z
+/**
+ * 单件装备实例的完整结构与取值校验。
+ *
+ * 导出给 Supabase Edge Function 复用（docs/51 §6.3 L2）：
+ * 客户端提交的搭配快照在服务端用同一份 schema 过一遍，
+ * 强化 ≤15、词条数 ≤ 品质容量、品阶 ≤5、数值在 affixValueRange 内才会进入复算。
+ */
+export const equipmentInstanceSchema = z
   .object({
     uid: z.string().min(1),
     defId: z.string().min(1),
@@ -568,6 +608,19 @@ const affectionCharacterProgressSchema = z
     '总互动次数不能少于今日互动次数',
   );
 
+const trialBracketIds = new Set(TRIAL_BRACKETS.map((b) => b.id));
+const trialBestSchema = z
+  .object({
+    seasonId: z.string().min(1).max(16),
+    weekIndex: nonNegativeInteger,
+    bracketId: z.string().refine((id) => trialBracketIds.has(id), '试炼分段不存在'),
+    classId: classIdSchema,
+    damage: nonNegativeInteger,
+    at: timestamp,
+    submitted: z.boolean(),
+  })
+  .strict();
+
 export const saveDataSchema = z
   .object({
     version: z.literal(SAVE_VERSION),
@@ -682,6 +735,11 @@ export const saveDataSchema = z
             catkin: affectionCharacterProgressSchema,
           })
           .strict(),
+      })
+      .strict(),
+    trial: z
+      .object({
+        bests: z.array(trialBestSchema).max(TRIAL_BEST_KEEP),
       })
       .strict(),
   })
