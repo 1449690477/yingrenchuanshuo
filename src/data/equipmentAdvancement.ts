@@ -48,6 +48,12 @@ export const EQUIPMENT_ADVANCEMENT_ROUTES: readonly EquipmentAdvancementRoute[] 
     fineItemId: 'rubbing_epitaph',
     rareItemId: 'tear_eternal',
   },
+  {
+    sourceRegionId: 'r4',
+    targetRegionId: 'r5',
+    fineItemId: 'ember_ritual',
+    rareItemId: 'core_moltenheart',
+  },
 ];
 
 interface RegionalEquipmentIdentity {

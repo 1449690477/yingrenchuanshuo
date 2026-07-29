@@ -11,6 +11,13 @@ import type { EquipmentDef, EquipSlot } from '@/core/types';
 import { getEquipment } from './equipment';
 import { getEquipmentSet } from './equipmentSets';
 import { getItem, type ItemDef } from './items';
+import {
+  REGION_5_FRAGMENT_COST,
+  REGION_5_FRAGMENT_ID,
+  REGION_5_SET_ID,
+  REGION_5_SET_SLOTS,
+  region5SetEquipmentId,
+} from './region5';
 
 const EQUIP_SLOTS = new Set<string>([
   'weapon',
@@ -150,11 +157,17 @@ export function createEquipmentSetCraftingRegistry(
   return Object.freeze(registry);
 }
 
-/**
- * R5 六件正式 EquipmentDef 与 frag_crimson ItemDef 尚未落表，因此这里保持空表。
- * 它们与素材一并落地时，必须在本数组追加一条经过上述严格校验的生产配方。
- */
-const EQUIPMENT_SET_CRAFTING_RECIPE_LIST: readonly EquipmentSetCraftingRecipe[] = [];
+const EQUIPMENT_SET_CRAFTING_RECIPE_LIST: readonly EquipmentSetCraftingRecipe[] = [
+  {
+    id: 'craft_set_crimson',
+    setId: REGION_5_SET_ID,
+    fragmentItemId: REGION_5_FRAGMENT_ID,
+    fragmentCount: REGION_5_FRAGMENT_COST,
+    targetDefIds: Object.fromEntries(
+      REGION_5_SET_SLOTS.map((slot) => [slot, region5SetEquipmentId(slot)]),
+    ),
+  },
+];
 
 export const EQUIPMENT_SET_CRAFTING_RECIPES = createEquipmentSetCraftingRegistry(
   EQUIPMENT_SET_CRAFTING_RECIPE_LIST,

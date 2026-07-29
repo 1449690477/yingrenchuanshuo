@@ -1,5 +1,6 @@
 import type { MonsterType } from '@/core/types';
 import { REGION_34_MATERIALS } from './region34';
+import { REGION_5_MATERIALS } from './region5';
 
 export type RegionMaterialTier = 'common' | 'fine' | 'rare';
 
@@ -31,6 +32,15 @@ export const REGION_MATERIAL_PITY_COUNT_BY_ID: Readonly<Record<string, number>> 
     ...Object.fromEntries(
       REGION_34_MATERIALS.flatMap((material) =>
         material.tier === 'rare' && material.pityCount !== undefined
+          ? [[material.id, material.pityCount] as const]
+          : [],
+      ),
+    ),
+    ...Object.fromEntries(
+      REGION_5_MATERIALS.flatMap((material) =>
+        material.kind === 'material' &&
+        material.tier === 'rare' &&
+        material.pityCount !== undefined
           ? [[material.id, material.pityCount] as const]
           : [],
       ),

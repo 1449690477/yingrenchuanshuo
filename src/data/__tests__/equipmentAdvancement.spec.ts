@@ -11,7 +11,7 @@ import {
 import { requireItem } from '../items';
 
 describe('区域装备升阶数据规则', () => {
-  it('三条路线只消耗目标区域的 fine、rare 与目标等级金币', () => {
+  it('四条路线只消耗目标区域的 fine、rare 与目标等级金币', () => {
     expect(EQUIPMENT_ADVANCEMENT_ROUTES).toEqual([
       {
         sourceRegionId: 'r1',
@@ -31,6 +31,12 @@ describe('区域装备升阶数据规则', () => {
         fineItemId: 'rubbing_epitaph',
         rareItemId: 'tear_eternal',
       },
+      {
+        sourceRegionId: 'r4',
+        targetRegionId: 'r5',
+        fineItemId: 'ember_ritual',
+        rareItemId: 'core_moltenheart',
+      },
     ]);
     expect(EQUIPMENT_ADVANCEMENT_FINE_COUNT).toBe(15);
     expect(EQUIPMENT_ADVANCEMENT_RARE_COUNT).toBe(3);
@@ -48,7 +54,7 @@ describe('区域装备升阶数据规则', () => {
     const options = Object.values(EQUIPMENT)
       .map(equipmentAdvancementOption)
       .filter((option) => option !== undefined);
-    expect(options).toHaveLength(64);
+    expect(options).toHaveLength(80);
 
     for (const option of options) {
       expect(option.target.slot).toBe(option.source.slot);
@@ -74,6 +80,8 @@ describe('区域装备升阶数据规则', () => {
       ['r3', 'r4', 'fine'],
       ['r3', 'r4', 'rare'],
       ['r3', 'r4', 'epic'],
+      ['r4', 'r5', 'rare'],
+      ['r4', 'r5', 'epic'],
     ] as const;
 
     for (const [sourceRegion, targetRegion, quality] of validPairs) {
@@ -87,7 +95,7 @@ describe('区域装备升阶数据规则', () => {
     }
   });
 
-  it('相邻区域三段升阶路线分别生成 16 / 24 / 24 条', () => {
+  it('相邻区域四段升阶路线分别生成 16 / 24 / 24 / 16 条', () => {
     const counts = Object.values(EQUIPMENT)
       .map(equipmentAdvancementOption)
       .filter((option) => option !== undefined)
@@ -101,6 +109,7 @@ describe('区域装备升阶数据规则', () => {
       'r1->r2': 16,
       'r2->r3': 24,
       'r3->r4': 24,
+      'r4->r5': 16,
     });
   });
 
@@ -109,7 +118,10 @@ describe('区域装备升阶数据规则', () => {
       equipmentAdvancementOption(requireEquipment('eq_r1_weapon_common')),
     ).toBeUndefined();
     expect(
-      equipmentAdvancementOption(requireEquipment('eq_r4_weapon_rare')),
+      equipmentAdvancementOption(requireEquipment('eq_r4_weapon_fine')),
+    ).toBeUndefined();
+    expect(
+      equipmentAdvancementOption(requireEquipment('eq_r5_weapon_rare')),
     ).toBeUndefined();
 
     const nonRegional = Object.values(EQUIPMENT).find(

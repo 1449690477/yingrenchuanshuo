@@ -56,6 +56,7 @@ const fragment: ItemDef = {
 const setDefinition: EquipmentSetDefinition = {
   id: SET_ID,
   name: '绯焰套',
+  pieceSlots: TARGET_SLOTS,
   bonuses: [],
 };
 
@@ -221,11 +222,26 @@ describe('套装通用碎片配方注册器', () => {
     ).toThrow('碎片数量必须是正安全整数');
   });
 
-  it('生产 R5 装备和碎片未落表前保持空注册，不伪造悬空配方', () => {
-    expect(EQUIPMENT_SET_CRAFTING_RECIPES).toEqual({});
-    expect(getEquipmentSetCraftingRecipe('craft_set_crimson')).toBeUndefined();
-    expect(() => requireEquipmentSetCraftingRecipe('craft_set_crimson')).toThrow(
-      '套装合成配方不存在',
-    );
+  it('生产注册表接入真实 R5 六件目标，查询接口返回同一冻结配方', () => {
+    const production = getEquipmentSetCraftingRecipe('craft_set_crimson');
+    expect(production).toEqual({
+      id: 'craft_set_crimson',
+      setId: SET_ID,
+      fragmentItemId: 'frag_crimson',
+      fragmentCount: 40,
+      targetDefIds: {
+        weapon: 'eq_set_region_crimson_weapon',
+        head: 'eq_set_region_crimson_head',
+        body: 'eq_set_region_crimson_body',
+        necklace: 'eq_set_region_crimson_necklace',
+        ring: 'eq_set_region_crimson_ring',
+        bracelet: 'eq_set_region_crimson_bracelet',
+      },
+    });
+    expect(Object.keys(EQUIPMENT_SET_CRAFTING_RECIPES)).toEqual([
+      'craft_set_crimson',
+    ]);
+    expect(requireEquipmentSetCraftingRecipe('craft_set_crimson')).toBe(production);
+    expect(Object.isFrozen(production)).toBe(true);
   });
 });

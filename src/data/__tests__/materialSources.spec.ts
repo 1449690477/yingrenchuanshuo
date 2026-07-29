@@ -51,12 +51,13 @@ describe('区域材料来源分层', () => {
     ).toThrow('章节材料未登记区域材料档位：missing');
   });
 
-  it('四个已开放区域的 rare 材料都有同一口径的真实 BOSS 保底', () => {
+  it('五个区域的 rare 材料都有同一口径的真实 BOSS 保底', () => {
     expect(REGION_MATERIAL_PITY_COUNT_BY_ID).toEqual({
       core_barrier: 12,
       crystal_altar: 12,
       egg_broodmother: 12,
       tear_eternal: 12,
+      core_moltenheart: 12,
     });
     for (const materialId of Object.keys(REGION_MATERIAL_PITY_COUNT_BY_ID)) {
       expect(requireRegionMaterialPityCount(materialId)).toBe(12);
