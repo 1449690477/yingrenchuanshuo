@@ -298,7 +298,7 @@ onBeforeUnmount(() => {
           </header>
 
           <p id="crimson-forge-note" class="forge-note">
-            40 枚通用碎片可指定一件，结果不会随机成别的部位，也不会直接替换身上装备。
+            {{ recipe.fragmentCount }} 枚通用碎片可指定一件，结果不会随机成别的部位，也不会直接替换身上装备。
           </p>
 
           <div class="forge-scroll">
@@ -347,7 +347,7 @@ onBeforeUnmount(() => {
                   </span>
                   <em>{{ SLOT_LABELS[selectedSlot] }}</em>
                 </div>
-                <div class="slot-grid" role="listbox" aria-label="绯焰套重铸部位">
+                <div class="slot-grid" role="group" aria-label="绯焰套重铸部位">
                   <button
                     v-for="slot in targetSlots"
                     :key="slot"
@@ -358,8 +358,7 @@ onBeforeUnmount(() => {
                       collected: ownedCounts[slot] > 0,
                       crafted: lastCraftedSlot === slot,
                     }"
-                    role="option"
-                    :aria-selected="selectedSlot === slot"
+                    :aria-pressed="selectedSlot === slot"
                     :aria-label="`${SLOT_LABELS[slot]}，已拥有 ${ownedCounts[slot]} 件`"
                     :disabled="submitting"
                     @click="selectSlot(slot)"
@@ -723,6 +722,7 @@ onBeforeUnmount(() => {
   z-index: 1;
   min-height: 0;
   display: grid;
+  grid-auto-rows: max-content;
   gap: 10px;
   overflow: auto;
   padding: 0 13px 12px;

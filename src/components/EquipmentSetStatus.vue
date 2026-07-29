@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useId } from 'vue';
 import { LockKeyhole, Sparkles } from '@lucide/vue';
 import type { ActiveEquipmentSet } from '@/core/equipmentSets';
 
@@ -11,17 +12,19 @@ withDefaults(
     compact: false,
   },
 );
+
+const titleId = useId();
 </script>
 
 <template>
-  <section class="set-status" :class="{ compact }" aria-labelledby="set-status-title">
+  <section class="set-status" :class="{ compact }" :aria-labelledby="titleId">
     <header class="set-status-head">
       <span class="set-status-sigil" aria-hidden="true">
         <Sparkles :size="17" :stroke-width="1.9" />
       </span>
       <span>
         <small>装备组合 · 实时生效</small>
-        <strong id="set-status-title">套装共鸣</strong>
+        <strong :id="titleId">套装共鸣</strong>
       </span>
       <em v-if="sets.length > 0">{{ sets.length }} 套进行中</em>
     </header>

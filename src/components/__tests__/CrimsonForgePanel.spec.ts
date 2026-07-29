@@ -133,6 +133,11 @@ describe('绯焰套通用碎片自选重铸面板', () => {
 
     const choices = [...document.querySelectorAll<HTMLButtonElement>('.slot-choice')];
     expect(choices).toHaveLength(6);
+    expect(document.querySelector('.slot-grid')?.getAttribute('role')).toBe('group');
+    expect(choices[0]?.getAttribute('aria-pressed')).toBe('true');
+    expect(choices.slice(1).every((choice) => choice.getAttribute('aria-pressed') === 'false')).toBe(
+      true,
+    );
     expect(choices.map((choice) => choice.textContent?.replace(/\s+/g, ' ').trim())).toEqual(
       expect.arrayContaining([
         expect.stringContaining('武器'),
@@ -259,6 +264,8 @@ describe('绯焰套通用碎片自选重铸面板', () => {
     );
 
     expect(source).toContain('createFocusTrap(sheet');
+    expect(source).toContain('{{ recipe.fragmentCount }} 枚通用碎片');
+    expect(source).toContain('grid-auto-rows: max-content');
     expect(source).toContain('calc(100dvh - max(24px, env(safe-area-inset-top)))');
     expect(source).toContain('@media (max-width: 350px)');
     expect(source).toContain('@media (prefers-reduced-motion: reduce)');

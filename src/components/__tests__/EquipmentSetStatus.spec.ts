@@ -57,4 +57,24 @@ describe('通用装备套装共鸣展示', () => {
     expect(source).toContain('@media (max-width: 350px)');
     expect(source).toContain('@media (prefers-reduced-motion: reduce)');
   });
+
+  it('同页多个套装状态实例使用各自标题标识，避免详情弹窗与养成页互相串联', async () => {
+    const html = await renderToString(
+      createSSRApp({
+        render: () =>
+          h('main', [
+            h(EquipmentSetStatus, { sets: [] }),
+            h(EquipmentSetStatus, { sets: [], compact: true }),
+          ]),
+      }),
+    );
+    const labelledByIds = [...html.matchAll(/aria-labelledby="([^"]+)"/g)].map(
+      (match) => match[1],
+    );
+    const titleIds = [...html.matchAll(/<strong id="([^"]+)"/g)].map((match) => match[1]);
+
+    expect(labelledByIds).toHaveLength(2);
+    expect(new Set(labelledByIds)).toHaveLength(2);
+    expect(titleIds).toEqual(labelledByIds);
+  });
 });
