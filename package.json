@@ -25,6 +25,8 @@
     "assets:weapon-icons": "node scripts/build-equipment-weapon-icons.mjs && node scripts/validate-equipment-weapon-icons.mjs",
     "assets:weapon-icons:check": "node scripts/validate-equipment-weapon-icons.mjs",
     "assets:reforge:check": "node scripts/validate-reforge-assets.mjs",
+    "assets:arena": "node scripts/build-arena-assets.mjs && node scripts/validate-arena-assets.mjs",
+    "assets:arena:check": "node scripts/validate-arena-assets.mjs",
     "assets:region34": "node scripts/build-region34-assets.mjs && node scripts/validate-region34-assets.mjs",
     "assets:region34:check": "node scripts/validate-region34-assets.mjs",
     "assets:region5:check": "node scripts/validate-region5-assets.mjs",
@@ -39,7 +41,7 @@
     "qa:region5-save": "tsx scripts/create-region5-qa-save.mts",
     "balance:equipment-dungeon": "tsx scripts/equipment-dungeon-balance.mts",
     "typecheck": "vue-tsc --noEmit",
-    "verify": "npm run lint && npm run typecheck && npm run test && npm run sim && npm run assets:encounters:check && npm run assets:affection:check && npm run assets:reforge:check && npm run assets:region34:check && npm run assets:region5:check && npm run assets:weapon-icons:check",
+    "verify": "npm run lint && npm run typecheck && npm run test && npm run sim && npm run assets:encounters:check && npm run assets:affection:check && npm run assets:reforge:check && npm run assets:arena:check && npm run assets:region34:check && npm run assets:region5:check && npm run assets:weapon-icons:check",
     "sim": "tsx scripts/simulate.ts && tsx scripts/region5-economy.mts",
     "sim:r5": "tsx scripts/region5-economy.mts",
     "edge:build": "tsx scripts/build-edge-function.mts"
