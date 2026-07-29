@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
-import { Backpack, Coins, Lock, LockOpen, PackageOpen, ShieldCheck, X } from '@lucide/vue';
+import { ArrowUp, Backpack, Coins, Lock, LockOpen, PackageOpen, ShieldCheck, X } from '@lucide/vue';
 import { planBulkDecompose, planBulkLock } from '@/core/bag';
 import { decomposeGold } from '@/core/economy';
 import { abbr } from '@/core/format';
@@ -10,6 +10,7 @@ import { requireEquipment } from '@/data/equipment';
 import { requireItem } from '@/data/items';
 import { QUALITY_LABELS, SLOT_LABELS } from '@/data/constants';
 import EquipDetail from '@/components/EquipDetail.vue';
+import EquipmentAdvancementPanel from '@/components/EquipmentAdvancementPanel.vue';
 import EquipmentIcon from '@/components/EquipmentIcon.vue';
 import ItemIcon from '@/components/ItemIcon.vue';
 import SystemArtwork from '@/components/SystemArtwork.vue';
@@ -17,6 +18,7 @@ import SystemArtwork from '@/components/SystemArtwork.vue';
 const inventory = useInventoryStore();
 const tab = ref<'equip' | 'item'>('equip');
 const detail = ref<EquipmentInstance | null>(null);
+const advancement = ref<EquipmentInstance | null>(null);
 const toast = ref('');
 const salvageBurst = ref(false);
 const decomposeOpen = ref(false);
@@ -223,9 +225,10 @@ const equippedUids = computed(() => {
 });
 
 const lockQualityCounts = computed<Record<Quality, number>>(() => {
-  const counts = Object.fromEntries(
-    QUALITY_OPTIONS.map((option) => [option.quality, 0]),
-  ) as Record<Quality, number>;
+  const counts = Object.fromEntries(QUALITY_OPTIONS.map((option) => [option.quality, 0])) as Record<
+    Quality,
+    number
+  >;
   for (const inst of lockSnapshot.value) {
     counts[requireEquipment(inst.defId).quality]++;
   }
@@ -340,6 +343,16 @@ function equipBest() {
   show(n > 0 ? `已更换 ${n} 个部位` : '当前装备已经是最优了');
 }
 
+function openAdvancement(inst: EquipmentInstance): void {
+  advancement.value = inst;
+}
+
+function onEquipmentUpgraded(result: { targetName: string; cpDelta: number }): void {
+  const delta =
+    result.cpDelta === 0 ? '' : `，战力 ${result.cpDelta > 0 ? '+' : ''}${abbr(result.cpDelta)}`;
+  show(`已升阶为 ${result.targetName}${delta}`);
+}
+
 let toastTimer = 0;
 let effectTimer = 0;
 let effectFrame = 0;
@@ -413,36 +426,50 @@ onUnmounted(() => {
           <Backpack class="empty-icon" :size="27" :stroke-width="1.8" aria-hidden="true" />
           背包空空的，去挂机打点装备吧～
         </p>
-        <button
+        <div
           v-for="(row, i) in visibleEquips"
           :key="row.inst.uid"
-          class="row equip-row row-clickable"
-          :class="'q-accent-' + row.def.quality"
+          class="equip-row-shell"
           :style="{ '--row-delay': `${Math.min(i, 9) * 32}ms` }"
-          @click="detail = row.inst"
         >
-          <EquipmentIcon :def="row.def" :enhance="row.inst.enhance" :locked="row.inst.locked" />
-          <span class="mid">
-            <span class="name-line">
-              <span class="name" :class="'q-' + row.def.quality">
-                {{ row.def.name }}
-                <span v-if="row.inst.enhance > 0" class="enh">+{{ row.inst.enhance }}</span>
+          <button
+            class="row equip-row row-clickable"
+            :class="'q-accent-' + row.def.quality"
+            :data-equip-uid="row.inst.uid"
+            @click="detail = row.inst"
+          >
+            <EquipmentIcon :def="row.def" :enhance="row.inst.enhance" :locked="row.inst.locked" />
+            <span class="mid">
+              <span class="name-line">
+                <span class="name" :class="'q-' + row.def.quality">
+                  {{ row.def.name }}
+                  <span v-if="row.inst.enhance > 0" class="enh">+{{ row.inst.enhance }}</span>
+                </span>
+                <span v-if="row.inst.pendingAffixChange" class="pending-affix-badge">
+                  洗练待确认
+                </span>
               </span>
-              <span v-if="row.inst.pendingAffixChange" class="pending-affix-badge">
-                洗练待确认
+              <span class="sub">
+                {{ SLOT_LABELS[row.def.slot] }} · {{ QUALITY_LABELS[row.def.quality] }} · Lv{{
+                  row.def.level
+                }}
               </span>
             </span>
-            <span class="sub">
-              {{ SLOT_LABELS[row.def.slot] }} · {{ QUALITY_LABELS[row.def.quality] }} · Lv{{
-                row.def.level
-              }}
+            <span class="cp">
+              <span class="cp-label">战力</span>
+              <span class="num">{{ abbr(row.score) }}</span>
             </span>
-          </span>
-          <span class="cp">
-            <span class="cp-label">战力</span>
-            <span class="num">{{ abbr(row.score) }}</span>
-          </span>
-        </button>
+          </button>
+          <button
+            type="button"
+            class="advance-quick"
+            :aria-label="`升阶 ${row.def.name}`"
+            @click="openAdvancement(row.inst)"
+          >
+            <ArrowUp :size="16" :stroke-width="2.3" aria-hidden="true" />
+            <span>升阶</span>
+          </button>
+        </div>
 
         <!--
           滚动哨兵：进入视口即加载下一页。
@@ -501,6 +528,13 @@ onUnmounted(() => {
     <Transition name="modal-pop">
       <EquipDetail v-if="detail" :inst="detail" from="bag" @close="detail = null" />
     </Transition>
+
+    <EquipmentAdvancementPanel
+      v-if="advancement"
+      :inst="advancement"
+      @close="advancement = null"
+      @upgraded="onEquipmentUpgraded"
+    />
 
     <Teleport to="body">
       <Transition name="modal-pop">
@@ -910,9 +944,60 @@ onUnmounted(() => {
   cursor: default;
 }
 
+.equip-row-shell {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 52px;
+  gap: 6px;
+}
+
 .equip-row {
+  width: 100%;
   min-height: 66px;
   padding: 7px 9px;
+}
+
+.advance-quick {
+  min-width: 0;
+  min-height: 66px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 3px;
+  padding: 6px 3px;
+  font-size: 9px;
+  font-weight: 800;
+  color: #8d5576;
+  background:
+    radial-gradient(circle at 50% 9%, rgb(255 255 255 / 92%), transparent 34%),
+    linear-gradient(155deg, rgb(255 238 247 / 92%), rgb(232 247 255 / 88%));
+  border: 1px solid rgb(226 191 213 / 68%);
+  border-radius: var(--r);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 88%),
+    0 4px 12px rgb(112 145 174 / 8%);
+  animation: row-in var(--t-slow) var(--ease-soft) both;
+  animation-delay: var(--row-delay, 0ms);
+  transition:
+    transform var(--t-fast) var(--ease-spring),
+    border-color var(--t-mid) ease,
+    box-shadow var(--t-mid) ease;
+}
+
+.advance-quick svg {
+  padding: 3px;
+  color: #fff;
+  background: linear-gradient(135deg, #87d8f2, #e88eb8);
+  border-radius: 50%;
+  box-sizing: content-box;
+  box-shadow: 0 4px 9px rgb(217 119 168 / 21%);
+}
+
+.advance-quick:active {
+  border-color: rgb(220 139 181 / 72%);
+  box-shadow: inset 0 2px 7px rgb(127 95 127 / 12%);
+  transform: scale(0.93) rotate(-1deg);
 }
 
 /* 左边品质色条让玩家不打开详情也能快速筛选稀有装备。 */
@@ -1453,6 +1538,11 @@ onUnmounted(() => {
   }
 
   .quality-choice {
+    transition: none;
+  }
+
+  .advance-quick {
+    animation: none;
     transition: none;
   }
 }

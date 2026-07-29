@@ -58,6 +58,24 @@ for (const slot of SLOT_ORDER) {
   save.equipped[slot] = instance;
 }
 
+// 留一件带真实养成投入的 r3 区域装在背包，用于验收 r3 → r4 原子升阶：
+// 面板必须展示两档材料成本，成功后只改变 defId，并完整保留强化、幸运与共鸣。
+const advancementCandidate = createInstance(
+  requireEquipment('eq_r3_weapon_rare'),
+  rng,
+  'qa-r3-advancement',
+  'catkin',
+);
+advancementCandidate.enhance = 9;
+advancementCandidate.enhanceGainPermille = Array.from(
+  { length: ENHANCE_MAX },
+  (_, index) => (index < advancementCandidate.enhance ? 80 : 0),
+);
+advancementCandidate.enhanceLuck['10'] = 37;
+advancementCandidate.reforgeResonance = 12;
+advancementCandidate.locked = true;
+save.bag.equipment.push(advancementCandidate);
+
 const validated = parseSave(save);
 await writeFile(output, `${JSON.stringify(validated, null, 2)}\n`, 'utf8');
 console.log(`区域 3/4 浏览器验收存档已生成：${output}`);
