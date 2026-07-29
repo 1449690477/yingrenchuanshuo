@@ -69,6 +69,6 @@ describe('洗练配置完整性', () => {
       resonate: { goldPerLevel: 300 },
       resonanceGain: { 1: 3, 2: 2, 3: 1, 4: -20, 5: -20 },
     });
-    expect(Object.keys(REGION_REFORGE_MATERIALS)).toEqual(['r1', 'r2', 'r3', 'r4']);
+    expect(Object.keys(REGION_REFORGE_MATERIALS)).toEqual(['r1', 'r2', 'r3', 'r4', 'r5']);
   });
 });

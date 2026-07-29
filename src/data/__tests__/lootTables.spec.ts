@@ -12,7 +12,7 @@ import { REGION_MATERIAL_TIER_BY_MONSTER_TYPE } from '../materialSources';
 const MONSTER_TYPES = ['normal', 'elite', 'boss'] as const satisfies readonly MonsterType[];
 
 describe('章节区域材料掉落表', () => {
-  it('区域 3/4 的普通怪、精英与 BOSS 使用完整的精良至史诗装备矩阵', () => {
+  it('区域 3/4 的真实普通怪、精英与 BOSS 使用完整的精良至史诗装备矩阵', () => {
     const expectedWeights = {
       normal: { fine: 3, rare: 0.6 },
       elite: { fine: 20, rare: 8, epic: 1 },
@@ -29,6 +29,16 @@ describe('章节区域材料掉落表', () => {
         const regionalEquipmentEntries = table.entries.filter((entry) =>
           entry.itemId.startsWith(`eq_${regionId}_`),
         );
+        const hasRealSource =
+          monsterType === 'normal' ||
+          (monsterType === 'elite' && Boolean(chapter.elite)) ||
+          (monsterType === 'boss' && Boolean(chapter.boss));
+        if (!hasRealSource) {
+          expect(regionalEquipmentEntries, `${chapter.id}/${monsterType} 空表不得暗投装备`).toEqual(
+            [],
+          );
+          continue;
+        }
         const expectedByQuality = expectedWeights[monsterType];
 
         expect(
@@ -121,6 +131,7 @@ describe('章节区域材料掉落表', () => {
       { chapterId: '2-5', materialId: 'crystal_altar' },
       { chapterId: '3-5', materialId: 'egg_broodmother' },
       { chapterId: '4-5', materialId: 'tear_eternal' },
+      { chapterId: '5-5', materialId: 'core_moltenheart' },
     ]);
 
     for (const { chapterId, materialId } of rareSources) {

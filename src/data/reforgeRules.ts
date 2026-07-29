@@ -26,13 +26,15 @@ export interface RegionReforgeMaterials {
 
 /**
  * 当前区域材料消耗端，承接 docs/42 的既有材料红线。
- * 区域 3/4 的物品随对应内容批次接入，但 ID 在策划中已经锁定。
+ * 每个已开放区域都必须提供两个 common 与一个 fine 材料消耗端，
+ * 避免新区掉落只能出售、不能进入长期养成循环。
  */
 export const REGION_REFORGE_MATERIALS: Readonly<Record<string, RegionReforgeMaterials>> = {
   r1: { commonIds: ['petal_sakura', 'grass_soft'], fineId: 'bell_wood' },
   r2: { commonIds: ['jelly_cotton', 'straw_sleepy'], fineId: 'honey_bee' },
   r3: { commonIds: ['chitin_wing', 'moss_cave'], fineId: 'silk_spider' },
   r4: { commonIds: ['dust_bone', 'herb_moonlit'], fineId: 'rubbing_epitaph' },
+  r5: { commonIds: ['slag_lava', 'shard_scorched'], fineId: 'ember_ritual' },
 };
 
 export function requireRegionReforgeMaterials(regionId: string): RegionReforgeMaterials {
