@@ -31,9 +31,14 @@ import EquipmentSetStatus from '@/components/EquipmentSetStatus.vue';
 import ReforgeStudio from '@/components/reforge/ReforgeStudio.vue';
 import SkillIcon from '@/components/SkillIcon.vue';
 import AffectionPanel from '@/components/affection/AffectionPanel.vue';
+import AffectionCompanionPanel, {
+  type AffectionCompanionSection,
+} from '@/components/affection/AffectionCompanionPanel.vue';
+import AffectionCompanionModal from '@/components/affection/AffectionCompanionModal.vue';
 import AffectionGiftShelf from '@/components/affection/AffectionGiftShelf.vue';
 import AffectionStoryModal from '@/components/affection/AffectionStoryModal.vue';
 import AffectionEquipmentGallery from '@/components/affection/AffectionEquipmentGallery.vue';
+import { affectionLettersForClass } from '@/data/affectionLetters';
 import { triggerHaptic } from '@/ui/haptics';
 import { prefersCompactLayout } from '@/ui/useFold';
 
@@ -58,6 +63,8 @@ const activeStoryId = ref<string | null>(null);
 const storyBusy = ref(false);
 const storyFeedback = ref<string | null>(null);
 const galleryOpen = ref(false);
+const companionOpen = ref(false);
+const companionInitialSection = ref<AffectionCompanionSection>('chat');
 const studioOpen = ref(false);
 const BASE = import.meta.env.BASE_URL;
 const selectedAffectionEquipmentId = ref<string | null>(null);
@@ -124,6 +131,27 @@ const activeStoryMemory = computed(() =>
     ? affectionMemoryDialogue(activeStory.value, affectionProgress.value.choiceHistory)
     : [],
 );
+const affectionLetterCount = computed(() => {
+  const classId = player.player?.classId;
+  if (!classId) return { unlocked: 0, total: 0 };
+  const letters = affectionLettersForClass(classId);
+  const completed = new Set(affectionProgress.value?.completedStoryIds ?? []);
+  return {
+    unlocked: letters.filter((letter) => completed.has(letter.requiredStoryId)).length,
+    total: letters.length,
+  };
+});
+const affectionMemoryCount = computed(() => {
+  const stories = affectionCharacter.value?.stories ?? [];
+  const completed = new Set(affectionProgress.value?.completedStoryIds ?? []);
+  return stories.reduce(
+    (count, story) => ({
+      unlocked: count.unlocked + (completed.has(story.id) ? 1 + (story.cgAsset ? 1 : 0) : 0),
+      total: count.total + 1 + (story.cgAsset ? 1 : 0),
+    }),
+    { unlocked: 0, total: 0 },
+  );
+});
 const affectionEquipmentItems = computed(() => {
   const classId = player.player?.classId;
   const progress = affectionProgress.value;
@@ -370,6 +398,12 @@ function closeStory(): void {
   storyFeedback.value = null;
 }
 
+function openCompanion(section: AffectionCompanionSection): void {
+  companionInitialSection.value = section;
+  companionOpen.value = true;
+  vibrate(section === 'chat' ? 'shy' : 'calm');
+}
+
 function previewStoryChoice(storyId: string, choiceId: string): void {
   const choice = requireAffectionStory(player.player!.classId, storyId).choices.find(
     (entry) => entry.id === choiceId,
@@ -430,6 +464,8 @@ async function switchClass(target: Parameters<typeof player.switchClass>[0]): Pr
     }
 
     classSwitchOpen.value = false;
+    companionOpen.value = false;
+    activeStoryId.value = null;
     const equipmentCopy =
       result.movedCount > 0
         ? `已安全收回 ${result.movedCount} 件旧职业专属装备并保持锁定${
@@ -484,6 +520,21 @@ onUnmounted(() => {
       @interact="interactWithCharacter"
       @open-story="openStory"
       @open-equipment="toggleGallery"
+    />
+
+    <AffectionCompanionPanel
+      v-if="affectionCharacter && affectionProgress && affectionTier"
+      class="row-in"
+      style="--row-delay: 33ms"
+      :character-name="affectionCharacter.name"
+      :tier-label="affectionTier.label"
+      :accent="affectionCharacter.accent"
+      :glow="affectionCharacter.glow"
+      :unlocked-letter-count="affectionLetterCount.unlocked"
+      :total-letter-count="affectionLetterCount.total"
+      :unlocked-memory-count="affectionMemoryCount.unlocked"
+      :total-memory-count="affectionMemoryCount.total"
+      @open="openCompanion"
     />
 
     <AffectionGiftShelf
@@ -656,6 +707,25 @@ onUnmounted(() => {
         />
       </template>
     </AffectionStoryModal>
+
+    <AffectionCompanionModal
+      v-if="companionOpen && affectionCharacter && affectionProgress"
+      :class-id="player.player.classId"
+      :progress="affectionProgress"
+      :initial-section="companionInitialSection"
+      @close="companionOpen = false"
+    >
+      <template #portrait="{ mood }">
+        <CharacterAppearance
+          class="story-character"
+          :class-id="player.player.classId"
+          :level="player.player.level"
+          :equipped="equipped"
+          :action="storyPortraitAction(mood)"
+          variant="showcase"
+        />
+      </template>
+    </AffectionCompanionModal>
   </div>
 </template>
 
