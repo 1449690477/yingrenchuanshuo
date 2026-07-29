@@ -69,7 +69,7 @@ export const REGION_5_ENHANCE_PROGRESSION: Readonly<
     14,
     [330, 365, 400, 440, 480, 650],
     {
-      normal: source([entry(MATERIAL.stone, 15, 20, 30)]),
+      normal: source([entry(MATERIAL.stone, 3.2, 20, 30)]),
       elite: EMPTY,
       boss: EMPTY,
     },
@@ -84,8 +84,8 @@ export const REGION_5_ENHANCE_PROGRESSION: Readonly<
     14,
     [350, 385, 420, 460, 505, 700],
     {
-      normal: source([entry(MATERIAL.stone, 16, 20, 30)]),
-      elite: source([entry(MATERIAL.ore, 1.2, 1, 2, 25)]),
+      normal: source([entry(MATERIAL.stone, 3.4, 20, 30)]),
+      elite: source([entry(MATERIAL.ore, 0.6, 1, 2, 40)]),
       boss: EMPTY,
     },
     [
@@ -100,7 +100,7 @@ export const REGION_5_ENHANCE_PROGRESSION: Readonly<
     14,
     [370, 405, 445, 485, 530, 740],
     {
-      normal: source([entry(MATERIAL.stone, 17, 21, 31)]),
+      normal: source([entry(MATERIAL.stone, 3.6, 21, 31)]),
       elite: EMPTY,
       boss: EMPTY,
     },
@@ -116,11 +116,11 @@ export const REGION_5_ENHANCE_PROGRESSION: Readonly<
     15,
     [390, 430, 470, 510, 560, 780],
     {
-      normal: source([entry(MATERIAL.stone, 18, 21, 32)]),
+      normal: source([entry(MATERIAL.stone, 3.8, 21, 32)]),
       elite: source([
-        entry(MATERIAL.ore, 1.4, 1, 2, 22),
-        entry(MATERIAL.lucky, 0.05, 1, 1, 80),
-        entry(MATERIAL.protection, 0.05, 1, 1, 80),
+        entry(MATERIAL.ore, 0.7, 1, 2, 35),
+        entry(MATERIAL.lucky, 0.003, 1, 1, 650),
+        entry(MATERIAL.protection, 0.002, 1, 1, 800),
       ]),
       boss: EMPTY,
     },
@@ -137,16 +137,16 @@ export const REGION_5_ENHANCE_PROGRESSION: Readonly<
     15,
     [420, 460, 500, 545, 600, 840],
     {
-      normal: source([entry(MATERIAL.stone, 19, 22, 32)]),
+      normal: source([entry(MATERIAL.stone, 4, 22, 32)]),
       elite: source([
-        entry(MATERIAL.ore, 1.6, 1, 2, 20),
-        entry(MATERIAL.lucky, 0.08, 1, 1, 65),
-        entry(MATERIAL.protection, 0.08, 1, 1, 65),
+        entry(MATERIAL.ore, 0.8, 1, 2, 31),
+        entry(MATERIAL.lucky, 0.003, 1, 1, 1_000),
+        entry(MATERIAL.protection, 0.002, 1, 1, 1_200),
       ]),
       boss: source([
-        entry(MATERIAL.ore, 0.8, 1, 2, 30),
-        entry(MATERIAL.lucky, 0.15, 1, 1, 50),
-        entry(MATERIAL.protection, 0.12, 1, 1, 60),
+        entry(MATERIAL.ore, 0.4, 1, 2, 46),
+        entry(MATERIAL.lucky, 0.003, 1, 1, 750),
+        entry(MATERIAL.protection, 0.002, 1, 1, 1_100),
       ]),
     },
     [
@@ -157,4 +157,3 @@ export const REGION_5_ENHANCE_PROGRESSION: Readonly<
     ],
   ),
 };
-

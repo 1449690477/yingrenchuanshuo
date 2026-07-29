@@ -22,10 +22,10 @@ export const REGION_5_FRAGMENT_LOOT_SOURCES: readonly Region5FragmentLootSource[
     monsterName: '熔岩卫娘',
     entry: {
       itemId: REGION_5_FRAGMENT_ID,
-      weight: 0.8,
+      weight: 0.15,
       minCount: 1,
       maxCount: 1,
-      pityCount: 80,
+      pityCount: 400,
     },
   },
   {
@@ -34,10 +34,10 @@ export const REGION_5_FRAGMENT_LOOT_SOURCES: readonly Region5FragmentLootSource[
     monsterName: '赤红神官',
     entry: {
       itemId: REGION_5_FRAGMENT_ID,
-      weight: 1,
+      weight: 0.2,
       minCount: 1,
       maxCount: 2,
-      pityCount: 70,
+      pityCount: 350,
     },
   },
   {
@@ -46,10 +46,10 @@ export const REGION_5_FRAGMENT_LOOT_SOURCES: readonly Region5FragmentLootSource[
     monsterName: '熔心圣侍',
     entry: {
       itemId: REGION_5_FRAGMENT_ID,
-      weight: 1.2,
+      weight: 0.2,
       minCount: 1,
       maxCount: 2,
-      pityCount: 60,
+      pityCount: 300,
     },
   },
   {
@@ -58,10 +58,10 @@ export const REGION_5_FRAGMENT_LOOT_SOURCES: readonly Region5FragmentLootSource[
     monsterName: '炎神官长·维斯塔',
     entry: {
       itemId: REGION_5_FRAGMENT_ID,
-      weight: 1.4,
+      weight: 0.15,
       minCount: 2,
       maxCount: 3,
-      pityCount: 35,
+      pityCount: 300,
     },
   },
 ] as const;
@@ -76,4 +76,3 @@ export function region5FragmentLootForTable(
   const entry = REGION_5_FRAGMENT_LOOT_BY_TABLE.get(lootTableId)?.entry;
   return entry ? { ...entry } : undefined;
 }
-
