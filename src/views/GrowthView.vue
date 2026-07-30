@@ -575,8 +575,17 @@ onUnmounted(() => {
       style="--row-delay: 55ms"
     />
 
-    <section class="card reforge-entry row-in" style="--row-delay: 60ms">
-      <div class="reforge-entry-art">
+    <button
+      type="button"
+      class="card reforge-entry row-in"
+      style="--row-delay: 60ms"
+      :disabled="!reforgeOverview.unlocked"
+      :aria-label="
+        reforgeOverview.unlocked ? '进入星辉洗练坊' : `星辉洗练坊，Lv${REFORGE_UNLOCK_LEVEL} 解锁`
+      "
+      @click="studioOpen = true"
+    >
+      <span class="reforge-entry-art">
         <img
           :src="`${BASE}assets/effects/reforge/reforge-studio-banner.webp`"
           alt=""
@@ -597,15 +606,9 @@ onUnmounted(() => {
             </template>
           </span>
         </span>
-      </div>
-      <button
-        class="btn btn-pink reforge-entry-btn"
-        :disabled="!reforgeOverview.unlocked"
-        @click="studioOpen = true"
-      >
-        进入洗练坊
-      </button>
-    </section>
+      </span>
+      <span class="reforge-entry-btn" aria-hidden="true">进入洗练坊</span>
+    </button>
 
     <CollapsibleCard
       v-if="visualSkills.length > 0"
@@ -899,12 +902,14 @@ onUnmounted(() => {
   padding: 10px;
 }
 
-/* ── 洗练坊入口 ── */
+/* ── 洗练坊入口（整卡可点）── */
 .reforge-entry {
   display: flex;
   align-items: center;
   gap: 10px;
+  width: 100%;
   padding: 10px 12px;
+  text-align: left;
 }
 
 .reforge-entry-art {
@@ -952,11 +957,18 @@ onUnmounted(() => {
 }
 
 .reforge-entry-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-height: 40px;
   flex: 0 0 auto;
   padding: 0 14px;
   font-size: 11px;
   font-weight: 800;
+  color: var(--text-on-color);
+  background: linear-gradient(135deg, #ffb0d0, var(--pink-deep));
+  border-radius: 999px;
+  box-shadow: 0 3px 10px rgb(245 121 159 / 30%);
 }
 
 .chip {

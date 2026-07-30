@@ -482,6 +482,14 @@ onUnmounted(() => {
   text-overflow: ellipsis;
   white-space: nowrap;
   border-radius: 15px;
+  transition:
+    transform var(--t-fast) var(--ease-spring),
+    filter var(--t-mid) ease;
+}
+
+.switch-actions button:active:not(:disabled) {
+  filter: brightness(1.05);
+  transform: scale(0.95);
 }
 
 .cancel-button {

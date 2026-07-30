@@ -250,6 +250,32 @@ function assetUrl(path: string): string {
   color: var(--text);
 }
 
+/* 内容错峰入场：头部→描述→数据依次浮起，速览也有仪式感 */
+.peek-head,
+.peek-desc,
+.peek-facts {
+  animation: peek-content-rise 0.34s var(--ease-soft) both;
+}
+
+.peek-desc {
+  animation-delay: 45ms;
+}
+
+.peek-facts {
+  animation-delay: 90ms;
+}
+
+@keyframes peek-content-rise {
+  from {
+    opacity: 0;
+    transform: translateY(9px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @keyframes peek-fade {
   from {
     opacity: 0;
@@ -272,7 +298,10 @@ function assetUrl(path: string): string {
 
 @media (prefers-reduced-motion: reduce) {
   .peek-overlay,
-  .peek-sheet {
+  .peek-sheet,
+  .peek-head,
+  .peek-desc,
+  .peek-facts {
     animation: none;
   }
 }

@@ -265,6 +265,38 @@ button.card:active,
   transform: scale(0.985);
 }
 
+/* 有精确指针的设备，可点卡片/行悬停时轻轻浮起 */
+@media (hover: hover) and (pointer: fine) {
+  button.card:hover,
+  .card-clickable:hover,
+  .row-clickable:hover {
+    border-color: var(--line-strong);
+    box-shadow: var(--shadow-float);
+  }
+}
+
+/*
+ * 弹窗关闭钮的统一按压反馈。
+ * 各组件的 × 按钮都以 aria-label="关闭…" 命名，用属性选择器一处覆盖全部；
+ * 组件自己的 scoped 样式带 data-v 属性、优先级更高，不会被这里顶掉。
+ */
+[aria-label^='关闭'] {
+  transition:
+    transform var(--t-fast) var(--ease-spring),
+    background-color var(--t-mid) var(--ease-soft),
+    color var(--t-mid) var(--ease-soft);
+}
+
+[aria-label^='关闭']:active {
+  transform: scale(0.86);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [aria-label^='关闭'] {
+    transition: none;
+  }
+}
+
 /* ── 品质文字与边框 ── */
 .q-common {
   color: var(--q-common);

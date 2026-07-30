@@ -1078,6 +1078,13 @@ function openLootEntry(entry: { itemId: string; isEquipment: boolean; count: num
   border: 1px solid #f3d9e7;
   border-radius: var(--r);
   box-shadow: var(--shadow-sm);
+  transition:
+    transform var(--t-fast) var(--ease-spring),
+    box-shadow var(--t-mid) var(--ease-soft);
+}
+
+.encounter-entry:active {
+  transform: scale(0.98);
 }
 
 .encounter-icon {
@@ -1238,6 +1245,14 @@ function openLootEntry(entry: { itemId: string; isEquipment: boolean; count: num
   color: var(--blue-deep);
   background: var(--blue-soft);
   border-radius: 10px;
+  transition:
+    transform var(--t-fast) var(--ease-spring),
+    background-color var(--t-mid) var(--ease-soft);
+}
+
+.loot-toolbar button:active {
+  transform: scale(0.92);
+  background: #d9ecfd;
 }
 
 .loot-empty {
@@ -1311,6 +1326,12 @@ function openLootEntry(entry: { itemId: string; isEquipment: boolean; count: num
   gap: 7px;
   padding: 5px 8px;
   text-align: left;
+  border-radius: 9px;
+  transition: background-color var(--t-mid) var(--ease-soft);
+}
+
+.loot-group-head:active {
+  background: var(--panel-3);
 }
 
 .loot-category {
