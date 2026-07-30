@@ -497,54 +497,71 @@ onUnmounted(() => {
         <!-- 空态：够得着的目标，从第一次挑战开始 -->
         <div v-else-if="boardEmpty" class="empty">
           <template v-if="boardTab === 'neighborhood'">
-            这一带还很安静 —— 上传一次成绩，就能看到你±5名的对手。
+            本周这个分段还没有人上榜 —— 你的成绩会是第一个。
           </template>
           <template v-else>本周还没有人上榜，虚位以待。</template>
         </div>
 
         <!-- 试炼邻域 / 总榜 -->
-        <div v-else-if="boardTab !== 'power'" class="rows">
-          <div
-            v-for="(row, index) in boardTab === 'neighborhood' ? neighborhoodRows : topRows"
-            :key="row.userId"
-            class="row row-in peekable"
-            :class="{ me: row.isMe, podium: row.rank <= 3 && boardTab === 'top' }"
-            :style="{ '--row-delay': `${Math.min(index, 14) * 45}ms` }"
-            role="button"
-            tabindex="0"
-            :aria-label="`查看${row.displayName}的玩家详情`"
-            @click="openPeek(row, boardTab === 'top' && row.rank <= 3)"
-            @keydown.enter.prevent="openPeek(row, boardTab === 'top' && row.rank <= 3)"
-            @keydown.space.prevent="openPeek(row, boardTab === 'top' && row.rank <= 3)"
-          >
-            <span class="rank-no" :data-rank="row.rank">{{ row.rank }}</span>
-            <span class="who">
-              <ProfileAvatar
-                class="row-avatar"
-                :avatar-url="row.avatarUrl"
-                :class-id="row.classId"
-                :alt="`${row.displayName}的头像`"
-              />
-              <span class="identity-copy">
-                <span class="identity-line">
-                  <b>{{ row.displayName }}</b>
-                  <em v-if="row.isMe">你</em>
-                </span>
-                <small>{{ row.bio || `${className(row.classId)}挑战者` }}</small>
-              </span>
-            </span>
-            <span class="damage num">{{ abbr(row.damage) }}</span>
-            <button
-              v-if="!row.isMe && lb.status === 'ready'"
-              class="report-entry"
-              :aria-label="`举报${row.displayName}的档案`"
-              title="举报档案"
-              @click.stop="openReport(row)"
+        <template v-else-if="boardTab !== 'power'">
+          <!--
+            未上榜时看到的是入榜门槛附近，必须说清楚这不是「你的邻域」——
+            让玩家误以为自己已经在榜上是欺骗（docs/40 红线）。
+            提示条放在 .rows 之外：那是限高 flex 容器，高度按「恰好 7 行」调过，
+            塞进去既会被 shrink 压扁也会挤掉行数预算。
+          -->
+          <p v-if="boardTab === 'neighborhood' && lb.neighborhoodIsPreview" class="board-note">
+            你本周还没上榜，这是榜尾附近。
+            <b v-if="lb.neighborhoodEntryThreshold !== null">
+              打出 {{ abbr(lb.neighborhoodEntryThreshold + 1) }} 伤害就能挤进去。
+            </b>
+          </p>
+          <p v-else-if="boardTab === 'neighborhood' && lb.neighborhoodWidened" class="board-note">
+            同职业上榜的人还不多，这里显示本分段全职业的对手。
+          </p>
+          <div class="rows">
+            <div
+              v-for="(row, index) in boardTab === 'neighborhood' ? neighborhoodRows : topRows"
+              :key="row.userId"
+              class="row row-in peekable"
+              :class="{ me: row.isMe, podium: row.rank <= 3 && boardTab === 'top' }"
+              :style="{ '--row-delay': `${Math.min(index, 14) * 45}ms` }"
+              role="button"
+              tabindex="0"
+              :aria-label="`查看${row.displayName}的玩家详情`"
+              @click="openPeek(row, boardTab === 'top' && row.rank <= 3)"
+              @keydown.enter.prevent="openPeek(row, boardTab === 'top' && row.rank <= 3)"
+              @keydown.space.prevent="openPeek(row, boardTab === 'top' && row.rank <= 3)"
             >
-              <Flag :size="12" aria-hidden="true" />
-            </button>
+              <span class="rank-no" :data-rank="row.rank">{{ row.rank }}</span>
+              <span class="who">
+                <ProfileAvatar
+                  class="row-avatar"
+                  :avatar-url="row.avatarUrl"
+                  :class-id="row.classId"
+                  :alt="`${row.displayName}的头像`"
+                />
+                <span class="identity-copy">
+                  <span class="identity-line">
+                    <b>{{ row.displayName }}</b>
+                    <em v-if="row.isMe">你</em>
+                  </span>
+                  <small>{{ row.bio || `${className(row.classId)}挑战者` }}</small>
+                </span>
+              </span>
+              <span class="damage num">{{ abbr(row.damage) }}</span>
+              <button
+                v-if="!row.isMe && lb.status === 'ready'"
+                class="report-entry"
+                :aria-label="`举报${row.displayName}的档案`"
+                title="举报档案"
+                @click.stop="openReport(row)"
+              >
+                <Flag :size="12" aria-hidden="true" />
+              </button>
+            </div>
           </div>
-        </div>
+        </template>
 
         <!-- 战力榜（次级页签：玩家期待看到，但我们不主推） -->
         <div v-else class="rows">
@@ -1470,6 +1487,21 @@ onUnmounted(() => {
   line-height: 1.7;
   color: var(--text-dim);
   text-align: center;
+}
+
+/* 榜尾预览 / 放宽口径的说明条。刻意放在 .rows 之外，见模板处注释。 */
+.board-note {
+  margin: 8px 0 0;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: var(--panel-2);
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--text-dim);
+}
+
+.board-note b {
+  color: var(--text);
 }
 
 /* 骨架屏 */

@@ -11,22 +11,22 @@
 import { computed, ref } from 'vue';
 import { defineStore } from 'pinia';
 import { useGameStore } from './game';
-import {
-  ensureAnonymousSession,
-  getSupabaseClient,
-  isSupabaseConfigured,
-} from '@/net/supabase';
+import { ensureAnonymousSession, getSupabaseClient, isSupabaseConfigured } from '@/net/supabase';
 import {
   fetchMyPowerRank,
   fetchPowerTop,
   fetchTrialNeighborhood,
   fetchTrialTop,
   submitTrialScore,
+  trialEntryThreshold,
+  trialNeighborhoodIsPreview,
   upsertProfile,
   type PowerBoardRow,
+  type TrialBoardFilter,
   type TrialBoardRow,
   type TrialSubmitResult,
 } from '@/net/leaderboard';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   buildTrialCombatant,
   runTrial,
@@ -45,6 +45,16 @@ export type LeaderboardStatus = 'unconfigured' | 'connecting' | 'ready' | 'offli
 
 /** 榜单缓存有效期（docs/51 §7：5 分钟） */
 export const LEADERBOARD_CACHE_TTL_MS = 5 * 60 * 1000;
+
+/**
+ * 同职业邻域少于这个行数时，放宽到该分段的全职业榜（docs/51 §3.4 的缺省口径）。
+ *
+ * 开服初期人少：实测 8 条成绩被 3 个分段 × 4 个职业切成 12 个桶，
+ * 同职业桶里往往只剩自己一个人 —— 「你 ±5 名」名义上是默认视图，
+ * 实际看到的是一张空榜或一面镜子，追赶对象根本不存在。
+ * 人多起来后同职业桶自然超过这个阈值，放宽会自动停止生效。
+ */
+export const TRIAL_NEIGHBORHOOD_MIN_ROWS = 3;
 
 interface CacheSlot<T> {
   at: number;
@@ -71,10 +81,10 @@ export const useLeaderboardStore = defineStore('leaderboard', () => {
   // ─────────── 榜单缓存 ───────────
   const neighborhoodCache = ref<CacheSlot<TrialBoardRow[]> | null>(null);
   const topCache = ref<CacheSlot<TrialBoardRow[]> | null>(null);
-  const powerCache = ref<CacheSlot<{ rows: PowerBoardRow[]; myRank: number | null }> | null>(
-    null,
-  );
+  const powerCache = ref<CacheSlot<{ rows: PowerBoardRow[]; myRank: number | null }> | null>(null);
   const boardsLoading = ref(false);
+  /** 当前邻域是否已放宽到全职业（UI 要如实说明，不能假装是同职业榜）。 */
+  const neighborhoodWidened = ref(false);
 
   // ─────────── 本周上下文 ───────────
   const weekIndex = computed(() => trialWeekIndex(Date.now()));
@@ -98,9 +108,8 @@ export const useLeaderboardStore = defineStore('leaderboard', () => {
   const lastWeekBest = computed<TrialBest | null>(() => {
     const list = game.save?.trial.bests ?? [];
     return (
-      list.find(
-        (b) => b.seasonId === TRIAL_SEASON_ID && b.weekIndex === weekIndex.value - 1,
-      ) ?? null
+      list.find((b) => b.seasonId === TRIAL_SEASON_ID && b.weekIndex === weekIndex.value - 1) ??
+      null
     );
   });
 
@@ -204,6 +213,35 @@ export const useLeaderboardStore = defineStore('leaderboard', () => {
     return slot !== null && slot.key === key && Date.now() - slot.at < LEADERBOARD_CACHE_TTL_MS;
   }
 
+  /**
+   * 拉同职业邻域；行数不足就退回该分段全职业榜。
+   *
+   * 只在薄桶时多打一次请求，人多之后第一次就够，不会常态双请求。
+   */
+  async function loadNeighborhood(
+    client: SupabaseClient,
+    filter: TrialBoardFilter & { classId: ClassId },
+    myUserId: string,
+  ): Promise<TrialBoardRow[]> {
+    const sameClass = await fetchTrialNeighborhood(client, filter, myUserId);
+    if (sameClass.length >= TRIAL_NEIGHBORHOOD_MIN_ROWS) {
+      neighborhoodWidened.value = false;
+      return sameClass;
+    }
+    const allClasses = await fetchTrialNeighborhood(
+      client,
+      { ...filter, classId: undefined },
+      myUserId,
+    );
+    // 放宽只有在真的更满时才采纳，否则保持同职业口径（宁可薄也别换错口径）。
+    if (allClasses.length > sameClass.length) {
+      neighborhoodWidened.value = true;
+      return allClasses;
+    }
+    neighborhoodWidened.value = false;
+    return sameClass;
+  }
+
   /** 拉取三块榜单；带 5 分钟缓存，force 可绕过。 */
   async function refreshBoards(force = false): Promise<void> {
     if (!(await connect())) return;
@@ -220,9 +258,10 @@ export const useLeaderboardStore = defineStore('leaderboard', () => {
     boardsLoading.value = true;
     try {
       await Promise.all([
-        // 邻域榜：同职业子榜里「你 ±5 名」—— 你每天真正追赶的对象
+        // 邻域榜：同职业子榜里「你 ±5 名」—— 你每天真正追赶的对象。
+        // 桶太薄时放宽到全职业（见 TRIAL_NEIGHBORHOOD_MIN_ROWS）。
         force || !cacheFresh(neighborhoodCache.value, key)
-          ? fetchTrialNeighborhood(client, filter, userId.value)
+          ? loadNeighborhood(client, filter, userId.value)
               .then((rows) => (neighborhoodCache.value = { at: Date.now(), key, value: rows }))
               .catch((error) => (lastError.value = String((error as Error).message ?? error)))
           : Promise.resolve(),
@@ -290,6 +329,14 @@ export const useLeaderboardStore = defineStore('leaderboard', () => {
     }
   }
 
+  const neighborhoodRows = computed<TrialBoardRow[]>(() => neighborhoodCache.value?.value ?? []);
+  /** 我本周还没上榜，看到的是入榜门槛附近（docs/51 §5.1 的锚点回退）。 */
+  const neighborhoodIsPreview = computed(() => trialNeighborhoodIsPreview(neighborhoodRows.value));
+  /** 预览态下要超过的伤害数字；已上榜或空榜时为 null。 */
+  const neighborhoodEntryThreshold = computed(() =>
+    neighborhoodIsPreview.value ? trialEntryThreshold(neighborhoodRows.value) : null,
+  );
+
   return {
     // 状态
     status,
@@ -307,6 +354,10 @@ export const useLeaderboardStore = defineStore('leaderboard', () => {
     weekOverWeekGain,
     // 榜单数据
     neighborhoodCache,
+    neighborhoodRows,
+    neighborhoodIsPreview,
+    neighborhoodEntryThreshold,
+    neighborhoodWidened,
     topCache,
     powerCache,
     // 动作

@@ -250,6 +250,10 @@ export async function fetchTrialTop(
  *
  * 第 3000 名看到第 2998 名只领先他 2%，是够得着的目标；
  * 看到第 1 名领先他 40 倍，只会关掉。
+ *
+ * 本周没提交成绩时不会返回空表：RPC 会把锚点落到榜尾，让玩家看到
+ * 「打到多少能挤进去」。此时所有行的 isMe 都是 false —— 调用方据此
+ * 区分「我的邻域」与「榜尾预览」（见 trialNeighborhoodIsPreview）。
  */
 export async function fetchTrialNeighborhood(
   client: SupabaseClient,
@@ -261,7 +265,9 @@ export async function fetchTrialNeighborhood(
     p_season_id: filter.seasonId,
     p_week_index: filter.weekIndex,
     p_bracket_id: filter.bracketId,
-    p_class_id: filter.classId,
+    // 必须显式给 null：supabase-js 会丢掉值为 undefined 的键，而 PostgREST
+    // 按「参数名集合」找函数，少一个键就报 PGRST202 函数不存在。
+    p_class_id: filter.classId ?? null,
     p_user_id: myUserId,
     p_radius: radius,
   });
@@ -300,6 +306,22 @@ export async function fetchTrialNeighborhood(
       avatarUrl: identity?.avatarUrl ?? null,
     };
   });
+}
+
+/**
+ * 这批邻域行是「榜尾预览」而不是「我的邻域」吗？
+ *
+ * 非空且没有任何一行是我 → 我本周还没上榜，看到的是入榜门槛附近。
+ * 空表是「本周还没有人上榜」，那是另一种状态，不算预览。
+ */
+export function trialNeighborhoodIsPreview(rows: readonly TrialBoardRow[]): boolean {
+  return rows.length > 0 && !rows.some((row) => row.isMe);
+}
+
+/** 入榜门槛：榜尾预览里最末一行的伤害 —— 玩家要超过的那个数字。 */
+export function trialEntryThreshold(rows: readonly TrialBoardRow[]): number | null {
+  if (rows.length === 0) return null;
+  return rows.reduce((last, row) => (row.rank > last.rank ? row : last), rows[0]).damage;
 }
 
 // ─────────────────────────── 战力榜（次级页签） ───────────────────────────
