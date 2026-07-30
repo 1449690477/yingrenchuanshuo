@@ -12,6 +12,7 @@
 import type { Stage, Wave } from '@/core/types';
 import { combatPower } from '@/core/formula';
 import { baseStatsFor, monsterHp } from '@/core/progression';
+import { expectedBuildCp } from './expectedPower';
 import { ALL_CHAPTERS, STAGES_PER_CHAPTER, type ChapterSpec } from './regions';
 import { bossOfChapter, eliteOfChapter, lootTableIdFor, normalsOfChapter } from './monsters';
 import { DEFAULT_MAX_KILLS_PER_SEC } from './constants';
@@ -37,22 +38,27 @@ function stageLevel(spec: ChapterSpec, idx: number): number {
 }
 
 /**
- * 推荐战力估算。
+ * 推荐战力（docs/56 §3.2）。
  *
- * 思路：取「该等级裸属性战力」的一个倍数。倍数随关卡推进略微上升，
- * 反映出玩家需要靠装备补上缺口（怪物血量指数比装备快 0.1，见 ADR-005）。
+ * 口径 = expectedBuildCp（满配 × 典型强化 × 典型词条）× 0.85。
+ * 0.85 与装备副本的 0.9 同方法论：留一段「养一养再来」的目标空间。
  *
- * 这只是给玩家的参考线，宁可略低一点也不要虚高 ——
- * 虚高会让玩家以为打不过而不敢挂。
+ * 旧公式是「裸属性 × (0.85~1.85)」—— 实测 Lv50 比玩家真实水平低 6 倍、
+ * Lv118 低 37 倍，战力参考显示 200%~3700%，参考线彻底失真（docs/56 病根二）。
+ * 全游戏「该等级该多强」只允许 expectedPower 这一个口径，禁止再手填系数。
  */
+const RECOMMEND_BUILD_RATIO = 0.85;
+
 function estimateRecommendCP(level: number): number {
   const bare = combatPower(baseStatsFor('swordsman', level));
 
-  // 装备依赖度随等级上升：Lv1 玩家一件装备都没有，推荐战力必须低于裸属性，
-  // 否则新号进游戏第一关就被判定「战力不足」而无法挂机（真出过这个 bug）。
-  // 到 Lv50 之后需要接近满配，系数收敛到 1.85。
-  const gearFactor = 0.85 + Math.min(1.0, (level - 1) * 0.02);
-  return Math.round(bare * gearFactor);
+  // Lv1~5 特判维持「低于裸属性」：新号一件装备都没有，
+  // 若按满配口径出推荐值，第一关就会显示「战力不足」（真出过这个 bug）。
+  if (level <= 5) return Math.round(bare * 0.85);
+
+  // 满配口径在低段可能低于裸属性口径（common 装备贡献小），取两者较大值
+  // 保证推荐线单调、不出现「升级后推荐反而变低」的怪相。
+  return Math.round(Math.max(bare * 0.85, expectedBuildCp(level) * RECOMMEND_BUILD_RATIO));
 }
 
 function buildWaves(spec: ChapterSpec, idx: number): { waves: Wave[]; bossId?: string } {
