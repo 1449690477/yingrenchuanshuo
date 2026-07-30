@@ -199,4 +199,8 @@ grant execute on function public.guild_join_by_code(text) to authenticated;
 --
 -- 今天不做这一步也不会立刻出事（guild_join 本来就允许凭 id 直接加入），
 -- 但只要将来做「仅邀请制公会」，这个码就已经是公开的了 —— 那时再补要迁移历史码。
+-- ⚠ 下面这条**不起作用**，原样保留只为让迁移历史与线上一致；
+-- 真正生效的限列授权在 20260731010000_guild_invite_code_column_grants.sql。
+-- 原因：列级 revoke 削不掉表级授权（Supabase 默认给了表级 select），
+-- Postgres 只发一句 warning，迁移照样绿 —— 线上实测才发现它是空操作。
 revoke select (invite_code) on public.guilds from anon, authenticated;
