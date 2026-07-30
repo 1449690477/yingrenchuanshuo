@@ -1242,8 +1242,10 @@ onUnmounted(() => {
   margin-top: 8px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  max-height: 348px;
+  gap: 6px;
+  /* 恰好容纳 7 行（58px 行高 + 6px 行距），第 8 行起滚动——
+     15:46 行加高后 348px 只能装 6.6 行，第 7 行被裁掉一截 */
+  max-height: 442px;
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--line-strong) transparent;
@@ -1252,8 +1254,8 @@ onUnmounted(() => {
 .row {
   display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 9px 10px;
+  gap: 8px;
+  padding: 11px 12px;
   border-radius: var(--r-sm);
   background: var(--panel-2);
 }
@@ -1366,12 +1368,12 @@ onUnmounted(() => {
   flex: 1;
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
 }
 
 .row-avatar {
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
   flex: none;
   font-size: 18px;
 }
@@ -1381,7 +1383,7 @@ onUnmounted(() => {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 3px;
 }
 
 .identity-line {
@@ -1395,6 +1397,7 @@ onUnmounted(() => {
   min-width: 0;
   font-size: 12px;
   font-weight: 600;
+  line-height: 1.35;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1403,7 +1406,8 @@ onUnmounted(() => {
 .identity-copy small {
   display: block;
   max-width: 100%;
-  font-size: 9px;
+  font-size: 10px;
+  line-height: 1.4;
   color: var(--text-dim);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1412,7 +1416,7 @@ onUnmounted(() => {
 
 .identity-line em {
   flex-shrink: 0;
-  padding: 1px 7px;
+  padding: 2px 8px;
   font-size: 9px;
   font-style: normal;
   font-weight: 700;
@@ -1728,7 +1732,8 @@ onUnmounted(() => {
     min-width: 96px;
   }
   .rows {
-    max-height: 300px;
+    /* 小屏/矮屏：6 行 + 露第 7 行 22px 边缘，明示下方可滚 */
+    max-height: 400px;
   }
 }
 
