@@ -2,7 +2,7 @@
  * arena-snapshot Edge Function 的共享 core 打包入口（见 submit-trial/_core-entry.ts）。
  */
 
-export { buildTrialCombatant, trialPlausibilityCap } from '@/core/trial';
+export { buildTrialCombatant, trialEquipmentSnapshotIssue } from '@/core/trial';
 export { arenaTierFor } from '@/core/duel';
 export { ARENA_JOIN_HONOR } from '@/data/arenaRules';
 export { equipmentInstanceSchema } from '@/save/schema';

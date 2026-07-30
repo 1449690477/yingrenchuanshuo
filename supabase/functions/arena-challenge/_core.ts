@@ -3553,6 +3553,18 @@ function fnv1a32(text) {
 }
 var TRIAL_WEEK_EPOCH_MS = Date.UTC(2026, 0, 5);
 var WEEK_MS = 7 * 24 * 36e5;
+function trialEquipmentSnapshotIssue(instance, classId, playerLevel) {
+  const definition = getEquipment(instance.defId);
+  if (!definition) return "unknown-equipment";
+  if (definition.level > playerLevel) return "equipment-level";
+  if (definition.classId && definition.classId !== classId) return "equipment-class";
+  for (const affix of instance.affixes) {
+    if (!isRolledAffixValue(affix.key, definition.level, affix.tier, affix.value)) {
+      return "affix-value";
+    }
+  }
+  return null;
+}
 function buildTrialCombatant(input) {
   if (input.equipped.length !== SLOT_ORDER.length) {
     throw new Error(`[\u8BD5\u70BC] equipped \u5FC5\u987B\u6709 ${SLOT_ORDER.length} \u4E2A\u69FD\u4F4D`);
@@ -3598,9 +3610,6 @@ function canonicalInstance(inst) {
     affixes,
     inst.reforgeResonance
   ].join("#");
-}
-function trialPlausibilityCap(level, classId) {
-  return expectedFullGearCp(level, classId) * 1.6;
 }
 
 // src/core/dayKey.ts
@@ -9691,5 +9700,5 @@ export {
   equipmentInstanceSchema,
   getEquipment,
   simulateDuel,
-  trialPlausibilityCap
+  trialEquipmentSnapshotIssue
 };

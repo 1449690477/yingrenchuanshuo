@@ -32,7 +32,6 @@ import {
 } from './progression';
 import {
   addCombatBonuses,
-  affixAppliesToClass,
   isRolledAffixValue,
   totalEquipCombatBonuses,
   totalEquipStats,
@@ -258,7 +257,6 @@ export type TrialEquipmentSnapshotIssue =
   | 'unknown-equipment'
   | 'equipment-level'
   | 'equipment-class'
-  | 'affix-class'
   | 'affix-value';
 
 /**
@@ -280,7 +278,6 @@ export function trialEquipmentSnapshotIssue(
   if (definition.classId && definition.classId !== classId) return 'equipment-class';
 
   for (const affix of instance.affixes) {
-    if (!affixAppliesToClass(affix.key, classId)) return 'affix-class';
     if (!isRolledAffixValue(affix.key, definition.level, affix.tier, affix.value)) {
       return 'affix-value';
     }

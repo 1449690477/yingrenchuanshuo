@@ -31,7 +31,7 @@ import {
   Rng,
   simulateDuel,
   SLOT_ORDER,
-  trialPlausibilityCap,
+  trialEquipmentSnapshotIssue,
   type DuelSide,
 } from './_core.ts';
 
@@ -110,8 +110,15 @@ Deno.serve(async (req: Request) => {
       const def = getEquipment(inst.defId);
       if (!def) return json({ error: '装备定义不存在' }, 400);
       if (def.slot !== SLOT_ORDER[i]) return json({ error: '装备槽位不符' }, 400);
-      if (def.classId && def.classId !== sub.classId) {
-        return json({ error: '装备职业限制不符' }, 400);
+      const snapshotIssue = trialEquipmentSnapshotIssue(inst, sub.classId, sub.level);
+      if (snapshotIssue) {
+        const issueMessages: Record<typeof snapshotIssue, string> = {
+          'unknown-equipment': '装备定义不存在',
+          'equipment-level': '装备等级超过角色等级',
+          'equipment-class': '装备职业限制不符',
+          'affix-value': '装备词条数值不符合生成公式',
+        };
+        return json({ error: issueMessages[snapshotIssue] }, 400);
       }
     }
 
@@ -124,9 +131,6 @@ Deno.serve(async (req: Request) => {
       },
       'attacker',
     );
-    if (myBuild.combatPower > trialPlausibilityCap(sub.level, sub.classId)) {
-      return json({ error: '装备战力超出合理范围' }, 400);
-    }
 
     // ── 3. 规则校验（次数 / 荣誉 / 排名方向 / 同对手限制）──
     const admin = createClient(supabaseUrl, serviceKey);
@@ -212,6 +216,18 @@ Deno.serve(async (req: Request) => {
 
     const defSnap = storedSnapshotSchema.safeParse(defRow.build_snapshot);
     if (!defSnap.success) return json({ error: '对手搭配数据异常，请刷新候选' }, 409);
+    for (let i = 0; i < SLOT_ORDER.length; i++) {
+      const inst = defSnap.data.equipped[i];
+      if (!inst) continue;
+      const def = getEquipment(inst.defId);
+      if (
+        !def ||
+        def.slot !== SLOT_ORDER[i] ||
+        trialEquipmentSnapshotIssue(inst, defSnap.data.classId, defSnap.data.level)
+      ) {
+        return json({ error: '对手搭配数据异常，请刷新候选' }, 409);
+      }
+    }
     const defBuild = buildArenaDuelSide(
       {
         name: defSnap.data.displayName,

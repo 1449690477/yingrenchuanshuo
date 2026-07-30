@@ -4,7 +4,7 @@
  * 玩家进入竞技场的方式：上传当前搭配 → 服务端复算战力 →
  * 未入榜则排到榜尾，已入榜则刷新防守快照与战力。
  * 防守方的搭配以服务端保存的这份快照为准，伪造搭配在结构上不可能
- * （与 submit-trial 同一套 L1–L4 校验，见该文件头注释）。
+ * （与 submit-trial 同一套可证明的硬校验，见该文件头注释）。
  *
  * 部署前必须先运行：npm run edge:build（生成 _core.ts）
  */
@@ -19,7 +19,7 @@ import {
   equipmentInstanceSchema,
   getEquipment,
   SLOT_ORDER,
-  trialPlausibilityCap,
+  trialEquipmentSnapshotIssue,
 } from './_core.ts';
 
 const corsHeaders = {
@@ -78,25 +78,25 @@ Deno.serve(async (req: Request) => {
       const def = getEquipment(inst.defId);
       if (!def) return json({ error: '装备定义不存在' }, 400);
       if (def.slot !== SLOT_ORDER[i]) return json({ error: '装备槽位不符' }, 400);
-      if (def.classId && def.classId !== sub.classId) {
-        return json({ error: '装备职业限制不符' }, 400);
+      const snapshotIssue = trialEquipmentSnapshotIssue(inst, sub.classId, sub.level);
+      if (snapshotIssue) {
+        const issueMessages: Record<typeof snapshotIssue, string> = {
+          'unknown-equipment': '装备定义不存在',
+          'equipment-level': '装备等级超过角色等级',
+          'equipment-class': '装备职业限制不符',
+          'affix-value': '装备词条数值不符合生成公式',
+        };
+        return json({ error: issueMessages[snapshotIssue] }, 400);
       }
     }
 
-    // ── 3. 服务端复算战力（L3/L4：超出合理范围直接拒绝入场）──
+    // ── 3. 服务端复算战力 ──
     const build = buildTrialCombatant({
       name: sub.displayName,
       classId: sub.classId,
       level: sub.level,
       equipped: sub.equipped,
     });
-    if (build.combatPower > trialPlausibilityCap(sub.level, sub.classId)) {
-      return json({ error: '装备战力超出合理范围' }, 400);
-    }
-    const accountAgeMs = Date.now() - new Date(user.created_at).getTime();
-    if (sub.level >= 100 && accountAgeMs < 3 * 86_400_000) {
-      return json({ error: '账号数据异常，暂不能进入竞技场' }, 400);
-    }
 
     // ── 4. 档案与排名行（service role；客户端对 arena_ranks 无写权限）──
     const admin = createClient(supabaseUrl, serviceKey);

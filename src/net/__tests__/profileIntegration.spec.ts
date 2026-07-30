@@ -8,6 +8,14 @@ const submitTrialSource = readFileSync(
   new URL('../../../supabase/functions/submit-trial/index.ts', import.meta.url),
   'utf8',
 );
+const arenaSnapshotSource = readFileSync(
+  new URL('../../../supabase/functions/arena-snapshot/index.ts', import.meta.url),
+  'utf8',
+);
+const arenaChallengeSource = readFileSync(
+  new URL('../../../supabase/functions/arena-challenge/index.ts', import.meta.url),
+  'utf8',
+);
 
 describe('公开档案补读', () => {
   it('一次请求合并邻域榜所需的头像、简介和昵称', async () => {
@@ -50,9 +58,11 @@ describe('服务端档案同步', () => {
   });
 
   it('服务端不再用平均战力或匿名账号年龄拒绝已复算的真实成绩', () => {
-    expect(submitTrialSource).not.toContain('trialPlausibilityCap');
-    expect(submitTrialSource).not.toContain('accountAgeMs');
-    expect(submitTrialSource).toContain('trialEquipmentSnapshotIssue');
+    for (const source of [submitTrialSource, arenaSnapshotSource, arenaChallengeSource]) {
+      expect(source).not.toContain('trialPlausibilityCap');
+      expect(source).not.toContain('accountAgeMs');
+      expect(source).toContain('trialEquipmentSnapshotIssue');
+    }
   });
 
   it('同分重提可以修复旧版误审，但低分不能洗白更高旧分', () => {

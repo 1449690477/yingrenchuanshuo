@@ -107,7 +107,6 @@ Deno.serve(async (req: Request) => {
           'unknown-equipment': '装备定义不存在',
           'equipment-level': '装备等级超过角色等级',
           'equipment-class': '装备职业限制不符',
-          'affix-class': '装备职业词条不符',
           'affix-value': '装备词条数值不符合生成公式',
         };
         return json({ error: issueMessages[snapshotIssue] }, 400);
