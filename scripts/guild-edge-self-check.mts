@@ -17,7 +17,8 @@ const input = {
 };
 const seasonId = 's1';
 const weekIndex = 30;
-const bracketId = 'feiyue';
+// 同 build-edge-function.mts：分段 id 会随内容曲线重划，不许硬编码。
+const bracketId = trialSource.trialBracketFor(input.level).id;
 const generatedBuild = generated.buildTrialCombatant(input);
 const sourceBuild = trialSource.buildTrialCombatant(input);
 const generatedBoss = generated.guildExpeditionBoss(seasonId, weekIndex, bracketId);

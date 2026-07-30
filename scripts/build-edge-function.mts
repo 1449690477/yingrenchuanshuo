@@ -67,7 +67,9 @@ const equipped = [null, null, null, null, null, null, null, null];
 const input = { name: '自检', classId: 'swordsman', level: 45, equipped };
 const seasonId = 's1';
 const weekIndex = 30;
-const bracketId = 'feiyue';
+// 分段 id 会随内容曲线重划（f3bb0a9：4 段→5 段、id 全换新），
+// 所以绝不硬编码 —— 从源实现按等级现算，与线上函数同口径。
+const bracketId = trialSource.trialBracketFor(input.level).id;
 
 const trialFromGenerated = trialGenerated.runTrial(
   trialGenerated.buildTrialCombatant(input),
