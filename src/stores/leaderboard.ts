@@ -26,6 +26,13 @@ import {
   type TrialBoardRow,
   type TrialSubmitResult,
 } from '@/net/leaderboard';
+import {
+  fetchMilestoneBoard,
+  submitMilestone,
+  type MilestoneBoardRow,
+  type MilestoneSubmitResult,
+} from '@/net/milestones';
+import { MILESTONE_LEVELS, isMilestoneLevel } from '@/data/milestoneRules';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   buildTrialCombatant,
@@ -85,6 +92,42 @@ export const useLeaderboardStore = defineStore('leaderboard', () => {
   const boardsLoading = ref(false);
   /** 当前邻域是否已放宽到全职业（UI 要如实说明，不能假装是同职业榜）。 */
   const neighborhoodWidened = ref(false);
+  const milestoneCache = ref<CacheSlot<MilestoneBoardRow[]> | null>(null);
+  const submittingMilestones = ref(false);
+
+  // ─────────── 登顶速度榜（docs/51 §4 榜 4） ───────────
+
+  /** 本地已记录的达成，按档位升序。 */
+  const myMilestones = computed(() => game.save?.milestones ?? []);
+
+  /** 还没上报服务端的达成。 */
+  const pendingMilestones = computed(() => myMilestones.value.filter((m) => !m.submitted));
+
+  /**
+   * 默认展示哪一档：玩家**已达成的最高档**。
+   *
+   * 不默认展示「下一个要冲的档位」—— 那张榜上没有他，看不到自己的名次，
+   * 也就拿不到胜任感反馈（docs/51 §5.1 同一个道理）。
+   * 一档都没达成时退到最低档，让他先看见要追的那个数字。
+   */
+  const highestReachedMilestone = computed<number | null>(() =>
+    myMilestones.value.length === 0
+      ? null
+      : myMilestones.value.reduce((best, m) => Math.max(best, m.level), 0),
+  );
+  /** 玩家手动切过档位后就固定住，不再被「已达成最高档」覆盖。 */
+  const milestoneLevelOverride = ref<number | null>(null);
+  const milestoneBoardLevel = computed<number>(
+    () => milestoneLevelOverride.value ?? highestReachedMilestone.value ?? MILESTONE_LEVELS[0],
+  );
+  const milestoneRows = computed<MilestoneBoardRow[]>(() => milestoneCache.value?.value ?? []);
+
+  /** 切换查看的档位；UI 分页签用。 */
+  function selectMilestoneLevel(level: number): void {
+    if (!isMilestoneLevel(level) || level === milestoneBoardLevel.value) return;
+    milestoneLevelOverride.value = level;
+    void refreshBoards();
+  }
 
   // ─────────── 本周上下文 ───────────
   const weekIndex = computed(() => trialWeekIndex(Date.now()));
@@ -282,6 +325,19 @@ export const useLeaderboardStore = defineStore('leaderboard', () => {
               )
               .catch((error) => (lastError.value = String((error as Error).message ?? error)))
           : Promise.resolve(),
+        // 速度榜：默认看玩家最近达成的那一档（见 milestoneBoardLevel）
+        force || !cacheFresh(milestoneCache.value, `ms:${milestoneBoardLevel.value}`)
+          ? fetchMilestoneBoard(client, milestoneBoardLevel.value, userId.value)
+              .then(
+                (rows) =>
+                  (milestoneCache.value = {
+                    at: Date.now(),
+                    key: `ms:${milestoneBoardLevel.value}`,
+                    value: rows,
+                  }),
+              )
+              .catch((error) => (lastError.value = String((error as Error).message ?? error)))
+          : Promise.resolve(),
       ]);
     } finally {
       boardsLoading.value = false;
@@ -329,6 +385,45 @@ export const useLeaderboardStore = defineStore('leaderboard', () => {
     }
   }
 
+  /**
+   * 上报所有未上报的里程碑（**玩家主动触发**）。
+   *
+   * 本文件顶部第 3 条边界：成绩上传不做自动上传（隐私 + 自主性）。
+   * 里程碑同样是往公开榜发自己的数据，所以也必须等玩家点 —— 哪怕这意味着
+   * 有人会忘记点。替他决定「把你的数据发出去」不是省事，是越界。
+   *
+   * 逐条提交而不是批量：某一档被服务端拒（等级交叉验证不过）不该拖累其他档。
+   * 服务端返回 alreadyRecorded 也算成功 —— 多设备/断网重试下重复提交是正常路径。
+   */
+  async function submitPendingMilestones(): Promise<MilestoneSubmitResult[]> {
+    const pending = pendingMilestones.value;
+    if (pending.length === 0 || submittingMilestones.value) return [];
+    if (!(await connect())) return [];
+    const client = await getSupabaseClient();
+    if (!client || !userId.value || !game.save) return [];
+
+    submittingMilestones.value = true;
+    const done: MilestoneSubmitResult[] = [];
+    try {
+      for (const record of [...pending]) {
+        try {
+          const result = await submitMilestone(client, {
+            level: record.level,
+            elapsedMs: record.elapsedMs,
+          });
+          game.markMilestoneSubmitted(record.level);
+          done.push(result);
+        } catch (error) {
+          lastError.value = error instanceof Error ? error.message : '里程碑上报失败';
+        }
+      }
+      if (done.length > 0) await refreshBoards(true);
+      return done;
+    } finally {
+      submittingMilestones.value = false;
+    }
+  }
+
   const neighborhoodRows = computed<TrialBoardRow[]>(() => neighborhoodCache.value?.value ?? []);
   /** 我本周还没上榜，看到的是入榜门槛附近（docs/51 §5.1 的锚点回退）。 */
   const neighborhoodIsPreview = computed(() => trialNeighborhoodIsPreview(neighborhoodRows.value));
@@ -354,6 +449,15 @@ export const useLeaderboardStore = defineStore('leaderboard', () => {
     weekOverWeekGain,
     // 榜单数据
     neighborhoodCache,
+    // 登顶速度榜
+    myMilestones,
+    pendingMilestones,
+    highestReachedMilestone,
+    milestoneBoardLevel,
+    milestoneRows,
+    submittingMilestones,
+    selectMilestoneLevel,
+    submitPendingMilestones,
     neighborhoodRows,
     neighborhoodIsPreview,
     neighborhoodEntryThreshold,

@@ -29,6 +29,8 @@ import {
 } from '@lucide/vue';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { abbr, duration, pct } from '@/core/format';
+import { formatElapsed } from '@/core/milestones';
+import { MILESTONE_LABELS, MILESTONE_LEVELS } from '@/data/milestoneRules';
 import { trialWeekRemainingMs, upperPercentText } from '@/core/trial';
 import type { ClassId, Element } from '@/core/types';
 import { AFFECTION_CHARACTERS } from '@/data/affection';
@@ -237,10 +239,15 @@ async function onUpload(): Promise<void> {
 }
 
 // ─────────── 榜单页签：「你附近」是默认视图（方案 §5.1） ───────────
-type BoardTab = 'neighborhood' | 'top' | 'power';
+//
+// 顺序即主推顺序（docs/51 §4：1 > 4 > 3 > 其余）：
+// 邻域榜第一，速度榜紧随其后 —— 它是唯一让新玩家一入坑就能上榜的赛道；
+// 战力榜排最后，因为它是玩家期待看到的，但不是我们希望他追的。
+type BoardTab = 'neighborhood' | 'speed' | 'top' | 'power';
 const boardTab = ref<BoardTab>('neighborhood');
 const BOARD_TABS: { key: BoardTab; label: string }[] = [
   { key: 'neighborhood', label: '你附近' },
+  { key: 'speed', label: '登顶速度' },
   { key: 'top', label: '全服总榜' },
   { key: 'power', label: '战力榜' },
 ];
@@ -259,9 +266,37 @@ const myStanding = computed(() => {
 const boardEmpty = computed(() => {
   if (lb.status === 'unconfigured' || lb.status === 'offline') return false;
   if (boardTab.value === 'neighborhood') return neighborhoodRows.value.length === 0;
+  if (boardTab.value === 'speed') return lb.milestoneRows.length === 0;
   if (boardTab.value === 'top') return topRows.value.length === 0;
   return powerRows.value.length === 0;
 });
+
+// ─────────── 登顶速度榜（docs/51 §4 榜 4） ───────────
+
+const MILESTONE_TIERS = MILESTONE_LEVELS.map((level) => ({
+  level,
+  label: MILESTONE_LABELS[level] ?? `Lv${level}`,
+}));
+
+/** 我在当前档位的本地记录（有记录才说明这一档我达成过）。 */
+const myMilestoneHere = computed(
+  () => lb.myMilestones.find((m) => m.level === lb.milestoneBoardLevel) ?? null,
+);
+
+async function onSubmitMilestones(): Promise<void> {
+  const results = await lb.submitPendingMilestones();
+  if (results.length === 0) {
+    say(lb.lastError ?? '暂时无法上报，请稍后重试', false);
+    return;
+  }
+  const rejected = results.filter((r) => !r.verified).length;
+  if (rejected > 0) {
+    // 如实说明而不是假装成功；用时不可信的处置是「移出展示」，不是封号。
+    say(`已上报 ${results.length} 项，其中 ${rejected} 项未通过用时复核`, false);
+  } else {
+    say(`已上报 ${results.length} 项登顶记录`, true);
+  }
+}
 
 // ─────────── 玩家详情弹层：点榜单行看一个人 ───────────
 interface PeekTarget {
@@ -493,6 +528,80 @@ onUnmounted(() => {
             <span class="sk sk-rank" /><span class="sk sk-name" /><span class="sk sk-damage" />
           </div>
         </div>
+
+        <!--
+          登顶速度榜（docs/51 §4 榜 4）：衡量「你用多少天到达 Lv N」，
+          今天入坑的新人与一年前的老玩家在同一条起跑线上。
+          档位分页签放在榜体之外，与 .board-note 同理（限高容器不进外物）。
+        -->
+        <template v-else-if="boardTab === 'speed'">
+          <div class="tier-tabs">
+            <button
+              v-for="tier in MILESTONE_TIERS"
+              :key="tier.level"
+              class="tier-tab"
+              :class="{ on: tier.level === lb.milestoneBoardLevel }"
+              type="button"
+              @click="lb.selectMilestoneLevel(tier.level)"
+            >
+              {{ tier.label }}
+            </button>
+          </div>
+
+          <p v-if="myMilestoneHere" class="board-note">
+            你达成这一档用了 <b>{{ formatElapsed(myMilestoneHere.elapsedMs) }}</b>
+            <template v-if="!myMilestoneHere.submitted">（还没上报）</template>
+          </p>
+          <p v-else class="board-note">
+            你还没到这一档 —— 这个榜比的是用时，什么时候入坑都不影响名次。
+          </p>
+
+          <!--
+            未上报提示：上传必须玩家主动点（store 边界 3：隐私 + 自主性）。
+            替他决定「把你的数据发出去」不是省事，是越界。
+          -->
+          <button
+            v-if="lb.pendingMilestones.length > 0 && lb.status !== 'unconfigured'"
+            class="btn btn-pink submit-milestones"
+            type="button"
+            :disabled="lb.submittingMilestones"
+            @click="onSubmitMilestones"
+          >
+            <Upload :size="13" aria-hidden="true" />
+            {{
+              lb.submittingMilestones ? '上报中…' : `上报 ${lb.pendingMilestones.length} 项登顶记录`
+            }}
+          </button>
+
+          <div v-if="lb.milestoneRows.length > 0" class="rows">
+            <div
+              v-for="(row, index) in lb.milestoneRows"
+              :key="row.userId"
+              class="row row-in"
+              :class="{ me: row.isMe, podium: row.rank <= 3 }"
+              :style="{ '--row-delay': `${Math.min(index, 14) * 45}ms` }"
+            >
+              <span class="rank-no" :data-rank="row.rank">{{ row.rank }}</span>
+              <span class="who">
+                <ProfileAvatar
+                  class="row-avatar"
+                  :avatar-url="row.avatarUrl"
+                  :class-id="row.classId"
+                  :alt="`${row.displayName}的头像`"
+                />
+                <span class="identity-copy">
+                  <span class="identity-line">
+                    <b>{{ row.displayName }}</b>
+                    <em v-if="row.isMe">你</em>
+                  </span>
+                  <small>{{ row.bio || '登顶挑战者' }}</small>
+                </span>
+              </span>
+              <span class="damage num">{{ formatElapsed(row.elapsedMs) }}</span>
+            </div>
+          </div>
+          <div v-else class="empty">这一档还没有人上榜 —— 你的记录会是第一个。</div>
+        </template>
 
         <!-- 空态：够得着的目标，从第一次挑战开始 -->
         <div v-else-if="boardEmpty" class="empty">
@@ -1502,6 +1611,46 @@ onUnmounted(() => {
 
 .board-note b {
   color: var(--text);
+}
+
+/* 速度榜档位分页签。与 .board-note 同理放在限高榜体之外。 */
+.tier-tabs {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.tier-tab {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-2);
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 1.4;
+  cursor: pointer;
+  /* 小屏放三个档位，文字不许换行把行高顶开 */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tier-tab.on {
+  border-color: var(--pink);
+  background: color-mix(in srgb, var(--pink) 16%, transparent);
+  color: var(--text);
+}
+
+.submit-milestones {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  margin-top: 8px;
+  font-size: 12px;
 }
 
 /* 骨架屏 */

@@ -2976,6 +2976,21 @@ export const useGameStore = defineStore('game', () => {
     void persist();
   }
 
+  /**
+   * 服务端收下里程碑后标记已上报，之后不再提示。
+   *
+   * 只改 submitted 一个字段：level / at / elapsedMs 是不可变的历史事实，
+   * 服务端即便回了不同的用时（已有记录优先），本地也不跟着改 ——
+   * 本地记录是「我当时测到的」，两边不一致时以服务端展示为准、本地不篡改。
+   */
+  function markMilestoneSubmitted(level: number): void {
+    if (!save.value) return;
+    const entry = save.value.milestones.find((m) => m.level === level);
+    if (!entry || entry.submitted) return;
+    entry.submitted = true;
+    void persist();
+  }
+
   function noteCpDelta(before: number): void {
     const d = cp.value - before;
     if (d !== 0) cpDelta.value = { value: d, at: Date.now() };
@@ -3128,6 +3143,7 @@ export const useGameStore = defineStore('game', () => {
     imprintEquipment,
     setHaptics,
     recordTrialBest,
+    markMilestoneSubmitted,
     markTrialBestSubmitted,
     equipmentCandidateCp,
     equipmentCpDelta,

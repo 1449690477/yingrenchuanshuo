@@ -22,6 +22,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const FUNCTIONS = [
   'submit-trial',
+  'submit-milestone',
   'arena-snapshot',
   'arena-candidates',
   'arena-challenge',
@@ -161,5 +162,44 @@ if (duelKey(duelFromGenerated) !== duelKey(duelFromSource)) {
   process.exit(1);
 }
 console.log(`✓ 对决确定性自检通过：打包产物与 src/core 胜负一致（${duelKey(duelFromSource)}）`);
+
+// ── 确定性自检 3：里程碑合理性下界（docs/51 §4 榜 4）──
+//
+// 这个榜没有「服务端复算」可言（「你何时到达 Lv60」无法重建），
+// 下界表是唯一的防线。若打包产物里的表与 src/data 漂移，
+// 服务端就会按另一套标准判定，而这类漂移正是 docs/61 §2.2 那个
+// 「同一口径两处实现」bug 的成因 —— 必须在部署前拦住。
+const milestoneGenerated = await import(
+  pathToFileURL(path.join(root, 'supabase/functions/submit-milestone/_core.ts')).href
+);
+const milestoneSource = await import('../src/core/milestones.ts');
+const milestoneRules = await import('../src/data/milestoneRules.ts');
+
+for (const level of milestoneRules.MILESTONE_LEVELS) {
+  const floor = milestoneRules.MILESTONE_MIN_ELAPSED_MS[level];
+  // 下界上下各取一点：边界两侧的判定都必须两边一致
+  for (const elapsedMs of [floor - 1, floor, floor + 1]) {
+    const claim = { level, elapsedMs };
+    const fromGenerated = milestoneGenerated.isPlausibleMilestone(claim);
+    const fromSource = milestoneSource.isPlausibleMilestone(claim);
+    if (fromGenerated !== fromSource) {
+      console.error(
+        `✗ 里程碑自检失败：Lv${level} 用时 ${elapsedMs}ms —— ` +
+          `打包产物=${String(fromGenerated)}，源实现=${String(fromSource)}`,
+      );
+      process.exit(1);
+    }
+  }
+}
+if (milestoneGenerated.MILESTONE_LEVELS.join() !== milestoneRules.MILESTONE_LEVELS.join()) {
+  console.error(
+    `✗ 里程碑档位漂移：打包产物=[${milestoneGenerated.MILESTONE_LEVELS.join()}]，` +
+      `源实现=[${milestoneRules.MILESTONE_LEVELS.join()}]`,
+  );
+  process.exit(1);
+}
+console.log(
+  `✓ 里程碑确定性自检通过：档位 [${milestoneRules.MILESTONE_LEVELS.join(', ')}] 与下界判定两边一致`,
+);
 
 await import('./guild-edge-self-check.mts');

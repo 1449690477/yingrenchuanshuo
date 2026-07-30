@@ -10,7 +10,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ClassId, EquipmentInstance } from '@/core/types';
-import { NetRequestError } from './supabase';
+import { NetRequestError, friendlyMessage } from './supabase';
 
 // ─────────────────────────── 类型 ───────────────────────────
 
@@ -383,17 +383,6 @@ export async function fetchMyPowerRank(
 // ─────────────────────────── 内部 ───────────────────────────
 
 /** 把服务端英文错误翻译成人话；原样透出会吓到玩家。 */
-function friendlyMessage(raw: string, fallback: string): string {
-  const text = raw.toLowerCase();
-  if (text.includes('failed to fetch') || text.includes('network')) {
-    return '网络连接失败，请检查网络后重试';
-  }
-  if (text.includes('jwt') || text.includes('auth')) {
-    return '登录状态已过期，请重新打开排行榜';
-  }
-  return `${fallback}：${raw}`;
-}
-
 /**
  * 读出 Edge Function 业务错误的正文（FunctionsHttpError.context 是 Response）。
  *

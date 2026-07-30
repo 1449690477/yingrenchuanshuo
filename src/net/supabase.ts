@@ -73,3 +73,21 @@ export class NetRequestError extends Error {
     this.name = 'NetRequestError';
   }
 }
+
+/**
+ * 把底层错误翻译成玩家能看懂的话。
+ *
+ * 放在 supabase.ts 而不是各 net 模块里各写一份：leaderboard 与 arena 原先
+ * 各有一份同名私有副本，本轮加第三个榜单时不再复制 —— 今天刚在邻域榜查出
+ * 「同一口径两处实现，只有一处正确」的 bug（docs/61 §2.2）。
+ */
+export function friendlyMessage(raw: string, fallback: string): string {
+  const text = raw.toLowerCase();
+  if (text.includes('failed to fetch') || text.includes('network')) {
+    return '网络连接失败，请检查网络后重试';
+  }
+  if (text.includes('jwt') || text.includes('auth')) {
+    return '登录状态已过期，请重新打开排行榜';
+  }
+  return `${fallback}：${raw}`;
+}
