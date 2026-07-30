@@ -48,6 +48,18 @@ describe('服务端档案同步', () => {
     );
     expect(progressBlock?.[1]).not.toContain('display_name');
   });
+
+  it('服务端不再用平均战力或匿名账号年龄拒绝已复算的真实成绩', () => {
+    expect(submitTrialSource).not.toContain('trialPlausibilityCap');
+    expect(submitTrialSource).not.toContain('accountAgeMs');
+    expect(submitTrialSource).toContain('trialEquipmentSnapshotIssue');
+  });
+
+  it('同分重提可以修复旧版误审，但低分不能洗白更高旧分', () => {
+    expect(submitTrialSource).toContain("select('id, damage, verified')");
+    expect(submitTrialSource).toContain("decision.action === 'reverify'");
+    expect(submitTrialSource).toContain('verified: decision.bestVerified');
+  });
 });
 
 describe('档案举报', () => {
