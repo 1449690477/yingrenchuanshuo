@@ -24,16 +24,20 @@
 import { simulateFight, type CombatTimelineEvent } from './combat';
 import { Rng } from './rng';
 import { businessDayKey } from './dayKey';
-import { fnv1a32 } from './trial';
+import { buildTrialCombatant, fnv1a32, type TrialBuildInput } from './trial';
 import type {
   OnHitElementalDamageTrigger,
   OnLethalRecoveryTrigger,
 } from './equipmentSets';
 import type { Combatant, Element } from './types';
+import { arenaSetPieceCount, ARENA_EQUIPMENT_SET } from '@/data/arenaEquipment';
 import {
   ARENA_MAX_ROUNDS,
+  ARENA_OPPONENT_MAX_ABOVE,
+  ARENA_OPPONENT_MIN_ABOVE,
   ARENA_RANK_DIFF_BANDS,
   ARENA_RESET_HOUR_CST,
+  ARENA_SET_DEFENDER_DR_BONUS,
   ARENA_STREAK_BANDS,
   ARENA_TIERS,
   ARENA_WIN_CHANCE_SIMULATIONS,
@@ -56,6 +60,49 @@ export interface DuelSide {
 }
 
 export type DuelRole = 'attacker' | 'defender';
+
+/** 由搭配快照构建对决一侧；圣痕套效果只在这条管线生效（docs/53 §六）。 */
+export interface ArenaDuelSide extends DuelSide {
+  combatPower: number;
+  buildHash: string;
+  /** 激活的圣痕套件数（0~4，UI 展示用） */
+  arenaSetPieces: number;
+}
+
+/**
+ * 对决侧构建（服务端复算与胜率预估共用同一入口，保证口径逐点一致）：
+ *   - 圣痕套 2/4 件效果经由 buildTrialCombatant 的 arena 模式全量结算；
+ *   - 防守方集齐 4 件时额外 +5% 减伤（docs/53 §1.3：套装是排名的护城河，
+ *     只加防守不加进攻，不影响挑战者进攻时的强度平衡）。
+ */
+export function buildArenaDuelSide(input: TrialBuildInput, role: DuelRole): ArenaDuelSide {
+  const build = buildTrialCombatant({ ...input, arena: true });
+  const pieces = arenaSetPieceCount(input.equipped);
+  const baseBonuses = build.combatant.combatBonuses ?? {
+    damageReduction: 0,
+    lifesteal: 0,
+    elementDamage: { fire: 0, ice: 0, thunder: 0 },
+  };
+  const combatant: Combatant = {
+    ...build.combatant,
+    combatBonuses: { ...baseBonuses, elementDamage: { ...baseBonuses.elementDamage } },
+  };
+  if (role === 'defender' && pieces >= 4) {
+    combatant.combatBonuses!.damageReduction += ARENA_SET_DEFENDER_DR_BONUS;
+  }
+  return {
+    combatant,
+    skillMultiplier: build.skillMultiplier,
+    onHitTriggers: build.onHitTriggers,
+    onLethalTriggers: build.onLethalTriggers,
+    combatPower: build.combatPower,
+    buildHash: build.buildHash,
+    arenaSetPieces: pieces,
+  };
+}
+
+/** 圣痕套定义的转发（UI 展示套装进度时不必再从 data 层多引一条）。 */
+export { ARENA_EQUIPMENT_SET };
 
 export type DuelEndReason =
   /** 一方被打空血 */
@@ -320,6 +367,51 @@ function duelSideDigest(side: DuelSide): string {
     triggers,
     lethalTriggers,
   ].join('|');
+}
+
+// ─────────────────────────── 候选对手 ───────────────────────────
+
+/**
+ * 候选对手种子：同一玩家同一天看到同一批候选（docs/52 §3.2）。
+ * 排名会随别人顶替而动，候选按「名次窗口」选取，服务端在拉取时
+ * 把名次映射到当前占据该名次的玩家。
+ */
+export function arenaCandidateSeed(userId: string, dayKey: string): number {
+  return fnv1a32(`cand|${userId}|${dayKey}`);
+}
+
+/**
+ * 候选名次窗口：自己上方 1~15 名内无放回随机抽 count 个（Fisher-Yates
+ * 部分洗牌，完全由种子决定）。默认抽满整个窗口，由调用方按需取前几个
+ * （服务端要过滤掉今日已挑战过的对手后再补足 3 个）。
+ *
+ * 只能挑战排名在自己上方的人（docs/52 §七）——第 1 名没有候选，
+ * 返回空数组是正常状态，不是错误。
+ */
+export function arenaCandidateRanks(
+  myRank: number,
+  seed: number,
+  count = ARENA_OPPONENT_MAX_ABOVE,
+): number[] {
+  if (!Number.isInteger(myRank) || myRank <= 0) {
+    throw new Error(`[对决] 排名必须是正整数，收到 ${myRank}`);
+  }
+  if (!Number.isInteger(count) || count <= 0) {
+    throw new Error(`[对决] 候选数量必须是正整数，收到 ${count}`);
+  }
+  const lo = Math.max(1, myRank - ARENA_OPPONENT_MAX_ABOVE);
+  const hi = myRank - ARENA_OPPONENT_MIN_ABOVE;
+  if (hi < lo) return [];
+
+  const pool: number[] = [];
+  for (let r = lo; r <= hi; r++) pool.push(r);
+  const rng = new Rng(seed);
+  const n = Math.min(count, pool.length);
+  for (let i = 0; i < n; i++) {
+    const j = i + rng.int(0, pool.length - 1 - i);
+    [pool[i], pool[j]] = [pool[j]!, pool[i]!];
+  }
+  return pool.slice(0, n);
 }
 
 // ─────────────────────────── 押注与荣誉结算 ───────────────────────────

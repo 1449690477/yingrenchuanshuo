@@ -21,6 +21,7 @@ import type {
 import { CLASS_IDS } from '@/core/types';
 import { QUALITY_AFFIX_COUNT, SLOT_ORDER } from './constants';
 import { AFFECTION_EQUIPMENT_LIST } from './affectionEquipment';
+import { ARENA_EQUIPMENT_LIST } from './arenaEquipment';
 import { BOUTIQUE_THEME_LIST, boutiqueAppearanceId, boutiqueEquipmentId } from './boutique';
 import { EQUIPMENT_DUNGEON_GEAR_LIST } from './equipmentDungeonGear';
 import { REGION_34_EQUIPMENT_THEMES } from './region34';
@@ -328,6 +329,13 @@ function buildEquipment(): Record<string, EquipmentDef> {
 
   for (const entry of AFFECTION_EQUIPMENT_LIST) {
     const definition = entry.definition;
+    if (out[definition.id]) {
+      throw new Error(`[配置错误] 装备 ID 重复：${definition.id}`);
+    }
+    out[definition.id] = definition;
+  }
+
+  for (const definition of ARENA_EQUIPMENT_LIST) {
     if (out[definition.id]) {
       throw new Error(`[配置错误] 装备 ID 重复：${definition.id}`);
     }

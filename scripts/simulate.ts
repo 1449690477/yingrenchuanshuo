@@ -3,12 +3,13 @@
  *
  * 用法：npm run sim
  *
- * 输出五份东西：
+ * 输出六份东西：
  *   1. 校验点表     —— 用来核对 docs/10-数值与战斗.md 里的关键数字
  *   2. 30 天成长曲线 —— 玩家每天能到几级，有没有断档
  *   3. 四职业对比    —— 挂机效率是否在 ±20% 平衡带内
  *   4. 装备随机健康检查 —— 独立验证胚子与逐级强化随机，不混入理想满配曲线
  *   5. 词条洗练验收 —— 对照旧版、新掉落与全 T5，并复验四职业 TTK
+ *   6. 竞技场 PvP 胜率验收 —— 同战力镜像胜率 45%~55%（docs/52 §11）
  *
  * 之所以能有这个工具，是因为 core 层是纯函数（AGENTS.md 铁律 1）。
  * 任何人改了公式，跑一次这个脚本就知道有没有把曲线搞坏。
@@ -76,6 +77,7 @@ import {
 import { EQUIPMENT } from '../src/data/equipment';
 import { idleCombatEfficiency, killsPerSecond } from '../src/core/idle';
 import { timeToKill } from '../src/core/combat';
+import { estimateDuelWinChance, type DuelSide } from '../src/core/duel';
 import type { IdleContext } from '../src/core/idle';
 import { Rng } from '../src/core/rng';
 
@@ -1126,6 +1128,83 @@ function assertReforgeAcceptance(
 }
 
 // ──────────────────────────────────────────────────────────
+// 6. 竞技场 PvP 胜率验收（docs/52 §11）
+// ──────────────────────────────────────────────────────────
+
+/**
+ * docs/52 §11 的硬门禁：同战力双方胜率应落在 45%~55%。
+ *
+ * 「同战力」的口径 = 同职业、同等级、同典型装备的镜像局（唯一严格同战力
+ * 且可复现的对阵）。estimateDuelWinChance 使用确定性分层抽样，
+ * 镜像局天然落在 50% 附近，本门禁读数稳定、不会抖动。
+ *
+ * 跨职业矩阵同步打印并写入 CSV 作为诊断：职业间 PvP 数值平衡
+ * （docs/53 明确归 claude）如有偏离在那里可见，但不在这里硬判。
+ */
+const PVP_GATE_LEVELS = [60, 100] as const;
+const PVP_GATE_SIMULATIONS = 200;
+const PVP_MIRROR_MIN = 0.45;
+const PVP_MIRROR_MAX = 0.55;
+
+function pvpSide(cls: ClassId, level: number): DuelSide {
+  return {
+    combatant: makePlayer(`pvp-${cls}-${level}`, level, withGear(cls, level)),
+    skillMultiplier: averageSkillMultiplier(level),
+  };
+}
+
+interface PvpRow {
+  等级: number;
+  挑战者: ClassId;
+  防守方: ClassId;
+  胜率: number;
+}
+
+function pvpBalance() {
+  const rows: PvpRow[] = [];
+  const mirrors: { level: number; cls: ClassId; winRate: number }[] = [];
+  for (const level of PVP_GATE_LEVELS) {
+    for (const attacker of CLASS_IDS) {
+      const side = pvpSide(attacker, level);
+      for (const defender of CLASS_IDS) {
+        const winRate = estimateDuelWinChance(side, pvpSide(defender, level), PVP_GATE_SIMULATIONS);
+        rows.push({ 等级: level, 挑战者: attacker, 防守方: defender, 胜率: Number(winRate.toFixed(4)) });
+        if (attacker === defender) mirrors.push({ level, cls: attacker, winRate });
+      }
+    }
+  }
+  return { rows, mirrors };
+}
+
+function assertPvpBalance(result: ReturnType<typeof pvpBalance>): void {
+  console.log('\n【竞技场 PvP 胜率门禁（docs/52 §11：同战力镜像 45%~55%）】');
+  const violations: string[] = [];
+  for (const m of result.mirrors) {
+    const ok = m.winRate >= PVP_MIRROR_MIN && m.winRate <= PVP_MIRROR_MAX;
+    const detail = `Lv${m.level} ${m.cls} 镜像胜率 ${(m.winRate * 100).toFixed(1)}%（目标 45%~55%）`;
+    console.log(`  ${ok ? '✔' : '✘'} ${detail}`);
+    if (!ok) violations.push(detail);
+  }
+  console.log('  跨职业胜率矩阵（行=挑战者 列=防守方；诊断用，职业数值归属 docs/53）：');
+  for (const level of PVP_GATE_LEVELS) {
+    console.log(`    Lv${level}:`);
+    console.log('      ' + ''.padEnd(10) + CLASS_IDS.map((c) => c.padStart(10)).join(''));
+    for (const attacker of CLASS_IDS) {
+      const cells = CLASS_IDS.map((defender) => {
+        const row = result.rows.find(
+          (r) => r.等级 === level && r.挑战者 === attacker && r.防守方 === defender,
+        )!;
+        return `${(row.胜率 * 100).toFixed(0)}%`.padStart(10);
+      }).join('');
+      console.log(`      ${attacker.padEnd(10)}${cells}`);
+    }
+  }
+  if (violations.length > 0) {
+    throw new Error(`竞技场 PvP 同战力胜率验收失败：\n- ${violations.join('\n- ')}`);
+  }
+}
+
+// ──────────────────────────────────────────────────────────
 // 主流程
 // ──────────────────────────────────────────────────────────
 
@@ -1150,6 +1229,7 @@ function main() {
   equipmentRandomHealth();
   const reforge = reforgeAcceptance();
   const offenseExtreme = offenseExtremeAcceptance();
+  const pvp = pvpBalance();
 
   mkdirSync(OUT_DIR, { recursive: true });
   writeFileSync(resolve(OUT_DIR, 'checkpoints.csv'), toCsv(checkpoints), 'utf8');
@@ -1164,9 +1244,16 @@ function main() {
     toCsv(reforge.rows as unknown as Record<string, unknown>[]),
     'utf8',
   );
+  writeFileSync(
+    resolve(OUT_DIR, 'pvp-balance.csv'),
+    toCsv(pvp.rows as unknown as Record<string, unknown>[]),
+    'utf8',
+  );
 
   console.log(`\n✔ CSV 已输出到 ${OUT_DIR}`);
-  console.log('  checkpoints.csv / growth-30d.csv / class-balance.csv / reforge-acceptance.csv\n');
+  console.log(
+    '  checkpoints.csv / growth-30d.csv / class-balance.csv / reforge-acceptance.csv / pvp-balance.csv\n',
+  );
 
   // 健康检查
   const day30 = curve[curve.length - 1]!;
@@ -1181,6 +1268,7 @@ function main() {
   console.log('  ✔ 满级前无等级停滞');
 
   assertReforgeAcceptance(reforge, balance, offenseExtreme);
+  assertPvpBalance(pvp);
 }
 
 main();

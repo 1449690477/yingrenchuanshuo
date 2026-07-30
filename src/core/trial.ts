@@ -37,7 +37,7 @@ import {
 } from './equipment';
 import { applyEquipmentSetStats, resolveEquipmentSetBonuses } from './equipmentSets';
 import { getEquipment, requireEquipment } from '@/data/equipment';
-import { getEquipmentSet } from '@/data/equipmentSets';
+import { getEquipmentSet, getFieldEquipmentSet } from '@/data/equipmentSets';
 import { expectedFullGearCp, expectedGearStats, typicalQualityAt } from '@/data/expectedPower';
 import {
   CRIT_RATE_CAP,
@@ -233,6 +233,11 @@ export interface TrialBuildInput {
   level: number;
   /** 8 槽位穿戴实例，顺序必须与 SLOT_ORDER 一致；未穿戴为 null */
   equipped: readonly (EquipmentInstance | null)[];
+  /**
+   * 竞技场对决构建置 true：圣痕套效果只在竞技场内生效（docs/53 §六），
+   * 此时用全量套装查询；缺省 false 走 PvE 空效果查询（试炼/挂机一致）。
+   */
+  arena?: boolean;
 }
 
 export interface TrialBuild {
@@ -261,7 +266,12 @@ export function buildTrialCombatant(input: TrialBuildInput): TrialBuild {
   const equipped = [...input.equipped];
   const base = baseStatsFor(input.classId, input.level);
   const equipStats = totalEquipStats(equipped, getEquipment, input.classId);
-  const setResolution = resolveEquipmentSetBonuses(equipped, getEquipment, getEquipmentSet);
+  const setResolution = resolveEquipmentSetBonuses(
+    equipped,
+    getEquipment,
+    // 圣痕套只在竞技场内生效（docs/53 §六）：对决构建用全量查询，试炼走空效果查询
+    input.arena ? getEquipmentSet : getFieldEquipmentSet,
+  );
   const combined = applyEquipmentSetStats(addStats(base, equipStats), setResolution);
   combined.critRate = Math.min(CRIT_RATE_CAP, combined.critRate);
   const stats = applyClassMods(input.classId, combined);

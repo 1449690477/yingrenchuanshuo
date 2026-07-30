@@ -12,6 +12,7 @@ import { requireEquipment } from './equipment';
 import { equipmentPresentation } from './equipmentPresentation';
 import { BOUTIQUE_THEME_LIST, BOUTIQUE_THEMES, boutiqueAppearanceId } from './boutique';
 import { QUALITY_RANK } from './constants';
+import { ARENA_EQUIPMENT_LIST } from './arenaEquipment';
 import {
   EQUIPMENT_DUNGEON_TIERS,
   equipmentDungeonAppearanceId,
@@ -299,6 +300,23 @@ export const REGION_6_EQUIPMENT_APPEARANCES: Readonly<
 };
 
 /**
+ * 圣痕装备（竞技场）：四槽统一 slot-only
+ * —— 图标完整显示在装备槽里，人物立绘不变。
+ * 换装层是第二批工作（docs/53 §2.4），落地后在这里升级为 layer。
+ */
+function buildArenaAppearances(): Record<string, EquipmentAppearance> {
+  const out: Record<string, EquipmentAppearance> = {};
+  for (const definition of ARENA_EQUIPMENT_LIST) {
+    out[definition.appearanceId] = {
+      id: definition.appearanceId,
+      slot: definition.slot,
+      renderMode: 'slot-only',
+    };
+  }
+  return out;
+}
+
+/**
  * 装备定义到运行时外观的显式注册表。
  *
  * 只有在人物缩略图里能辨认的武器、头冠、衣裙直接叠到角色身上；
@@ -383,6 +401,7 @@ export const EQUIPMENT_APPEARANCES: Readonly<Record<string, EquipmentAppearance>
 
   ...buildBoutiqueAppearances(),
   ...buildEquipmentDungeonAppearances(),
+  ...buildArenaAppearances(),
 };
 
 export const CHARACTER_BASE_ASSETS: Readonly<Record<ClassId, string>> = {

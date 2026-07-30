@@ -156,8 +156,8 @@ describe('区域 1–5 内容完整性', () => {
     expect(ALL_CHAPTERS).toHaveLength(30);
     expect(Object.keys(STAGES)).toHaveLength(180);
     expect(Object.keys(MONSTERS)).toHaveLength(144);
-    // 既有 251 件 + R5 普通 24 件 + 绯焰 6 件 + R6 普通 24 件 + 幽影 8 件。
-    expect(Object.keys(EQUIPMENT)).toHaveLength(313);
+    // 既有 251 件 + R5 普通 24 件 + 绯焰 6 件 + R6 普通 24 件 + 幽影 8 件 + 圣痕 16 件。
+    expect(Object.keys(EQUIPMENT)).toHaveLength(329);
     expect(Object.keys(LOOT_TABLES)).toHaveLength(90);
   });
 
@@ -697,7 +697,7 @@ describe('区域 1–5 内容完整性', () => {
   });
 
   it('全部物品都引用真实存在的正式图标', () => {
-    expect(Object.keys(ITEMS)).toHaveLength(41);
+    expect(Object.keys(ITEMS)).toHaveLength(45);
     for (const [id, item] of Object.entries(ITEMS)) {
       expect(item.icon).toBe(`assets/items/${id}.png`);
       expect(existsSync(resolve('public', item.icon)), `${id} → ${item.icon}`).toBe(true);

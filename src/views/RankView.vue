@@ -42,6 +42,14 @@ import { reportProfile, type PlayerProfile } from '@/net/profile';
 import ProfileAvatar from '@/components/ProfileAvatar.vue';
 import ProfileEditor from '@/components/ProfileEditor.vue';
 import TrialBattleScene from '@/components/TrialBattleScene.vue';
+import ArenaView from '@/views/ArenaView.vue';
+
+// ─────────── 视图切换：周常试炼榜 | 竞技场（docs/54 §十） ───────────
+const VIEW_TABS = [
+  { key: 'trial', label: '试炼榜' },
+  { key: 'arena', label: '竞技场' },
+] as const;
+const viewTab = ref<(typeof VIEW_TABS)[number]['key']>('trial');
 
 const game = useGameStore();
 const lb = useLeaderboardStore();
@@ -269,6 +277,27 @@ onUnmounted(() => {
 
 <template>
   <div class="rank scroll-y">
+    <!-- ═══ 视图切换：试炼榜 | 竞技场 ═══ -->
+    <nav class="seg view-seg" role="tablist" aria-label="排行榜与竞技场切换">
+      <span
+        class="seg-pill"
+        :style="{ '--seg-x': VIEW_TABS.findIndex((t) => t.key === viewTab) }"
+        aria-hidden="true"
+      />
+      <button
+        v-for="tab in VIEW_TABS"
+        :key="tab.key"
+        role="tab"
+        class="seg-tab"
+        :class="{ active: viewTab === tab.key }"
+        :aria-selected="viewTab === tab.key"
+        @click="viewTab = tab.key"
+      >
+        {{ tab.label }}
+      </button>
+    </nav>
+
+    <template v-if="viewTab === 'trial'">
     <!-- ═══ 周常试炼英雄卡 ═══ -->
     <section class="boss-card" :data-element="lb.boss.combatant.element">
       <!-- 本卡专属粒子场：上升光尘 + 旋转光环，纯 CSS 零 JS 开销 -->
@@ -570,6 +599,9 @@ onUnmounted(() => {
     <Transition name="toast-up">
       <div v-if="toast" class="toast" :class="{ bad: !toast.ok }">{{ toast.text }}</div>
     </Transition>
+    </template>
+
+    <ArenaView v-else />
   </div>
 </template>
 
@@ -1021,6 +1053,16 @@ onUnmounted(() => {
   padding: 3px;
   background: var(--panel-3);
   border-radius: 12px;
+}
+
+/* 视图级切换（试炼榜 | 竞技场）只有两档，胶囊宽度与榜单三档分开 */
+.view-seg .seg-pill {
+  width: 50%;
+}
+.view-seg .seg-tab {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 8px 0;
 }
 
 .seg-pill {

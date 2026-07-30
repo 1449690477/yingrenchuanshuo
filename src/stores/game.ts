@@ -186,7 +186,7 @@ import {
   type EquipmentAdvancementOption,
 } from '@/data/equipmentAdvancement';
 import { getEquipmentSetCraftingRecipe } from '@/data/equipmentSetCrafting';
-import { getEquipmentSet } from '@/data/equipmentSets';
+import { getFieldEquipmentSet } from '@/data/equipmentSets';
 import { TRIAL_BEST_KEEP } from '@/data/trialRules';
 
 import { createSave, type SaveData, type TrialBest } from '@/save/schema';
@@ -542,7 +542,8 @@ export const useGameStore = defineStore('game', () => {
     resolveEquipmentSetBonuses(
       SLOT_ORDER.map((slot) => save.value?.equipped[slot] ?? null),
       getEquipment,
-      getEquipmentSet,
+      // 圣痕套效果只在竞技场内生效（docs/53 §六）；挂机/战力走空效果查询
+      getFieldEquipmentSet,
     ),
   );
 
@@ -1759,7 +1760,8 @@ export const useGameStore = defineStore('game', () => {
     const setResolution = resolveEquipmentSetBonuses(
       equipped,
       getEquipment,
-      getEquipmentSet,
+      // 圣痕套效果只在竞技场内生效（docs/53 §六）；战力试算同样不生效
+      getFieldEquipmentSet,
     );
     const combined = applyEquipmentSetStats(
       addStats(base, totalEquipStats(equipped, getEquipment, classId)),
