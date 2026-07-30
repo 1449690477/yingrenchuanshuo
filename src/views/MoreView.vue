@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref } from 'vue';
-import { Castle, Coins, ShoppingBag, Sparkles, Users } from '@lucide/vue';
+import { Castle, Coins, Layers, ShoppingBag, Sparkles, Users } from '@lucide/vue';
 import { abbr, duration } from '@/core/format';
 import { usePlayerStore } from '@/stores/player';
 import { useSettingsStore } from '@/stores/settings';
@@ -8,6 +8,7 @@ import type { SaveData } from '@/save/schema';
 import { downloadSave, importFromJson } from '@/save/storage';
 import ShopView from '@/views/ShopView.vue';
 import GuildView from '@/views/GuildView.vue';
+import SetCodexView from '@/views/SetCodexView.vue';
 import CollapsibleCard from '@/components/CollapsibleCard.vue';
 
 const player = usePlayerStore();
@@ -22,6 +23,9 @@ const shopEntryButton = ref<HTMLButtonElement | null>(null);
 const showGuild = ref(false);
 const guildLeaving = ref(false);
 const guildEntryButton = ref<HTMLButtonElement | null>(null);
+const showCodex = ref(false);
+const codexLeaving = ref(false);
+const codexEntryButton = ref<HTMLButtonElement | null>(null);
 const shopSceneUrl = `${import.meta.env.BASE_URL}assets/shops/sakura-boutique.webp`;
 
 const stats = computed(() => settings.saveData?.stats ?? null);
@@ -56,6 +60,16 @@ function closeGuild() {
   showGuild.value = false;
 }
 
+function openCodex() {
+  codexLeaving.value = false;
+  showCodex.value = true;
+}
+
+function closeCodex() {
+  codexLeaving.value = true;
+  showCodex.value = false;
+}
+
 function updateHaptics(event: Event) {
   settings.setHaptics((event.currentTarget as HTMLInputElement).checked);
 }
@@ -70,6 +84,12 @@ async function afterGuildLeave() {
   guildLeaving.value = false;
   await nextTick();
   guildEntryButton.value?.focus();
+}
+
+async function afterCodexLeave() {
+  codexLeaving.value = false;
+  await nextTick();
+  codexEntryButton.value?.focus();
 }
 
 async function onFile(e: Event) {
@@ -113,8 +133,12 @@ function say(text: string, ok: boolean) {
   <div class="more scroll-y">
     <div
       class="more-content"
-      :inert="showShop || shopLeaving || showGuild || guildLeaving"
-      :aria-hidden="showShop || shopLeaving || showGuild || guildLeaving ? 'true' : undefined"
+      :inert="showShop || shopLeaving || showGuild || guildLeaving || showCodex || codexLeaving"
+      :aria-hidden="
+        showShop || shopLeaving || showGuild || guildLeaving || showCodex || codexLeaving
+          ? 'true'
+          : undefined
+      "
     >
       <button
         ref="shopEntryButton"
@@ -152,6 +176,24 @@ function say(text: string, ok: boolean) {
         <span class="guild-entry-cta" aria-hidden="true">
           <Users :size="15" />
           进入公会
+        </span>
+      </button>
+      <button
+        ref="codexEntryButton"
+        type="button"
+        class="codex-entry"
+        aria-label="进入套装图鉴"
+        @click="openCodex"
+      >
+        <span class="codex-entry-crest"><Layers :size="24" /></span>
+        <span class="codex-entry-copy">
+          <small>已集齐 · 缺哪件 · 从哪掉</small>
+          <strong>套装图鉴</strong>
+          <span>区域、副本、竞技场共 8 套套装的收集进度与获取途径一览。</span>
+        </span>
+        <span class="codex-entry-cta" aria-hidden="true">
+          <Layers :size="15" />
+          打开图鉴
         </span>
       </button>
 
@@ -275,6 +317,10 @@ function say(text: string, ok: boolean) {
 
     <Transition name="page-up" @after-leave="afterGuildLeave">
       <GuildView v-if="showGuild" @close="closeGuild" />
+    </Transition>
+
+    <Transition name="page-up" @after-leave="afterCodexLeave">
+      <SetCodexView v-if="showCodex" @close="closeCodex" />
     </Transition>
   </div>
 </template>
@@ -674,6 +720,78 @@ function say(text: string, ok: boolean) {
 }
 
 .guild-entry-cta {
+  min-width: 5.2rem;
+  min-height: 2.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  padding: 0 0.55rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  color: #6b6178;
+  background: rgb(255 255 255 / 92%);
+  border-radius: 0.75rem;
+}
+
+.codex-entry {
+  position: relative;
+  min-height: 6.5rem;
+  display: grid;
+  grid-template-columns: 2.8rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.65rem;
+  width: 100%;
+  overflow: hidden;
+  padding: 0.8rem;
+  color: #fff;
+  text-align: left;
+  background:
+    radial-gradient(circle at 18% 88%, rgb(255 255 255 / 20%), transparent 30%),
+    linear-gradient(135deg, #9a8ad4, #8fb4e8 52%, #e89cc0);
+  border: 1px solid rgb(255 255 255 / 78%);
+  border-radius: var(--r);
+  box-shadow: 0 0.5rem 1.1rem rgb(122 100 160 / 16%);
+  transition: transform var(--t-fast) var(--ease-spring);
+}
+
+.codex-entry:active {
+  transform: scale(0.985);
+}
+
+.codex-entry-crest {
+  width: 2.8rem;
+  height: 2.8rem;
+  display: grid;
+  place-items: center;
+  color: #7a6cad;
+  background: rgb(255 255 255 / 92%);
+  border-radius: 0.85rem;
+  box-shadow: 0 0.3rem 0.7rem rgb(80 64 120 / 18%);
+}
+
+.codex-entry-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+  text-shadow: 0 1px 4px rgb(64 50 96 / 45%);
+}
+
+.codex-entry-copy small {
+  font-size: 0.62rem;
+  opacity: 0.85;
+}
+.codex-entry-copy strong {
+  font-size: 1rem;
+}
+.codex-entry-copy > span {
+  font-size: 0.67rem;
+  line-height: 1.45;
+  opacity: 0.9;
+}
+
+.codex-entry-cta {
   min-width: 5.2rem;
   min-height: 2.75rem;
   display: flex;

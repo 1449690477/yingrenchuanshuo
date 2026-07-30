@@ -18,6 +18,8 @@ import EquipmentAdvancementPanel from '@/components/EquipmentAdvancementPanel.vu
 import EquipmentIcon from '@/components/EquipmentIcon.vue';
 import ItemIcon from '@/components/ItemIcon.vue';
 import SystemArtwork from '@/components/SystemArtwork.vue';
+import SetCodexView from '@/views/SetCodexView.vue';
+import { buildSetCodex } from '@/components/setCodex/setCodexData';
 
 const inventory = useInventoryStore();
 const player = usePlayerStore();
@@ -31,6 +33,17 @@ const detail = ref<EquipmentInstance | null>(null);
 const advancement = ref<EquipmentInstance | null>(null);
 const toast = ref('');
 const salvageBurst = ref(false);
+const showCodex = ref(false);
+/** 全套数（区域 + 副本 + 竞技场）由装配层实算，不写死。 */
+const setCodexTotal = computed(() => buildSetCodex(activeClassId.value).length);
+
+function openCodex() {
+  showCodex.value = true;
+}
+
+function closeCodex() {
+  showCodex.value = false;
+}
 const decomposeOpen = ref(false);
 const decomposeSnapshot = ref<EquipmentInstance[]>([]);
 const selectedQualities = ref<Quality[]>(['common', 'fine']);
@@ -522,7 +535,12 @@ onUnmounted(() => {
               <small>定向套装 · 缺件与来源</small>
               <strong id="set-atlas-title">套装图鉴</strong>
             </span>
-          <em>3 套</em>
+            <span class="atlas-side">
+              <em>3 套</em>
+              <button type="button" class="atlas-all" @click="openCodex">
+                全部 {{ setCodexTotal }} 套 →
+              </button>
+            </span>
           </header>
           <CrimsonForgePanel recipe-id="craft_set_crimson" @crafted="onCrimsonCrafted" />
           <CrimsonForgePanel recipe-id="craft_set_shadow" @crafted="onCrimsonCrafted" />
@@ -574,6 +592,10 @@ onUnmounted(() => {
       @close="advancement = null"
       @upgraded="onEquipmentUpgraded"
     />
+
+    <Transition name="page-up">
+      <SetCodexView v-if="showCodex" @close="closeCodex" />
+    </Transition>
 
     <Teleport to="body">
       <Transition name="modal-pop">
@@ -818,6 +840,35 @@ onUnmounted(() => {
   align-items: end;
   justify-content: space-between;
   padding: 2px 4px;
+}
+
+.atlas-side {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.atlas-side em {
+  font-size: 9px;
+  font-style: normal;
+  color: var(--text-dim);
+}
+
+.atlas-all {
+  min-height: 32px;
+  padding: 4px 12px;
+  font-size: 9px;
+  font-weight: 800;
+  color: #78405f;
+  background: #fff;
+  border: 1px solid #ffd9e7;
+  border-radius: 999px;
+  box-shadow: 0 3px 8px rgb(192 74 119 / 12%);
+  transition: transform var(--t-fast) var(--ease-spring);
+}
+
+.atlas-all:active {
+  transform: scale(0.95);
 }
 
 .set-atlas-head small,
