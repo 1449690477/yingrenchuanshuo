@@ -227,9 +227,15 @@ const PORTAL_BY_SLOT = Object.fromEntries(
 const TIER_ENCOUNTER_SCALE: Readonly<
   Record<EquipmentDungeonTierId, { hp: number; atk: number }>
 > = {
-  azure: { hp: 1.1, atk: 0.58 },
-  violet: { hp: 0.72, atk: 0.24 },
-  auric: { hp: 1.5, atk: 1 },
+  // 2026-07-30 按 codex 平衡模拟修订（docs/56 停更修基配套）：
+  // 苍蓝原 8 秒即结束、入场战力比 2.4~2.7，副本毫无仪式感 —— 血量翻倍
+  // 把入场套装战斗拉到 15~25 秒；攻击不动，低生命职业的容错保持不变。
+  azure: { hp: 2.4, atk: 0.58 },
+  // 绛紫 21~24 秒尚可，小幅上调与苍蓝形成递进
+  violet: { hp: 0.85, atk: 0.24 },
+  // 辉金 weapon 入口对魔女胜率仅 47.5%（喵喵 61.7%）：败因是被打死
+  // 而不是打不动，砍攻击救低生命职业，时长几乎不变
+  auric: { hp: 1.5, atk: 0.85 },
   crimson: { hp: 2.6, atk: 1.4 },
 };
 

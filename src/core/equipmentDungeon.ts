@@ -159,12 +159,16 @@ export function resolveEquipmentDungeonChallenge(
   /*
    * 首通不占每日次数。
    *
-   * 首通是「解锁内容」，日常刷取是「重复获取」，两者不该抢同一份预算。
-   * 玩家刚推到新档位却因为今天次数用完而进不去，等于用日常限制
-   * 挡住了内容进度 —— 那是惩罚性设计（见 docs/40 红线、docs/47 第四节）。
+   * 每日次数对所有胜利一视同仁，首通不豁免（2026-07-30 回滚 docs/47 §4.1）。
+   *
+   * 首通免次数是旧节奏下的补救：当时玩家 3 天升 50 级，副本装备到手即
+   * 过时，免次数只是让过时奖励别再欠着。docs/56 节奏重排后档位与进度
+   * 完全同步，8 部位 × 首通免费 × 双掉落 = 解锁日白拿 16 件当期最强
+   * 装备，瞬间毕业 —— 主线掉落、装备挑选、洗练动机全被击穿。
+   * 改为计次后 8 部位 ÷ 每日 3 次 ≈ 3 天凑齐一套，恰好是「几天养成
+   * 目标」的节奏。首通双掉落保留；失败仍不扣次数（试错不受罚）。
    */
-  const isFirstAttemptOfStage = !state.records[input.stage.id];
-  if (!isFirstAttemptOfStage && state.clearsToday >= EQUIPMENT_DUNGEON_RULES.dailyClears) {
+  if (state.clearsToday >= EQUIPMENT_DUNGEON_RULES.dailyClears) {
     return { ok: false, reason: 'daily-limit', state };
   }
 
@@ -251,8 +255,8 @@ export function resolveEquipmentDungeonChallenge(
     win: true,
     state: {
       ...state,
-      // 首通不计次数，理由见上方 isFirstAttemptOfStage 的说明
-      clearsToday: state.clearsToday + (firstClear ? 0 : 1),
+      // 所有胜利计次，首通不豁免（见上方 daily-limit 说明）；失败不计
+      clearsToday: state.clearsToday + 1,
       totalClears: state.totalClears + 1,
       records,
     },

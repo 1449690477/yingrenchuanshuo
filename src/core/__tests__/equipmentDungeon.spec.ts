@@ -79,9 +79,9 @@ describe('装备副本业务日期与次数', () => {
     expect(result.state.records.equipment_weapon_azure?.firstClearedAt).toBe(NOW - 86_400_000);
   });
 
-  it('每天第 4 次成功领取会被拒绝（首通除外）', () => {
+  it('每天第 4 次成功领取会被拒绝', () => {
     const stage = requireEquipmentDungeonStage('equipment_weapon_azure');
-    // 次数用尽 + 该关卡已首通过 → 才会被日限挡住
+    // 次数用尽即被日限挡住（首通不再豁免）
     const full: EquipmentDungeonState = {
       ...createEquipmentDungeonState(NOW),
       clearsToday: 3,
@@ -95,18 +95,23 @@ describe('装备副本业务日期与次数', () => {
     });
   });
 
-  it('首通不占每日次数：次数用尽仍可打没通过的关卡，且打完次数不变', () => {
+  it('首通同样计入每日次数，次数用尽连首通也进不去（2026-07-30 回滚 docs/47 §4.1）', () => {
+    // 旧规则首通免次数：节奏重排后 8 部位 × 免费首通 × 双掉落 =
+    // 解锁日白拿 16 件当期最强装备，瞬间毕业。现在一视同仁。
     const full: EquipmentDungeonState = {
       ...createEquipmentDungeonState(NOW),
       clearsToday: 3,
     };
-    const result = resolveEquipmentDungeonChallenge(input({ state: full }));
+    const blocked = resolveEquipmentDungeonChallenge(input({ state: full }));
+    expect(blocked).toEqual({ ok: false, reason: 'daily-limit', state: full });
+
+    // 有次数时首通正常计次，且双掉落保留
+    const fresh = createEquipmentDungeonState(NOW);
+    const result = resolveEquipmentDungeonChallenge(input({ state: fresh }));
     expect(result.ok && result.win).toBe(true);
-    // firstClear 只挂在 win: true 分支上，两个字段都要窄化
     if (!result.ok || !result.win) return;
     expect(result.firstClear).toBe(true);
-    // 首通是解锁内容，不该和日常刷取抢同一份预算
-    expect(result.state.clearsToday).toBe(3);
+    expect(result.state.clearsToday).toBe(1);
   });
 });
 
@@ -169,8 +174,8 @@ describe('装备副本解锁与战斗事务', () => {
     expect(result.drops).toHaveLength(1);
     expect(result.drops[0]?.itemId).toBe('eq_dungeon_azure_weapon_witch');
     expect(result.drops[0]?.count).toBe(2);
-    // 这一场是首通，按新规则不占次数（见 core/equipmentDungeon 的 isFirstAttemptOfStage）
-    expect(result.state.clearsToday).toBe(0);
+    // 首通同样计次（2026-07-30 回滚 docs/47 §4.1）
+    expect(result.state.clearsToday).toBe(1);
     expect(result.state.totalClears).toBe(1);
     expect(result.state.records.equipment_weapon_azure).toMatchObject({
       clears: 1,
