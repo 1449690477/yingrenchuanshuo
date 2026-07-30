@@ -15,6 +15,8 @@ import { usePlayerStore } from '@/stores/player';
 import { requireEquipment } from '@/data/equipment';
 import { equipmentDisplayPresentation } from '@/data/equipmentPresentation';
 import { requireEquipmentSet } from '@/data/equipmentSets';
+import { requireEquipmentDungeonSet } from '@/data/equipmentDungeonSets';
+import { IMPRINT_BATCH_ACTIVE } from '@/ui/imprintActivation';
 import { AFFIX_LABELS, QUALITY_LABELS, SLOT_LABELS, STAT_LABELS } from '@/data/constants';
 import { REFORGE_RESONANCE_MAX } from '@/data/reforgeRules';
 import { WEAPON_ELEMENT_LABELS } from '@/data/weaponElements';
@@ -90,17 +92,36 @@ const weaponElementLabel = computed(() =>
   def.value.slot === 'weapon' ? WEAPON_ELEMENT_LABELS[def.value.element] : null,
 );
 const equipmentSetStatus = computed(() => {
-  const setId = def.value.setId;
+  // 烙印所得读 instance.imprintSetId（docs/58：resolver 同款口径）
+  const setId = props.inst.imprintSetId ?? def.value.setId;
   if (!setId) return null;
   const current = player.equipmentSetResolution.sets.find((entry) => entry.definition.id === setId);
   if (current) return current;
-  const definition = requireEquipmentSet(setId);
+  const definition = setId.startsWith('set_dungeon_')
+    ? requireEquipmentDungeonSet(setId)
+    : requireEquipmentSet(setId);
   return {
     definition,
     equippedPieces: 0,
     activeBonuses: [],
     nextBonus: definition.bonuses[0] ?? null,
   };
+});
+
+/**
+ * 套装归属小标（docs/58 附录 B · B-3）：
+ * 烙印所得 →「烙印」；旧副本整装 → 激活批次后加「绝版 · 不再掉落」。
+ * 绝版判定照文档：定义级 setId 为 set_dungeon_* 且非烙印所得。
+ */
+const setOriginMark = computed(() => {
+  if (props.inst.imprintSetId) return '烙印套装 · 品质词条强化保留';
+  if (
+    IMPRINT_BATCH_ACTIVE &&
+    (def.value.setId?.startsWith('set_dungeon_') ?? false)
+  ) {
+    return '绝版 · 不再掉落';
+  }
+  return null;
 });
 
 /** 与当前已穿戴的同部位装备对比 */
@@ -261,6 +282,7 @@ function doDecompose() {
           <small>当前为真实外观与演出换肤；战斗机制效果将在技能系统接通后单独标明。</small>
         </section>
 
+        <p v-if="setOriginMark" class="set-origin-mark">{{ setOriginMark }}</p>
         <EquipmentSetStatus
           v-if="equipmentSetStatus"
           :sets="[equipmentSetStatus]"
@@ -696,6 +718,18 @@ function doDecompose() {
   background: linear-gradient(135deg, #fff0f6, #fff8df);
   border: 1px solid #f5d5bb;
   border-radius: 10px;
+}
+
+.set-origin-mark {
+  align-self: flex-start;
+  margin: 0;
+  padding: 2px 8px;
+  font-size: 9px;
+  font-weight: 800;
+  color: #6d5b8f;
+  background: #efe9ff;
+  border-radius: 999px;
+  letter-spacing: 0.04em;
 }
 
 .unique-effect strong {

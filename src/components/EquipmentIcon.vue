@@ -5,6 +5,7 @@ import type { ClassId, EquipmentDef } from '@/core/types';
 import { forgeStageAt } from '@/core/equipment';
 import { equipmentDisplayPresentation } from '@/data/equipmentPresentation';
 import { requireForgeStageVisual } from '@/data/forgeVisuals';
+import { IMPRINT_BATCH_ACTIVE } from '@/ui/imprintActivation';
 
 const props = withDefaults(
   defineProps<{
@@ -38,6 +39,16 @@ const iconLabel = computed(() =>
     ? `${presentation.value.name}装备图标，强化 +${props.enhance}`
     : `${presentation.value.name}装备图标`,
 );
+
+/**
+ * 绝版标（docs/58 附录 B · B-3）：激活批次后旧副本整装不再掉落。
+ * 判定照文档：定义级 setId 为 set_dungeon_* 且非烙印所得 ——
+ * 烙印所得的定义级一定没有 setId（def-set-conflict 拦截），
+ * 所以定义级 set_dungeon_* 即等价判定。
+ */
+const discontinued = computed(
+  () => IMPRINT_BATCH_ACTIVE && (props.def.setId?.startsWith('set_dungeon_') ?? false),
+);
 </script>
 
 <template>
@@ -62,6 +73,7 @@ const iconLabel = computed(() =>
     />
     <span class="forge-frame" aria-hidden="true"></span>
     <span v-if="forgeStage !== 'original'" class="forge-mark" aria-hidden="true">✦</span>
+    <span v-if="discontinued" class="discontinued" title="绝版 · 不再掉落">绝版</span>
     <span v-if="locked" class="lock" aria-hidden="true">
       <LockKeyhole :size="9" :stroke-width="2.4" />
     </span>
@@ -326,6 +338,28 @@ img {
   background: rgb(70 82 101 / 84%);
   border: 1px solid rgb(255 255 255 / 78%);
   border-radius: 50%;
+}
+
+.discontinued {
+  position: absolute;
+  z-index: 4;
+  top: 3px;
+  left: 3px;
+  padding: 1px 4px;
+  font-size: 7px;
+  font-weight: 800;
+  line-height: 1.4;
+  color: rgb(255 255 255 / 92%);
+  background: rgb(70 82 101 / 78%);
+  border-radius: 5px;
+  letter-spacing: 0.04em;
+}
+
+.size-lg .discontinued {
+  top: 4px;
+  left: 4px;
+  padding: 2px 6px;
+  font-size: 9px;
 }
 
 @keyframes quality-shine {
