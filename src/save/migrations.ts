@@ -191,6 +191,12 @@ export const migrations: Record<number, Migration> = {
     version: 12,
     trial: { bests: [] },
   }),
+  // v13 新增装备实例可选字段 imprintSetId（套装烙印，docs/58）。
+  // 旧档没有该字段即为「未烙印」，纯版本跳，零改写。
+  12: (save) => ({
+    ...save,
+    version: 13,
+  }),
 };
 
 function migrateV10Save(

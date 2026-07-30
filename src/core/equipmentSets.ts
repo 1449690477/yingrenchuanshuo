@@ -128,16 +128,19 @@ export function resolveEquipmentSetBonuses(
     if (!equipmentDefinition) {
       throw new Error(`[配置错误] 装备定义不存在：${instance.defId}`);
     }
-    if (!equipmentDefinition.setId) continue;
+    // 烙印优先于定义（docs/58 核心一刀）：普通装备烙上套装后
+    // 与原生套装件在结算里完全同权。定义级 setId 的旧副本装保持原路径。
+    const setId = instance.imprintSetId ?? equipmentDefinition.setId;
+    if (!setId) continue;
 
-    const cachedDefinition = definitions.get(equipmentDefinition.setId);
-    const setDefinition = cachedDefinition ?? setDefOf(equipmentDefinition.setId);
+    const cachedDefinition = definitions.get(setId);
+    const setDefinition = cachedDefinition ?? setDefOf(setId);
     if (!setDefinition) {
-      throw new Error(`[配置错误] 装备引用了未登记套装：${equipmentDefinition.setId}`);
+      throw new Error(`[配置错误] 装备引用了未登记套装：${setId}`);
     }
-    if (setDefinition.id !== equipmentDefinition.setId) {
+    if (setDefinition.id !== setId) {
       throw new Error(
-        `[配置错误] 套装查询键与定义 ID 不一致：${equipmentDefinition.setId} / ${setDefinition.id}`,
+        `[配置错误] 套装查询键与定义 ID 不一致：${setId} / ${setDefinition.id}`,
       );
     }
     if (!setDefinition.pieceSlots.includes(equipmentDefinition.slot)) {

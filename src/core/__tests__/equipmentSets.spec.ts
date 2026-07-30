@@ -346,3 +346,53 @@ describe('通用装备套装共鸣', () => {
     expect(source).not.toMatch(/from\s+['"](?:@\/data\/|\.\.\/data\/)/);
   });
 });
+
+describe('烙印优先于定义级 setId（docs/58 核心一刀）', () => {
+  const setDef: EquipmentSetDefinition = {
+    id: 'set_dungeon_azure',
+    name: '测试苍蓝',
+    pieceSlots: ['weapon', 'head', 'body', 'necklace', 'bracelet', 'ring', 'belt', 'shoes'],
+    bonuses: [{ pieces: 2, label: '2件', description: '攻击+10%', statPercent: { atk: 10 } }],
+  } as EquipmentSetDefinition;
+  const plainDef = (slot: string): EquipmentDef =>
+    ({
+      id: `eq_plain_${slot}`,
+      name: '普通件',
+      slot,
+      quality: 'epic',
+      level: 30,
+      icon: '',
+      appearanceId: 'x',
+    }) as EquipmentDef;
+
+  it('烙印件与原生套装件同权计数，凑齐即触发效果', () => {
+    const a = { ...instance('eq_plain_ring', 'i1'), imprintSetId: 'set_dungeon_azure' };
+    const b = { ...instance('eq_plain_belt', 'i2'), imprintSetId: 'set_dungeon_azure' };
+    const resolution = resolveEquipmentSetBonuses(
+      [a, b],
+      (id) => plainDef(id.replace('eq_plain_', '')),
+      (id) => (id === 'set_dungeon_azure' ? setDef : undefined),
+    );
+    expect(resolution.sets).toHaveLength(1);
+    expect(resolution.sets[0]).toMatchObject({
+      definition: { id: 'set_dungeon_azure' },
+      equippedPieces: 2,
+    });
+  });
+
+  it('未烙印的普通件依旧不参与任何套装', () => {
+    const resolution = resolveEquipmentSetBonuses(
+      [instance('eq_plain_ring', 'i1')],
+      (id) => plainDef(id.replace('eq_plain_', '')),
+      () => setDef,
+    );
+    expect(resolution.sets).toHaveLength(0);
+  });
+
+  it('烙印引用未登记套装立即暴露配置错误', () => {
+    const bad = { ...instance('eq_plain_ring', 'i1'), imprintSetId: 'no-such' };
+    expect(() =>
+      resolveEquipmentSetBonuses([bad], (id) => plainDef(id.replace('eq_plain_', '')), () => undefined),
+    ).toThrow('未登记套装');
+  });
+});

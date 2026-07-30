@@ -9,6 +9,7 @@
  * 玩家的存档就是他的全部资产，一次更新废掉存档等于永久流失玩家。
  */
 
+import { getEquipmentSet } from '@/data/equipmentSets';
 import { z } from 'zod';
 import { createEncounterState, type EncounterState } from '@/core/encounters';
 import { createEquipmentDungeonState, type EquipmentDungeonState } from '@/core/equipmentDungeon';
@@ -50,7 +51,7 @@ import { TRIAL_BEST_KEEP, TRIAL_BRACKETS } from '@/data/trialRules';
 import { getEquipment } from '@/data/equipment';
 
 /** 当前存档版本。加字段就 +1。 */
-export const SAVE_VERSION = 12;
+export const SAVE_VERSION = 13;
 
 export const SAVE_KEY = 'main';
 
@@ -345,6 +346,14 @@ export const equipmentInstanceSchema = z
     affixes: z.array(affixSchema),
     reforgeResonance: z.number().int().min(0).max(20),
     pendingAffixChange: pendingAffixChangeSchema.optional(),
+    // 套装烙印（docs/58 v13）：必须指向已登记套装，防止悬空引用进档
+    imprintSetId: z
+      .string()
+      .min(1)
+      .refine((setId) => getEquipmentSet(setId) !== undefined, {
+        message: '烙印引用了未登记的套装',
+      })
+      .optional(),
     locked: z.boolean(),
   })
   .strict()

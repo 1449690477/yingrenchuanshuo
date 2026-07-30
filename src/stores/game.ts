@@ -61,6 +61,8 @@ import {
   type EquipmentSetCraftingResult,
 } from '@/core/equipmentSetCrafting';
 import { planClassSwitch } from '@/core/classSwitch';
+import { planImprint, imprintCostOf, type ImprintCost } from '@/core/equipmentImprint';
+import { IMPRINT_SET_TIER, IMPRINTABLE_SET_IDS, isImprintableSetId } from '@/data/imprintRules';
 import {
   applyClassMods,
   averageSkillMultiplier,
@@ -2765,6 +2767,100 @@ export const useGameStore = defineStore('game', () => {
     void persist();
   }
 
+  // ─────────── 套装烙印（docs/58 附录 B 契约） ───────────
+
+  /** 已解锁可烙的套装：首通该档任意入口即解锁（从副本通关记录推导，零新存档字段） */
+  const unlockedImprintSetIds = computed<readonly string[]>(() => {
+    const records = save.value?.equipmentDungeon.records ?? {};
+    const clearedTiers = new Set(
+      Object.keys(records)
+        .map((stageId) => stageId.split('_').at(-1))
+        .filter((tier): tier is string => Boolean(tier)),
+    );
+    return IMPRINTABLE_SET_IDS.filter((setId) => clearedTiers.has(IMPRINT_SET_TIER[setId]));
+  });
+
+  function findOwnedInstance(uid: string): EquipmentInstance | null {
+    if (!save.value) return null;
+    const inBag = save.value.bag.equipment.find((e) => e.uid === uid);
+    if (inBag) return inBag;
+    for (const slot of SLOT_ORDER) {
+      const worn = save.value.equipped[slot];
+      if (worn?.uid === uid) return worn;
+    }
+    return null;
+  }
+
+  function zeroImprintCost(): ImprintCost {
+    return { crystalId: '', crystals: 0, coreId: '', cores: 0, gold: 0 };
+  }
+
+  /** 烙印评估：一次拿全 UI 要展示的东西（docs/58 B.1 契约） */
+  function evaluateImprint(
+    uid: string,
+    setId: string,
+    useCore: boolean,
+  ): {
+    ok: boolean;
+    reason: string;
+    cost: ImprintCost;
+    owned: { crystals: number; cores: number; gold: number };
+  } {
+    const s = save.value;
+    const inst = findOwnedInstance(uid);
+    if (!s || !inst) {
+      return { ok: false, reason: 'set-not-imprintable', cost: zeroImprintCost(), owned: { crystals: 0, cores: 0, gold: 0 } };
+    }
+    const definition = requireEquipment(inst.defId);
+    const itemCount = (itemId: string) => s.bag.items[itemId] ?? 0;
+    const plan = planImprint(
+      definition,
+      inst,
+      setId,
+      unlockedImprintSetIds.value.includes(setId),
+      { gold: s.player.gold, itemCount },
+      useCore,
+    );
+    const cost = plan.cost ?? imprintCostOf(definition, setId, useCore) ?? zeroImprintCost();
+    const owned = {
+      crystals: cost.crystalId ? itemCount(cost.crystalId) : 0,
+      cores: cost.coreId ? itemCount(cost.coreId) : 0,
+      gold: s.player.gold,
+    };
+    if (plan.ok) return { ok: true, reason: 'ok', cost, owned };
+    return { ok: false, reason: plan.reason, cost, owned };
+  }
+
+  /** 执行烙印：扣材料+金币、写入 imprintSetId、持久化，一次原子提交 */
+  function imprintEquipment(uid: string, setId: string, useCore: boolean): boolean {
+    const s = save.value;
+    const inst = findOwnedInstance(uid);
+    if (!s || !inst || !isImprintableSetId(setId)) return false;
+    const definition = requireEquipment(inst.defId);
+    const plan = planImprint(
+      definition,
+      inst,
+      setId,
+      unlockedImprintSetIds.value.includes(setId),
+      { gold: s.player.gold, itemCount: (itemId) => s.bag.items[itemId] ?? 0 },
+      useCore,
+    );
+    if (!plan.ok) return false;
+
+    s.player.gold -= plan.cost.gold;
+    if (plan.cost.crystals > 0) {
+      s.bag.items[plan.cost.crystalId] = (s.bag.items[plan.cost.crystalId] ?? 0) - plan.cost.crystals;
+    }
+    if (plan.cost.cores > 0) {
+      s.bag.items[plan.cost.coreId] = (s.bag.items[plan.cost.coreId] ?? 0) - plan.cost.cores;
+    }
+    inst.imprintSetId = setId;
+    const before = cp.value;
+    noteCpDelta(before);
+    void persist();
+    return true;
+  }
+
   /**
    * 批量设置锁定状态，返回实际改动的件数。
    *
@@ -2975,6 +3071,9 @@ export const useGameStore = defineStore('game', () => {
     purchaseShopOffer,
     toggleLock,
     setLockBulk,
+    unlockedImprintSetIds,
+    evaluateImprint,
+    imprintEquipment,
     setHaptics,
     recordTrialBest,
     markTrialBestSubmitted,

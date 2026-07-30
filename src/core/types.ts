@@ -229,6 +229,12 @@ export interface EquipmentInstance {
   reforgeResonance: number;
   /** 已支付且尚未选择“采用 / 保留”的候选；刷新页面后仍必须存在。 */
   pendingAffixChange?: PendingAffixChange;
+  /**
+   * 套装烙印（docs/58）：把普通装备烙上某个副本套装的归属。
+   * 只赋予套装身份，品质/胚子/词条/强化全部保持原样；
+   * 结算时优先于定义级 setId（core/equipmentSets）。
+   */
+  imprintSetId?: string;
   /** 是否锁定（防止被一键分解） */
   locked: boolean;
 }
