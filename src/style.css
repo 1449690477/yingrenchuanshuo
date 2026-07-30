@@ -301,6 +301,23 @@ button.card:active,
 .q-common {
   color: var(--q-common);
 }
+
+/* ── 公会徽标柔和渐变（由公会名确定性选取，见 components/guild/guildCrest.ts）── */
+.crest-tint-0 {
+  background: linear-gradient(145deg, #8ecdf3, #5aa9e0);
+}
+.crest-tint-1 {
+  background: linear-gradient(145deg, #ffb3d0, #f47ba6);
+}
+.crest-tint-2 {
+  background: linear-gradient(145deg, #b7a6f2, #8b7ce0);
+}
+.crest-tint-3 {
+  background: linear-gradient(145deg, #93e0c9, #57bda0);
+}
+.crest-tint-4 {
+  background: linear-gradient(145deg, #ffd394, #f5a95c);
+}
 .q-fine {
   color: var(--q-fine);
 }

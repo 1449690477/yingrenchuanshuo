@@ -32,4 +32,25 @@ describe('公会竖屏与单层页面契约', () => {
     expect(guild).toContain('首版不出售成长');
     expect(guild).toContain('没有战力奖励');
   });
+
+  it('会员与非会员都能通过广场浏览任意公会详情', () => {
+    expect(guild).toContain("id: 'plaza'");
+    expect(guild).toContain('<GuildPlazaList');
+    expect(guild).toContain('<GuildDetailSheet />');
+    expect(guild).toContain('guild.openDetail(item.id)');
+  });
+
+  it('邀请码加入与复制邀请入口齐备', () => {
+    expect(guild).toContain('凭邀请码加入');
+    expect(guild).toContain('guild.joinByCode(codeDraft.value.trim())');
+    expect(guild).toContain('复制邀请码');
+    expect(guild).toContain('guild-invite');
+  });
+
+  it('退出与解散入口收进公会管理面板并二次确认', () => {
+    expect(guild).toContain('公会管理');
+    expect(guild).toContain('退出公会');
+    expect(guild).toContain('解散公会');
+    expect(guild).toContain('confirmLeave');
+  });
 });
