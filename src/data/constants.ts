@@ -910,6 +910,25 @@ export const BAG_CAPACITY = 300;
  */
 export const LEVEL_SOFT_CAP_MARGIN = 3;
 
+/**
+ * 章节/区域进入门槛（docs/56 §3.3）。
+ *
+ * 门槛 = 目标章节首关推荐战力 × 比例。推荐战力已是 expectedBuildCp × 0.85
+ * 的「养一养够得着」口径，这里再乘一档，保证门槛「刚好要努力一下」：
+ * 刚穿齐没强化的玩家（≈ 典型养成 ÷ 1.7）会被拦下，去强化两件就过。
+ * 区域是大关口，标准更高。
+ */
+export const CHAPTER_GATE_CP_RATIO = 0.75;
+export const REGION_GATE_CP_RATIO = 0.85;
+
+/**
+ * 老档后门：等级 ≥ 章节等级 + 此余量时直接放行。
+ *
+ * 历史无上限时期升到 Lv118 的存档，其战力构成可能不符合新口径假设；
+ * 他们早已到过这些章节，不该被新门槛锁在门外（docs/40：不得没收已得进度）。
+ */
+export const GATE_LEGACY_LEVEL_MARGIN = 10;
+
 /** 体力 */
 export const STAMINA_BASE_MAX = 120;
 export const STAMINA_RECOVER_SECONDS = 300; // 5 分钟 1 点

@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { advanceStageKillProgress } from '../stageProgress';
+import { advanceStageKillProgress, evaluateChapterGate } from '../stageProgress';
+import { ALL_CHAPTERS } from '@/data/regions';
+import { stagesOfChapter } from '@/data/stages';
+import {
+  CHAPTER_GATE_CP_RATIO,
+  GATE_LEGACY_LEVEL_MARGIN,
+  REGION_GATE_CP_RATIO,
+} from '@/data/constants';
 
 describe('关卡击杀进度', () => {
   it('普通关首通前累积，首通后保持满进度', () => {
@@ -46,5 +53,52 @@ describe('关卡击杀进度', () => {
     expect(() => advanceStageKillProgress(0, 0.5, 10, false, true)).toThrow();
     expect(() => advanceStageKillProgress(0, 1, 0, false, true)).toThrow();
     expect(() => advanceStageKillProgress(10, 1, 10, false, true)).toThrow();
+  });
+});
+
+describe('章节进入门槛（docs/56 §3.3）', () => {
+  it('游戏第一章永远敞开', () => {
+    const g = evaluateChapterGate(0, 1, ALL_CHAPTERS[0]!.id);
+    expect(g.ok).toBe(true);
+    expect(g.requiredCp).toBe(0);
+  });
+
+  it('战力不足被拦，缺口精确；达标放行', () => {
+    const chapter = ALL_CHAPTERS[1]!;
+    const first = stagesOfChapter(chapter.id)[0]!;
+    const ratio = chapter.id.endsWith('-1') ? REGION_GATE_CP_RATIO : CHAPTER_GATE_CP_RATIO;
+    const need = Math.round(first.recommendCP * ratio);
+
+    const blocked = evaluateChapterGate(need - 50, 1, chapter.id);
+    expect(blocked.ok).toBe(false);
+    expect(blocked.reason).toBe('cp');
+    expect(blocked.gapCp).toBe(50);
+
+    const passed = evaluateChapterGate(need, 1, chapter.id);
+    expect(passed.ok).toBe(true);
+    expect(passed.gapCp).toBe(0);
+  });
+
+  it('区域首章用更高的门槛比例', () => {
+    const regionFirst = ALL_CHAPTERS.find((c, i) => i > 0 && c.id.endsWith('-1'))!;
+    const inner = ALL_CHAPTERS.find((c, i) => i > 0 && !c.id.endsWith('-1'))!;
+    const gr = evaluateChapterGate(0, 1, regionFirst.id);
+    const gi = evaluateChapterGate(0, 1, inner.id);
+    const firstR = stagesOfChapter(regionFirst.id)[0]!;
+    const firstI = stagesOfChapter(inner.id)[0]!;
+    expect(gr.requiredCp).toBe(Math.round(firstR.recommendCP * REGION_GATE_CP_RATIO));
+    expect(gi.requiredCp).toBe(Math.round(firstI.recommendCP * CHAPTER_GATE_CP_RATIO));
+  });
+
+  it('老档等级后门：等级远超章节时放行且不显示缺口（docs/40 不没收已得进度）', () => {
+    const chapter = ALL_CHAPTERS[3]!;
+    const g = evaluateChapterGate(1, chapter.levelFrom + GATE_LEGACY_LEVEL_MARGIN, chapter.id);
+    expect(g.ok).toBe(true);
+    expect(g.reason).toBe('legacy-bypass');
+    expect(g.gapCp).toBe(0);
+  });
+
+  it('未知章节直接暴露配置错误', () => {
+    expect(() => evaluateChapterGate(0, 1, 'no-such')).toThrow('章节不存在');
   });
 });

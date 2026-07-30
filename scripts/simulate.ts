@@ -78,6 +78,9 @@ import { EQUIPMENT } from '../src/data/equipment';
 import { idleCombatEfficiency, killsPerSecond } from '../src/core/idle';
 import { ALL_CHAPTERS } from '../src/data/regions';
 import { LEVEL_SOFT_CAP_MARGIN } from '../src/data/constants';
+import { ORDERED_STAGE_IDS, STAGES, totalMonsterCount } from '../src/data/stages';
+import { evaluateChapterGate } from '../src/core/stageProgress';
+import { TYPICAL_ENHANCE_MUL } from '../src/data/expectedPower';
 import { timeToKill } from '../src/core/combat';
 import { estimateDuelWinChance, type DuelSide } from '../src/core/duel';
 import type { IdleContext } from '../src/core/idle';
@@ -232,47 +235,125 @@ const MAX_CONTENT_LEVEL = Math.max(...ALL_CHAPTERS.map((c) => c.levelTo));
 /** 内容边界下的等级软上限（docs/56 §2）。 */
 const CONTENT_SOFT_CAP = MAX_CONTENT_LEVEL + LEVEL_SOFT_CAP_MARGIN;
 
-function simulateDays(cls: ClassId, days: number, levelCap = CONTENT_SOFT_CAP): DayRecord[] {
+/**
+ * 节奏模拟的玩家属性：满配 × 典型强化（数值型部分）。
+ *
+ * 与战斗手感门禁（TTK/η，仍用「刚穿齐」的 withGear 下限口径）刻意分开：
+ * 手感按最保守玩家校准，节奏必须按典型玩家 —— 章节门槛与推荐战力都以
+ * expectedBuildCp 为锚，节奏模拟不含强化会被自己的门槛卡死，测出假卡点。
+ */
+function withTypicalBuild(cls: ClassId, level: number): Stats {
+  const base = baseStatsFor(cls, level);
+  const gear = gearStats(level, typicalQuality(level));
+  return {
+    atk: base.atk + gear.atk * TYPICAL_ENHANCE_MUL,
+    def: base.def + gear.def * TYPICAL_ENHANCE_MUL,
+    hp: base.hp + gear.hp * TYPICAL_ENHANCE_MUL,
+    acc: base.acc + gear.acc * TYPICAL_ENHANCE_MUL,
+    eva: base.eva + gear.eva * TYPICAL_ENHANCE_MUL,
+    critRate: Math.min(CRIT_RATE_CAP, base.critRate + gear.critRate),
+    critDmg: base.critDmg + gear.critDmg,
+    spd: base.spd + gear.spd,
+  };
+}
+
+function typicalBuildContext(cls: ClassId, level: number, stageLevel: number): IdleContext {
+  const stats = withTypicalBuild(cls, level);
+  const player: Combatant = makePlayer('sim', level, stats);
+  const monster = makeMonster({
+    id: 'sim_mon',
+    name: 'sim',
+    level: stageLevel,
+    type: 'normal',
+    element: 'none',
+    lootTableId: 'sim',
+    sprite: '',
+  });
+  return {
+    classId: cls,
+    player,
+    monster,
+    expPerKill: monsterExp(stageLevel),
+    goldPerKill: monsterGold(stageLevel),
+    lootTable: { id: 'sim', rolls: 1, entries: [] },
+    skillMultiplier: averageSkillMultiplier(level),
+  };
+}
+
+/**
+ * 逐关推进模拟（docs/56 §8）。
+ *
+ * 旧模型「玩家总是挂在等于自身等级的图」没有关卡、没有击杀目标、没有
+ * 门槛 —— 病根一（等级反超内容）在它眼里根本不存在，这正是它活到今天
+ * 的原因。现在按真实规则走：关卡顺序解锁、击杀目标通关、章节门槛拦路、
+ * 等级软上限跟随可达关卡。门槛判定直接 import core 的 evaluateChapterGate，
+ * 绝不在这里复刻一份规则。
+ */
+function simulateDays(cls: ClassId, days: number): DayRecord[] {
   let level = 1;
   let exp = 0;
+  let stageIndex = 0; // 当前挂机关卡（ORDERED_STAGE_IDS 下标）
+  let killsInStage = 0;
   const records: DayRecord[] = [];
+
+  const stageAt = (i: number) => STAGES[ORDERED_STAGE_IDS[Math.min(i, ORDERED_STAGE_IDS.length - 1)]!]!;
 
   for (let day = 1; day <= days; day++) {
     let dayExp = 0;
     let remaining = EFFECTIVE_SECONDS_PER_DAY;
     let lastKps = 0;
-    let stageLevel = level;
 
-    // 按小时推进，这样升级后能及时换到更高的图
     while (remaining > 0) {
-      const chunk = Math.min(3600, remaining);
-      remaining -= chunk;
+      const stage = stageAt(stageIndex);
+      // 软上限 = 可达最高关卡等级 + 余量（正在打的这关就是可达内容）
+      const softCap = Math.min(stage.level + LEVEL_SOFT_CAP_MARGIN, CONTENT_SOFT_CAP);
 
-      // 玩家挂在自己等级能打的最高图，但**图到内容顶为止** ——
-      // 旧模型让怪物等级跟着玩家涨到 120，而真实内容只到 MAX_CONTENT_LEVEL，
-      // 于是模拟器测不出「等级反超内容」的脱锚（docs/56 病根一）。
-      stageLevel = Math.max(1, Math.min(level, MAX_CONTENT_LEVEL));
-      const ctx = buildContext(cls, level, stageLevel);
+      const ctx = typicalBuildContext(cls, level, stage.level);
       const kps = killsPerSecond(ctx);
       lastKps = kps;
+      if (kps <= 0) break; // 完全打不动：这天剩余时间白挂（真实行为是效率归零）
 
-      const gained = Math.floor(kps * chunk * ctx.expPerKill);
+      const target = totalMonsterCount(stage);
+      const isLastStage = stageIndex >= ORDERED_STAGE_IDS.length - 1;
+      const cleared = killsInStage >= target;
+
+      // 已通关但被门槛拦住（或已是最后一关）：原地刷整段时间涨经验。
+      // ⚠ 这个分支必须消耗时间 —— 否则被拦 + 零耗时 = 死循环。
+      const pushing = !cleared && !isLastStage;
+      const killsToClear = pushing ? target - killsInStage : Number.POSITIVE_INFINITY;
+      const secondsToClear = killsToClear / kps;
+      const chunk = Math.min(remaining, secondsToClear, 3600);
+      remaining -= chunk;
+
+      const kills = kps * chunk;
+      if (pushing) killsInStage += kills;
+      const gained = Math.floor(kills * ctx.expPerKill);
       dayExp += gained;
       exp += gained;
-
-      // 结算升级：软上限 = 可达内容顶 + 余量；超限经验囤在 exp 里（与 store 同规则）
-      while (level < levelCap && exp >= expToNext(level)) {
+      while (level < softCap && exp >= expToNext(level)) {
         exp -= expToNext(level);
         level++;
+      }
+
+      // 通关 → 尝试进下一关；跨章时要过门槛（用 core 的同一份规则）
+      if (!isLastStage && killsInStage >= target) {
+        const next = stageAt(stageIndex + 1);
+        if (next.chapterId !== stage.chapterId) {
+          const cp = combatPower(withTypicalBuild(cls, level));
+          const gate = evaluateChapterGate(cp, level, next.chapterId);
+          if (!gate.ok) continue; // 下一轮进入原地刷分支，时间照常消耗
+        }
+        stageIndex++;
+        killsInStage = 0;
       }
     }
 
     records.push({
       天: day,
       等级: level,
-      战力: combatPower(withGear(cls, level)),
+      战力: Math.round(combatPower(withTypicalBuild(cls, level))),
       当日经验: dayExp,
-      挂机关卡: stageLevel,
+      挂机关卡: stageIndex + 1,
       每秒击杀: lastKps.toFixed(2),
     });
   }
@@ -1279,6 +1360,13 @@ function main() {
     );
   }
   console.log(`  ✔ G2：30 天等级未越过内容软上限`);
+
+  // G1/G3/G4 诊断值（docs/56 §8）：先打印量化基线，击杀目标重排后再立硬门禁。
+  // 当前实测内容 2~3 天被推完 —— 在关卡耗时重排前把这些设为硬门禁只会常红。
+  const d1 = curve[0]!;
+  console.log(`  ◇ G1 诊断：D1 等级 Lv${d1.等级}、关卡 ${d1.挂机关卡}/${ORDERED_STAGE_IDS.length}`);
+  const lastStageDay = curve.find((r) => r.挂机关卡 >= ORDERED_STAGE_IDS.length)?.天 ?? '>30';
+  console.log(`  ◇ 内容耗尽日：D${lastStageDay}（目标 ≥ D25，靠击杀目标重排实现）`);
 
   // 软上限之下不允许长期停滞（到顶后停滞是设计使然，不算病）
   const stalledBelowCap = curve.findIndex(

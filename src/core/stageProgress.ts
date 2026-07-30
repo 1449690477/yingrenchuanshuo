@@ -1,3 +1,69 @@
+import {
+  CHAPTER_GATE_CP_RATIO,
+  GATE_LEGACY_LEVEL_MARGIN,
+  REGION_GATE_CP_RATIO,
+} from '@/data/constants';
+import { ALL_CHAPTERS } from '@/data/regions';
+import { stagesOfChapter } from '@/data/stages';
+
+// ─────────────────────── 章节/区域进入门槛（docs/56 §3.3） ───────────────────────
+
+export interface ChapterGate {
+  ok: boolean;
+  /** 进入该章所需战力（expectedBuildCp 口径的推荐值 × 门槛比例） */
+  requiredCp: number;
+  currentCp: number;
+  /** max(0, required - current)；ok 时为 0 */
+  gapCp: number;
+  reason: 'ok' | 'cp' | 'legacy-bypass';
+}
+
+/** 章节 id 形如 '2-4'；'x-1' 是区域首章，门槛比例更高。 */
+function isRegionFirstChapter(chapterId: string): boolean {
+  return chapterId.endsWith('-1');
+}
+
+/**
+ * 章节进入门槛（docs/57 §1.1 对 kimi 的契约）。
+ *
+ * 前置的「上一章最终关已通关」由既有的顺序解锁链保证，这里只判战力。
+ * 同章节内的关卡不设门槛 —— 处处设卡会把游戏变成审批流程。
+ */
+export function evaluateChapterGate(
+  currentCp: number,
+  playerLevel: number,
+  chapterId: string,
+): ChapterGate {
+  const chapter = ALL_CHAPTERS.find((c) => c.id === chapterId);
+  if (!chapter) throw new Error(`[配置错误] 章节不存在：${chapterId}`);
+  const firstStage = stagesOfChapter(chapterId)[0];
+  if (!firstStage) throw new Error(`[配置错误] 章节没有关卡：${chapterId}`);
+
+  // 游戏第一章永远敞开
+  if (chapterId === ALL_CHAPTERS[0]!.id) {
+    return { ok: true, requiredCp: 0, currentCp, gapCp: 0, reason: 'ok' };
+  }
+
+  const ratio = isRegionFirstChapter(chapterId) ? REGION_GATE_CP_RATIO : CHAPTER_GATE_CP_RATIO;
+  const requiredCp = Math.round(firstStage.recommendCP * ratio);
+
+  // 老档后门：历史无上限时期升上去的等级，早已到过这些内容，直接放行
+  if (playerLevel >= chapter.levelFrom + GATE_LEGACY_LEVEL_MARGIN) {
+    return { ok: true, requiredCp, currentCp, gapCp: 0, reason: 'legacy-bypass' };
+  }
+
+  if (currentCp >= requiredCp) {
+    return { ok: true, requiredCp, currentCp, gapCp: 0, reason: 'ok' };
+  }
+  return {
+    ok: false,
+    requiredCp,
+    currentCp,
+    gapCp: Math.max(0, requiredCp - currentCp),
+    reason: 'cp',
+  };
+}
+
 export interface StageKillProgress {
   /** 未通关时是首通进度；已通关 BOSS 关时是下一轮 BOSS 的循环进度。 */
   progress: number;
