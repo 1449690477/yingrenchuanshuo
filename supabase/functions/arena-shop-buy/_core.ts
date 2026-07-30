@@ -314,6 +314,80 @@ var REGION_6 = {
   ]
 };
 
+// src/data/region7.ts
+var REGION_7 = {
+  id: "r7",
+  index: 7,
+  name: "\u8840\u6708\u5CE1\u8C37",
+  subtitle: "\u8D64\u6708\u7167\u7740\u96FE\u6D77\uFF0C\u4E5F\u7167\u4EAE\u5CE1\u8C37\u5C3D\u5934\u7684\u796D\u53F0",
+  levelFrom: 65,
+  levelTo: 78,
+  theme: ["#8e263f", "#e86f8e"],
+  mapAsset: "assets/maps/r7.webp",
+  chapters: [
+    {
+      id: "7-1",
+      name: "\u5CE1\u8C37\u5165\u53E3",
+      levelFrom: 65,
+      levelTo: 68,
+      element: "fire",
+      normals: ["\u8840\u6708\u7ED2\u8760", "\u5CE1\u8C37\u706F\u7B3C\u9B3C", "\u8D64\u6676\u89D2\u5154", "\u96FE\u884C\u5C0F\u6076\u9B54"],
+      materials: ["dew_bloodmist", "herb_soulbreak"],
+      tutorial: "\u8840\u6708\u5CE1\u8C37\u7684\u654C\u4EBA\u504F\u708E\u5C5E\u6027\uFF1B\u65B0\u533A\u96F7\u5C5E\u6027\u6B66\u5668\u80FD\u591F\u514B\u5236\u5B83\u4EEC\u3002",
+      mapAsset: "assets/maps/chapter-7-1.webp",
+      battleAsset: "assets/battlefields/chapter-7-1.webp"
+    },
+    {
+      id: "7-2",
+      name: "\u8840\u96FE\u6CBC\u6CFD",
+      levelFrom: 68,
+      levelTo: 70,
+      element: "fire",
+      normals: ["\u8840\u6CBC\u8F6F\u6CE5\u602A", "\u7EEF\u96FE\u9B45\u7075", "\u6CBC\u6CFD\u9B54\u8548\u5A18", "\u8840\u82D4\u56E2\u5B50"],
+      elite: "\u8840\u96FE\u9B54\u5973",
+      materials: ["dew_bloodmist", "herb_soulbreak", "horn_demon"],
+      mapAsset: "assets/maps/chapter-7-2.webp",
+      battleAsset: "assets/battlefields/chapter-7-2.webp"
+    },
+    {
+      id: "7-3",
+      name: "\u65AD\u9B42\u5D16",
+      levelFrom: 70,
+      levelTo: 73,
+      element: "fire",
+      normals: ["\u65AD\u9B42\u5D16\u9E26", "\u8D64\u85E4\u6500\u884C\u8005", "\u5D16\u98CE\u9B45\u5F71", "\u9B42\u706F\u89D2\u517D"],
+      materials: ["dew_bloodmist", "herb_soulbreak"],
+      mapAsset: "assets/maps/chapter-7-3.webp",
+      battleAsset: "assets/battlefields/chapter-7-3.webp"
+    },
+    {
+      id: "7-4",
+      name: "\u6076\u9B54\u96C6\u4F1A\u6240",
+      levelFrom: 73,
+      levelTo: 76,
+      element: "fire",
+      normals: ["\u6076\u9B54\u4F8D\u7AE5", "\u6708\u75D5\u77F3\u50CF\u9B3C", "\u7EA2\u7F0E\u9B45\u7075", "\u4E09\u53C9\u621F\u5C0F\u9B3C"],
+      elite: "\u5C0F\u6076\u9B54\u5A18\u4E09\u59D0\u59B9",
+      materials: ["dew_bloodmist", "herb_soulbreak", "horn_demon"],
+      mapAsset: "assets/maps/chapter-7-4.webp",
+      battleAsset: "assets/battlefields/chapter-7-4.webp"
+    },
+    {
+      id: "7-5",
+      name: "\u8840\u6708\u796D\u53F0",
+      levelFrom: 76,
+      levelTo: 78,
+      element: "fire",
+      normals: ["\u8840\u6708\u796D\u53F8", "\u7329\u7EA2\u7977\u7075", "\u6708\u8680\u5B88\u536B", "\u8389\u8389\u59C6\u8FD1\u4F8D"],
+      elite: "\u8840\u6708\u5927\u796D\u53F8",
+      boss: "\u8840\u6708\u6076\u9B54\xB7\u8389\u8389\u59C6",
+      materials: ["dew_bloodmist", "herb_soulbreak", "horn_demon", "eye_bloodmoon"],
+      mapAsset: "assets/maps/chapter-7-5.webp",
+      battleAsset: "assets/battlefields/chapter-7-5.webp"
+    }
+  ]
+};
+
 // src/data/regions.ts
 var REGION_1 = {
   id: "r1",
@@ -469,7 +543,8 @@ var REGIONS = [
   REGION_2,
   ...REGION_34,
   REGION_5,
-  REGION_6
+  REGION_6,
+  REGION_7
 ];
 var ALL_CHAPTERS = REGIONS.flatMap((r) => r.chapters);
 

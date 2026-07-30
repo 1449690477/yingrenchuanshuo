@@ -1337,6 +1337,135 @@ function region6SetEquipmentId(slot) {
   return `eq_set_region_shadow_${slot}`;
 }
 
+// src/data/region7.ts
+var REGION_7 = {
+  id: "r7",
+  index: 7,
+  name: "\u8840\u6708\u5CE1\u8C37",
+  subtitle: "\u8D64\u6708\u7167\u7740\u96FE\u6D77\uFF0C\u4E5F\u7167\u4EAE\u5CE1\u8C37\u5C3D\u5934\u7684\u796D\u53F0",
+  levelFrom: 65,
+  levelTo: 78,
+  theme: ["#8e263f", "#e86f8e"],
+  mapAsset: "assets/maps/r7.webp",
+  chapters: [
+    {
+      id: "7-1",
+      name: "\u5CE1\u8C37\u5165\u53E3",
+      levelFrom: 65,
+      levelTo: 68,
+      element: "fire",
+      normals: ["\u8840\u6708\u7ED2\u8760", "\u5CE1\u8C37\u706F\u7B3C\u9B3C", "\u8D64\u6676\u89D2\u5154", "\u96FE\u884C\u5C0F\u6076\u9B54"],
+      materials: ["dew_bloodmist", "herb_soulbreak"],
+      tutorial: "\u8840\u6708\u5CE1\u8C37\u7684\u654C\u4EBA\u504F\u708E\u5C5E\u6027\uFF1B\u65B0\u533A\u96F7\u5C5E\u6027\u6B66\u5668\u80FD\u591F\u514B\u5236\u5B83\u4EEC\u3002",
+      mapAsset: "assets/maps/chapter-7-1.webp",
+      battleAsset: "assets/battlefields/chapter-7-1.webp"
+    },
+    {
+      id: "7-2",
+      name: "\u8840\u96FE\u6CBC\u6CFD",
+      levelFrom: 68,
+      levelTo: 70,
+      element: "fire",
+      normals: ["\u8840\u6CBC\u8F6F\u6CE5\u602A", "\u7EEF\u96FE\u9B45\u7075", "\u6CBC\u6CFD\u9B54\u8548\u5A18", "\u8840\u82D4\u56E2\u5B50"],
+      elite: "\u8840\u96FE\u9B54\u5973",
+      materials: ["dew_bloodmist", "herb_soulbreak", "horn_demon"],
+      mapAsset: "assets/maps/chapter-7-2.webp",
+      battleAsset: "assets/battlefields/chapter-7-2.webp"
+    },
+    {
+      id: "7-3",
+      name: "\u65AD\u9B42\u5D16",
+      levelFrom: 70,
+      levelTo: 73,
+      element: "fire",
+      normals: ["\u65AD\u9B42\u5D16\u9E26", "\u8D64\u85E4\u6500\u884C\u8005", "\u5D16\u98CE\u9B45\u5F71", "\u9B42\u706F\u89D2\u517D"],
+      materials: ["dew_bloodmist", "herb_soulbreak"],
+      mapAsset: "assets/maps/chapter-7-3.webp",
+      battleAsset: "assets/battlefields/chapter-7-3.webp"
+    },
+    {
+      id: "7-4",
+      name: "\u6076\u9B54\u96C6\u4F1A\u6240",
+      levelFrom: 73,
+      levelTo: 76,
+      element: "fire",
+      normals: ["\u6076\u9B54\u4F8D\u7AE5", "\u6708\u75D5\u77F3\u50CF\u9B3C", "\u7EA2\u7F0E\u9B45\u7075", "\u4E09\u53C9\u621F\u5C0F\u9B3C"],
+      elite: "\u5C0F\u6076\u9B54\u5A18\u4E09\u59D0\u59B9",
+      materials: ["dew_bloodmist", "herb_soulbreak", "horn_demon"],
+      mapAsset: "assets/maps/chapter-7-4.webp",
+      battleAsset: "assets/battlefields/chapter-7-4.webp"
+    },
+    {
+      id: "7-5",
+      name: "\u8840\u6708\u796D\u53F0",
+      levelFrom: 76,
+      levelTo: 78,
+      element: "fire",
+      normals: ["\u8840\u6708\u796D\u53F8", "\u7329\u7EA2\u7977\u7075", "\u6708\u8680\u5B88\u536B", "\u8389\u8389\u59C6\u8FD1\u4F8D"],
+      elite: "\u8840\u6708\u5927\u796D\u53F8",
+      boss: "\u8840\u6708\u6076\u9B54\xB7\u8389\u8389\u59C6",
+      materials: ["dew_bloodmist", "herb_soulbreak", "horn_demon", "eye_bloodmoon"],
+      mapAsset: "assets/maps/chapter-7-5.webp",
+      battleAsset: "assets/battlefields/chapter-7-5.webp"
+    }
+  ]
+};
+var REGION_7_EQUIPMENT_THEME = {
+  regionId: "r7",
+  themeName: "\u8840\u6708\u5CE1\u8C37\u7CFB",
+  level: 69,
+  qualities: ["epic", "legendary"],
+  visualKeywords: ["\u8840\u7EA2", "\u7384\u9ED1", "\u94F6\u767D\u6708\u7EB9", "\u6076\u9B54\u89D2"],
+  names: {
+    weapon: "\u8840\u6708\u65AD\u9B42\u5203",
+    head: "\u8D64\u89D2\u6708\u51A0",
+    body: "\u7EEF\u96FE\u5CE1\u8C37\u793C\u88C5",
+    necklace: "\u8840\u96FE\u51DD\u9732\u5760",
+    bracelet: "\u6076\u9B54\u89D2\u956F",
+    ring: "\u6708\u8680\u8A93\u6212",
+    belt: "\u7384\u7EA2\u675F\u9B42\u5E26",
+    shoes: "\u65AD\u5D16\u591C\u884C\u9774"
+  },
+  weaponNames: {
+    swordsman: "\u8840\u6708\u65AD\u9B42\u5251",
+    witch: "\u6708\u8680\u7EEF\u661F\u6756",
+    shaman: "\u8D64\u96FE\u5F15\u9B42\u6247",
+    catkin: "\u8840\u6708\u88C2\u9B42\u53CC\u722A"
+  }
+};
+var REGION_7_SET_ID = "set_region_bloodmoon";
+var REGION_7_SET_LEVEL = 76;
+var REGION_7_SET_QUALITY = "legendary";
+var REGION_7_SET_SLOTS = [
+  "weapon",
+  "head",
+  "body",
+  "necklace",
+  "bracelet",
+  "ring",
+  "belt",
+  "shoes"
+];
+var REGION_7_SET_NAMES = {
+  weapon: "\u8389\u8389\u59C6\u6708\u8680\u5203",
+  head: "\u8840\u6708\u7737\u5C5E\u51A0",
+  body: "\u8389\u8389\u59C6\u6DF1\u7EA2\u793C\u88C5",
+  necklace: "\u6708\u77B3\u9B42\u5760",
+  bracelet: "\u6076\u9B54\u8A93\u956F",
+  ring: "\u6708\u8680\u8840\u6212",
+  belt: "\u6DF1\u7EA2\u675F\u9B42\u5E26",
+  shoes: "\u7EEF\u96FE\u8E0F\u6708\u9774"
+};
+var REGION_7_SET_WEAPON_NAMES = {
+  swordsman: "\u8389\u8389\u59C6\u6708\u8680\u5251",
+  witch: "\u8389\u8389\u59C6\u8840\u661F\u6756",
+  shaman: "\u8389\u8389\u59C6\u5524\u6708\u6247",
+  catkin: "\u8389\u8389\u59C6\u7EEF\u6708\u53CC\u722A"
+};
+function region7SetEquipmentId(slot) {
+  return `eq_set_region_bloodmoon_${slot}`;
+}
+
 // src/data/regions.ts
 var REGION_1 = {
   id: "r1",
@@ -1492,7 +1621,8 @@ var REGIONS = [
   REGION_2,
   ...REGION_34,
   REGION_5,
-  REGION_6
+  REGION_6,
+  REGION_7
 ];
 var ALL_CHAPTERS = REGIONS.flatMap((r) => r.chapters);
 
@@ -1584,7 +1714,9 @@ var REGION_WEAPON_ELEMENTS = {
   r4: "none",
   r5: "fire",
   // 幽影祀塔以雷属性怪为主，R6 冰武器提供下一段明确的克制来源。
-  r6: "ice"
+  r6: "ice",
+  // 血月峡谷以炎属性怪为主，R7 雷武器闭合炎 → 冰 → 雷 → 炎教学环。
+  r7: "thunder"
 };
 var BOUTIQUE_WEAPON_ELEMENTS = {
   "berry-cream": "fire",
@@ -1647,7 +1779,6 @@ var EQUIPMENT_DUNGEON_TIERS = [
     quality: "mythic",
     level: 81,
     unlockLevel: 81,
-    comingSoon: true,
     color: "#ff4f72",
     glow: "#ffd1dc",
     setId: "set_dungeon_crimson",
@@ -2019,6 +2150,17 @@ var THEMES = [
     ),
     names: REGION_6_EQUIPMENT_THEME.names,
     weaponNames: REGION_6_EQUIPMENT_THEME.weaponNames
+  },
+  {
+    regionId: REGION_7_EQUIPMENT_THEME.regionId,
+    level: REGION_7_EQUIPMENT_THEME.level,
+    weaponElement: REGION_WEAPON_ELEMENTS.r7,
+    qualities: [...REGION_7_EQUIPMENT_THEME.qualities],
+    icons: Object.fromEntries(
+      SLOT_ORDER.map((slot) => [slot, `assets/equipment/r7/${slot}.png`])
+    ),
+    names: REGION_7_EQUIPMENT_THEME.names,
+    weaponNames: REGION_7_EQUIPMENT_THEME.weaponNames
   }
 ];
 var QUALITY_PREFIX = {
@@ -2123,6 +2265,27 @@ function buildEquipment() {
       classPresentations: weaponClassPresentations(
         "r6-set-weapon",
         REGION_6_SET_WEAPON_NAMES
+      )
+    } : { ...common, slot };
+  }
+  for (const slot of REGION_7_SET_SLOTS) {
+    const id = region7SetEquipmentId(slot);
+    const common = {
+      id,
+      name: REGION_7_SET_NAMES[slot],
+      quality: REGION_7_SET_QUALITY,
+      level: REGION_7_SET_LEVEL,
+      setId: REGION_7_SET_ID,
+      icon: `assets/equipment/sets/r7-bloodmoon/${slot}.png`,
+      appearanceId: `r7-set-${slot}`
+    };
+    out[id] = slot === "weapon" ? {
+      ...common,
+      slot,
+      element: REGION_WEAPON_ELEMENTS.r7,
+      classPresentations: weaponClassPresentations(
+        "r7-set-weapon",
+        REGION_7_SET_WEAPON_NAMES
       )
     } : { ...common, slot };
   }
@@ -2357,6 +2520,7 @@ var REGION_CRIMSON_SET_ID = "set_region_crimson";
 var REGION_CRIMSON_FLAMEBURST_TRIGGER_ID = `${REGION_CRIMSON_SET_ID}:flameburst`;
 var REGION_SHADOW_SET_ID = "set_region_shadow";
 var REGION_SHADOW_SURVIVAL_TRIGGER_ID = `${REGION_SHADOW_SET_ID}:survival`;
+var REGION_BLOODMOON_SET_ID = "set_region_bloodmoon";
 var REGION_EQUIPMENT_SETS = {
   [REGION_CRIMSON_SET_ID]: {
     id: REGION_CRIMSON_SET_ID,
@@ -2439,10 +2603,50 @@ var REGION_EQUIPMENT_SETS = {
         ]
       }
     ]
+  },
+  [REGION_BLOODMOON_SET_ID]: {
+    id: REGION_BLOODMOON_SET_ID,
+    name: "\u8840\u6708\u5957",
+    pieceSlots: [
+      "weapon",
+      "head",
+      "body",
+      "necklace",
+      "bracelet",
+      "ring",
+      "belt",
+      "shoes"
+    ],
+    bonuses: [
+      {
+        pieces: 2,
+        label: "\u8D64\u6708\u950B\u8292",
+        description: "\u653B\u51FB +10%",
+        statPercent: { atk: 0.1 }
+      },
+      {
+        pieces: 4,
+        label: "\u6708\u8680\u5FC3\u8DF3",
+        description: "\u66B4\u51FB\u7387 +8%",
+        statFlat: { critRate: 8 }
+      },
+      {
+        pieces: 6,
+        label: "\u5CE1\u8C37\u7737\u987E",
+        description: "\u6280\u80FD\u4F24\u5BB3 +18%",
+        skillMultiplierBonus: 0.18
+      },
+      {
+        pieces: 8,
+        label: "\u8840\u6708\u7684\u7737\u5C5E",
+        description: "\u89E3\u9501\u540C\u540D\u79F0\u53F7\u4E0E\u8840\u6708\u5FBD\u8BB0\u5916\u89C2\uFF08\u65E0\u6218\u6597\u5C5E\u6027\uFF09"
+      }
+    ]
   }
 };
 var REGION_CRIMSON_SET = REGION_EQUIPMENT_SETS[REGION_CRIMSON_SET_ID];
 var REGION_SHADOW_SET = REGION_EQUIPMENT_SETS[REGION_SHADOW_SET_ID];
+var REGION_BLOODMOON_SET = REGION_EQUIPMENT_SETS[REGION_BLOODMOON_SET_ID];
 
 // src/data/equipmentSets.ts
 var EQUIPMENT_SETS = {

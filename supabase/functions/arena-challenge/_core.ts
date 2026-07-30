@@ -506,7 +506,8 @@ var STAGE_PACING_FACTORS = {
   3: 90,
   4: 110,
   5: 200,
-  6: 340
+  6: 340,
+  7: 440
 };
 var STAGE_PACING_BOSS_MUL = 2.5;
 var STAGE_PACING_ELITE_MUL = 1.5;
@@ -715,10 +716,10 @@ function applyEquipmentSetStats(stats, resolution) {
     spd: stats.spd * (1 + resolution.statPercent.spd) + resolution.statFlat.spd
   };
 }
-function addPartialStats(target, source4) {
-  if (!source4) return;
+function addPartialStats(target, source5) {
+  if (!source5) return;
   for (const key of Object.keys(target)) {
-    target[key] += source4[key] ?? 0;
+    target[key] += source5[key] ?? 0;
   }
 }
 function zeroSetCombatBonuses() {
@@ -728,13 +729,13 @@ function zeroSetCombatBonuses() {
     elementDamage: { fire: 0, ice: 0, thunder: 0 }
   };
 }
-function addSetCombatBonuses(target, source4) {
-  if (!source4) return;
-  target.damageReduction += source4.damageReduction ?? 0;
-  target.lifesteal += source4.lifesteal ?? 0;
-  target.elementDamage.fire += source4.elementDamage?.fire ?? 0;
-  target.elementDamage.ice += source4.elementDamage?.ice ?? 0;
-  target.elementDamage.thunder += source4.elementDamage?.thunder ?? 0;
+function addSetCombatBonuses(target, source5) {
+  if (!source5) return;
+  target.damageReduction += source5.damageReduction ?? 0;
+  target.lifesteal += source5.lifesteal ?? 0;
+  target.elementDamage.fire += source5.elementDamage?.fire ?? 0;
+  target.elementDamage.ice += source5.elementDamage?.ice ?? 0;
+  target.elementDamage.thunder += source5.elementDamage?.thunder ?? 0;
 }
 function assertSetDefinition(definition) {
   if (definition.pieceSlots.length === 0) {
@@ -1124,7 +1125,7 @@ function applyDamageAndLifesteal(attacker, defender, rolledDamage, lethalTrigger
     recovery: resolveLethalRecovery(defender, lethalTriggers, lethalUses)
   };
 }
-function applyDamageSegment(attacker, defender, resolution, source4, timeline, defenderLethalTriggers = [], defenderLethalUses = /* @__PURE__ */ new Map()) {
+function applyDamageSegment(attacker, defender, resolution, source5, timeline, defenderLethalTriggers = [], defenderLethalUses = /* @__PURE__ */ new Map()) {
   let total = 0;
   for (const event of resolution.events) {
     const applied = event.kind === "direct-damage" ? applyDamageAndLifesteal(
@@ -1144,22 +1145,22 @@ function applyDamageSegment(attacker, defender, resolution, source4, timeline, d
     if (event.kind === "on-hit-elemental-damage" && actualDamage <= 0) continue;
     timeline.push({
       sequence: timeline.length + 1,
-      source: source4,
-      target: source4 === "player" ? "monster" : "player",
+      source: source5,
+      target: source5 === "player" ? "monster" : "player",
       event: { ...event, damage: actualDamage }
     });
     if (applied.recovery) {
       timeline.push({
         sequence: timeline.length + 1,
-        source: source4 === "player" ? "monster" : "player",
-        target: source4 === "player" ? "monster" : "player",
+        source: source5 === "player" ? "monster" : "player",
+        target: source5 === "player" ? "monster" : "player",
         event: applied.recovery
       });
     }
   }
   return { damage: total, directCrit: resolution.direct.hit && resolution.direct.crit };
 }
-function resolveOnCritTriggers(attacker, defender, triggers = [], source4, elapsedMs, periodicState, timeline) {
+function resolveOnCritTriggers(attacker, defender, triggers = [], source5, elapsedMs, periodicState, timeline) {
   let state = periodicState;
   for (const trigger of triggers) {
     assertOnCritPeriodicDamageTrigger(trigger);
@@ -1170,8 +1171,8 @@ function resolveOnCritTriggers(attacker, defender, triggers = [], source4, elaps
     attacker.currentHp += healing;
     timeline.push({
       sequence: timeline.length + 1,
-      source: source4,
-      target: source4,
+      source: source5,
+      target: source5,
       event: {
         kind: "on-crit-recovery",
         damage: 0,
@@ -1187,7 +1188,7 @@ function resolveOnCritTriggers(attacker, defender, triggers = [], source4, elaps
       {
         statusId: trigger.statusId,
         triggerId: trigger.id,
-        source: source4,
+        source: source5,
         element,
         damagePerTick: calcPeriodicDamage(
           attacker,
@@ -1309,7 +1310,7 @@ function makePlayer(name, level, stats, element = "none", combatBonuses) {
 }
 function averageSkillMultiplier(level) {
   if (level < 1) throw new Error(`averageSkillMultiplier: \u7B49\u7EA7\u5FC5\u987B >= 1\uFF0C\u6536\u5230 ${level}`);
-  return AVG_SKILL_MULTIPLIERS.find((entry4) => level >= entry4.minLevel).multiplier;
+  return AVG_SKILL_MULTIPLIERS.find((entry5) => level >= entry5.minLevel).multiplier;
 }
 
 // src/data/reforgeRules.ts
@@ -1498,7 +1499,7 @@ function affixAppliesToClass(key, classId) {
 }
 function professionForAffix(key) {
   for (const classId of Object.keys(PROFESSION_AFFIX_POOLS)) {
-    if (PROFESSION_AFFIX_POOLS[classId].some((entry4) => entry4.key === key)) return classId;
+    if (PROFESSION_AFFIX_POOLS[classId].some((entry5) => entry5.key === key)) return classId;
   }
   return null;
 }
@@ -1542,7 +1543,7 @@ function isRolledAffixValue(key, level, tier, value) {
 function isVerifiablePersistedAffixValue(key, level, tier, value) {
   if (isRolledAffixValue(key, level, tier, value)) return true;
   if (!Number.isFinite(value)) return false;
-  const spec = AFFIX_POOL.find((entry4) => entry4.key === key);
+  const spec = AFFIX_POOL.find((entry5) => entry5.key === key);
   if (!spec) return false;
   const precision = 10 ** spec.decimals;
   const scaled = value * precision;
@@ -1653,12 +1654,12 @@ function migrateLegacyV9Value(initial, spec, originTier, targetTier, timing) {
   return value;
 }
 function requireAffixTierMultiplier(tier) {
-  const config = AFFIX_TIERS.find((entry4) => entry4.tier === tier);
+  const config = AFFIX_TIERS.find((entry5) => entry5.tier === tier);
   if (!config) throw new Error(`[\u914D\u7F6E\u9519\u8BEF] \u672A\u914D\u7F6E\u8BCD\u6761\u54C1\u9636 T${tier}`);
   return config.multiplier;
 }
 function requireAffixSpec(key) {
-  const spec = AFFIX_POOL.find((entry4) => entry4.key === key) ?? Object.values(PROFESSION_AFFIX_POOLS).flat().find((entry4) => entry4.key === key);
+  const spec = AFFIX_POOL.find((entry5) => entry5.key === key) ?? Object.values(PROFESSION_AFFIX_POOLS).flat().find((entry5) => entry5.key === key);
   if (!spec) throw new Error(`[\u914D\u7F6E\u9519\u8BEF] \u968F\u673A\u8BCD\u6761\u6C60\u4E0D\u5B58\u5728\uFF1A${key}`);
   return spec;
 }
@@ -2057,8 +2058,8 @@ var slotAffixKeys = {
   belt: ["def", "hp", "eva", "acc", "critRate", "critDmg"],
   shoes: ["eva", "spd", "def", "hp", "acc", "critRate"]
 };
-var classSpecs = (classId, baseTheme, entries) => entries.map((entry4, index) => ({
-  ...entry4,
+var classSpecs = (classId, baseTheme, entries) => entries.map((entry5, index) => ({
+  ...entry5,
   classId,
   level: COLLECTION_LEVELS[index],
   unlockPoints: COLLECTION_UNLOCK_POINTS[index],
@@ -2425,12 +2426,12 @@ function buildDefinition(spec, collectionIndex) {
 var AFFECTION_EQUIPMENT_LIST = SPECS.map(
   (spec, index) => buildDefinition(spec, index % 10)
 );
-var AFFECTION_EQUIPMENT = Object.fromEntries(AFFECTION_EQUIPMENT_LIST.map((entry4) => [entry4.definition.id, entry4]));
+var AFFECTION_EQUIPMENT = Object.fromEntries(AFFECTION_EQUIPMENT_LIST.map((entry5) => [entry5.definition.id, entry5]));
 function affectionEquipmentForClass(classId) {
-  return AFFECTION_EQUIPMENT_LIST.filter((entry4) => entry4.classId === classId);
+  return AFFECTION_EQUIPMENT_LIST.filter((entry5) => entry5.classId === classId);
 }
 function affectionEquipmentIdsForClass(classId) {
-  return affectionEquipmentForClass(classId).map((entry4) => entry4.definition.id);
+  return affectionEquipmentForClass(classId).map((entry5) => entry5.definition.id);
 }
 
 // src/data/region34.ts
@@ -2984,6 +2985,161 @@ var REGION_6_MONSTER_MOTIONS = {
   "mon_6-5_boss": "royal"
 };
 
+// src/data/region7.ts
+var REGION_7 = {
+  id: "r7",
+  index: 7,
+  name: "\u8840\u6708\u5CE1\u8C37",
+  subtitle: "\u8D64\u6708\u7167\u7740\u96FE\u6D77\uFF0C\u4E5F\u7167\u4EAE\u5CE1\u8C37\u5C3D\u5934\u7684\u796D\u53F0",
+  levelFrom: 65,
+  levelTo: 78,
+  theme: ["#8e263f", "#e86f8e"],
+  mapAsset: "assets/maps/r7.webp",
+  chapters: [
+    {
+      id: "7-1",
+      name: "\u5CE1\u8C37\u5165\u53E3",
+      levelFrom: 65,
+      levelTo: 68,
+      element: "fire",
+      normals: ["\u8840\u6708\u7ED2\u8760", "\u5CE1\u8C37\u706F\u7B3C\u9B3C", "\u8D64\u6676\u89D2\u5154", "\u96FE\u884C\u5C0F\u6076\u9B54"],
+      materials: ["dew_bloodmist", "herb_soulbreak"],
+      tutorial: "\u8840\u6708\u5CE1\u8C37\u7684\u654C\u4EBA\u504F\u708E\u5C5E\u6027\uFF1B\u65B0\u533A\u96F7\u5C5E\u6027\u6B66\u5668\u80FD\u591F\u514B\u5236\u5B83\u4EEC\u3002",
+      mapAsset: "assets/maps/chapter-7-1.webp",
+      battleAsset: "assets/battlefields/chapter-7-1.webp"
+    },
+    {
+      id: "7-2",
+      name: "\u8840\u96FE\u6CBC\u6CFD",
+      levelFrom: 68,
+      levelTo: 70,
+      element: "fire",
+      normals: ["\u8840\u6CBC\u8F6F\u6CE5\u602A", "\u7EEF\u96FE\u9B45\u7075", "\u6CBC\u6CFD\u9B54\u8548\u5A18", "\u8840\u82D4\u56E2\u5B50"],
+      elite: "\u8840\u96FE\u9B54\u5973",
+      materials: ["dew_bloodmist", "herb_soulbreak", "horn_demon"],
+      mapAsset: "assets/maps/chapter-7-2.webp",
+      battleAsset: "assets/battlefields/chapter-7-2.webp"
+    },
+    {
+      id: "7-3",
+      name: "\u65AD\u9B42\u5D16",
+      levelFrom: 70,
+      levelTo: 73,
+      element: "fire",
+      normals: ["\u65AD\u9B42\u5D16\u9E26", "\u8D64\u85E4\u6500\u884C\u8005", "\u5D16\u98CE\u9B45\u5F71", "\u9B42\u706F\u89D2\u517D"],
+      materials: ["dew_bloodmist", "herb_soulbreak"],
+      mapAsset: "assets/maps/chapter-7-3.webp",
+      battleAsset: "assets/battlefields/chapter-7-3.webp"
+    },
+    {
+      id: "7-4",
+      name: "\u6076\u9B54\u96C6\u4F1A\u6240",
+      levelFrom: 73,
+      levelTo: 76,
+      element: "fire",
+      normals: ["\u6076\u9B54\u4F8D\u7AE5", "\u6708\u75D5\u77F3\u50CF\u9B3C", "\u7EA2\u7F0E\u9B45\u7075", "\u4E09\u53C9\u621F\u5C0F\u9B3C"],
+      elite: "\u5C0F\u6076\u9B54\u5A18\u4E09\u59D0\u59B9",
+      materials: ["dew_bloodmist", "herb_soulbreak", "horn_demon"],
+      mapAsset: "assets/maps/chapter-7-4.webp",
+      battleAsset: "assets/battlefields/chapter-7-4.webp"
+    },
+    {
+      id: "7-5",
+      name: "\u8840\u6708\u796D\u53F0",
+      levelFrom: 76,
+      levelTo: 78,
+      element: "fire",
+      normals: ["\u8840\u6708\u796D\u53F8", "\u7329\u7EA2\u7977\u7075", "\u6708\u8680\u5B88\u536B", "\u8389\u8389\u59C6\u8FD1\u4F8D"],
+      elite: "\u8840\u6708\u5927\u796D\u53F8",
+      boss: "\u8840\u6708\u6076\u9B54\xB7\u8389\u8389\u59C6",
+      materials: ["dew_bloodmist", "herb_soulbreak", "horn_demon", "eye_bloodmoon"],
+      mapAsset: "assets/maps/chapter-7-5.webp",
+      battleAsset: "assets/battlefields/chapter-7-5.webp"
+    }
+  ]
+};
+var REGION_7_EQUIPMENT_THEME = {
+  regionId: "r7",
+  themeName: "\u8840\u6708\u5CE1\u8C37\u7CFB",
+  level: 69,
+  qualities: ["epic", "legendary"],
+  visualKeywords: ["\u8840\u7EA2", "\u7384\u9ED1", "\u94F6\u767D\u6708\u7EB9", "\u6076\u9B54\u89D2"],
+  names: {
+    weapon: "\u8840\u6708\u65AD\u9B42\u5203",
+    head: "\u8D64\u89D2\u6708\u51A0",
+    body: "\u7EEF\u96FE\u5CE1\u8C37\u793C\u88C5",
+    necklace: "\u8840\u96FE\u51DD\u9732\u5760",
+    bracelet: "\u6076\u9B54\u89D2\u956F",
+    ring: "\u6708\u8680\u8A93\u6212",
+    belt: "\u7384\u7EA2\u675F\u9B42\u5E26",
+    shoes: "\u65AD\u5D16\u591C\u884C\u9774"
+  },
+  weaponNames: {
+    swordsman: "\u8840\u6708\u65AD\u9B42\u5251",
+    witch: "\u6708\u8680\u7EEF\u661F\u6756",
+    shaman: "\u8D64\u96FE\u5F15\u9B42\u6247",
+    catkin: "\u8840\u6708\u88C2\u9B42\u53CC\u722A"
+  }
+};
+var REGION_7_SET_ID = "set_region_bloodmoon";
+var REGION_7_SET_LEVEL = 76;
+var REGION_7_SET_QUALITY = "legendary";
+var REGION_7_SET_SLOTS = [
+  "weapon",
+  "head",
+  "body",
+  "necklace",
+  "bracelet",
+  "ring",
+  "belt",
+  "shoes"
+];
+var REGION_7_SET_NAMES = {
+  weapon: "\u8389\u8389\u59C6\u6708\u8680\u5203",
+  head: "\u8840\u6708\u7737\u5C5E\u51A0",
+  body: "\u8389\u8389\u59C6\u6DF1\u7EA2\u793C\u88C5",
+  necklace: "\u6708\u77B3\u9B42\u5760",
+  bracelet: "\u6076\u9B54\u8A93\u956F",
+  ring: "\u6708\u8680\u8840\u6212",
+  belt: "\u6DF1\u7EA2\u675F\u9B42\u5E26",
+  shoes: "\u7EEF\u96FE\u8E0F\u6708\u9774"
+};
+var REGION_7_SET_WEAPON_NAMES = {
+  swordsman: "\u8389\u8389\u59C6\u6708\u8680\u5251",
+  witch: "\u8389\u8389\u59C6\u8840\u661F\u6756",
+  shaman: "\u8389\u8389\u59C6\u5524\u6708\u6247",
+  catkin: "\u8389\u8389\u59C6\u7EEF\u6708\u53CC\u722A"
+};
+function region7SetEquipmentId(slot) {
+  return `eq_set_region_bloodmoon_${slot}`;
+}
+var REGION_7_MONSTER_MOTIONS = {
+  "mon_7-1_0": "flutter",
+  "mon_7-1_1": "sway",
+  "mon_7-1_2": "hopper",
+  "mon_7-1_3": "bounce",
+  "mon_7-2_0": "bounce",
+  "mon_7-2_1": "sway",
+  "mon_7-2_2": "hopper",
+  "mon_7-2_3": "bounce",
+  "mon_7-2_elite": "royal",
+  "mon_7-3_0": "flutter",
+  "mon_7-3_1": "sway",
+  "mon_7-3_2": "flutter",
+  "mon_7-3_3": "guard",
+  "mon_7-4_0": "hopper",
+  "mon_7-4_1": "guard",
+  "mon_7-4_2": "sway",
+  "mon_7-4_3": "bounce",
+  "mon_7-4_elite": "royal",
+  "mon_7-5_0": "sway",
+  "mon_7-5_1": "flutter",
+  "mon_7-5_2": "guard",
+  "mon_7-5_3": "hopper",
+  "mon_7-5_elite": "royal",
+  "mon_7-5_boss": "royal"
+};
+
 // src/data/regions.ts
 var REGION_1 = {
   id: "r1",
@@ -3139,7 +3295,8 @@ var REGIONS = [
   REGION_2,
   ...REGION_34,
   REGION_5,
-  REGION_6
+  REGION_6,
+  REGION_7
 ];
 var STAGES_PER_CHAPTER = 6;
 var ALL_CHAPTERS = REGIONS.flatMap((r) => r.chapters);
@@ -3196,7 +3353,7 @@ function expectedBuildCp(level, classId = "swordsman") {
 
 // src/data/arenaEquipment.ts
 var ARENA_SET_ID = "set_arena_stigma";
-var MAX_CONTENT_LEVEL = Math.max(...ALL_CHAPTERS.map((chapter4) => chapter4.levelTo));
+var MAX_CONTENT_LEVEL = Math.max(...ALL_CHAPTERS.map((chapter5) => chapter5.levelTo));
 var ARENA_EQUIPMENT_LEVEL = MAX_CONTENT_LEVEL;
 var ARENA_EQUIPMENT_QUALITY = typicalQualityAt(MAX_CONTENT_LEVEL);
 var ARENA_EQUIPMENT_SET = {
@@ -3279,7 +3436,9 @@ var REGION_WEAPON_ELEMENTS = {
   r4: "none",
   r5: "fire",
   // 幽影祀塔以雷属性怪为主，R6 冰武器提供下一段明确的克制来源。
-  r6: "ice"
+  r6: "ice",
+  // 血月峡谷以炎属性怪为主，R7 雷武器闭合炎 → 冰 → 雷 → 炎教学环。
+  r7: "thunder"
 };
 var BOUTIQUE_WEAPON_ELEMENTS = {
   "berry-cream": "fire",
@@ -3342,7 +3501,6 @@ var EQUIPMENT_DUNGEON_TIERS = [
     quality: "mythic",
     level: 81,
     unlockLevel: 81,
-    comingSoon: true,
     color: "#ff4f72",
     glow: "#ffd1dc",
     setId: "set_dungeon_crimson",
@@ -3724,6 +3882,17 @@ var THEMES = [
     ),
     names: REGION_6_EQUIPMENT_THEME.names,
     weaponNames: REGION_6_EQUIPMENT_THEME.weaponNames
+  },
+  {
+    regionId: REGION_7_EQUIPMENT_THEME.regionId,
+    level: REGION_7_EQUIPMENT_THEME.level,
+    weaponElement: REGION_WEAPON_ELEMENTS.r7,
+    qualities: [...REGION_7_EQUIPMENT_THEME.qualities],
+    icons: Object.fromEntries(
+      SLOT_ORDER.map((slot) => [slot, `assets/equipment/r7/${slot}.png`])
+    ),
+    names: REGION_7_EQUIPMENT_THEME.names,
+    weaponNames: REGION_7_EQUIPMENT_THEME.weaponNames
   }
 ];
 var QUALITY_PREFIX = {
@@ -3831,6 +4000,27 @@ function buildEquipment() {
       )
     } : { ...common, slot };
   }
+  for (const slot of REGION_7_SET_SLOTS) {
+    const id = region7SetEquipmentId(slot);
+    const common = {
+      id,
+      name: REGION_7_SET_NAMES[slot],
+      quality: REGION_7_SET_QUALITY,
+      level: REGION_7_SET_LEVEL,
+      setId: REGION_7_SET_ID,
+      icon: `assets/equipment/sets/r7-bloodmoon/${slot}.png`,
+      appearanceId: `r7-set-${slot}`
+    };
+    out[id] = slot === "weapon" ? {
+      ...common,
+      slot,
+      element: REGION_WEAPON_ELEMENTS.r7,
+      classPresentations: weaponClassPresentations(
+        "r7-set-weapon",
+        REGION_7_SET_WEAPON_NAMES
+      )
+    } : { ...common, slot };
+  }
   for (const theme of BOUTIQUE_THEME_LIST) {
     const percentile = theme.quality === "epic" ? 0.6 : theme.quality === "legendary" ? 0.75 : 0.9;
     for (const item of theme.items) {
@@ -3868,8 +4058,8 @@ function buildEquipment() {
     }
     out[definition.id] = definition;
   }
-  for (const entry4 of AFFECTION_EQUIPMENT_LIST) {
-    const definition = entry4.definition;
+  for (const entry5 of AFFECTION_EQUIPMENT_LIST) {
+    const definition = entry5.definition;
     if (out[definition.id]) {
       throw new Error(`[\u914D\u7F6E\u9519\u8BEF] \u88C5\u5907 ID \u91CD\u590D\uFF1A${definition.id}`);
     }
@@ -4070,6 +4260,7 @@ var REGION_CRIMSON_SET_ID = "set_region_crimson";
 var REGION_CRIMSON_FLAMEBURST_TRIGGER_ID = `${REGION_CRIMSON_SET_ID}:flameburst`;
 var REGION_SHADOW_SET_ID = "set_region_shadow";
 var REGION_SHADOW_SURVIVAL_TRIGGER_ID = `${REGION_SHADOW_SET_ID}:survival`;
+var REGION_BLOODMOON_SET_ID = "set_region_bloodmoon";
 var REGION_EQUIPMENT_SETS = {
   [REGION_CRIMSON_SET_ID]: {
     id: REGION_CRIMSON_SET_ID,
@@ -4152,10 +4343,50 @@ var REGION_EQUIPMENT_SETS = {
         ]
       }
     ]
+  },
+  [REGION_BLOODMOON_SET_ID]: {
+    id: REGION_BLOODMOON_SET_ID,
+    name: "\u8840\u6708\u5957",
+    pieceSlots: [
+      "weapon",
+      "head",
+      "body",
+      "necklace",
+      "bracelet",
+      "ring",
+      "belt",
+      "shoes"
+    ],
+    bonuses: [
+      {
+        pieces: 2,
+        label: "\u8D64\u6708\u950B\u8292",
+        description: "\u653B\u51FB +10%",
+        statPercent: { atk: 0.1 }
+      },
+      {
+        pieces: 4,
+        label: "\u6708\u8680\u5FC3\u8DF3",
+        description: "\u66B4\u51FB\u7387 +8%",
+        statFlat: { critRate: 8 }
+      },
+      {
+        pieces: 6,
+        label: "\u5CE1\u8C37\u7737\u987E",
+        description: "\u6280\u80FD\u4F24\u5BB3 +18%",
+        skillMultiplierBonus: 0.18
+      },
+      {
+        pieces: 8,
+        label: "\u8840\u6708\u7684\u7737\u5C5E",
+        description: "\u89E3\u9501\u540C\u540D\u79F0\u53F7\u4E0E\u8840\u6708\u5FBD\u8BB0\u5916\u89C2\uFF08\u65E0\u6218\u6597\u5C5E\u6027\uFF09"
+      }
+    ]
   }
 };
 var REGION_CRIMSON_SET = REGION_EQUIPMENT_SETS[REGION_CRIMSON_SET_ID];
 var REGION_SHADOW_SET = REGION_EQUIPMENT_SETS[REGION_SHADOW_SET_ID];
+var REGION_BLOODMOON_SET = REGION_EQUIPMENT_SETS[REGION_BLOODMOON_SET_ID];
 
 // src/data/equipmentSets.ts
 var EQUIPMENT_SETS = {
@@ -4389,14 +4620,14 @@ function simulateDuelWithFirst(attacker, defender, rng, attackerFirst) {
   let attackerActions = 0;
   let defenderActions = 0;
   const log = result.events.map((ev) => {
-    const source4 = ev.source === "player" === attackerFirst ? "attacker" : "defender";
+    const source5 = ev.source === "player" === attackerFirst ? "attacker" : "defender";
     const target = ev.target === "player" === attackerFirst ? "attacker" : "defender";
     if (ev.event.kind === "direct-damage") {
-      if (source4 === "attacker") attackerActions++;
+      if (source5 === "attacker") attackerActions++;
       else defenderActions++;
       return {
         sequence: ev.sequence,
-        source: source4,
+        source: source5,
         target,
         kind: ev.event.kind,
         damage: ev.event.damage,
@@ -4408,7 +4639,7 @@ function simulateDuelWithFirst(attacker, defender, rng, attackerFirst) {
     if (ev.event.kind === "on-hit-elemental-damage") {
       return {
         sequence: ev.sequence,
-        source: source4,
+        source: source5,
         target,
         kind: ev.event.kind,
         damage: ev.event.damage,
@@ -4421,7 +4652,7 @@ function simulateDuelWithFirst(attacker, defender, rng, attackerFirst) {
     if (ev.event.kind === "periodic-damage") {
       return {
         sequence: ev.sequence,
-        source: source4,
+        source: source5,
         target,
         kind: ev.event.kind,
         damage: ev.event.damage,
@@ -4435,7 +4666,7 @@ function simulateDuelWithFirst(attacker, defender, rng, attackerFirst) {
     }
     return {
       sequence: ev.sequence,
-      source: source4,
+      source: source5,
       target,
       kind: ev.event.kind,
       damage: ev.event.damage,
@@ -4510,8 +4741,8 @@ var EQUIPMENT_DUNGEON_RULES = {
 // src/core/reforge.ts
 function promoteAffix(affix) {
   if (affix.tier >= 5) throw new Error("promoteAffix: T5 \u8BCD\u6761\u4E0D\u80FD\u7EE7\u7EED\u63D0\u5347");
-  const current = AFFIX_TIERS.find((entry4) => entry4.tier === affix.tier);
-  const next = AFFIX_TIERS.find((entry4) => entry4.tier === affix.tier + 1);
+  const current = AFFIX_TIERS.find((entry5) => entry5.tier === affix.tier);
+  const next = AFFIX_TIERS.find((entry5) => entry5.tier === affix.tier + 1);
   const spec = requireAffixSpec2(affix.key);
   const precision = 10 ** spec.decimals;
   return {
@@ -4525,7 +4756,7 @@ function isProfessionAffixSlot(quality, affixCount, targetIndex) {
   return reserved > 0 && targetIndex >= affixCount - reserved;
 }
 function requireAffixSpec2(key) {
-  const spec = AFFIX_POOL.find((entry4) => entry4.key === key) ?? Object.values(PROFESSION_AFFIX_POOLS).flat().find((entry4) => entry4.key === key);
+  const spec = AFFIX_POOL.find((entry5) => entry5.key === key) ?? Object.values(PROFESSION_AFFIX_POOLS).flat().find((entry5) => entry5.key === key);
   if (!spec) throw new Error(`[\u914D\u7F6E\u9519\u8BEF] \u8BCD\u6761\u6C60\u4E0D\u5B58\u5728\uFF1A${key}`);
   return spec;
 }
@@ -5665,12 +5896,22 @@ var REGION_6_MONSTER_VISUALS = Object.fromEntries(
     }
   ])
 );
+var REGION_7_MONSTER_VISUALS = Object.fromEntries(
+  Object.entries(REGION_7_MONSTER_MOTIONS).map(([id, motion]) => [
+    id,
+    {
+      asset: `assets/monsters/r7/${id}.webp`,
+      motion
+    }
+  ])
+);
 var MONSTER_VISUALS = {
   // 区域 3/4 与 regions.ts 同一批接入：素材、掉落、强化曲线全部就绪后才展开，
   // 展开前 REGION_34_MONSTER_VISUALS 只作为待启用注册表存在。
   ...REGION_34_MONSTER_VISUALS,
   ...REGION_5_MONSTER_VISUALS,
   ...REGION_6_MONSTER_VISUALS,
+  ...REGION_7_MONSTER_VISUALS,
   "mon_1-1_0": { asset: "assets/monsters/r1/mon_1-1_0.webp", motion: "flutter" },
   "mon_1-1_1": { asset: "assets/monsters/r1/mon_1-1_1.webp", motion: "hopper" },
   "mon_1-1_2": { asset: "assets/monsters/r1/mon_1-1_2.webp", motion: "flutter" },
@@ -6046,18 +6287,11 @@ var REGION_6_ENHANCE_PROGRESSION = {
   )
 };
 
-// src/data/enhanceProgression.ts
+// src/data/region7EnhanceProgression.ts
 var MATERIAL3 = {
   ...ENHANCE_MATERIAL_IDS,
-  reforge: "stone_reforge",
-  resonance: "crystal_resonance"
+  reforge: "stone_reforge"
 };
-var ENHANCE_PROGRESSION_MATERIAL_IDS = [
-  MATERIAL3.stone,
-  MATERIAL3.ore,
-  MATERIAL3.lucky,
-  MATERIAL3.protection
-];
 function entry3(itemId, weight, minCount, maxCount, pityCount) {
   return {
     itemId,
@@ -6067,13 +6301,10 @@ function entry3(itemId, weight, minCount, maxCount, pityCount) {
     ...pityCount === void 0 ? {} : { pityCount }
   };
 }
-function guaranteed(itemId, minCount, maxCount) {
-  return entry3(itemId, 0, minCount, maxCount);
+function source3(entries = [], guaranteed2 = []) {
+  return { entries, guaranteed: guaranteed2 };
 }
-function source3(entries = [], guaranteedEntries = []) {
-  return { entries, guaranteed: guaranteedEntries };
-}
-function chapter3(chapterId, recommendedAllEnhance, recommendedMainEnhance, stoneByStage, loot, finalBonus = [{ itemId: MATERIAL3.reforge, count: 2 }]) {
+function chapter3(chapterId, recommendedAllEnhance, recommendedMainEnhance, stoneByStage, loot, finalBonus) {
   return {
     chapterId,
     recommendedAllEnhance,
@@ -6082,251 +6313,392 @@ function chapter3(chapterId, recommendedAllEnhance, recommendedMainEnhance, ston
     firstClear: { stoneByStage, finalBonus }
   };
 }
-var EMPTY_SOURCE = source3();
+var EMPTY3 = source3();
+var REGION_7_ENHANCE_PROGRESSION = {
+  "7-1": chapter3(
+    "7-1",
+    14,
+    15,
+    [680, 735, 795, 860, 935, 1270],
+    {
+      normal: source3([entry3(MATERIAL3.stone, 3, 28, 42)]),
+      elite: EMPTY3,
+      boss: EMPTY3
+    },
+    [
+      { itemId: MATERIAL3.reforge, count: 10 },
+      { itemId: MATERIAL3.ore, count: 190 },
+      { itemId: MATERIAL3.lucky, count: 16 },
+      { itemId: MATERIAL3.protection, count: 10 }
+    ]
+  ),
+  "7-2": chapter3(
+    "7-2",
+    14,
+    15,
+    [715, 775, 840, 910, 990, 1345],
+    {
+      normal: source3([entry3(MATERIAL3.stone, 3.1, 29, 43)]),
+      elite: source3([
+        entry3(MATERIAL3.ore, 0.48, 1, 4, 21),
+        entry3(MATERIAL3.protection, 4e-3, 1, 1, 580)
+      ]),
+      boss: EMPTY3
+    },
+    [
+      { itemId: MATERIAL3.reforge, count: 11 },
+      { itemId: MATERIAL3.ore, count: 220 },
+      { itemId: MATERIAL3.lucky, count: 18 },
+      { itemId: MATERIAL3.protection, count: 12 }
+    ]
+  ),
+  "7-3": chapter3(
+    "7-3",
+    15,
+    15,
+    [750, 815, 885, 960, 1045, 1420],
+    {
+      normal: source3([entry3(MATERIAL3.stone, 3.2, 30, 44)]),
+      elite: EMPTY3,
+      boss: EMPTY3
+    },
+    [
+      { itemId: MATERIAL3.reforge, count: 12 },
+      { itemId: MATERIAL3.ore, count: 250 },
+      { itemId: MATERIAL3.lucky, count: 19 },
+      { itemId: MATERIAL3.protection, count: 13 }
+    ]
+  ),
+  "7-4": chapter3(
+    "7-4",
+    15,
+    15,
+    [790, 855, 930, 1010, 1100, 1500],
+    {
+      normal: source3([entry3(MATERIAL3.stone, 3.3, 31, 46)]),
+      elite: source3([
+        entry3(MATERIAL3.ore, 0.52, 1, 4, 20),
+        entry3(MATERIAL3.lucky, 5e-3, 1, 1, 620),
+        entry3(MATERIAL3.protection, 5e-3, 1, 1, 540)
+      ]),
+      boss: EMPTY3
+    },
+    [
+      { itemId: MATERIAL3.reforge, count: 13 },
+      { itemId: MATERIAL3.ore, count: 280 },
+      { itemId: MATERIAL3.lucky, count: 21 },
+      { itemId: MATERIAL3.protection, count: 16 }
+    ]
+  ),
+  "7-5": chapter3(
+    "7-5",
+    15,
+    15,
+    [830, 900, 980, 1065, 1160, 1590],
+    {
+      normal: source3([entry3(MATERIAL3.stone, 3.4, 32, 48)]),
+      elite: source3([
+        entry3(MATERIAL3.ore, 0.59, 1, 4, 19),
+        entry3(MATERIAL3.lucky, 5e-3, 1, 1, 580),
+        entry3(MATERIAL3.protection, 5e-3, 1, 1, 510)
+      ]),
+      boss: source3([
+        entry3(MATERIAL3.ore, 0.29, 2, 5, 30),
+        entry3(MATERIAL3.lucky, 5e-3, 1, 1, 500),
+        entry3(MATERIAL3.protection, 6e-3, 1, 1, 450)
+      ])
+    },
+    [
+      { itemId: MATERIAL3.reforge, count: 15 },
+      { itemId: MATERIAL3.ore, count: 320 },
+      { itemId: MATERIAL3.lucky, count: 23 },
+      { itemId: MATERIAL3.protection, count: 19 }
+    ]
+  )
+};
+
+// src/data/enhanceProgression.ts
+var MATERIAL4 = {
+  ...ENHANCE_MATERIAL_IDS,
+  reforge: "stone_reforge",
+  resonance: "crystal_resonance"
+};
+var ENHANCE_PROGRESSION_MATERIAL_IDS = [
+  MATERIAL4.stone,
+  MATERIAL4.ore,
+  MATERIAL4.lucky,
+  MATERIAL4.protection
+];
+function entry4(itemId, weight, minCount, maxCount, pityCount) {
+  return {
+    itemId,
+    weight,
+    minCount,
+    maxCount,
+    ...pityCount === void 0 ? {} : { pityCount }
+  };
+}
+function guaranteed(itemId, minCount, maxCount) {
+  return entry4(itemId, 0, minCount, maxCount);
+}
+function source4(entries = [], guaranteedEntries = []) {
+  return { entries, guaranteed: guaranteedEntries };
+}
+function chapter4(chapterId, recommendedAllEnhance, recommendedMainEnhance, stoneByStage, loot, finalBonus = [{ itemId: MATERIAL4.reforge, count: 2 }]) {
+  return {
+    chapterId,
+    recommendedAllEnhance,
+    recommendedMainEnhance,
+    loot,
+    firstClear: { stoneByStage, finalBonus }
+  };
+}
+var EMPTY_SOURCE = source4();
 var ENHANCE_PROGRESSION = {
-  "1-1": chapter3("1-1", 0, 2, [2, 3, 4, 5, 6, 8], {
-    normal: source3([entry3(MATERIAL3.stone, 170, 1, 2)]),
+  "1-1": chapter4("1-1", 0, 2, [2, 3, 4, 5, 6, 8], {
+    normal: source4([entry4(MATERIAL4.stone, 170, 1, 2)]),
     elite: EMPTY_SOURCE,
     boss: EMPTY_SOURCE
   }),
-  "1-2": chapter3("1-2", 1, 3, [3, 4, 5, 6, 8, 10], {
-    normal: source3([entry3(MATERIAL3.stone, 170, 1, 2)]),
+  "1-2": chapter4("1-2", 1, 3, [3, 4, 5, 6, 8, 10], {
+    normal: source4([entry4(MATERIAL4.stone, 170, 1, 2)]),
     elite: EMPTY_SOURCE,
     boss: EMPTY_SOURCE
   }),
-  "1-3": chapter3("1-3", 3, 5, [6, 8, 10, 12, 15, 20], {
-    normal: source3([entry3(MATERIAL3.stone, 180, 1, 3)]),
-    elite: source3([], [guaranteed(MATERIAL3.stone, 3, 5)]),
+  "1-3": chapter4("1-3", 3, 5, [6, 8, 10, 12, 15, 20], {
+    normal: source4([entry4(MATERIAL4.stone, 180, 1, 3)]),
+    elite: source4([], [guaranteed(MATERIAL4.stone, 3, 5)]),
     boss: EMPTY_SOURCE
   }),
-  "1-4": chapter3(
+  "1-4": chapter4(
     "1-4",
     4,
     6,
     [10, 12, 15, 18, 22, 30],
     {
-      normal: source3([entry3(MATERIAL3.stone, 190, 2, 3)]),
-      elite: source3([entry3(MATERIAL3.ore, 44, 1, 1, 3)], [guaranteed(MATERIAL3.stone, 4, 6)]),
+      normal: source4([entry4(MATERIAL4.stone, 190, 2, 3)]),
+      elite: source4([entry4(MATERIAL4.ore, 44, 1, 1, 3)], [guaranteed(MATERIAL4.stone, 4, 6)]),
       boss: EMPTY_SOURCE
     },
     [
-      { itemId: MATERIAL3.reforge, count: 2 },
-      { itemId: MATERIAL3.ore, count: 2 }
+      { itemId: MATERIAL4.reforge, count: 2 },
+      { itemId: MATERIAL4.ore, count: 2 }
     ]
   ),
-  "1-5": chapter3(
+  "1-5": chapter4(
     "1-5",
     5,
     8,
     [15, 18, 22, 26, 30, 50],
     {
-      normal: source3([entry3(MATERIAL3.stone, 210, 2, 4)]),
-      elite: source3([entry3(MATERIAL3.ore, 68, 1, 2, 2)], [guaranteed(MATERIAL3.stone, 5, 8)]),
-      boss: source3(
-        [entry3(MATERIAL3.lucky, 6, 1, 1, 9), entry3(MATERIAL3.protection, 3, 1, 1, 19)],
+      normal: source4([entry4(MATERIAL4.stone, 210, 2, 4)]),
+      elite: source4([entry4(MATERIAL4.ore, 68, 1, 2, 2)], [guaranteed(MATERIAL4.stone, 5, 8)]),
+      boss: source4(
+        [entry4(MATERIAL4.lucky, 6, 1, 1, 9), entry4(MATERIAL4.protection, 3, 1, 1, 19)],
         [
-          guaranteed(MATERIAL3.stone, 20, 30),
-          guaranteed(MATERIAL3.reforge, 1, 3),
-          guaranteed(MATERIAL3.ore, 5, 8)
+          guaranteed(MATERIAL4.stone, 20, 30),
+          guaranteed(MATERIAL4.reforge, 1, 3),
+          guaranteed(MATERIAL4.ore, 5, 8)
         ]
       )
     },
     [
-      { itemId: MATERIAL3.reforge, count: 2 },
-      { itemId: MATERIAL3.ore, count: 10 },
-      { itemId: MATERIAL3.lucky, count: 1 },
-      { itemId: MATERIAL3.protection, count: 1 }
+      { itemId: MATERIAL4.reforge, count: 2 },
+      { itemId: MATERIAL4.ore, count: 10 },
+      { itemId: MATERIAL4.lucky, count: 1 },
+      { itemId: MATERIAL4.protection, count: 1 }
     ]
   ),
-  "2-1": chapter3(
+  "2-1": chapter4(
     "2-1",
     5,
     8,
     [20, 24, 28, 32, 36, 50],
     {
-      normal: source3([entry3(MATERIAL3.stone, 220, 3, 5)]),
+      normal: source4([entry4(MATERIAL4.stone, 220, 3, 5)]),
       elite: EMPTY_SOURCE,
       boss: EMPTY_SOURCE
     },
     [
-      { itemId: MATERIAL3.reforge, count: 2 },
-      { itemId: MATERIAL3.ore, count: 3 }
+      { itemId: MATERIAL4.reforge, count: 2 },
+      { itemId: MATERIAL4.ore, count: 3 }
     ]
   ),
-  "2-2": chapter3(
+  "2-2": chapter4(
     "2-2",
     6,
     9,
     [28, 32, 36, 42, 48, 60],
     {
-      normal: source3([entry3(MATERIAL3.stone, 230, 4, 6)]),
-      elite: source3([entry3(MATERIAL3.ore, 34, 1, 1, 4)], [guaranteed(MATERIAL3.stone, 6, 10)]),
+      normal: source4([entry4(MATERIAL4.stone, 230, 4, 6)]),
+      elite: source4([entry4(MATERIAL4.ore, 34, 1, 1, 4)], [guaranteed(MATERIAL4.stone, 6, 10)]),
       boss: EMPTY_SOURCE
     },
     [
-      { itemId: MATERIAL3.reforge, count: 2 },
-      { itemId: MATERIAL3.ore, count: 5 }
+      { itemId: MATERIAL4.reforge, count: 2 },
+      { itemId: MATERIAL4.ore, count: 5 }
     ]
   ),
-  "2-3": chapter3(
+  "2-3": chapter4(
     "2-3",
     7,
     9,
     [36, 42, 48, 55, 62, 75],
     {
-      normal: source3([entry3(MATERIAL3.stone, 250, 4, 7)]),
-      elite: source3([entry3(MATERIAL3.ore, 55, 1, 2, 3)], [guaranteed(MATERIAL3.stone, 8, 12)]),
+      normal: source4([entry4(MATERIAL4.stone, 250, 4, 7)]),
+      elite: source4([entry4(MATERIAL4.ore, 55, 1, 2, 3)], [guaranteed(MATERIAL4.stone, 8, 12)]),
       boss: EMPTY_SOURCE
     },
     [
-      { itemId: MATERIAL3.reforge, count: 2 },
-      { itemId: MATERIAL3.ore, count: 8 }
+      { itemId: MATERIAL4.reforge, count: 2 },
+      { itemId: MATERIAL4.ore, count: 8 }
     ]
   ),
-  "2-4": chapter3(
+  "2-4": chapter4(
     "2-4",
     8,
     10,
     [48, 55, 62, 70, 80, 100],
     {
-      normal: source3([entry3(MATERIAL3.stone, 275, 5, 8)]),
-      elite: source3([], [guaranteed(MATERIAL3.stone, 10, 15), guaranteed(MATERIAL3.ore, 2, 3)]),
+      normal: source4([entry4(MATERIAL4.stone, 275, 5, 8)]),
+      elite: source4([], [guaranteed(MATERIAL4.stone, 10, 15), guaranteed(MATERIAL4.ore, 2, 3)]),
       boss: EMPTY_SOURCE
     },
     [
-      { itemId: MATERIAL3.reforge, count: 2 },
-      { itemId: MATERIAL3.ore, count: 12 }
+      { itemId: MATERIAL4.reforge, count: 2 },
+      { itemId: MATERIAL4.ore, count: 12 }
     ]
   ),
-  "2-5": chapter3(
+  "2-5": chapter4(
     "2-5",
     9,
     10,
     [60, 70, 80, 90, 100, 150],
     {
-      normal: source3([entry3(MATERIAL3.stone, 275, 6, 10)]),
-      elite: source3([], [guaranteed(MATERIAL3.stone, 12, 18), guaranteed(MATERIAL3.ore, 3, 5)]),
-      boss: source3(
-        [entry3(MATERIAL3.lucky, 18, 1, 1, 3), entry3(MATERIAL3.protection, 10, 1, 1, 5)],
+      normal: source4([entry4(MATERIAL4.stone, 275, 6, 10)]),
+      elite: source4([], [guaranteed(MATERIAL4.stone, 12, 18), guaranteed(MATERIAL4.ore, 3, 5)]),
+      boss: source4(
+        [entry4(MATERIAL4.lucky, 18, 1, 1, 3), entry4(MATERIAL4.protection, 10, 1, 1, 5)],
         [
-          guaranteed(MATERIAL3.stone, 40, 60),
-          guaranteed(MATERIAL3.reforge, 2, 4),
-          guaranteed(MATERIAL3.ore, 12, 18)
+          guaranteed(MATERIAL4.stone, 40, 60),
+          guaranteed(MATERIAL4.reforge, 2, 4),
+          guaranteed(MATERIAL4.ore, 12, 18)
         ]
       )
     },
     [
-      { itemId: MATERIAL3.reforge, count: 2 },
-      { itemId: MATERIAL3.ore, count: 30 },
-      { itemId: MATERIAL3.lucky, count: 2 },
-      { itemId: MATERIAL3.protection, count: 2 }
+      { itemId: MATERIAL4.reforge, count: 2 },
+      { itemId: MATERIAL4.ore, count: 30 },
+      { itemId: MATERIAL4.lucky, count: 2 },
+      { itemId: MATERIAL4.protection, count: 2 }
     ]
   ),
   // ── 区域 3 虫娘洞窟（Lv20-30）──
   // 推荐档位必须从区域 2 收尾的 9 / 10 继续递增，不能回落；
   // 精英掉落只配给真正有精英的章节（3-2 / 3-5），否则会生成不可触达的掉落表。
-  "3-1": chapter3("3-1", 9, 10, [110, 125, 140, 155, 170, 240], {
-    normal: source3([entry3(MATERIAL3.stone, 300, 8, 13)]),
+  "3-1": chapter4("3-1", 9, 10, [110, 125, 140, 155, 170, 240], {
+    normal: source4([entry4(MATERIAL4.stone, 300, 8, 13)]),
     elite: EMPTY_SOURCE,
     boss: EMPTY_SOURCE
   }),
-  "3-2": chapter3("3-2", 9, 11, [125, 140, 155, 170, 190, 265], {
-    normal: source3([entry3(MATERIAL3.stone, 305, 9, 14)]),
-    elite: source3(
-      [entry3(MATERIAL3.ore, 24, 1, 2, 4)],
-      [guaranteed(MATERIAL3.stone, 18, 26), guaranteed(MATERIAL3.ore, 4, 7)]
+  "3-2": chapter4("3-2", 9, 11, [125, 140, 155, 170, 190, 265], {
+    normal: source4([entry4(MATERIAL4.stone, 305, 9, 14)]),
+    elite: source4(
+      [entry4(MATERIAL4.ore, 24, 1, 2, 4)],
+      [guaranteed(MATERIAL4.stone, 18, 26), guaranteed(MATERIAL4.ore, 4, 7)]
     ),
     boss: EMPTY_SOURCE
   }),
-  "3-3": chapter3("3-3", 10, 11, [140, 155, 175, 190, 210, 290], {
-    normal: source3([entry3(MATERIAL3.stone, 310, 10, 15)]),
+  "3-3": chapter4("3-3", 10, 11, [140, 155, 175, 190, 210, 290], {
+    normal: source4([entry4(MATERIAL4.stone, 310, 10, 15)]),
     elite: EMPTY_SOURCE,
     boss: EMPTY_SOURCE
   }),
-  "3-4": chapter3("3-4", 10, 12, [155, 175, 195, 210, 230, 320], {
-    normal: source3([entry3(MATERIAL3.stone, 315, 11, 16)]),
+  "3-4": chapter4("3-4", 10, 12, [155, 175, 195, 210, 230, 320], {
+    normal: source4([entry4(MATERIAL4.stone, 315, 11, 16)]),
     elite: EMPTY_SOURCE,
     boss: EMPTY_SOURCE
   }),
-  "3-5": chapter3(
+  "3-5": chapter4(
     "3-5",
     10,
     12,
     [175, 195, 215, 235, 260, 360],
     {
-      normal: source3([entry3(MATERIAL3.stone, 320, 12, 18)]),
-      elite: source3([], [guaranteed(MATERIAL3.stone, 24, 34), guaranteed(MATERIAL3.ore, 7, 11)]),
-      boss: source3(
-        [entry3(MATERIAL3.lucky, 22, 1, 2, 3), entry3(MATERIAL3.protection, 13, 1, 1, 4)],
+      normal: source4([entry4(MATERIAL4.stone, 320, 12, 18)]),
+      elite: source4([], [guaranteed(MATERIAL4.stone, 24, 34), guaranteed(MATERIAL4.ore, 7, 11)]),
+      boss: source4(
+        [entry4(MATERIAL4.lucky, 22, 1, 2, 3), entry4(MATERIAL4.protection, 13, 1, 1, 4)],
         [
-          guaranteed(MATERIAL3.stone, 55, 80),
-          guaranteed(MATERIAL3.reforge, 3, 5),
-          guaranteed(MATERIAL3.ore, 16, 24)
+          guaranteed(MATERIAL4.stone, 55, 80),
+          guaranteed(MATERIAL4.reforge, 3, 5),
+          guaranteed(MATERIAL4.ore, 16, 24)
         ]
       )
     },
     [
-      { itemId: MATERIAL3.reforge, count: 3 },
-      { itemId: MATERIAL3.ore, count: 40 },
-      { itemId: MATERIAL3.lucky, count: 3 },
-      { itemId: MATERIAL3.protection, count: 2 }
+      { itemId: MATERIAL4.reforge, count: 3 },
+      { itemId: MATERIAL4.ore, count: 40 },
+      { itemId: MATERIAL4.lucky, count: 3 },
+      { itemId: MATERIAL4.protection, count: 2 }
     ]
   ),
   // ── 区域 4 月下墓园（Lv30-40）──
   // 保护符从「首通奖励」转为精英与 BOSS 的常规低概率产出，
   // 支撑玩家第一次尝试冲 +13 以上。精英章节为 4-2 / 4-4 / 4-5。
-  "4-1": chapter3("4-1", 11, 12, [200, 225, 250, 275, 300, 420], {
-    normal: source3([entry3(MATERIAL3.stone, 325, 14, 20)]),
+  "4-1": chapter4("4-1", 11, 12, [200, 225, 250, 275, 300, 420], {
+    normal: source4([entry4(MATERIAL4.stone, 325, 14, 20)]),
     elite: EMPTY_SOURCE,
     boss: EMPTY_SOURCE
   }),
-  "4-2": chapter3("4-2", 11, 13, [225, 250, 275, 300, 330, 460], {
-    normal: source3([entry3(MATERIAL3.stone, 330, 15, 22)]),
-    elite: source3(
-      [entry3(MATERIAL3.ore, 28, 2, 4, 4), entry3(MATERIAL3.protection, 6, 1, 1, 8)],
-      [guaranteed(MATERIAL3.stone, 30, 42), guaranteed(MATERIAL3.ore, 9, 14)]
+  "4-2": chapter4("4-2", 11, 13, [225, 250, 275, 300, 330, 460], {
+    normal: source4([entry4(MATERIAL4.stone, 330, 15, 22)]),
+    elite: source4(
+      [entry4(MATERIAL4.ore, 28, 2, 4, 4), entry4(MATERIAL4.protection, 6, 1, 1, 8)],
+      [guaranteed(MATERIAL4.stone, 30, 42), guaranteed(MATERIAL4.ore, 9, 14)]
     ),
     boss: EMPTY_SOURCE
   }),
-  "4-3": chapter3("4-3", 11, 13, [250, 275, 305, 330, 365, 505], {
-    normal: source3([entry3(MATERIAL3.stone, 335, 16, 24)]),
+  "4-3": chapter4("4-3", 11, 13, [250, 275, 305, 330, 365, 505], {
+    normal: source4([entry4(MATERIAL4.stone, 335, 16, 24)]),
     elite: EMPTY_SOURCE,
     boss: EMPTY_SOURCE
   }),
-  "4-4": chapter3("4-4", 12, 14, [275, 305, 335, 365, 400, 555], {
-    normal: source3([entry3(MATERIAL3.stone, 340, 18, 26)]),
-    elite: source3(
-      [entry3(MATERIAL3.ore, 30, 3, 5, 3), entry3(MATERIAL3.lucky, 8, 1, 1, 6)],
-      [guaranteed(MATERIAL3.stone, 35, 48), guaranteed(MATERIAL3.ore, 11, 17)]
+  "4-4": chapter4("4-4", 12, 14, [275, 305, 335, 365, 400, 555], {
+    normal: source4([entry4(MATERIAL4.stone, 340, 18, 26)]),
+    elite: source4(
+      [entry4(MATERIAL4.ore, 30, 3, 5, 3), entry4(MATERIAL4.lucky, 8, 1, 1, 6)],
+      [guaranteed(MATERIAL4.stone, 35, 48), guaranteed(MATERIAL4.ore, 11, 17)]
     ),
     boss: EMPTY_SOURCE
   }),
-  "4-5": chapter3(
+  "4-5": chapter4(
     "4-5",
     12,
     14,
     [305, 335, 370, 400, 440, 610],
     {
-      normal: source3([entry3(MATERIAL3.stone, 345, 20, 28)]),
-      elite: source3([], [guaranteed(MATERIAL3.stone, 38, 52), guaranteed(MATERIAL3.ore, 13, 19)]),
-      boss: source3(
-        [entry3(MATERIAL3.lucky, 26, 2, 3, 3), entry3(MATERIAL3.protection, 16, 1, 2, 3)],
+      normal: source4([entry4(MATERIAL4.stone, 345, 20, 28)]),
+      elite: source4([], [guaranteed(MATERIAL4.stone, 38, 52), guaranteed(MATERIAL4.ore, 13, 19)]),
+      boss: source4(
+        [entry4(MATERIAL4.lucky, 26, 2, 3, 3), entry4(MATERIAL4.protection, 16, 1, 2, 3)],
         [
-          guaranteed(MATERIAL3.stone, 75, 105),
-          guaranteed(MATERIAL3.reforge, 4, 6),
-          guaranteed(MATERIAL3.ore, 22, 32)
+          guaranteed(MATERIAL4.stone, 75, 105),
+          guaranteed(MATERIAL4.reforge, 4, 6),
+          guaranteed(MATERIAL4.ore, 22, 32)
         ]
       )
     },
     [
-      { itemId: MATERIAL3.reforge, count: 4 },
-      { itemId: MATERIAL3.ore, count: 55 },
-      { itemId: MATERIAL3.lucky, count: 4 },
-      { itemId: MATERIAL3.protection, count: 3 }
+      { itemId: MATERIAL4.reforge, count: 4 },
+      { itemId: MATERIAL4.ore, count: 55 },
+      { itemId: MATERIAL4.lucky, count: 4 },
+      { itemId: MATERIAL4.protection, count: 3 }
     ]
   ),
   ...REGION_5_ENHANCE_PROGRESSION,
-  ...REGION_6_ENHANCE_PROGRESSION
+  ...REGION_6_ENHANCE_PROGRESSION,
+  ...REGION_7_ENHANCE_PROGRESSION
 };
 function getEnhanceProgression(chapterId) {
   return ENHANCE_PROGRESSION[chapterId];
@@ -6343,12 +6715,12 @@ function enhanceFirstClearRewards(chapterId, stageIndex, isBossStage) {
   const firstClear = requireEnhanceProgression(chapterId).firstClear;
   const rewards = [
     {
-      itemId: MATERIAL3.stone,
+      itemId: MATERIAL4.stone,
       count: firstClear.stoneByStage[stageIndex]
     }
   ];
   if (stageIndex === 5 && isBossStage) {
-    rewards.push({ itemId: MATERIAL3.resonance, count: 1 });
+    rewards.push({ itemId: MATERIAL4.resonance, count: 1 });
   }
   if (stageIndex === 5) {
     rewards.push(...firstClear.finalBonus.map((reward) => ({ ...reward })));
@@ -9698,9 +10070,9 @@ var affectionMoodSchema = z.enum(["calm", "bright", "shy", "moved", "playful"]);
 var elementSchema = z.enum(["fire", "ice", "thunder", "none"]);
 var persistedAffixKeys = Object.keys(AFFIX_RUNTIME_RULES);
 var affixKeySchema = z.enum(persistedAffixKeys);
-var generalAffixKeys = new Set(AFFIX_POOL.map((entry4) => entry4.key));
+var generalAffixKeys = new Set(AFFIX_POOL.map((entry5) => entry5.key));
 var professionAffixKeys = new Set(
-  Object.values(PROFESSION_AFFIX_POOLS).flat().map((entry4) => entry4.key)
+  Object.values(PROFESSION_AFFIX_POOLS).flat().map((entry5) => entry5.key)
 );
 var affixTierSchema = z.union([
   z.literal(1),
@@ -10081,14 +10453,14 @@ var saveDataSchema = z.object({
   // 上界取档位数：每个档位最多一条，改档存档塞不进第四条。
   milestones: z.array(milestoneRecordSchema).max(MILESTONE_LEVELS.length)
 }).strict().superRefine((save, ctx) => {
-  for (const [index, entry4] of save.encounters.pending.entries()) {
-    if (!entry4.storyChoiceId) continue;
-    const storyChoices = ENCOUNTERS[entry4.encounterId]?.storyArc?.storyChoices;
-    if (!storyChoices?.some((choice) => choice.id === entry4.storyChoiceId)) {
+  for (const [index, entry5] of save.encounters.pending.entries()) {
+    if (!entry5.storyChoiceId) continue;
+    const storyChoices = ENCOUNTERS[entry5.encounterId]?.storyArc?.storyChoices;
+    if (!storyChoices?.some((choice) => choice.id === entry5.storyChoiceId)) {
       ctx.addIssue({
         code: "custom",
         path: ["encounters", "pending", index, "storyChoiceId"],
-        message: `\u5267\u60C5\u56DE\u7B54 ${entry4.storyChoiceId} \u4E0D\u5C5E\u4E8E\u5947\u9047 ${entry4.encounterId}`
+        message: `\u5267\u60C5\u56DE\u7B54 ${entry5.storyChoiceId} \u4E0D\u5C5E\u4E8E\u5947\u9047 ${entry5.encounterId}`
       });
     }
   }
