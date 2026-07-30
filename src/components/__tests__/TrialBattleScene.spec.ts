@@ -2,6 +2,7 @@ import { createSSRApp, h } from 'vue';
 import { renderToString } from 'vue/server-renderer';
 import { describe, expect, it } from 'vitest';
 import { weeklyTrialBoss } from '@/core/trial';
+import { TRIAL_BRACKETS } from '@/data/trialRules';
 import type { EquippedRecord } from '@/data/characterAppearance';
 import { requireTrialVisual } from '@/data/trialVisuals';
 import TrialBattleScene from '../TrialBattleScene.vue';
@@ -19,7 +20,7 @@ const EMPTY_EQUIPPED: EquippedRecord = {
 
 describe('TrialBattleScene / 周常试炼战斗窗口', () => {
   it('待机态直接展示专属场景、具体 Boss 与完整战斗 HUD', async () => {
-    const boss = weeklyTrialBoss('s1', 30, 'feiyue');
+    const boss = weeklyTrialBoss('s1', 30, TRIAL_BRACKETS[1]!.id);
     const visual = requireTrialVisual(boss.tilt.id, boss.combatant.element);
     const app = createSSRApp(
       h(TrialBattleScene, {

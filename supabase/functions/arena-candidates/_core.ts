@@ -4053,10 +4053,18 @@ function getFieldEquipmentSet(id) {
 
 // src/data/trialRules.ts
 var TRIAL_BRACKETS = [
-  { id: "chuying", name: "\u521D\u6A31", minLevel: 1, maxLevel: 30, bossLevel: 15 },
-  { id: "feiyue", name: "\u7EEF\u6708", minLevel: 31, maxLevel: 60, bossLevel: 45 },
-  { id: "hupo", name: "\u7425\u73C0", minLevel: 61, maxLevel: 90, bossLevel: 75 },
-  { id: "feiying", name: "\u7EEF\u6A31", minLevel: 91, maxLevel: 120, bossLevel: 105 }
+  { id: "b_bud", name: "\u521D\u6A31", minLevel: 1, maxLevel: 10, bossLevel: 7 },
+  { id: "b_moon", name: "\u7EEF\u6708", minLevel: 11, maxLevel: 23, bossLevel: 18 },
+  { id: "b_amber", name: "\u7425\u73C0", minLevel: 24, maxLevel: 39, bossLevel: 33 },
+  { id: "b_crimson", name: "\u7EEF\u6A31", minLevel: 40, maxLevel: 54, bossLevel: 48 },
+  // 顶段名与 Lv50 的「传说樱冠」外观档呼应（characterAppearance.ts）
+  { id: "b_crown", name: "\u6A31\u51A0", minLevel: 55, maxLevel: 120, bossLevel: 63 }
+];
+var LEGACY_TRIAL_BRACKET_IDS = [
+  "chuying",
+  "feiyue",
+  "hupo",
+  "feiying"
 ];
 var TRIAL_BEST_KEEP = 26;
 
@@ -9584,7 +9592,7 @@ function isMilestoneLevel(level) {
 }
 
 // src/save/schema.ts
-var SAVE_VERSION = 14;
+var SAVE_VERSION = 15;
 var classIdSchema = z.enum(CLASS_IDS);
 var qualitySchema = z.enum(QUALITY_ORDER);
 var affectionMoodSchema = z.enum(["calm", "bright", "shy", "moved", "playful"]);
@@ -9860,7 +9868,10 @@ var affectionCharacterProgressSchema = z.object({
   (progress) => progress.totalInteractions >= progress.interactionsToday,
   "\u603B\u4E92\u52A8\u6B21\u6570\u4E0D\u80FD\u5C11\u4E8E\u4ECA\u65E5\u4E92\u52A8\u6B21\u6570"
 );
-var trialBracketIds = new Set(TRIAL_BRACKETS.map((b) => b.id));
+var trialBracketIds = /* @__PURE__ */ new Set([
+  ...TRIAL_BRACKETS.map((b) => b.id),
+  ...LEGACY_TRIAL_BRACKET_IDS
+]);
 var trialBestSchema = z.object({
   seasonId: z.string().min(1).max(16),
   weekIndex: nonNegativeInteger,
@@ -9903,6 +9914,7 @@ var saveDataSchema = z.object({
   progress: z.object({
     currentStageId: z.string().min(1),
     clearedStageIds: z.array(z.string().min(1)),
+    stageFirstClearedAt: z.record(z.string(), timestamp),
     stageKills: z.record(z.string(), nonNegativeInteger),
     pity: z.record(z.string(), nonNegativeInteger),
     seenTutorials: z.array(z.string().min(1))

@@ -39,6 +39,9 @@ import { EQUIPMENT } from '@/data/equipment';
 import { Rng } from '../rng';
 
 const SEASON = TRIAL_SEASON_ID;
+// 从分段表取而不是写死 id：分段会随内容曲线重划（docs/64 §一）
+const LOW_BRACKET = TRIAL_BRACKETS[0]!.id;
+const MID_BRACKET = TRIAL_BRACKETS[Math.floor(TRIAL_BRACKETS.length / 2)]!.id;
 const EMPTY_EQUIPPED = Object.freeze(Array.from({ length: 8 }, () => null));
 
 /** 从装备定义表里挑一件真实武器，避免测试写死 id 而脱离内容表。 */
@@ -76,15 +79,36 @@ describe('trialWeekIndex / 周切边界', () => {
 });
 
 describe('trialBracketFor / 等级分段', () => {
-  it('覆盖四个分段的边界', () => {
-    expect(trialBracketFor(1).id).toBe('chuying');
-    expect(trialBracketFor(30).id).toBe('chuying');
-    expect(trialBracketFor(31).id).toBe('feiyue');
-    expect(trialBracketFor(60).id).toBe('feiyue');
-    expect(trialBracketFor(61).id).toBe('hupo');
-    expect(trialBracketFor(90).id).toBe('hupo');
-    expect(trialBracketFor(91).id).toBe('feiying');
-    expect(trialBracketFor(120).id).toBe('feiying');
+  // 断言**性质**而不是具体 id：分段会随内容曲线重划（2026-07-30 已重划一次，
+  // docs/64 §一）。把 id 和区间写死等于把测试变成「设计快照」，
+  // 每次调分段都要改一堆断言，还会掩盖真正的回归。
+  it('分段首尾相接、无空隙、无重叠，且覆盖 1~120', () => {
+    const sorted = [...TRIAL_BRACKETS].sort((a, b) => a.minLevel - b.minLevel);
+    expect(sorted[0]!.minLevel).toBe(1);
+    expect(sorted[sorted.length - 1]!.maxLevel).toBe(120);
+    for (let i = 1; i < sorted.length; i++) {
+      // 相邻两段必须正好接上：上一段 maxLevel + 1 == 下一段 minLevel
+      expect(sorted[i]!.minLevel).toBe(sorted[i - 1]!.maxLevel + 1);
+    }
+  });
+
+  it('每一段的边界等级都能查回该段自己', () => {
+    for (const bracket of TRIAL_BRACKETS) {
+      expect(trialBracketFor(bracket.minLevel).id).toBe(bracket.id);
+      expect(trialBracketFor(bracket.maxLevel).id).toBe(bracket.id);
+    }
+  });
+
+  it('Boss 等级落在本段区间内', () => {
+    for (const bracket of TRIAL_BRACKETS) {
+      expect(bracket.bossLevel).toBeGreaterThanOrEqual(bracket.minLevel);
+      expect(bracket.bossLevel).toBeLessThanOrEqual(bracket.maxLevel);
+    }
+  });
+
+  it('id 与显示名都不重复', () => {
+    expect(new Set(TRIAL_BRACKETS.map((b) => b.id)).size).toBe(TRIAL_BRACKETS.length);
+    expect(new Set(TRIAL_BRACKETS.map((b) => b.name)).size).toBe(TRIAL_BRACKETS.length);
   });
 
   it('超出 1~120 抛错', () => {
@@ -95,19 +119,19 @@ describe('trialBracketFor / 等级分段', () => {
 
 describe('weeklyTrialBoss / 每周 Boss 生成', () => {
   it('同一周同一分段：全服完全相同', () => {
-    const a = weeklyTrialBoss(SEASON, 30, 'feiyue');
-    const b = weeklyTrialBoss(SEASON, 30, 'feiyue');
+    const a = weeklyTrialBoss(SEASON, 30, MID_BRACKET);
+    const b = weeklyTrialBoss(SEASON, 30, MID_BRACKET);
     expect(a.combatant).toEqual(b.combatant);
     expect(a.tilt.id).toBe(b.tilt.id);
     expect(a.name).toBe(b.name);
   });
 
   it('换周或换分段：种子不同，Boss 随之变化', () => {
-    const thisWeek = weeklyTrialBoss(SEASON, 30, 'feiyue');
-    const nextWeek = weeklyTrialBoss(SEASON, 31, 'feiyue');
-    expect(trialBossSeed(SEASON, 30, 'feiyue')).not.toBe(trialBossSeed(SEASON, 31, 'feiyue'));
+    const thisWeek = weeklyTrialBoss(SEASON, 30, MID_BRACKET);
+    const nextWeek = weeklyTrialBoss(SEASON, 31, MID_BRACKET);
+    expect(trialBossSeed(SEASON, 30, MID_BRACKET)).not.toBe(trialBossSeed(SEASON, 31, MID_BRACKET));
     expect(thisWeek.combatant.stats.hp).not.toBe(
-      weeklyTrialBoss(SEASON, 30, 'chuying').combatant.stats.hp,
+      weeklyTrialBoss(SEASON, 30, LOW_BRACKET).combatant.stats.hp,
     );
     void nextWeek;
   });
@@ -133,9 +157,9 @@ describe('weeklyTrialBoss / 每周 Boss 生成', () => {
   });
 
   it('Boss 名与元素一致，等级取分段中位', () => {
-    const boss = weeklyTrialBoss(SEASON, 30, 'hupo');
+    const boss = weeklyTrialBoss(SEASON, 30, MID_BRACKET);
     expect(boss.name).toBe(boss.tilt.names[boss.combatant.element as 'fire' | 'ice' | 'thunder']);
-    expect(boss.combatant.level).toBe(trialBracketById('hupo').bossLevel);
+    expect(boss.combatant.level).toBe(trialBracketById(MID_BRACKET).bossLevel);
   });
 });
 
@@ -218,8 +242,8 @@ describe('runTrial / 试炼模拟', () => {
       level: 45,
       equipped: [weapon, null, null, null, null, null, null, null],
     });
-    const boss = weeklyTrialBoss(SEASON, 30, 'feiyue').combatant;
-    const seed = trialScoreSeed(SEASON, 30, 'feiyue', build.buildHash);
+    const boss = weeklyTrialBoss(SEASON, 30, MID_BRACKET).combatant;
+    const seed = trialScoreSeed(SEASON, 30, MID_BRACKET, build.buildHash);
 
     const runA = runTrial(build, boss, seed);
     const runB = runTrial(build, boss, seed);
@@ -241,8 +265,8 @@ describe('runTrial / 试炼模拟', () => {
       level: 45,
       equipped: EMPTY_EQUIPPED,
     });
-    const boss = weeklyTrialBoss(SEASON, 30, 'feiyue').combatant;
-    const result = runTrial(build, boss, trialScoreSeed(SEASON, 30, 'feiyue', build.buildHash));
+    const boss = weeklyTrialBoss(SEASON, 30, MID_BRACKET).combatant;
+    const result = runTrial(build, boss, trialScoreSeed(SEASON, 30, MID_BRACKET, build.buildHash));
     const playerDamage = result.timeline
       .filter((event) => event.source === 'player')
       .reduce((sum, event) => sum + event.event.damage, 0);
@@ -265,8 +289,8 @@ describe('runTrial / 试炼模拟', () => {
       level: 1,
       equipped: EMPTY_EQUIPPED,
     });
-    const boss = weeklyTrialBoss(SEASON, 30, 'chuying').combatant;
-    const result = runTrial(weak, boss, trialScoreSeed(SEASON, 30, 'chuying', weak.buildHash));
+    const boss = weeklyTrialBoss(SEASON, 30, LOW_BRACKET).combatant;
+    const result = runTrial(weak, boss, trialScoreSeed(SEASON, 30, LOW_BRACKET, weak.buildHash));
     expect(result.damage).toBeGreaterThanOrEqual(0);
     expect(result.durationSec).toBeLessThanOrEqual(TRIAL_DURATION_SEC + 0.001);
   });
@@ -286,12 +310,15 @@ describe('runTrial / 试炼模拟', () => {
       level: 45,
       equipped: [strongWeapon, null, null, null, null, null, null, null],
     });
-    const boss = weeklyTrialBoss(SEASON, 30, 'feiyue').combatant;
-    const weakScore = runTrial(weak, boss, trialScoreSeed(SEASON, 30, 'feiyue', weak.buildHash));
+    // 打**自己等级对应的分段**：拿 Lv45 的角色去打低段 Boss 本身就不符合玩法，
+    // 而且功率差被压小时，「成绩种子依赖搭配哈希」带来的方差会盖过强弱差异。
+    const bracket = trialBracketFor(45).id;
+    const boss = weeklyTrialBoss(SEASON, 30, bracket).combatant;
+    const weakScore = runTrial(weak, boss, trialScoreSeed(SEASON, 30, bracket, weak.buildHash));
     const strongScore = runTrial(
       strong,
       boss,
-      trialScoreSeed(SEASON, 30, 'feiyue', strong.buildHash),
+      trialScoreSeed(SEASON, 30, bracket, strong.buildHash),
     );
     expect(strongScore.damage).toBeGreaterThan(weakScore.damage);
   });

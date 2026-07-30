@@ -13,7 +13,7 @@ import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearSave } from '@/save/storage';
 import { createSave, type TrialBest } from '@/save/schema';
-import { TRIAL_BEST_KEEP, TRIAL_SEASON_ID } from '@/data/trialRules';
+import { TRIAL_BEST_KEEP, TRIAL_BRACKETS, TRIAL_SEASON_ID } from '@/data/trialRules';
 import { trialBracketFor, trialWeekIndex } from '@/core/trial';
 import { useGameStore } from '../game';
 import { useLeaderboardStore } from '../leaderboard';
@@ -32,6 +32,9 @@ afterEach(async () => {
   vi.restoreAllMocks();
   await clearSave();
 });
+
+/** 默认档的分段，用它代替写死 id —— 分段会随内容曲线重划（docs/64 §一）。 */
+const DEFAULT_BRACKET = trialBracketFor(45).id;
 
 async function setupGame(level = 45) {
   const game = useGameStore();
@@ -81,7 +84,7 @@ describe('challengeTrial / 本地挑战', () => {
       const record: TrialBest = {
         seasonId: TRIAL_SEASON_ID,
         weekIndex: week - i,
-        bracketId: 'feiyue',
+        bracketId: DEFAULT_BRACKET,
         classId: 'swordsman',
         damage: 1000 + i,
         at: NOW - i * 86_400_000,
@@ -93,7 +96,7 @@ describe('challengeTrial / 本地挑战', () => {
     game.recordTrialBest({
       seasonId: TRIAL_SEASON_ID,
       weekIndex: week,
-      bracketId: 'feiyue',
+      bracketId: DEFAULT_BRACKET,
       classId: 'swordsman',
       damage: 999_999,
       at: NOW,
@@ -115,7 +118,7 @@ describe('weekOverWeekGain / 环比箭头', () => {
     game.save!.trial.bests.unshift({
       seasonId: TRIAL_SEASON_ID,
       weekIndex: week - 1,
-      bracketId: 'feiyue',
+      bracketId: DEFAULT_BRACKET,
       classId: 'swordsman',
       damage: 10_000,
       at: NOW - 7 * 86_400_000,
@@ -124,7 +127,7 @@ describe('weekOverWeekGain / 环比箭头', () => {
     game.save!.trial.bests.unshift({
       seasonId: TRIAL_SEASON_ID,
       weekIndex: week,
-      bracketId: 'feiyue',
+      bracketId: DEFAULT_BRACKET,
       classId: 'swordsman',
       damage: 11_800,
       at: NOW,
@@ -161,14 +164,19 @@ describe('离线降级 / 未配置 Supabase', () => {
 
 describe('本周上下文', () => {
   it('分段与 Boss 跟随玩家等级', async () => {
-    await setupGame(30);
-    const lb = useLeaderboardStore();
-    expect(lb.bracket.id).toBe('chuying');
-    expect(lb.boss.bracket.id).toBe('chuying');
+    // 断言「分段与 Boss 跟随等级」这个关系本身，不写死具体 id：
+    // 取第一段的末级与第二段的首级，重划分段后自动仍然有效。
+    const sorted = [...TRIAL_BRACKETS].sort((a, b) => a.minLevel - b.minLevel);
+    const [first, second] = [sorted[0]!, sorted[1]!];
 
-    useGameStore().save!.player.level = 31;
-    expect(lb.bracket.id).toBe('feiyue');
-    expect(lb.boss.bracket.id).toBe('feiyue');
+    await setupGame(first.maxLevel);
+    const lb = useLeaderboardStore();
+    expect(lb.bracket.id).toBe(first.id);
+    expect(lb.boss.bracket.id).toBe(first.id);
+
+    useGameStore().save!.player.level = second.minLevel;
+    expect(lb.bracket.id).toBe(second.id);
+    expect(lb.boss.bracket.id).toBe(second.id);
   });
 
   it('上周对照可以来自不同分段（升级跨段也能看到自己进步了）', async () => {
@@ -178,7 +186,7 @@ describe('本周上下文', () => {
     game.save!.trial.bests.unshift({
       seasonId: TRIAL_SEASON_ID,
       weekIndex: week - 1,
-      bracketId: 'chuying', // 上周还在初樱
+      bracketId: trialBracketFor(1).id, // 上周还在最低段
       classId: 'swordsman',
       damage: 1,
       at: NOW - 7 * 86_400_000,

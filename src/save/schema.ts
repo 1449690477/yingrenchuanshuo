@@ -47,7 +47,7 @@ import { EQUIPMENT_DUNGEON_STAGES, EQUIPMENT_DUNGEON_STAGE_LIST } from '@/data/e
 import { AFFECTION_CHARACTERS } from '@/data/affection';
 import { affectionEquipmentIdsForClass } from '@/data/affectionEquipment';
 import { AFFECTION_RULES } from '@/data/affectionRules';
-import { TRIAL_BEST_KEEP, TRIAL_BRACKETS } from '@/data/trialRules';
+import { LEGACY_TRIAL_BRACKET_IDS, TRIAL_BEST_KEEP, TRIAL_BRACKETS } from '@/data/trialRules';
 import { MILESTONE_LEVELS, isMilestoneLevel } from '@/data/milestoneRules';
 import { getEquipment } from '@/data/equipment';
 
@@ -649,7 +649,18 @@ const affectionCharacterProgressSchema = z
     '总互动次数不能少于今日互动次数',
   );
 
-const trialBracketIds = new Set(TRIAL_BRACKETS.map((b) => b.id));
+/**
+ * 分段校验白名单 = 当前分段 ∪ 已废弃分段。
+ *
+ * 2026-07-30 分段按新曲线重划并换了 id（docs/64 §一）。玩家存档里的历史
+ * TrialBest 带着旧 id，若白名单只认当前分段，老档会直接读不出来 ——
+ * 那是「一次更新废掉存档」（铁律 5）。历史记录必须能通过校验，
+ * 它们只是不再出现在任何榜单查询里。
+ */
+const trialBracketIds = new Set<string>([
+  ...TRIAL_BRACKETS.map((b) => b.id),
+  ...LEGACY_TRIAL_BRACKET_IDS,
+]);
 const trialBestSchema = z
   .object({
     seasonId: z.string().min(1).max(16),

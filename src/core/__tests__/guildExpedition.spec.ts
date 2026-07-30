@@ -10,6 +10,7 @@ import {
   guildWeekKey,
 } from '../guildExpedition';
 import { GUILD_CONTRIBUTION_MAX, GUILD_WEEKLY_TARGET_PER_MEMBER } from '@/data/guildRules';
+import { TRIAL_BRACKETS } from '@/data/trialRules';
 
 describe('公会远征时间边界', () => {
   it('按北京时间 04:00 切日', () => {
@@ -26,8 +27,8 @@ describe('公会远征时间边界', () => {
 
 describe('公会远征确定性与归一化', () => {
   it('不同等级分段共享首领主题，但属性随分段缩放', () => {
-    const low = guildExpeditionBoss('s1', 8, 'chuying');
-    const high = guildExpeditionBoss('s1', 8, 'feiying');
+    const low = guildExpeditionBoss('s1', 8, TRIAL_BRACKETS[0]!.id);
+    const high = guildExpeditionBoss('s1', 8, TRIAL_BRACKETS[TRIAL_BRACKETS.length - 1]!.id);
     expect(low.name).toBe(high.name);
     expect(low.combatant.element).toBe(high.combatant.element);
     expect(low.tilt.id).toBe(high.tilt.id);

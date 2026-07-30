@@ -44,11 +44,59 @@ export interface TrialBracket {
   bossLevel: number;
 }
 
+/**
+ * 等级分段（2026-07-30 重划，docs/64 §一）。
+ *
+ * 旧分段（1-30 / 31-60 / 61-90 / 91-120）是「等级无上限、内容到 Lv120」
+ * 时代的配置，在新曲线（内容顶 Lv65 / 软上限 68，docs/56）下已经失效：
+ *
+ * | 旧分段 | 段内战力跨度 | 实际玩家 |
+ * |---|---|---|
+ * | 初樱 1-30  | **27.3×** | 13 / 20 人 |
+ * | 绯月 31-60 | 3.6× | 5 人 |
+ * | 琥珀 61-90 | 4.3×（实际只能到 68） | 2 人 |
+ * | 绯樱 91-120 | —— | **0 人，永久不可达** |
+ *
+ * 分段存在的唯一理由是「同水平比较」（docs/51 §3.4）。27.3× 跨度里
+ * Lv30 玩家对 Lv2 玩家是碾压，而 65% 的玩家都挤在这一段 ——
+ * 分段没有起到任何作用，还占着一段永远空着的配置。
+ *
+ * 重划原则（按玩家**实际停留时间**加权，不是按等级数平均）：
+ *   - Lv1~23 玩家只待约 1.5 天（sim：D1 就到 Lv21），跨度大无所谓 ——
+ *     明天就换段了，为它牺牲别处的公平不值得
+ *   - **Lv40~68 要待 22 天**，竞争真正发生在这里，必须切细
+ *   - 段数取 5 而不是更多：人少时段数过多会把榜切空
+ *     （今天邻域榜的教训：8 条成绩被 12 个桶切碎，docs/61 §3.2）
+ *
+ * 重划后段内跨度：3.9× / 3.1× / 2.7× / **1.5×** / **2.1×**，
+ * 最大跨度落在只待半天的最低段。
+ *
+ * **id 全部换新**：旧 id 的语义变了（例如 hupo 从 61-90 变成 24-39），
+ * 继续复用会让上周 Lv65 玩家的成绩显示在低段榜上 —— 那比看不见更糟。
+ * 换新 id 后旧成绩行不再匹配任何当前分段，自然不展示；
+ * 旧 id 仍保留在 LEGACY_TRIAL_BRACKET_IDS 供存档校验，老档不会读不出来。
+ */
 export const TRIAL_BRACKETS: readonly TrialBracket[] = [
-  { id: 'chuying', name: '初樱', minLevel: 1, maxLevel: 30, bossLevel: 15 },
-  { id: 'feiyue', name: '绯月', minLevel: 31, maxLevel: 60, bossLevel: 45 },
-  { id: 'hupo', name: '琥珀', minLevel: 61, maxLevel: 90, bossLevel: 75 },
-  { id: 'feiying', name: '绯樱', minLevel: 91, maxLevel: 120, bossLevel: 105 },
+  { id: 'b_bud', name: '初樱', minLevel: 1, maxLevel: 10, bossLevel: 7 },
+  { id: 'b_moon', name: '绯月', minLevel: 11, maxLevel: 23, bossLevel: 18 },
+  { id: 'b_amber', name: '琥珀', minLevel: 24, maxLevel: 39, bossLevel: 33 },
+  { id: 'b_crimson', name: '绯樱', minLevel: 40, maxLevel: 54, bossLevel: 48 },
+  // 顶段名与 Lv50 的「传说樱冠」外观档呼应（characterAppearance.ts）
+  { id: 'b_crown', name: '樱冠', minLevel: 55, maxLevel: 120, bossLevel: 63 },
+] as const;
+
+/**
+ * 已废弃的分段 id，**只用于存档校验**。
+ *
+ * 玩家存档里的历史 TrialBest 记录带着旧 id，如果校验白名单只认当前分段，
+ * 老档会直接读不出来 —— 那是「一次更新废掉存档」（AGENTS.md 铁律 5）。
+ * 这些 id 不再出现在任何榜单查询里，只是让历史记录能通过校验。
+ */
+export const LEGACY_TRIAL_BRACKET_IDS: readonly string[] = [
+  'chuying',
+  'feiyue',
+  'hupo',
+  'feiying',
 ] as const;
 
 /**
