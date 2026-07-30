@@ -997,7 +997,8 @@
     },
     "layer:witch-r6-weapon": {
       "path": "public/assets/characters/modular/witch/r6-weapon.png",
-      "sha256": "289d7bb89df081527558ca8e746f26a3a86159e5bad06d9267bf2c58d8e6ef38"
+      "sha256": "ca9cbbc2c9f524d89d9f23eff6024c8f6853c78ba9965d657e9d7ce72d865b4c",
+      "alignmentReview": "2026-07-30 手位适配复核：平移武器层对准重建后底模拳位"
     },
     "layer:shaman-r6-body": {
       "path": "public/assets/characters/modular/shaman/r6-body.png",
@@ -1009,7 +1010,8 @@
     },
     "layer:shaman-r6-weapon": {
       "path": "public/assets/characters/modular/shaman/r6-weapon.png",
-      "sha256": "aab767a8734234fb19710e8d27b872ce3eaf5d5259d2e2284ae98e4ed612d935"
+      "sha256": "bc147da37e01fc89115772aa55ebe25de87f34ebb8b8644e543d911d1d807152",
+      "alignmentReview": "2026-07-30 手位适配复核：平移武器层对准重建后底模拳位"
     },
     "layer:catkin-r6-body": {
       "path": "public/assets/characters/modular/catkin/r6-body.png",

@@ -162,14 +162,16 @@ const PLACEMENTS = {
   'witch:r6:body': { x: 140, y: 145, width: 360, height: 430 },
   'witch:r6:head': { x: 230, y: 30, width: 180, height: 95 },
   // 杖身贴进左手手掌，留出右手施法动作，不盖住脸。
-  'witch:r6:weapon': { x: 135, y: 115, width: 160, height: 245, flip: true },
+  // 2026-07 手位适配复核：缠纹握柄右移 55 / 下移 70，让握柄正落入左拳（265,368）。
+  'witch:r6:weapon': { x: 190, y: 185, width: 160, height: 245, flip: true },
   'witch:r6-shadow:body': { x: 110, y: 150, width: 420, height: 560 },
   'witch:r6-shadow:head': { x: 225, y: 8, width: 190, height: 85 },
   // 套装法器的星盘体积较大，下移避开眼睛；杖身仍穿过左手锚点。
   'witch:r6-shadow:weapon': { x: 90, y: 115, width: 230, height: 340, flip: true },
   'shaman:r6:body': { x: 145, y: 155, width: 350, height: 470 },
   'shaman:r6:head': { x: 220, y: 35, width: 200, height: 90 },
-  'shaman:r6:weapon': { x: 300, y: 185, width: 170, height: 150 },
+  // 2026-07 手位适配复核：扇面下移 70，让扇骨左缘从宽袖中的左拳（312,360）伸出。
+  'shaman:r6:weapon': { x: 300, y: 255, width: 170, height: 150 },
   'shaman:r6-shadow:body': { x: 115, y: 150, width: 410, height: 570 },
   'shaman:r6-shadow:head': { x: 205, y: 5, width: 230, height: 110 },
   'shaman:r6-shadow:weapon': { x: 190, y: 195, width: 180, height: 160 },
