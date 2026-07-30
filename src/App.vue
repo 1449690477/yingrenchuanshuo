@@ -9,6 +9,7 @@ import OfflineModal from '@/components/OfflineModal.vue';
 import DefeatReport from '@/components/DefeatReport.vue';
 import SakuraField from '@/components/SakuraField.vue';
 import PwaUpdatePrompt from '@/components/PwaUpdatePrompt.vue';
+import SaveRecoveryPanel from '@/components/SaveRecoveryPanel.vue';
 
 import CreateView from '@/views/CreateView.vue';
 import IdleView from '@/views/IdleView.vue';
@@ -85,7 +86,7 @@ onUnmounted(() => {
 
     <div v-else-if="game.loadError" class="boot load-failed">
       <div class="boot-logo">存档读取失败</div>
-      <p class="boot-error">{{ game.loadError }}</p>
+      <SaveRecoveryPanel :error="game.loadError" :status="game.saveIntegrityStatus" />
       <p class="boot-tip">
         为避免覆盖你的进度，游戏没有自动创建新角色。请刷新重试或联系开发者处理存档。
       </p>

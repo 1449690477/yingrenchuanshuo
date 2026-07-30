@@ -8,6 +8,7 @@ import type { SaveData } from '@/save/schema';
 import { downloadSave, importFromJson } from '@/save/storage';
 import ShopView from '@/views/ShopView.vue';
 import CollapsibleCard from '@/components/CollapsibleCard.vue';
+import SaveIntegrityCard from '@/components/SaveIntegrityCard.vue';
 
 const player = usePlayerStore();
 const settings = useSettingsStore();
@@ -165,6 +166,7 @@ function say(text: string, ok: boolean) {
           <span class="peek-note">导出备份 · 导入存档</span>
         </template>
         <p v-if="settings.saveError" class="save-error">自动存档失败：{{ settings.saveError }}</p>
+        <SaveIntegrityCard />
         <p class="warn-note">
           存档只保存在这台设备的浏览器里。<strong>清理浏览器数据会导致存档丢失</strong>，
           建议定期导出备份。

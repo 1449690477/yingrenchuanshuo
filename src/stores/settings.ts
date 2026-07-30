@@ -10,9 +10,10 @@ export const useSettingsStore = defineStore('settings', () => {
   const settings = computed(() => game.save?.settings ?? null);
   const saveData = computed(() => game.save);
   const saveError = computed(() => game.saveError);
+  const integrityStatus = computed(() => game.saveIntegrityStatus);
 
   function importSave(data: SaveData): void {
-    game.loadFrom(data);
+    game.loadFrom(data, 'imported');
   }
 
   function setHaptics(enabled: boolean): boolean {
@@ -23,6 +24,7 @@ export const useSettingsStore = defineStore('settings', () => {
     settings,
     saveData,
     saveError,
+    integrityStatus,
     persist: game.persist,
     importSave,
     setHaptics,
