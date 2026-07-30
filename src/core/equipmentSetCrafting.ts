@@ -219,7 +219,7 @@ export function planEquipmentSetCrafting(input: {
 
   const rng = new Rng(rngState);
   const equipment = hasFullyFixedAffixes(targetDefinition)
-    ? createFixedInstance(targetDefinition, uid, true)
+    ? createFixedInstance(targetDefinition, uid, true, rng, classId)
     : createInstance(targetDefinition, rng, uid, classId);
 
   return {

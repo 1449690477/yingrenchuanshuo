@@ -208,6 +208,19 @@ function weaponClassPresentations(
   ) as Record<ClassId, EquipmentClassPresentation>;
 }
 
+/**
+ * 珍品商店装备的额外可洗槽（2026-07-30 品质平衡）。
+ *
+ * 固定词条按品质容量写满（epic 3 / legendary 4 / mythic 5），
+ * 额外槽在此之上，是玩家可以反复洗练的养成空间。
+ * 越高品质给越多 —— 红装 2 槽是它对「买得贵」的回答。
+ */
+const BOUTIQUE_EXTRA_AFFIX_SLOTS: Readonly<Record<'epic' | 'legendary' | 'mythic', number>> = {
+  epic: 1,
+  legendary: 1,
+  mythic: 2,
+};
+
 function buildEquipment(): Record<string, EquipmentDef> {
   const out: Record<string, EquipmentDef> = {};
 
@@ -309,6 +322,11 @@ function buildEquipment(): Record<string, EquipmentDef> {
           percentile,
         ),
         fixedTemplate: true,
+        // 额外可洗槽（2026-07-30 品质平衡）：珍品的固定词条是「身份」，
+        // 额外槽是「养成空间」。没有它，商店装买回来就定死、越玩越弱 ——
+        // 所有者反馈「红装卖得贵却不如掉落黄装」的核心原因。
+        // 按品质递增，让越贵的珍品越值得长期养。
+        extraAffixSlots: BOUTIQUE_EXTRA_AFFIX_SLOTS[theme.quality],
         uniqueEffect: item.uniqueEffect,
         boutiqueTheme: theme.id,
         ...(item.classId ? { classId: item.classId } : {}),

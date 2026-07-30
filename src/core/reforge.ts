@@ -136,7 +136,12 @@ export function resonanceAfterRoll(current: number, tier: Affix['tier']): number
 export function planAffixChange(input: PlanAffixChangeInput): PlanAffixChangeResult {
   validateInput(input);
   if (input.instance.pendingAffixChange) return { ok: false, reason: 'pending-result' };
-  if (input.definition.fixedTemplate || input.instance.affixes.length === 0) {
+  // 判据是「有没有可洗的随机词条」，不是「是不是固定模板」。
+  // 固定词条写在 def.fixedAffixes、不在实例里，洗练根本碰不到它们；
+  // 实例的 affixes 只有额外槽位那几条 —— 那正是留给玩家洗的养成空间。
+  // 旧写法把 fixedTemplate 整类挡在门外，导致商店红装、好感虹装的
+  // 额外槽形同虚设（所有者反馈「红装还不如掉落黄装」的直接原因之一）。
+  if (input.instance.affixes.length === 0) {
     return { ok: false, reason: 'no-random-affixes' };
   }
 

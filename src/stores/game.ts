@@ -1399,7 +1399,7 @@ export const useGameStore = defineStore('game', () => {
       for (let i = 0; i < drop.count; i++) {
         const uid = `e${s.nextUid}`;
         const inst = hasFullyFixedAffixes(eqDef)
-          ? createFixedInstance(eqDef, uid, true)
+          ? createFixedInstance(eqDef, uid, true, rng.derive(s.nextUid), s.player.classId)
           : createInstance(eqDef, rng.derive(s.nextUid), uid, s.player.classId);
         s.nextUid++;
         s.bag.equipment.push(inst);
@@ -1782,7 +1782,7 @@ export const useGameStore = defineStore('game', () => {
       for (let index = 0; index < drop.count; index++) {
         const uid = `e${nextUid}`;
         const instance = hasFullyFixedAffixes(definition)
-          ? createFixedInstance(definition, uid, true)
+          ? createFixedInstance(definition, uid, true, instanceRng.derive(nextUid), s.player.classId)
           : createInstance(definition, instanceRng.derive(nextUid), uid, s.player.classId);
         // 首通奖励是图鉴启动资产，必须锁定，不能被满背包安全裁剪静默分解。
         if (planned.firstClear) instance.locked = true;
@@ -2750,7 +2750,14 @@ export const useGameStore = defineStore('game', () => {
 
     const s = save.value;
     // 珍品词条全部写在 EquipmentDef.fixedAffixes；商店、预览和 BOSS 同款不盲抽。
-    const instance = createFixedInstance(def, `e${s.nextUid}`, true);
+    // 额外可洗槽的随机词条在此掷出（固定词条仍然写死、绝不盲抽）
+    const instance = createFixedInstance(
+      def,
+      `e${s.nextUid}`,
+      true,
+      rng.derive(s.nextUid),
+      s.player.classId,
+    );
 
     s.player.gold -= offer.price;
     s.nextUid += 1;

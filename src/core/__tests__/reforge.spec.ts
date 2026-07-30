@@ -9,6 +9,9 @@ import {
   type ReforgeWallet,
 } from '../reforge';
 import { AFFIX_ELEMENT_OPTIONS, PROFESSION_AFFIX_POOLS } from '@/data/constants';
+import { EQUIPMENT } from '@/data/equipment';
+import { createFixedInstance } from '../equipment';
+import { Rng } from '../rng';
 
 const regionMaterials = {
   commonIds: ['petal_sakura', 'grass_soft'],
@@ -517,5 +520,66 @@ describe('洗练候选事务', () => {
       rngState: 7,
     });
     expect(pending).toEqual({ ok: false, reason: 'pending-result' });
+  });
+});
+
+describe('珍品的额外槽必须真正可洗（2026-07-30 品质平衡）', () => {
+  it('固定模板装备只要有随机词条就能洗，固定词条永远碰不到', () => {
+    // 所有者反馈「红装卖得贵却不如掉落黄装」的直接原因之一：
+    // 旧守卫是 `fixedTemplate || affixes.length === 0`，把整类珍品挡在门外，
+    // 于是 extraAffixSlots 只存在于容量校验里、实例永远空词条。
+    const boutique = Object.values(EQUIPMENT).find(
+      (definition) => definition.fixedTemplate && (definition.extraAffixSlots ?? 0) > 0,
+    );
+    expect(boutique).toBeDefined();
+    if (!boutique) return;
+
+    const inst = createFixedInstance(boutique, 'shop-1', true, new Rng(99), 'swordsman');
+    // 额外槽的随机词条必须真的掷出来了
+    expect(inst.affixes).toHaveLength(boutique.extraAffixSlots ?? 0);
+
+    const plan = planAffixChange({
+      definition: boutique,
+      instance: inst,
+      operation: 'reforge',
+      classId: 'swordsman',
+      wallet: { gold: 10_000_000, items: { stone_reforge: 999, sand_crystal: 999, petal_sakura: 999, grass_soft: 999, bell_wood: 999 } },
+      regionMaterials,
+      rngState: 4321,
+    });
+    expect(plan.ok).toBe(true);
+    if (!plan.ok) return;
+    // 候选只针对实例里的随机词条；固定词条写在 def.fixedAffixes、不在实例里，
+    // 洗练结构上碰不到它们
+    expect(plan.targetIndex).toBeLessThan(inst.affixes.length);
+    expect(plan.instance.affixes).toEqual(inst.affixes);
+    const fixedKeys = (boutique.fixedAffixes ?? []).map((affix) => affix.key);
+    expect(fixedKeys).not.toContain(plan.candidate.key);
+  });
+
+  it('没有额外槽的固定模板仍然拒绝洗练（不是把门全开）', () => {
+    const pure = Object.values(EQUIPMENT).find(
+      (definition) => definition.fixedTemplate && (definition.extraAffixSlots ?? 0) === 0,
+    );
+    if (!pure) return; // 全部珍品都带槽时本条自动跳过
+    const inst = createFixedInstance(pure, 'pure-1', true);
+    expect(inst.affixes).toHaveLength(0);
+    const plan = planAffixChange({
+      definition: pure,
+      instance: inst,
+      operation: 'reforge',
+      classId: 'swordsman',
+      wallet: { gold: 10_000_000, items: { stone_reforge: 999 } },
+      regionMaterials,
+      rngState: 1,
+    });
+    expect(plan).toMatchObject({ ok: false, reason: 'no-random-affixes' });
+  });
+
+  it('声明了额外槽却不给 rng 直接抛错，不静默产出 0 条', () => {
+    const boutique = Object.values(EQUIPMENT).find(
+      (definition) => definition.fixedTemplate && (definition.extraAffixSlots ?? 0) > 0,
+    )!;
+    expect(() => createFixedInstance(boutique, 'x', true)).toThrow('必须提供 rng');
   });
 });

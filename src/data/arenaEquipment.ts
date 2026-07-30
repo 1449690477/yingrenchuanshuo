@@ -20,15 +20,33 @@
 
 import type { ClassId, EquipmentDef, EquipmentInstance } from '@/core/types';
 import type { EquipmentSetDefinition } from '@/core/equipmentSets';
-import { REGION_5_SET_LEVEL } from './region5';
+import { ALL_CHAPTERS } from './regions';
+import { typicalQualityAt } from './expectedPower';
 
 export const ARENA_SET_ID = 'set_arena_stigma';
 
 /**
- * 等级不是手填数值：对齐区域 5 套装基底 + divine 品质等级偏移
- * （QUALITY_LEVEL_OFFSET.divine = +10，见 equipment.ts），与主线品质开放节奏同源。
+ * 圣痕套装的等级与品质：**跟随当期主线顶，用公式推导，不手填**。
+ *
+ * docs/53 §零.3 定的红线是「竞技场的更强不在裸数值上，而在套装效果上，
+ * 且该效果只在竞技场内生效」。原实现钉死为 R5 套装等级 +10 的 divine，
+ * 实测基础值 2263，而同期主线最强（Lv65 传说）只有 975 —— **强 2.3 倍**，
+ * 等于「最强装备只能 PvP 拿」，正是那条红线要避免的死法。
+ *
+ * 而这在数学上无法靠调等级解决：divine 系数 15.0，与主线的比值
+ * 恒为 15 / 当期主线品质系数 —— 传说段 2.59 倍、神话段 1.63 倍，
+ * 只有主线本身也出圣器（区域 9，Lv110 段）时才回到 1.00。
+ * 所以圣器必须等区域 9；在那之前竞技场装备的品质就该是主线同期品质。
+ *
+ * 用公式绑定后，区域 7/8/9 上线时竞技场装备会自动跟着抬 ——
+ * 等主线真正出圣器那天，这里自然就变成 divine，无需再改一行。
  */
-export const ARENA_EQUIPMENT_LEVEL = REGION_5_SET_LEVEL + 10;
+const MAX_CONTENT_LEVEL = Math.max(...ALL_CHAPTERS.map((chapter) => chapter.levelTo));
+
+export const ARENA_EQUIPMENT_LEVEL = MAX_CONTENT_LEVEL;
+
+/** 与主线同期品质一致 —— 竞技场的回报是外观与场内套装效果，不是裸数值。 */
+export const ARENA_EQUIPMENT_QUALITY = typicalQualityAt(MAX_CONTENT_LEVEL);
 
 type ArenaGearSlot = 'weapon' | 'head' | 'body' | 'ring';
 
@@ -95,7 +113,7 @@ function buildDefinition(spec: ArenaGearSpec): EquipmentDef {
   const common = {
     id: `eq_arena_${spec.classId}_${spec.slug}`,
     name: spec.name,
-    quality: 'divine' as const,
+    quality: ARENA_EQUIPMENT_QUALITY,
     level: ARENA_EQUIPMENT_LEVEL,
     setId: ARENA_SET_ID,
     classId: spec.classId,

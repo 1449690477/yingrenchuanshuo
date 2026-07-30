@@ -22,11 +22,14 @@ import { requireEquipmentAppearance } from '@/data/characterAppearance';
 import { ENHANCE_MAX } from '@/data/constants';
 import { getEquipment, requireEquipment } from '@/data/equipment';
 import { getEquipmentSet, getFieldEquipmentSet } from '@/data/equipmentSets';
-import { REGION_5_SET_LEVEL } from '@/data/region5';
+import { ALL_CHAPTERS } from '@/data/regions';
+import { typicalQualityAt } from '@/data/expectedPower';
+import { itemBaseValue } from '@/core/equipment';
 import { ARENA_SET_DEFENDER_DR_BONUS } from '@/data/arenaRules';
 import {
   ARENA_EQUIPMENT,
   ARENA_EQUIPMENT_LEVEL,
+  ARENA_EQUIPMENT_QUALITY,
   ARENA_EQUIPMENT_LIST,
   ARENA_EQUIPMENT_SET,
   ARENA_SET_ID,
@@ -55,24 +58,34 @@ function arenaIdsFor(classId: (typeof CLASS_IDS)[number]): string[] {
 }
 
 describe('圣痕装备定义', () => {
-  it('16 件：4 职业 × 武器/头冠/衣装/戒指，全部 divine 品质', () => {
+  it('16 件：4 职业 × 武器/头冠/衣装/戒指，品质跟随主线同期', () => {
     expect(ARENA_EQUIPMENT_LIST).toHaveLength(16);
     for (const classId of CLASS_IDS) {
       const pieces = ARENA_EQUIPMENT_LIST.filter((d) => d.classId === classId);
       expect(pieces.map((d) => d.slot).sort()).toEqual([...SLOTS].sort());
     }
     for (const def of ARENA_EQUIPMENT_LIST) {
-      expect(def.quality).toBe('divine');
+      // 品质跟随当期主线顶（2026-07-30 品质平衡）：竞技场的回报是外观与
+      // 场内套装效果，不是裸数值 —— docs/53 §零.3。等主线出圣器自然变 divine。
+      expect(def.quality).toBe(ARENA_EQUIPMENT_QUALITY);
+      expect(def.quality).toBe(typicalQualityAt(ARENA_EQUIPMENT_LEVEL));
       expect(def.setId).toBe(ARENA_SET_ID);
       expect(def.name.startsWith('圣痕·')).toBe(true);
     }
   });
 
-  it('等级由区域 5 套装基底 + divine 偏移推导，不手填', () => {
-    expect(ARENA_EQUIPMENT_LEVEL).toBe(REGION_5_SET_LEVEL + 10);
+  it('等级由当期内容顶推导，不手填；裸数值不得超过同期主线最强', () => {
+    const contentTop = Math.max(...ALL_CHAPTERS.map((chapter) => chapter.levelTo));
+    expect(ARENA_EQUIPMENT_LEVEL).toBe(contentTop);
     for (const def of ARENA_EQUIPMENT_LIST) {
       expect(def.level).toBe(ARENA_EQUIPMENT_LEVEL);
     }
+
+    // 红线量化版（docs/53 §零.3）：圣痕的裸基准值必须等于同期主线最强，
+    // 不得形成「最强装备只能 PvP 拿」。旧实现是 2.3 倍，本条即为防回归锁。
+    const arenaBase = itemBaseValue(ARENA_EQUIPMENT_LEVEL, ARENA_EQUIPMENT_QUALITY);
+    const mainlineBase = itemBaseValue(contentTop, typicalQualityAt(contentTop));
+    expect(arenaBase).toBeCloseTo(mainlineBase, 6);
   });
 
   it('全部注册进装备总表，且 id 与 slug 一一对应', () => {

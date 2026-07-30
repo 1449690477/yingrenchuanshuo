@@ -381,10 +381,21 @@ describe('save schema', () => {
     );
     expect(() => parseSave(fixedCollision)).toThrow(/随机词条键与现有词条重复：critDmg/);
 
+    // 固定模板的随机词条上限 = 额外槽位数（不再是 0 —— 珍品现在带可洗槽，
+    // 见 2026-07-30 品质平衡）。这里按各自槽数 +1 越界来测边界。
     const fixedTemplate = Object.values(EQUIPMENT).find((definition) => definition.fixedTemplate);
     if (!fixedTemplate) throw new Error('[测试配置错误] 缺少完整固定模板装备');
+    const overflowKeys = ['lifesteal', 'dmgReduce', 'spd', 'eva'] as const;
+    const extraSlots = fixedTemplate.extraAffixSlots ?? 0;
     const forbiddenRandom = saveWithEquipment(
-      testEquipment(fixedTemplate.id, [{ key: 'lifesteal', value: 1.2, tier: 2 }]),
+      testEquipment(
+        fixedTemplate.id,
+        Array.from({ length: extraSlots + 1 }, (_, index) => ({
+          key: overflowKeys[index]!,
+          value: 1.2,
+          tier: 2 as const,
+        })),
+      ),
     );
     expect(() => parseSave(forbiddenRandom)).toThrow(/完整固定模板的随机词条不得超过额外槽位/);
   });

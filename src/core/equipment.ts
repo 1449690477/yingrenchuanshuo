@@ -799,14 +799,30 @@ export function hasFullyFixedAffixes(def: EquipmentDef): boolean {
   return def.fixedTemplate === true;
 }
 
-/** 珍品商店、珍品 BOSS 同款与预览使用确定实例，购买时绝不盲抽。 */
+/**
+ * 珍品商店、珍品 BOSS 同款与预览使用确定实例：品质容量内的词条全部写死，
+ * 购买时绝不盲抽。
+ *
+ * **额外槽位（extraAffixSlots）例外**：那几条是有意留给玩家洗练的养成空间，
+ * 必须在这里掷出来 —— 否则 extraAffixSlots 只存在于容量校验里，
+ * 实例永远是空词条，「6 固定 + 2 可洗」会变成「6 固定 + 0 可洗」（曾经就是）。
+ * 声明了额外槽却不给 rng 属于调用方漏传，直接抛错而不是静默产出 0 条。
+ */
 export function createFixedInstance(
   def: EquipmentDef,
   uid: string,
   locked: boolean,
+  rng?: Rng,
+  classId?: ClassId,
 ): EquipmentInstance {
   if (!hasFullyFixedAffixes(def)) {
     throw new Error(`[配置错误] ${def.id} 未声明 fixedTemplate，不能创建确定实例`);
+  }
+  const extraSlots = def.extraAffixSlots ?? 0;
+  if (extraSlots > 0 && (!rng || !classId)) {
+    throw new Error(
+      `[配置错误] ${def.id} 声明了 ${extraSlots} 个额外词条槽，创建实例必须提供 rng 与 classId`,
+    );
   }
   return {
     uid,
@@ -815,7 +831,8 @@ export function createFixedInstance(
     baseRollPermille: 1000,
     enhanceGainPermille: Array<number>(ENHANCE_MAX).fill(0),
     enhanceLuck: {},
-    affixes: [],
+    // rollAffixes 对固定模板返回的正好是「容量 − 已固定」= 额外槽数
+    affixes: extraSlots > 0 ? rollAffixes(def, rng!, classId!) : [],
     reforgeResonance: 0,
     locked,
   };

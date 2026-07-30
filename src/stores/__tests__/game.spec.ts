@@ -1554,12 +1554,16 @@ describe('boutique purchase transaction', () => {
     expect(result.ok).toBe(true);
     expect(game.save?.player.gold).toBe(offer.price);
     expect(game.save?.bag.equipment).toHaveLength(1);
-    expect(game.save?.bag.equipment[0]).toMatchObject({
+    const bought = game.save!.bag.equipment[0]!;
+    expect(bought).toMatchObject({
       uid: `e${beforeUid}`,
       defId: offer.defId,
-      affixes: [],
       locked: true,
     });
+    // 珍品现在带额外可洗槽（2026-07-30 品质平衡）：固定词条仍写死在
+    // def.fixedAffixes 不进实例，实例里应恰好是额外槽数条随机词条。
+    const purchasedDef = requireEquipment(offer.defId);
+    expect(bought.affixes).toHaveLength(purchasedDef.extraAffixSlots ?? 0);
     expect(game.save?.nextUid).toBe(beforeUid + 1);
     expect(game.save?.shop.purchasedOfferIds).toEqual([offer.id]);
 
