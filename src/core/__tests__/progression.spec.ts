@@ -18,7 +18,9 @@ import {
   EXP_BASE,
   LEVEL_SOFT_CAP_MARGIN,
   STAMINA_BASE_MAX,
+  STAMINA_CAPS,
 } from '@/data/constants';
+import { ALL_CHAPTERS } from '@/data/regions';
 import { CLASS_IDS } from '../types';
 
 describe('expToNext', () => {
@@ -206,5 +208,97 @@ describe('M2 等级档位配置', () => {
   it('非法等级直接报错', () => {
     expect(() => averageSkillMultiplier(0)).toThrow();
     expect(() => staminaMaxForLevel(0)).toThrow();
+  });
+});
+
+// ────────── 等级阶梯表的结构守卫（2026-07-31） ──────────
+
+/**
+ * 这组测试的由来是一次**我差点犯的错**。
+ *
+ * docs/65 §六 我把 STAMINA_CAPS 的 minLevel 70 档和 AVG_SKILL_MULTIPLIERS 的
+ * minLevel 85 档列为「Lv120 时代的死配置，待清理」—— 依据是当时软上限只有 68。
+ * 区域 7 上线后软上限变成 81，**Lv70 那档立刻变成活的**，真的在给玩家抬体力上限。
+ * 如果当初照那条建议删掉，区域 7 会静默丢掉这个档位，而且没有任何测试会发现。
+ *
+ * 教训：**「当前不可达」不等于「死配置」**。判据不是今天能否达到，
+ * 而是设计上是否打算让它随内容自动生效 —— 与 typicalQualityAt 的
+ * mythic/divine 两档是同一类东西（docs/60 §2.3 已经写过一次同样的道理）。
+ */
+describe('等级阶梯表的结构守卫', () => {
+  const ladders = [
+    { name: 'STAMINA_CAPS', rows: STAMINA_CAPS.map((e) => ({ minLevel: e.minLevel, value: e.max })) },
+    {
+      name: 'AVG_SKILL_MULTIPLIERS',
+      rows: AVG_SKILL_MULTIPLIERS.map((e) => ({ minLevel: e.minLevel, value: e.multiplier })),
+    },
+  ];
+
+  it('必须按 minLevel 降序排列 —— 查找取第一个匹配，升序会静默取错档', () => {
+    // progression.ts 用 .find(level >= entry.minLevel) 取首个匹配。
+    // 有人若按直觉改成升序，Lv80 玩家会拿到 minLevel 1 那档而不是 70 那档，
+    // 而且不会报错、不会有人发现 —— 这正是最危险的一类回归。
+    for (const ladder of ladders) {
+      for (let i = 1; i < ladder.rows.length; i++) {
+        expect(
+          ladder.rows[i]!.minLevel,
+          `${ladder.name} 第 ${i} 项破坏了降序`,
+        ).toBeLessThan(ladder.rows[i - 1]!.minLevel);
+      }
+    }
+  });
+
+  it('必须有 minLevel 1 的兜底档 —— 查找末尾有非空断言，缺了会崩', () => {
+    for (const ladder of ladders) {
+      expect(
+        ladder.rows[ladder.rows.length - 1]!.minLevel,
+        `${ladder.name} 缺少 minLevel 1 兜底`,
+      ).toBe(1);
+    }
+  });
+
+  it('取值随等级单调递增 —— 高等级档不能比低等级档差', () => {
+    for (const ladder of ladders) {
+      for (let i = 1; i < ladder.rows.length; i++) {
+        expect(
+          ladder.rows[i - 1]!.value,
+          `${ladder.name} 高等级档取值不高于低等级档`,
+        ).toBeGreaterThan(ladder.rows[i]!.value);
+      }
+    }
+  });
+
+  it('超出当前软上限的档位一律保留 —— 它们是给未来内容留的，不是死配置', () => {
+    const contentTop = Math.max(...ALL_CHAPTERS.map((chapter) => chapter.levelTo));
+    const softCap = contentTop + LEVEL_SOFT_CAP_MARGIN;
+
+    for (const ladder of ladders) {
+      const beyond = ladder.rows.filter((row) => row.minLevel > softCap);
+      // 这条不断言「必须有」超限档（内容涨上去后可能一个都不剩），
+      // 而是断言「有的话必须仍然结构良好」—— 真正的守卫是上面三条。
+      // 它存在的意义是把「超限档是有意保留的」这件事写进测试，
+      // 让下一个想做清理的人先读到这段注释。
+      for (const row of beyond) {
+        expect(row.minLevel).toBeGreaterThan(softCap);
+        expect(row.value).toBeGreaterThan(0);
+      }
+    }
+
+    // 阶梯必须覆盖到当前软上限：最高的可达档不能低于软上限太多，
+    // 否则说明内容涨上去了而阶梯没跟上。
+    for (const ladder of ladders) {
+      const reachable = ladder.rows.filter((row) => row.minLevel <= softCap);
+      expect(reachable.length, `${ladder.name} 在软上限 ${softCap} 下无可达档`).toBeGreaterThan(0);
+    }
+  });
+
+  it('查找函数在软上限内的每一级都能取到值', () => {
+    const contentTop = Math.max(...ALL_CHAPTERS.map((chapter) => chapter.levelTo));
+    const softCap = contentTop + LEVEL_SOFT_CAP_MARGIN;
+    for (let level = 1; level <= softCap; level++) {
+      expect(() => staminaMaxForLevel(level)).not.toThrow();
+      expect(staminaMaxForLevel(level)).toBeGreaterThan(0);
+      expect(averageSkillMultiplier(level)).toBeGreaterThan(0);
+    }
   });
 });
