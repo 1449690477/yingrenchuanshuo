@@ -36,7 +36,18 @@ tmp-*.png
 tmp-*.jpg
 
 # Edge Function 打包产物（npm run edge:build 重新生成）
-supabase/functions/submit-trial/_core.ts
+#
+# 全部忽略，不再只忽略 submit-trial 一个。原先九个函数里只有它被忽略、
+# 其余八个进版本库，同一类文件两套口径，当天就出了两次事故：
+#   ① 共享工作树里跑 edge:build，把别人未提交的改动打进了 bundle 并被提交
+#   ② src/save/schema.ts 改到 v15 后没重跑，仓库里的 bundle 停在 v14
+# 打包产物是可复现的派生物，进版本库只会让「git 里的那份」和「src 推出来的
+# 那份」有机会不一致，而这种不一致是静默的 —— 服务端按旧规则跑，没人会红。
+#
+# 代价与铁律：部署任何函数前**必须先 npm run edge:build**（本来就是既有规矩，
+# 见 docs/62）。新克隆的仓库里没有 _core.ts，忘了这一步会直接部署失败 ——
+# 这是好事：响亮地失败，好过悄悄发着旧规则。
+supabase/functions/*/_core.ts
 
 # Supabase CLI 本地链接与版本缓存
 supabase/.temp/

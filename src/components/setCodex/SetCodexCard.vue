@@ -75,7 +75,7 @@ const baseUrl = import.meta.env.BASE_URL;
         class="piece"
         :class="{ missing: !ownedSlots.has(piece.slot) }"
         role="listitem"
-        :aria-label="SLOT_LABELS[piece.slot] + (ownedSlots.has(piece.slot) ? '，已获得' : '，未获得')"
+        :aria-label="SLOT_LABELS[piece.slot] + (ownedSlots.has(piece.slot) ? '，持有中' : '，未持有')"
       >
         <EquipmentIcon :def="piece.def" :class-id="classId" size="md" decorative />
         <small>{{ SLOT_LABELS[piece.slot] }}</small>

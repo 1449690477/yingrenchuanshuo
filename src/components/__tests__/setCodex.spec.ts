@@ -33,6 +33,11 @@ import {
 
 const moreViewSource = readFileSync(new URL('../../views/MoreView.vue', import.meta.url), 'utf8');
 const bagViewSource = readFileSync(new URL('../../views/BagView.vue', import.meta.url), 'utf8');
+const codexViewSource = readFileSync(new URL('../../views/SetCodexView.vue', import.meta.url), 'utf8');
+const codexCardSource = readFileSync(
+  new URL('../setCodex/SetCodexCard.vue', import.meta.url),
+  'utf8',
+);
 
 function entryOf(entries: SetCodexEntry[], setId: string): SetCodexEntry {
   const entry = entries.find((candidate) => candidate.setId === setId);
@@ -261,5 +266,40 @@ describe('套装图鉴入口接线（源码契约）', () => {
     expect(bagViewSource).toContain("import SetCodexView from '@/views/SetCodexView.vue'");
     expect(bagViewSource).toContain('class="atlas-all"');
     expect(bagViewSource).toContain('<SetCodexView v-if="showCodex" @close="closeCodex" />');
+  });
+});
+
+/**
+ * 口径诚实性红线：本页的拥有关系是「此刻背包与穿戴」，不是收集史。
+ *
+ * 为什么要用测试钉住文案：拥有关系由背包推导，分解一件装备数字就会变小。
+ * 若把它写成「已收集」，玩家看到的就是一条会倒退的进度 ——
+ * docs/40 明文红线「不许进度条倒退」。而且背包上限 300 且会强制裁剪，
+ * 「把全部件数留着」本就做不到，这个口径在设计上无法达成。
+ *
+ * 等永久发现账本（照好感线 discoveredGearIds）落地后，这几条断言应当
+ * 连同文案一起更新为「已收集 + 当前持有」双数字，而不是被悄悄删掉。
+ */
+describe('图鉴口径诚实性', () => {
+  it('总览用「当前持有」而不是「已收集」，并说明它看的是此刻的背包与身上', () => {
+    expect(codexViewSource).toContain('当前持有');
+    expect(codexViewSource).not.toContain('已收集 {{');
+    expect(codexViewSource).toContain('此刻背包与身上');
+  });
+
+  it('部位无障碍文案同样只声称持有状态，不声称获得史', () => {
+    expect(codexCardSource).toContain('持有中');
+    expect(codexCardSource).toContain('未持有');
+    expect(codexCardSource).not.toContain("'，已获得'");
+  });
+
+  it('拥有关系确实只由背包与穿戴推导 —— 文案与实现必须是同一件事', () => {
+    // 这条防的是「文案改对了、实现却偷偷引入别的来源」：
+    // setProgressFor 的输入只有背包、穿戴与材料，没有任何历史记录字段。
+    const progress = setProgressFor(entryOf(buildSetCodex('swordsman'), 'set_region_crimson'), {
+      ...emptyInput(),
+    });
+    expect(progress.ownedPieces).toBe(0);
+    expect(Object.keys(emptyInput()).sort()).toEqual(['bagEquipment', 'bagItems', 'equipped']);
   });
 });

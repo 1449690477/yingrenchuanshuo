@@ -99,9 +99,21 @@ function jumpCraft() {
     </header>
 
     <main class="codex-scroll scroll-y">
+      <!--
+        文案说的是「当前持有」而不是「已收集」，这是刻意的：本页的拥有关系
+        由背包与穿戴实时推导，分解掉就不再点亮。若写成「已收集」，玩家分解
+        一件装备时进度会当场变小 —— 那是 docs/40 红线「不许进度条倒退」。
+        而且背包上限 300 且会强制裁剪，「把 58 件全留着」本就做不到。
+        永久收集账本（照好感线的 discoveredGearIds）是下一步，落地后这里
+        再改回「已收集」并同时展示两个数字。
+      -->
       <p class="codex-hint">
-        共 {{ summary.totalSets }} 套 · 已收集 {{ summary.owned }}/{{ summary.total }} 件；
+        共 {{ summary.totalSets }} 套 · 当前持有 {{ summary.owned }}/{{ summary.total }} 件；
         点亮全部部位即算集齐，穿上对应件数可激活套装效果。
+      </p>
+      <p class="codex-note">
+        这里看的是<b>此刻背包与身上</b>的装备，不是收集史 —— 分解后会重新变灰，
+        不用为了图鉴屯着不敢分解。
       </p>
 
       <section
@@ -218,6 +230,21 @@ function jumpCraft() {
   font-size: 10px;
   line-height: 1.6;
   color: var(--text-dim);
+}
+
+/* 口径说明比正文再弱一档：它是防误解的注脚，不该和进度数字抢注意力 */
+.codex-note {
+  margin: -4px 0 0;
+  padding: 0 2px;
+  font-size: 9.5px;
+  line-height: 1.6;
+  color: var(--text-dim);
+  opacity: 0.82;
+}
+
+.codex-note b {
+  font-weight: 700;
+  color: var(--text);
 }
 
 .codex-group {
