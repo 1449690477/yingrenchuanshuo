@@ -7,14 +7,18 @@ import { ensureAnonymousSession, getSupabaseClient, isSupabaseConfigured } from 
 import { upsertProfile } from '@/net/leaderboard';
 import {
   createGuild as createGuildRequest,
+  fetchGuildDetail as fetchGuildDetailRequest,
   fetchGuildExpedition,
   fetchGuildList,
   fetchMyGuild,
+  isMissingGuildFunctionError,
   joinGuild as joinGuildRequest,
+  joinGuildByCode as joinGuildByCodeRequest,
   leaveGuild as leaveGuildRequest,
   removeGuildMember as removeGuildMemberRequest,
   submitGuildExpedition,
   updateGuildNotice as updateGuildNoticeRequest,
+  type GuildDetail,
   type GuildExpeditionResult,
   type GuildExpeditionState,
   type GuildMembershipState,
@@ -39,6 +43,11 @@ export const useGuildStore = defineStore('guild', () => {
   const expedition = ref<GuildExpeditionState | null>(null);
   const lastResult = ref<GuildExpeditionResult | null>(null);
   const pendingChallengeId = ref<string | null>(null);
+  /** 广场详情：当前展开的公会、加载态与后端缺函数降级标记。 */
+  const detail = ref<GuildDetail | null>(null);
+  const detailGuildId = ref<string | null>(null);
+  const detailLoading = ref(false);
+  const detailUnsupported = ref(false);
 
   const isLeader = computed(() => membership.value?.myRole === 'leader');
   const attemptsLeft = computed(() => {
@@ -66,45 +75,54 @@ export const useGuildStore = defineStore('guild', () => {
     };
   }
 
+  let connectPromise: Promise<boolean> | null = null;
+
   async function connect(): Promise<boolean> {
     if (!isSupabaseConfigured) {
       status.value = 'unconfigured';
       return false;
     }
     if (status.value === 'ready' && userId.value) return true;
-    status.value = 'connecting';
-    try {
-      const session = await ensureAnonymousSession();
-      if (!session) {
-        status.value = 'unconfigured';
+    // 并发调用共享同一次登录尝试，避免慢网络下重复匿名注册
+    connectPromise ??= (async () => {
+      status.value = 'connecting';
+      try {
+        const session = await ensureAnonymousSession();
+        if (!session) {
+          status.value = 'unconfigured';
+          return false;
+        }
+        const current = snapshot();
+        const power = buildTrialCombatant({ name: current.displayName, ...current }).combatPower;
+        await upsertProfile(session.client, {
+          id: session.userId,
+          displayName: current.displayName,
+          classId: current.classId,
+          level: current.level,
+          combatPower: power,
+        });
+        userId.value = session.userId;
+        status.value = 'ready';
+        lastError.value = null;
+        return true;
+      } catch (error) {
+        status.value = 'offline';
+        lastError.value = error instanceof Error ? error.message : '公会连接失败';
         return false;
       }
-      const current = snapshot();
-      const power = buildTrialCombatant({ name: current.displayName, ...current }).combatPower;
-      await upsertProfile(session.client, {
-        id: session.userId,
-        displayName: current.displayName,
-        classId: current.classId,
-        level: current.level,
-        combatPower: power,
-      });
-      userId.value = session.userId;
-      status.value = 'ready';
-      lastError.value = null;
-      return true;
-    } catch (error) {
-      status.value = 'offline';
-      lastError.value = error instanceof Error ? error.message : '公会连接失败';
-      return false;
-    }
+    })().finally(() => {
+      connectPromise = null;
+    });
+    return connectPromise;
   }
 
   async function refresh(): Promise<void> {
-    if (loading.value || !(await connect())) return;
-    const client = await getSupabaseClient();
-    if (!client) return;
+    if (loading.value) return;
     loading.value = true;
     try {
+      if (!(await connect())) return;
+      const client = await getSupabaseClient();
+      if (!client) return;
       const previousGuildId = membership.value?.guild.id ?? null;
       const nextMembership = await fetchMyGuild(client);
       const nextGuildId = nextMembership?.guild.id ?? null;
@@ -113,12 +131,19 @@ export const useGuildStore = defineStore('guild', () => {
         lastResult.value = null;
       }
       membership.value = nextMembership;
+      if (previousGuildId !== nextGuildId) closeDetail();
+      // 无论是否已加入公会，都保持广场列表可见——已加入的玩家也能浏览其他公会。
+      const listPromise = fetchGuildList(client);
       if (!membership.value) {
         expedition.value = null;
-        guilds.value = await fetchGuildList(client);
+        guilds.value = await listPromise;
       } else {
-        guilds.value = [];
-        expedition.value = await fetchGuildExpedition(client, TRIAL_SEASON_ID, snapshot().level);
+        const [nextGuilds, nextExpedition] = await Promise.all([
+          listPromise,
+          fetchGuildExpedition(client, TRIAL_SEASON_ID, snapshot().level),
+        ]);
+        guilds.value = nextGuilds;
+        expedition.value = nextExpedition;
       }
       lastError.value = null;
     } catch (error) {
@@ -135,6 +160,7 @@ export const useGuildStore = defineStore('guild', () => {
     const client = await getSupabaseClient();
     if (!client) return false;
     mutating.value = true;
+    lastError.value = null; // 清掉上一次操作的残留错误，避免横幅挂到下一次刷新结束
     try {
       await action(client);
       await refresh();
@@ -151,6 +177,62 @@ export const useGuildStore = defineStore('guild', () => {
   const createGuild = (name: string) => mutate((client) => createGuildRequest(client, name));
   const joinGuild = (guildId: string) => mutate((client) => joinGuildRequest(client, guildId));
   const leaveGuild = () => mutate((client) => leaveGuildRequest(client));
+
+  /** 凭邀请码加入；成功时返回公会名片用于欢迎提示。 */
+  async function joinByCode(code: string): Promise<{ id: string; name: string } | null> {
+    let joined: { id: string; name: string } | null = null;
+    const ok = await mutate(async (client) => {
+      joined = await joinGuildByCodeRequest(client, code);
+    });
+    return ok ? joined : null;
+  }
+
+  /** 后端缺详情 RPC 时，用广场列表/我的公会数据拼一份名片降级展示。 */
+  function fallbackDetail(guildId: string): GuildDetail | null {
+    if (membership.value?.guild.id === guildId) {
+      const { guild, members } = membership.value;
+      return {
+        guild: { ...guild, leaderName: members.find((m) => m.role === 'leader')?.displayName ?? '', createdAt: '' },
+        members,
+        expedition: null,
+      };
+    }
+    const summary = guilds.value.find((item) => item.id === guildId);
+    if (!summary) return null;
+    return { guild: { ...summary, leaderName: '', createdAt: '' }, members: [], expedition: null };
+  }
+
+  async function openDetail(guildId: string): Promise<void> {
+    if (detailLoading.value) return;
+    detailGuildId.value = guildId;
+    detail.value = null;
+    if (detailUnsupported.value || !(await connect())) {
+      detail.value = fallbackDetail(guildId);
+      return;
+    }
+    const client = await getSupabaseClient();
+    if (!client) return;
+    detailLoading.value = true;
+    try {
+      detail.value = await fetchGuildDetailRequest(client, guildId);
+      lastError.value = null;
+    } catch (error) {
+      if (isMissingGuildFunctionError(error)) {
+        detailUnsupported.value = true;
+        detail.value = fallbackDetail(guildId);
+      } else {
+        lastError.value = error instanceof Error ? error.message : '公会详情读取失败';
+        detailGuildId.value = null;
+      }
+    } finally {
+      detailLoading.value = false;
+    }
+  }
+
+  function closeDetail(): void {
+    detailGuildId.value = null;
+    detail.value = null;
+  }
   const updateNotice = (notice: string) =>
     mutate((client) => updateGuildNoticeRequest(client, notice));
   const removeMember = (memberId: string) =>
@@ -198,6 +280,10 @@ export const useGuildStore = defineStore('guild', () => {
     guilds,
     expedition,
     lastResult,
+    detail,
+    detailGuildId,
+    detailLoading,
+    detailUnsupported,
     isLeader,
     attemptsLeft,
     canChallenge,
@@ -205,9 +291,12 @@ export const useGuildStore = defineStore('guild', () => {
     refresh,
     createGuild,
     joinGuild,
+    joinByCode,
     leaveGuild,
     updateNotice,
     removeMember,
+    openDetail,
+    closeDetail,
     challenge,
     clearResult,
   };

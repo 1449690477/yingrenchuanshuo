@@ -13,6 +13,15 @@ export interface GuildSummary {
   expeditionClears: number;
   memberCount: number;
   memberLimit: number;
+  /** 仅「我的公会」状态返回；广场与详情不暴露。 */
+  inviteCode?: string;
+}
+
+/** 任意公会的公开详情：名片、公开名册与最近一周远征进度。 */
+export interface GuildDetail {
+  guild: GuildSummary & { leaderName: string; createdAt: string };
+  members: GuildMember[];
+  expedition: { weekKey: string; progress: number; target: number; completed: boolean } | null;
 }
 
 export interface GuildMember {
@@ -83,6 +92,12 @@ export interface GuildChallengePayload {
 }
 
 function rpcError(raw: string, fallback: string): NetRequestError {
+  // 后端尚未部署新函数时，把 PostgREST 的schema缓存报错翻成人话
+  if (/PGRST202|schema cache|Could not find the function/i.test(raw)) {
+    const err = new NetRequestError(`${fallback}：该功能尚未开通，请等待后端更新`);
+    (err as NetRequestError & { missingFunction?: boolean }).missingFunction = true;
+    return err;
+  }
   return new NetRequestError(raw ? `${fallback}：${raw}` : fallback);
 }
 
@@ -114,6 +129,35 @@ export async function createGuild(client: SupabaseClient, name: string): Promise
 export async function joinGuild(client: SupabaseClient, guildId: string): Promise<void> {
   const { error } = await client.rpc('guild_join', { p_guild_id: guildId });
   if (error) throw rpcError(error.message, '加入公会失败');
+}
+
+export async function fetchGuildDetail(
+  client: SupabaseClient,
+  guildId: string,
+): Promise<GuildDetail> {
+  const { data, error } = await client.rpc('guild_get_detail', { p_guild_id: guildId });
+  if (error) throw rpcError(error.message, '公会详情读取失败');
+  const detail = data as GuildDetail | null;
+  if (!detail?.guild) throw rpcError('', '公会详情读取失败');
+  return detail;
+}
+
+export async function joinGuildByCode(
+  client: SupabaseClient,
+  code: string,
+): Promise<{ id: string; name: string }> {
+  const { data, error } = await client.rpc('guild_join_by_code', { p_code: code });
+  if (error) throw rpcError(error.message, '邀请码加入失败');
+  const joined = data as { id?: string; name?: string } | null;
+  if (!joined?.id) throw rpcError('', '邀请码加入失败');
+  return { id: String(joined.id), name: String(joined.name ?? '公会') };
+}
+
+/** 后端尚未部署新 RPC 时的识别：优先看 rpcError 打的标记，兜底匹配原始报文。 */
+export function isMissingGuildFunctionError(error: unknown): boolean {
+  if ((error as { missingFunction?: boolean } | null)?.missingFunction) return true;
+  const message = error instanceof Error ? error.message : String(error ?? '');
+  return /PGRST202|schema cache|Could not find the function|find the function/i.test(message);
 }
 
 export async function leaveGuild(client: SupabaseClient): Promise<void> {

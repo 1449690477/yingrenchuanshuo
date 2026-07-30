@@ -24,24 +24,32 @@ vi.mock('@/net/leaderboard', async (importOriginal) => {
 
 const fetchGuildList = vi.fn();
 const fetchMyGuild = vi.fn();
+const fetchGuildDetail = vi.fn();
 const fetchGuildExpedition = vi.fn();
 const createGuild = vi.fn();
 const joinGuild = vi.fn();
+const joinGuildByCode = vi.fn();
 const leaveGuild = vi.fn();
 const updateGuildNotice = vi.fn();
 const removeGuildMember = vi.fn();
 const submitGuildExpedition = vi.fn();
-vi.mock('@/net/guild', () => ({
-  fetchGuildList: (...args: unknown[]) => fetchGuildList(...args),
-  fetchMyGuild: (...args: unknown[]) => fetchMyGuild(...args),
-  fetchGuildExpedition: (...args: unknown[]) => fetchGuildExpedition(...args),
-  createGuild: (...args: unknown[]) => createGuild(...args),
-  joinGuild: (...args: unknown[]) => joinGuild(...args),
-  leaveGuild: (...args: unknown[]) => leaveGuild(...args),
-  updateGuildNotice: (...args: unknown[]) => updateGuildNotice(...args),
-  removeGuildMember: (...args: unknown[]) => removeGuildMember(...args),
-  submitGuildExpedition: (...args: unknown[]) => submitGuildExpedition(...args),
-}));
+vi.mock('@/net/guild', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/net/guild')>();
+  return {
+    ...actual,
+    fetchGuildList: (...args: unknown[]) => fetchGuildList(...args),
+    fetchMyGuild: (...args: unknown[]) => fetchMyGuild(...args),
+    fetchGuildDetail: (...args: unknown[]) => fetchGuildDetail(...args),
+    fetchGuildExpedition: (...args: unknown[]) => fetchGuildExpedition(...args),
+    createGuild: (...args: unknown[]) => createGuild(...args),
+    joinGuild: (...args: unknown[]) => joinGuild(...args),
+    joinGuildByCode: (...args: unknown[]) => joinGuildByCode(...args),
+    leaveGuild: (...args: unknown[]) => leaveGuild(...args),
+    updateGuildNotice: (...args: unknown[]) => updateGuildNotice(...args),
+    removeGuildMember: (...args: unknown[]) => removeGuildMember(...args),
+    submitGuildExpedition: (...args: unknown[]) => submitGuildExpedition(...args),
+  };
+});
 
 import { useGuildStore } from '../guild';
 
@@ -106,9 +114,11 @@ beforeEach(async () => {
     upsertProfile,
     fetchGuildList,
     fetchMyGuild,
+    fetchGuildDetail,
     fetchGuildExpedition,
     createGuild,
     joinGuild,
+    joinGuildByCode,
     leaveGuild,
     updateGuildNotice,
     removeGuildMember,
@@ -152,6 +162,126 @@ describe('公会 store 联机降级与刷新', () => {
     expect(fetchGuildList).toHaveBeenCalledTimes(1);
     expect(guild.guilds[0]?.name).toBe('月樱');
     expect(guild.expedition).toBeNull();
+  });
+
+  it('并发刷新共享同一次登录尝试且不重复拉取', async () => {
+    const { ensureAnonymousSession } = await import('@/net/supabase');
+    vi.mocked(ensureAnonymousSession).mockClear();
+    const guild = useGuildStore();
+    await Promise.all([guild.refresh(), guild.refresh(), guild.refresh()]);
+    expect(vi.mocked(ensureAnonymousSession)).toHaveBeenCalledTimes(1);
+    expect(fetchMyGuild).toHaveBeenCalledTimes(1);
+    expect(guild.loading).toBe(false);
+  });
+
+  it('已加入公会后仍保留广场列表，可以浏览其他公会', async () => {
+    fetchGuildList.mockResolvedValue([
+      { id: 'g-1', name: '樱灯庭', memberCount: 1 },
+      { id: 'g-9', name: '星野庭', memberCount: 18 },
+    ]);
+    const guild = useGuildStore();
+    await guild.refresh();
+    expect(guild.membership?.guild.id).toBe('g-1');
+    expect(fetchGuildList).toHaveBeenCalledTimes(1);
+    expect(guild.guilds.map((item) => item.name)).toContain('星野庭');
+    expect(guild.expedition?.expedition.progress).toBe(500);
+  });
+});
+
+describe('公会广场详情', () => {
+  const detail = {
+    guild: {
+      id: 'g-9',
+      name: '星野庭',
+      notice: '周末一起远征',
+      reputation: 320,
+      expeditionClears: 2,
+      memberCount: 18,
+      memberLimit: 20,
+      leaderName: '星见',
+      createdAt: '2026-07-01T00:00:00Z',
+    },
+    members: [
+      {
+        userId: 'u-other',
+        displayName: '星见',
+        classId: 'mage' as const,
+        level: 52,
+        combatPower: 1800,
+        role: 'leader' as const,
+        joinedAt: '2026-07-01T00:00:00Z',
+      },
+    ],
+    expedition: { weekKey: 's1:w30', progress: 2600, target: 8000, completed: false },
+  };
+
+  it('openDetail 读取任意公会的公开名册与远征进度', async () => {
+    fetchGuildDetail.mockResolvedValue(detail);
+    const guild = useGuildStore();
+    await guild.refresh();
+    await guild.openDetail('g-9');
+    expect(guild.detailGuildId).toBe('g-9');
+    expect(guild.detail?.members[0]?.displayName).toBe('星见');
+    expect(guild.detail?.expedition?.progress).toBe(2600);
+    guild.closeDetail();
+    expect(guild.detailGuildId).toBeNull();
+    expect(guild.detail).toBeNull();
+  });
+
+  it('后端缺详情函数时降级为名片展示且不报错', async () => {
+    fetchGuildDetail.mockRejectedValue(
+      new Error('Could not find the function public.guild_get_detail in the schema cache'),
+    );
+    fetchGuildList.mockResolvedValue([{ id: 'g-9', name: '星野庭', memberCount: 18 }]);
+    const guild = useGuildStore();
+    await guild.refresh();
+    await guild.openDetail('g-9');
+    expect(guild.detailUnsupported).toBe(true);
+    expect(guild.lastError).toBeNull();
+    expect(guild.detail?.guild.name).toBe('星野庭');
+    expect(guild.detail?.members).toEqual([]);
+    // 已标记降级后不再重复请求远端
+    await guild.openDetail('g-1');
+    expect(fetchGuildDetail).toHaveBeenCalledTimes(1);
+    expect(guild.detail?.members[0]?.displayName).toBe('夜见');
+  });
+
+  it('加入公会后自动收起详情弹层', async () => {
+    fetchGuildDetail.mockResolvedValue(detail);
+    fetchMyGuild.mockResolvedValue(null);
+    const guild = useGuildStore();
+    await guild.refresh();
+    await guild.openDetail('g-9');
+    expect(guild.detailGuildId).toBe('g-9');
+    joinGuild.mockResolvedValue(undefined);
+    fetchMyGuild.mockResolvedValue({
+      ...membership,
+      guild: { ...membership.guild, id: 'g-9', name: '星野庭' },
+    });
+    await guild.joinGuild('g-9');
+    expect(guild.detailGuildId).toBeNull();
+  });
+});
+
+describe('公会邀请码', () => {
+  it('凭邀请码加入成功时返回公会名片用于欢迎提示', async () => {
+    fetchMyGuild.mockResolvedValue(null);
+    joinGuildByCode.mockResolvedValue({ id: 'g-9', name: '星野庭' });
+    const guild = useGuildStore();
+    await guild.refresh();
+    const joined = await guild.joinByCode('ABCD2345');
+    expect(joinGuildByCode).toHaveBeenCalledWith(expect.anything(), 'ABCD2345');
+    expect(joined?.name).toBe('星野庭');
+  });
+
+  it('邀请码无效时保持未加入并透出服务端错误', async () => {
+    fetchMyGuild.mockResolvedValue(null);
+    joinGuildByCode.mockRejectedValue(new Error('邀请码无效，请核对后再试'));
+    const guild = useGuildStore();
+    await guild.refresh();
+    await expect(guild.joinByCode('XXXX9999')).resolves.toBeNull();
+    expect(guild.membership).toBeNull();
+    expect(guild.lastError).toContain('邀请码无效');
   });
 });
 

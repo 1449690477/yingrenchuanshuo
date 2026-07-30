@@ -9,6 +9,10 @@ const idempotency = readFileSync(
   new URL('../../../supabase/migrations/20260730143100_guild_idempotency.sql', import.meta.url),
   'utf8',
 );
+const inviteDetail = readFileSync(
+  new URL('../../../supabase/migrations/20260730180000_guild_invite_and_detail.sql', import.meta.url),
+  'utf8',
+);
 const edge = readFileSync(
   new URL('../../../supabase/functions/guild-expedition/index.ts', import.meta.url),
   'utf8',
@@ -54,5 +58,28 @@ describe('公会 Supabase 契约', () => {
     expect(edge).toContain('`${body.classId}:${body.level}:${build.buildHash}`');
     expect(edge).toContain('runTrial(build, boss.combatant, seed)');
     expect(edge).toContain('guildContributionPoints(battle.damage, battle.bossHpMax)');
+  });
+
+  it('邀请码唯一且可自动生成，详情与凭码加入走原子函数', () => {
+    expect(inviteDetail).toContain('add column if not exists invite_code text');
+    expect(inviteDetail).toContain('create unique index if not exists guilds_invite_code_idx');
+    expect(inviteDetail).toContain('function public.guild_generate_invite_code()');
+    expect(inviteDetail).toContain('set default public.guild_generate_invite_code()');
+    for (const name of ['guild_get_detail', 'guild_join_by_code']) {
+      expect(inviteDetail).toContain(`function public.${name}`);
+      expect(inviteDetail).toContain(`grant execute on function public.${name}`);
+    }
+    expect(inviteDetail).toContain('你已经加入公会');
+    expect(inviteDetail).toContain('公会已经满员');
+  });
+
+  it('我的公会状态只向成员暴露邀请码，广场列表不再过滤满员公会', () => {
+    expect(inviteDetail).toContain('create or replace function public.guild_get_my_state()');
+    expect(inviteDetail).toContain("'inviteCode', g.invite_code");
+    expect(inviteDetail).toContain('create or replace function public.guild_list(p_limit int default 30)');
+    expect(inviteDetail).not.toContain('having count(m.user_id) < 20');
+    // 公开详情不返回邀请码
+    const detailFn = inviteDetail.slice(inviteDetail.indexOf('function public.guild_get_detail'));
+    expect(detailFn.slice(0, detailFn.indexOf('$$;'))).not.toContain('invite_code');
   });
 });
