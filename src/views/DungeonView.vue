@@ -38,6 +38,13 @@ import EquipmentDungeonBattle from '@/components/EquipmentDungeonBattle.vue';
 import EquipmentIcon from '@/components/EquipmentIcon.vue';
 import SystemArtwork from '@/components/SystemArtwork.vue';
 import CollapsibleCard from '@/components/CollapsibleCard.vue';
+import ImprintBench from '@/components/imprint/ImprintBench.vue';
+import {
+  IMPRINT_CORE_DISPLAY,
+  IMPRINT_CRYSTAL_DISPLAY,
+  imprintMaterialIconUrl,
+} from '@/components/imprint/imprintDisplay';
+import { IMPRINT_BATCH_ACTIVE } from '@/ui/imprintActivation';
 import { prefersCompactLayout, useFold } from '@/ui/useFold';
 
 type PlayedResult = Extract<EquipmentDungeonRunResult, { ok: true }>;
@@ -170,6 +177,49 @@ const lockCopy = computed(() => {
 });
 
 const assetUrl = (asset: string) => `${import.meta.env.BASE_URL}${asset}`;
+
+// ─────────── 烙印（docs/58 附录 B · B-1/B-2，激活批次上线） ───────────
+
+/** 烙印台入口与材料掉落预览共用同一个激活开关（src/ui/imprintActivation.ts） */
+const imprintActive = IMPRINT_BATCH_ACTIVE;
+const imprintBenchOpen = ref(false);
+const imprintEntryButton = ref<HTMLButtonElement | null>(null);
+const unlockedImprintCount = computed(() => game.unlockedImprintSetIds.length);
+
+/** B-2：激活后掉落预览改材料——数量口径照 docs/58 §3.2/§3.3，不自己发明 */
+const imprintMaterialDrops = computed(() => {
+  const crystal = IMPRINT_CRYSTAL_DISPLAY[selectedTierId.value];
+  return [
+    {
+      id: crystal.id,
+      name: crystal.name,
+      iconUrl: imprintMaterialIconUrl(crystal.id),
+      amount: '胜利 ×2~3',
+      note: '烙印本档套装',
+    },
+    {
+      id: IMPRINT_CORE_DISPLAY.id,
+      name: IMPRINT_CORE_DISPLAY.name,
+      iconUrl: imprintMaterialIconUrl(IMPRINT_CORE_DISPLAY.id),
+      amount: '每 6 胜保底 ×1',
+      note: '任意套装通用',
+    },
+  ];
+});
+
+function openImprintBench(): void {
+  imprintBenchOpen.value = true;
+}
+
+function closeImprintBench(): void {
+  imprintBenchOpen.value = false;
+  void nextTick(() => imprintEntryButton.value?.focus());
+}
+
+/** 材料图标 404（正式图标未交付前）时退成首字符占位 */
+function onImprintIconError(event: Event): void {
+  (event.target as HTMLImageElement).style.display = 'none';
+}
 
 function selectSlot(slot: EquipSlot): void {
   selectedSlot.value = slot;
@@ -515,8 +565,8 @@ onUnmounted(() => {
             @click="toggleDropFold"
           >
             <span>
-              <small>当前 {{ CLASS_INFO[classId].name }} 可掉落</small>
-              <strong>{{ drops.length }} 件定向候选</strong>
+              <small>{{ imprintActive ? '当前档可掉落材料' : `当前 ${CLASS_INFO[classId].name} 可掉落` }}</small>
+              <strong>{{ imprintActive ? '烙印材料' : `${drops.length} 件定向候选` }}</strong>
             </span>
             <em>{{ currentTier.shortName }}</em>
             <ChevronDown
@@ -528,7 +578,29 @@ onUnmounted(() => {
           </button>
           <div class="fold-grid" :class="{ closed: !dropOpen }">
             <div class="fold-inner">
-              <div class="drop-list">
+              <!-- B-2：激活批次后副本掉材料不掉整装（docs/58 §3.3） -->
+              <div v-if="imprintActive" class="drop-list material-list">
+                <article v-for="material in imprintMaterialDrops" :key="material.id">
+                  <span class="material-icon">
+                    <img
+                      :src="material.iconUrl"
+                      alt=""
+                      draggable="false"
+                      @error="onImprintIconError"
+                    />
+                    <i aria-hidden="true">{{ material.name.slice(0, 1) }}</i>
+                  </span>
+                  <span>
+                    <strong>{{ material.name }}</strong>
+                    <small>{{ material.amount }} · {{ material.note }}</small>
+                  </span>
+                </article>
+                <p class="material-first-clear">
+                  首通本入口额外 {{ IMPRINT_CRYSTAL_DISPLAY[selectedTierId].name }} ×4，
+                  并解锁本档套装图纸
+                </p>
+              </div>
+              <div v-else class="drop-list">
                 <article v-for="definition in drops" :key="definition.id">
                   <EquipmentIcon :def="definition" :class-id="classId" size="lg" decorative />
                   <span>
@@ -541,6 +613,26 @@ onUnmounted(() => {
           </div>
         </div>
       </div>
+    </section>
+
+    <!-- B-1：烙印台入口（激活批次上线；普通装备烙上副本套装归属） -->
+    <section v-if="imprintActive" class="imprint-entry card">
+      <span class="imprint-entry-copy">
+        <small>套装烙印</small>
+        <strong>烙印台</strong>
+        <span>把普通装备烙上副本套装——品质、词条、强化全部保留</span>
+      </span>
+      <button
+        ref="imprintEntryButton"
+        type="button"
+        class="imprint-entry-button"
+        @click="openImprintBench"
+      >
+        <Sparkles :size="15" aria-hidden="true" />
+        打开烙印台
+        <em v-if="unlockedImprintCount > 0">已解锁 {{ unlockedImprintCount }} 套图纸</em>
+        <em v-else>首通副本解锁图纸</em>
+      </button>
     </section>
 
     <CollapsibleCard
@@ -582,6 +674,8 @@ onUnmounted(() => {
       :reduce-motion="effectiveReduceMotion"
       @close="closeBattle"
     />
+
+    <ImprintBench v-if="game.save" :open="imprintBenchOpen" @close="closeImprintBench" />
   </div>
 </template>
 
@@ -1380,6 +1474,104 @@ onUnmounted(() => {
   line-height: 1.45;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+}
+
+/* B-2 · 材料掉落预览（激活批次） */
+
+.material-icon {
+  position: relative;
+  display: grid;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  place-items: center;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 32% 24%, rgb(255 255 255 / 95%), transparent 42%),
+    linear-gradient(145deg, #fff, #eef2f6);
+  border: 1.5px solid color-mix(in srgb, var(--tier-color) 55%, white);
+  border-radius: 12px;
+}
+
+.material-icon img {
+  position: absolute;
+  z-index: 1;
+  width: 92%;
+  height: 92%;
+  object-fit: contain;
+}
+
+.material-icon i {
+  font-size: 14px;
+  font-style: normal;
+  font-weight: 800;
+  color: var(--tier-color);
+}
+
+.material-first-clear {
+  margin: 2px 0 0;
+  font-size: 9px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+/* B-1 · 烙印台入口卡（激活批次） */
+
+.imprint-entry {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 13px;
+  background:
+    radial-gradient(circle at 92% -30%, rgb(190 220 255 / 45%), transparent 46%),
+    linear-gradient(150deg, rgb(255 255 255 / 97%), rgb(250 244 255 / 94%));
+  border: 1px solid rgb(255 255 255 / 85%);
+  border-radius: 18px;
+}
+
+.imprint-entry-copy {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+}
+
+.imprint-entry-copy small {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: var(--pink-deep);
+}
+
+.imprint-entry-copy strong {
+  font-size: 14px;
+}
+
+.imprint-entry-copy span {
+  font-size: 9px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+.imprint-entry-button {
+  display: grid;
+  flex-shrink: 0;
+  gap: 2px;
+  justify-items: center;
+  padding: 9px 12px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #fff;
+  background: linear-gradient(135deg, #ff8bad, #a886ef);
+  border-radius: 14px;
+  box-shadow: 0 8px 18px rgb(219 105 157 / 30%);
+}
+
+.imprint-entry-button em {
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 600;
+  opacity: 0.85;
 }
 
 .challenge-bar {
