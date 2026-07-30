@@ -18,6 +18,13 @@ import { trialBracketFor, trialWeekIndex } from '@/core/trial';
 import { useGameStore } from '../game';
 import { useLeaderboardStore } from '../leaderboard';
 
+// 本文件全部走「未配置 Supabase」的离线降级路径；显式钉死配置开关，
+// 避免开发者本地 .env.local 里的联机变量改变 import.meta.env 而翻转判定。
+vi.mock('@/net/supabase', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/net/supabase')>();
+  return { ...actual, isSupabaseConfigured: false };
+});
+
 const NOW = Date.parse('2026-07-29T17:56:00+08:00');
 
 beforeEach(async () => {
