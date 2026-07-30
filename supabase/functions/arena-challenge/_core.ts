@@ -562,6 +562,13 @@ function calcConfirmedElementalDamage(attacker, defender, atkMultiplier, element
   const variance = rng.float(DAMAGE_VARIANCE_MIN, DAMAGE_VARIANCE_MAX);
   return damageAfterConfirmedHit(attacker, defender, atkMultiplier, element, variance, 1);
 }
+function calcPeriodicDamage(attacker, defender, atkMultiplier, element = attacker.element) {
+  if (!Number.isFinite(atkMultiplier) || atkMultiplier < 0) {
+    throw new Error(`\u6301\u7EED\u4F24\u5BB3\u653B\u51FB\u500D\u7387\u5FC5\u987B\u662F\u975E\u8D1F\u6709\u9650\u6570\uFF1A${atkMultiplier}`);
+  }
+  if (atkMultiplier === 0 || attacker.stats.atk <= 0) return 0;
+  return damageAfterConfirmedHit(attacker, defender, atkMultiplier, element, 1, 1);
+}
 function combatPower(stats) {
   const base = stats.atk * CP_WEIGHTS.atk + stats.def * CP_WEIGHTS.def + stats.hp * CP_WEIGHTS.hp + stats.acc * CP_WEIGHTS.acc + stats.eva * CP_WEIGHTS.eva + stats.critRate / 100 * CP_WEIGHTS.critRate + stats.critDmg / 100 * CP_WEIGHTS.critDmg;
   return Math.round(base * stats.spd);
@@ -632,6 +639,7 @@ function resolveEquipmentSetBonuses(equipped, defOf, setDefOf) {
   const combatBonuses = zeroSetCombatBonuses();
   const onHitTriggers = [];
   const onLethalTriggers = [];
+  const onCritTriggers = [];
   let skillMultiplierBonus = 0;
   const sets = [];
   for (const [setId, equippedPieces] of counts) {
@@ -654,6 +662,12 @@ function resolveEquipmentSetBonuses(equipped, defOf, setDefOf) {
         }
         onLethalTriggers.push(trigger);
       }
+      for (const trigger of bonus.onCritTriggers ?? []) {
+        if (onCritTriggers.some((existing) => existing.id === trigger.id)) {
+          throw new Error(`[\u914D\u7F6E\u9519\u8BEF] \u91CD\u590D\u7684\u66B4\u51FB\u89E6\u53D1 ID\uFF1A${trigger.id}`);
+        }
+        onCritTriggers.push(trigger);
+      }
       skillMultiplierBonus += bonus.skillMultiplierBonus ?? 0;
     }
     sets.push({ definition, equippedPieces, activeBonuses, nextBonus });
@@ -666,6 +680,7 @@ function resolveEquipmentSetBonuses(equipped, defOf, setDefOf) {
     combatBonuses,
     onHitTriggers,
     onLethalTriggers,
+    onCritTriggers,
     skillMultiplierBonus
   };
 }
@@ -712,6 +727,7 @@ function assertSetDefinition(definition) {
   let previousPieces = 0;
   const triggerIds = /* @__PURE__ */ new Set();
   const lethalTriggerIds = /* @__PURE__ */ new Set();
+  const critTriggerIds = /* @__PURE__ */ new Set();
   for (const bonus of definition.bonuses) {
     if (bonus.pieces <= previousPieces || bonus.pieces > definition.pieceSlots.length) {
       throw new Error(`[\u914D\u7F6E\u9519\u8BEF] \u5957\u88C5\u6FC0\u6D3B\u4EF6\u6570\u975E\u6CD5\uFF1A${definition.id} / ${bonus.pieces}`);
@@ -729,6 +745,13 @@ function assertSetDefinition(definition) {
         throw new Error(`[\u914D\u7F6E\u9519\u8BEF] \u91CD\u590D\u7684\u81F4\u547D\u4F24\u89E6\u53D1 ID\uFF1A${trigger.id}`);
       }
       lethalTriggerIds.add(trigger.id);
+    }
+    for (const trigger of bonus.onCritTriggers ?? []) {
+      assertOnCritPeriodicDamageTrigger(trigger);
+      if (critTriggerIds.has(trigger.id)) {
+        throw new Error(`[\u914D\u7F6E\u9519\u8BEF] \u91CD\u590D\u7684\u66B4\u51FB\u89E6\u53D1 ID\uFF1A${trigger.id}`);
+      }
+      critTriggerIds.add(trigger.id);
     }
     previousPieces = bonus.pieces;
   }
@@ -764,10 +787,159 @@ function assertOnHitElementalDamageTrigger(trigger) {
     throw new Error(`[\u914D\u7F6E\u9519\u8BEF] \u8FFD\u52A0\u5143\u7D20\u4F24\u5BB3\u4E0D\u80FD\u662F\u65E0\u5C5E\u6027\uFF1A${trigger.id}`);
   }
 }
+function assertOnCritPeriodicDamageTrigger(trigger) {
+  if (trigger.kind !== "crit-periodic-damage") {
+    throw new Error(`[\u914D\u7F6E\u9519\u8BEF] \u672A\u77E5\u66B4\u51FB\u89E6\u53D1\u7C7B\u578B\uFF1A${trigger.id}`);
+  }
+  if (!trigger.id.trim() || !trigger.statusId.trim()) {
+    throw new Error("[\u914D\u7F6E\u9519\u8BEF] \u66B4\u51FB\u6301\u7EED\u4F24\u5BB3\u7F3A\u5C11\u7A33\u5B9A ID");
+  }
+  if (!Number.isFinite(trigger.healMaxHpRatio) || trigger.healMaxHpRatio < 0 || trigger.healMaxHpRatio > 1) {
+    throw new Error(`[\u914D\u7F6E\u9519\u8BEF] \u66B4\u51FB\u56DE\u590D\u6BD4\u4F8B\u5FC5\u987B\u5728 [0, 1]\uFF1A${trigger.id}`);
+  }
+  if (!Number.isFinite(trigger.atkMultiplierPerTick) || trigger.atkMultiplierPerTick < 0) {
+    throw new Error(`[\u914D\u7F6E\u9519\u8BEF] \u6301\u7EED\u4F24\u5BB3\u5355\u8DF3\u500D\u7387\u5FC5\u987B\u662F\u975E\u8D1F\u6570\uFF1A${trigger.id}`);
+  }
+  if (!Number.isSafeInteger(trigger.ticks) || trigger.ticks <= 0) {
+    throw new Error(`[\u914D\u7F6E\u9519\u8BEF] \u6301\u7EED\u4F24\u5BB3\u8DF3\u6570\u5FC5\u987B\u662F\u6B63\u6574\u6570\uFF1A${trigger.id}`);
+  }
+  if (!Number.isFinite(trigger.durationSec) || trigger.durationSec <= 0) {
+    throw new Error(`[\u914D\u7F6E\u9519\u8BEF] \u6301\u7EED\u4F24\u5BB3\u65F6\u957F\u5FC5\u987B\u4E3A\u6B63\u6570\uFF1A${trigger.id}`);
+  }
+  const durationMs = trigger.durationSec * 1e3;
+  if (!Number.isSafeInteger(durationMs) || durationMs % trigger.ticks !== 0) {
+    throw new Error(`[\u914D\u7F6E\u9519\u8BEF] \u6301\u7EED\u4F24\u5BB3\u65F6\u957F\u5FC5\u987B\u80FD\u5747\u5206\u4E3A\u6574\u6570\u6BEB\u79D2 tick\uFF1A${trigger.id}`);
+  }
+  if (!Number.isSafeInteger(trigger.maxStacks) || trigger.maxStacks <= 0) {
+    throw new Error(`[\u914D\u7F6E\u9519\u8BEF] \u6301\u7EED\u4F24\u5BB3\u5C42\u6570\u4E0A\u9650\u5FC5\u987B\u662F\u6B63\u6574\u6570\uFF1A${trigger.id}`);
+  }
+}
+
+// src/core/combatStatus.ts
+function createPeriodicDamageState() {
+  return { effects: [] };
+}
+function applyPeriodicDamage(state, application, elapsedMs) {
+  assertElapsedMs(elapsedMs);
+  assertPeriodicApplication(application);
+  const active = state.effects.filter((effect) => effect.expiresAtMs >= elapsedMs);
+  const index = active.findIndex((effect) => effect.statusId === application.statusId);
+  if (index < 0) {
+    return {
+      effects: [
+        ...active,
+        {
+          ...application,
+          stacks: Math.min(application.stacks, application.maxStacks),
+          nextTickAtMs: elapsedMs + application.tickIntervalMs,
+          expiresAtMs: elapsedMs + application.durationMs
+        }
+      ]
+    };
+  }
+  const previous = active[index];
+  assertCompatiblePeriodicApplication(previous, application);
+  let next;
+  if (application.refresh === "replace") {
+    next = {
+      ...application,
+      stacks: Math.min(application.stacks, application.maxStacks),
+      nextTickAtMs: elapsedMs + application.tickIntervalMs,
+      expiresAtMs: elapsedMs + application.durationMs
+    };
+  } else {
+    next = {
+      ...previous,
+      triggerId: application.triggerId,
+      source: application.source,
+      damagePerTick: application.damagePerTick,
+      stacks: Math.min(previous.stacks + application.stacks, application.maxStacks),
+      expiresAtMs: application.refresh === "add-duration" ? previous.expiresAtMs + application.durationMs : elapsedMs + application.durationMs
+    };
+  }
+  return {
+    effects: active.map((effect, effectIndex) => effectIndex === index ? next : effect)
+  };
+}
+function advancePeriodicDamage(state, elapsedMs) {
+  assertElapsedMs(elapsedMs);
+  const ticks = [];
+  const effects = [];
+  for (const [effectIndex, effect] of state.effects.entries()) {
+    assertActivePeriodicDamage(effect);
+    let nextTickAtMs = effect.nextTickAtMs;
+    while (nextTickAtMs <= elapsedMs && nextTickAtMs <= effect.expiresAtMs) {
+      ticks.push({
+        statusId: effect.statusId,
+        triggerId: effect.triggerId,
+        source: effect.source,
+        element: effect.element,
+        damage: effect.damagePerTick * effect.stacks,
+        stacks: effect.stacks,
+        elapsedMs: nextTickAtMs,
+        effectIndex
+      });
+      nextTickAtMs += effect.tickIntervalMs;
+    }
+    if (nextTickAtMs <= effect.expiresAtMs || elapsedMs < effect.expiresAtMs) {
+      effects.push({ ...effect, nextTickAtMs });
+    }
+  }
+  ticks.sort(
+    (left, right) => left.elapsedMs - right.elapsedMs || left.effectIndex - right.effectIndex
+  );
+  return {
+    state: { effects },
+    ticks: ticks.map(({ effectIndex: _effectIndex, ...tick }) => tick)
+  };
+}
+function assertElapsedMs(elapsedMs) {
+  if (!Number.isSafeInteger(elapsedMs) || elapsedMs < 0) {
+    throw new Error(`\u6301\u7EED\u4F24\u5BB3\u65F6\u70B9\u5FC5\u987B\u662F\u975E\u8D1F\u5B89\u5168\u6574\u6570\u6BEB\u79D2\uFF1A${elapsedMs}`);
+  }
+}
+function assertPeriodicApplication(application) {
+  if (!application.statusId.trim() || !application.triggerId.trim()) {
+    throw new Error("\u6301\u7EED\u4F24\u5BB3\u5FC5\u987B\u63D0\u4F9B\u7A33\u5B9A statusId \u4E0E triggerId");
+  }
+  if (!Number.isFinite(application.damagePerTick) || application.damagePerTick < 0) {
+    throw new Error(`\u6301\u7EED\u4F24\u5BB3\u5355\u8DF3\u6570\u503C\u5FC5\u987B\u662F\u975E\u8D1F\u6709\u9650\u6570\uFF1A${application.statusId}`);
+  }
+  if (!Number.isSafeInteger(application.stacks) || application.stacks <= 0) {
+    throw new Error(`\u6301\u7EED\u4F24\u5BB3\u65BD\u52A0\u5C42\u6570\u5FC5\u987B\u662F\u6B63\u6574\u6570\uFF1A${application.statusId}`);
+  }
+  if (!Number.isSafeInteger(application.maxStacks) || application.maxStacks <= 0) {
+    throw new Error(`\u6301\u7EED\u4F24\u5BB3\u5C42\u6570\u4E0A\u9650\u5FC5\u987B\u662F\u6B63\u6574\u6570\uFF1A${application.statusId}`);
+  }
+  if (application.stacks > application.maxStacks) {
+    throw new Error(`\u6301\u7EED\u4F24\u5BB3\u65BD\u52A0\u5C42\u6570\u4E0D\u80FD\u8D85\u8FC7\u4E0A\u9650\uFF1A${application.statusId}`);
+  }
+  if (!Number.isSafeInteger(application.durationMs) || application.durationMs <= 0) {
+    throw new Error(`\u6301\u7EED\u4F24\u5BB3\u6301\u7EED\u65F6\u95F4\u5FC5\u987B\u662F\u6B63\u6574\u6570\u6BEB\u79D2\uFF1A${application.statusId}`);
+  }
+  if (!Number.isSafeInteger(application.tickIntervalMs) || application.tickIntervalMs <= 0) {
+    throw new Error(`\u6301\u7EED\u4F24\u5BB3\u95F4\u9694\u5FC5\u987B\u662F\u6B63\u6574\u6570\u6BEB\u79D2\uFF1A${application.statusId}`);
+  }
+  if (application.durationMs % application.tickIntervalMs !== 0) {
+    throw new Error(`\u6301\u7EED\u4F24\u5BB3\u6301\u7EED\u65F6\u95F4\u5FC5\u987B\u7531\u5B8C\u6574 tick \u7EC4\u6210\uFF1A${application.statusId}`);
+  }
+}
+function assertActivePeriodicDamage(effect) {
+  assertPeriodicApplication(effect);
+  if (!Number.isSafeInteger(effect.nextTickAtMs) || !Number.isSafeInteger(effect.expiresAtMs)) {
+    throw new Error(`\u6301\u7EED\u4F24\u5BB3\u8FD0\u884C\u65F6\u70B9\u975E\u6CD5\uFF1A${effect.statusId}`);
+  }
+}
+function assertCompatiblePeriodicApplication(previous, application) {
+  if (previous.source !== application.source || previous.element !== application.element || previous.maxStacks !== application.maxStacks || previous.durationMs !== application.durationMs || previous.tickIntervalMs !== application.tickIntervalMs || previous.refresh !== application.refresh) {
+    throw new Error(`\u540C\u4E00\u6301\u7EED\u4F24\u5BB3 ID \u7684\u89C4\u5219\u4E0D\u4E00\u81F4\uFF1A${application.statusId}`);
+  }
+}
 
 // src/core/combat.ts
 var MAX_FIGHT_SECONDS = 300;
 var TICK = 0.1;
+var TICK_MS = 100;
 function resolveDamageSegment(attacker, defender, skillMultiplier, rng, onHitTriggers = []) {
   for (const trigger of onHitTriggers) {
     assertOnHitElementalDamageTrigger(trigger);
@@ -812,16 +984,47 @@ function simulateFight(player, monster, rng, opts = {}) {
   const events = [];
   const playerLethalUses = createLethalTriggerUses(opts.playerOnLethalTriggers);
   const monsterLethalUses = createLethalTriggerUses(opts.monsterOnLethalTriggers);
+  let playerPeriodicDamage = createPeriodicDamageState();
+  let monsterPeriodicDamage = createPeriodicDamageState();
+  for (const trigger of opts.playerOnCritTriggers ?? []) {
+    assertOnCritPeriodicDamageTrigger(trigger);
+  }
+  for (const trigger of opts.monsterOnCritTriggers ?? []) {
+    assertOnCritPeriodicDamageTrigger(trigger);
+  }
   const playerInterval = 1 / Math.max(0.01, player.stats.spd);
   const monsterInterval = 1 / Math.max(0.01, monster.stats.spd);
   while (ticks < maxTicks && player.currentHp > 0 && monster.currentHp > 0) {
     ticks++;
+    const elapsedMs = ticks * TICK_MS;
     playerCd -= TICK;
     monsterCd -= TICK;
+    const monsterPeriodicAdvance = applyPeriodicDamageAdvance(
+      monster,
+      monsterPeriodicDamage,
+      elapsedMs,
+      events,
+      opts.monsterOnLethalTriggers,
+      monsterLethalUses
+    );
+    monsterPeriodicDamage = monsterPeriodicAdvance.state;
+    damageDealt += monsterPeriodicAdvance.damage;
+    if (monster.currentHp <= 0) break;
+    const playerPeriodicAdvance = applyPeriodicDamageAdvance(
+      player,
+      playerPeriodicDamage,
+      elapsedMs,
+      events,
+      opts.playerOnLethalTriggers,
+      playerLethalUses
+    );
+    playerPeriodicDamage = playerPeriodicAdvance.state;
+    damageTaken += playerPeriodicAdvance.damage;
+    if (player.currentHp <= 0) break;
     if (playerCd <= 0) {
       playerCd += playerInterval;
       const segment = resolveDamageSegment(player, monster, pMul, rng, opts.playerOnHitTriggers);
-      damageDealt += applyDamageSegment(
+      const applied = applyDamageSegment(
         player,
         monster,
         segment,
@@ -830,12 +1033,24 @@ function simulateFight(player, monster, rng, opts = {}) {
         opts.monsterOnLethalTriggers,
         monsterLethalUses
       );
+      damageDealt += applied.damage;
+      if (applied.directCrit) {
+        monsterPeriodicDamage = resolveOnCritTriggers(
+          player,
+          monster,
+          opts.playerOnCritTriggers,
+          "player",
+          elapsedMs,
+          monsterPeriodicDamage,
+          events
+        );
+      }
       if (monster.currentHp <= 0) break;
     }
     if (monsterCd <= 0) {
       monsterCd += monsterInterval;
       const segment = resolveDamageSegment(monster, player, mMul, rng, opts.monsterOnHitTriggers);
-      damageTaken += applyDamageSegment(
+      const applied = applyDamageSegment(
         monster,
         player,
         segment,
@@ -844,6 +1059,18 @@ function simulateFight(player, monster, rng, opts = {}) {
         opts.playerOnLethalTriggers,
         playerLethalUses
       );
+      damageTaken += applied.damage;
+      if (applied.directCrit) {
+        playerPeriodicDamage = resolveOnCritTriggers(
+          monster,
+          player,
+          opts.monsterOnCritTriggers,
+          "monster",
+          elapsedMs,
+          playerPeriodicDamage,
+          events
+        );
+      }
     }
   }
   const win = monster.currentHp <= 0 && player.currentHp > 0;
@@ -911,7 +1138,95 @@ function applyDamageSegment(attacker, defender, resolution, source4, timeline, d
       });
     }
   }
-  return total;
+  return { damage: total, directCrit: resolution.direct.hit && resolution.direct.crit };
+}
+function resolveOnCritTriggers(attacker, defender, triggers = [], source4, elapsedMs, periodicState, timeline) {
+  let state = periodicState;
+  for (const trigger of triggers) {
+    assertOnCritPeriodicDamageTrigger(trigger);
+    const healing = Math.min(
+      Math.max(0, attacker.stats.hp - attacker.currentHp),
+      attacker.stats.hp * trigger.healMaxHpRatio
+    );
+    attacker.currentHp += healing;
+    timeline.push({
+      sequence: timeline.length + 1,
+      source: source4,
+      target: source4,
+      event: {
+        kind: "on-crit-recovery",
+        damage: 0,
+        healing,
+        triggerId: trigger.id
+      }
+    });
+    if (defender.currentHp <= 0) continue;
+    const durationMs = trigger.durationSec * 1e3;
+    const element = trigger.element ?? attacker.element;
+    state = applyPeriodicDamage(
+      state,
+      {
+        statusId: trigger.statusId,
+        triggerId: trigger.id,
+        source: source4,
+        element,
+        damagePerTick: calcPeriodicDamage(
+          attacker,
+          defender,
+          trigger.atkMultiplierPerTick,
+          element
+        ),
+        stacks: 1,
+        maxStacks: trigger.maxStacks,
+        durationMs,
+        tickIntervalMs: durationMs / trigger.ticks,
+        refresh: trigger.refresh
+      },
+      elapsedMs
+    );
+  }
+  return state;
+}
+function applyPeriodicDamageAdvance(defender, state, elapsedMs, timeline, defenderLethalTriggers = [], defenderLethalUses = /* @__PURE__ */ new Map()) {
+  const advanced = advancePeriodicDamage(state, elapsedMs);
+  let damage = 0;
+  for (const tick of advanced.ticks) {
+    if (defender.currentHp <= 0) break;
+    const applied = applyDamageOnly(
+      defender,
+      tick.damage,
+      defenderLethalTriggers,
+      defenderLethalUses
+    );
+    damage += applied.damage;
+    pushPeriodicDamageEvent(timeline, tick, applied.damage);
+    if (applied.recovery) {
+      timeline.push({
+        sequence: timeline.length + 1,
+        source: tick.source === "player" ? "monster" : "player",
+        target: tick.source === "player" ? "monster" : "player",
+        event: applied.recovery
+      });
+    }
+  }
+  return { state: advanced.state, damage };
+}
+function pushPeriodicDamageEvent(timeline, tick, damage) {
+  timeline.push({
+    sequence: timeline.length + 1,
+    source: tick.source,
+    target: tick.source === "player" ? "monster" : "player",
+    event: {
+      kind: "periodic-damage",
+      damage,
+      hit: true,
+      crit: false,
+      element: tick.element,
+      triggerId: tick.triggerId,
+      statusId: tick.statusId,
+      stacks: tick.stacks
+    }
+  });
 }
 function applyDamageOnly(defender, rolledDamage, lethalTriggers = [], lethalUses = /* @__PURE__ */ new Map()) {
   const actualDamage = Math.min(Math.max(0, defender.currentHp), Math.max(0, rolledDamage));
@@ -3592,6 +3907,7 @@ function buildTrialCombatant(input) {
     skillMultiplier: averageSkillMultiplier(input.level) + setResolution.skillMultiplierBonus,
     onHitTriggers: setResolution.onHitTriggers,
     onLethalTriggers: setResolution.onLethalTriggers,
+    onCritTriggers: setResolution.onCritTriggers,
     combatPower: combatPower(stats),
     buildHash: canonicalBuildHash(input.equipped)
   };
@@ -3714,7 +4030,9 @@ function simulateDuelWithFirst(attacker, defender, rng, attackerFirst) {
     playerOnHitTriggers: first.onHitTriggers,
     monsterOnHitTriggers: second.onHitTriggers,
     playerOnLethalTriggers: first.onLethalTriggers,
-    monsterOnLethalTriggers: second.onLethalTriggers
+    monsterOnLethalTriggers: second.onLethalTriggers,
+    playerOnCritTriggers: first.onCritTriggers,
+    monsterOnCritTriggers: second.onCritTriggers
   });
   const pPct = Math.max(0, p.currentHp) / p.stats.hp;
   const mPct = Math.max(0, m.currentHp) / m.stats.hp;
@@ -3762,6 +4080,21 @@ function simulateDuelWithFirst(attacker, defender, rng, attackerFirst) {
         crit: false,
         element: ev.event.element,
         triggerId: ev.event.triggerId
+      };
+    }
+    if (ev.event.kind === "periodic-damage") {
+      return {
+        sequence: ev.sequence,
+        source: source4,
+        target,
+        kind: ev.event.kind,
+        damage: ev.event.damage,
+        hit: true,
+        crit: false,
+        element: ev.event.element,
+        triggerId: ev.event.triggerId,
+        statusId: ev.event.statusId,
+        stacks: ev.event.stacks
       };
     }
     return {

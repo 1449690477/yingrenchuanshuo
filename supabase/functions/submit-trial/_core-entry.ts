@@ -24,6 +24,7 @@ export {
 } from '@/core/trial';
 export { equipmentInstanceSchema } from '@/save/schema';
 export { getEquipment } from '@/data/equipment';
+export { TRIAL_SEASON_ID } from '@/data/trialRules';
 export { SLOT_ORDER } from '@/data/constants';
 export { CLASS_IDS } from '@/core/types';
 export type { ClassId, EquipmentInstance } from '@/core/types';

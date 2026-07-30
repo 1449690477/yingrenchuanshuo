@@ -477,6 +477,7 @@ function resolveEquipmentSetBonuses(equipped, defOf, setDefOf) {
   const combatBonuses = zeroSetCombatBonuses();
   const onHitTriggers = [];
   const onLethalTriggers = [];
+  const onCritTriggers = [];
   let skillMultiplierBonus = 0;
   const sets = [];
   for (const [setId, equippedPieces] of counts) {
@@ -499,6 +500,12 @@ function resolveEquipmentSetBonuses(equipped, defOf, setDefOf) {
         }
         onLethalTriggers.push(trigger);
       }
+      for (const trigger of bonus.onCritTriggers ?? []) {
+        if (onCritTriggers.some((existing) => existing.id === trigger.id)) {
+          throw new Error(`[\u914D\u7F6E\u9519\u8BEF] \u91CD\u590D\u7684\u66B4\u51FB\u89E6\u53D1 ID\uFF1A${trigger.id}`);
+        }
+        onCritTriggers.push(trigger);
+      }
       skillMultiplierBonus += bonus.skillMultiplierBonus ?? 0;
     }
     sets.push({ definition, equippedPieces, activeBonuses, nextBonus });
@@ -511,6 +518,7 @@ function resolveEquipmentSetBonuses(equipped, defOf, setDefOf) {
     combatBonuses,
     onHitTriggers,
     onLethalTriggers,
+    onCritTriggers,
     skillMultiplierBonus
   };
 }
@@ -557,6 +565,7 @@ function assertSetDefinition(definition) {
   let previousPieces = 0;
   const triggerIds = /* @__PURE__ */ new Set();
   const lethalTriggerIds = /* @__PURE__ */ new Set();
+  const critTriggerIds = /* @__PURE__ */ new Set();
   for (const bonus of definition.bonuses) {
     if (bonus.pieces <= previousPieces || bonus.pieces > definition.pieceSlots.length) {
       throw new Error(`[\u914D\u7F6E\u9519\u8BEF] \u5957\u88C5\u6FC0\u6D3B\u4EF6\u6570\u975E\u6CD5\uFF1A${definition.id} / ${bonus.pieces}`);
@@ -574,6 +583,13 @@ function assertSetDefinition(definition) {
         throw new Error(`[\u914D\u7F6E\u9519\u8BEF] \u91CD\u590D\u7684\u81F4\u547D\u4F24\u89E6\u53D1 ID\uFF1A${trigger.id}`);
       }
       lethalTriggerIds.add(trigger.id);
+    }
+    for (const trigger of bonus.onCritTriggers ?? []) {
+      assertOnCritPeriodicDamageTrigger(trigger);
+      if (critTriggerIds.has(trigger.id)) {
+        throw new Error(`[\u914D\u7F6E\u9519\u8BEF] \u91CD\u590D\u7684\u66B4\u51FB\u89E6\u53D1 ID\uFF1A${trigger.id}`);
+      }
+      critTriggerIds.add(trigger.id);
     }
     previousPieces = bonus.pieces;
   }
@@ -607,6 +623,33 @@ function assertOnHitElementalDamageTrigger(trigger) {
   }
   if (!["fire", "ice", "thunder"].includes(trigger.element)) {
     throw new Error(`[\u914D\u7F6E\u9519\u8BEF] \u8FFD\u52A0\u5143\u7D20\u4F24\u5BB3\u4E0D\u80FD\u662F\u65E0\u5C5E\u6027\uFF1A${trigger.id}`);
+  }
+}
+function assertOnCritPeriodicDamageTrigger(trigger) {
+  if (trigger.kind !== "crit-periodic-damage") {
+    throw new Error(`[\u914D\u7F6E\u9519\u8BEF] \u672A\u77E5\u66B4\u51FB\u89E6\u53D1\u7C7B\u578B\uFF1A${trigger.id}`);
+  }
+  if (!trigger.id.trim() || !trigger.statusId.trim()) {
+    throw new Error("[\u914D\u7F6E\u9519\u8BEF] \u66B4\u51FB\u6301\u7EED\u4F24\u5BB3\u7F3A\u5C11\u7A33\u5B9A ID");
+  }
+  if (!Number.isFinite(trigger.healMaxHpRatio) || trigger.healMaxHpRatio < 0 || trigger.healMaxHpRatio > 1) {
+    throw new Error(`[\u914D\u7F6E\u9519\u8BEF] \u66B4\u51FB\u56DE\u590D\u6BD4\u4F8B\u5FC5\u987B\u5728 [0, 1]\uFF1A${trigger.id}`);
+  }
+  if (!Number.isFinite(trigger.atkMultiplierPerTick) || trigger.atkMultiplierPerTick < 0) {
+    throw new Error(`[\u914D\u7F6E\u9519\u8BEF] \u6301\u7EED\u4F24\u5BB3\u5355\u8DF3\u500D\u7387\u5FC5\u987B\u662F\u975E\u8D1F\u6570\uFF1A${trigger.id}`);
+  }
+  if (!Number.isSafeInteger(trigger.ticks) || trigger.ticks <= 0) {
+    throw new Error(`[\u914D\u7F6E\u9519\u8BEF] \u6301\u7EED\u4F24\u5BB3\u8DF3\u6570\u5FC5\u987B\u662F\u6B63\u6574\u6570\uFF1A${trigger.id}`);
+  }
+  if (!Number.isFinite(trigger.durationSec) || trigger.durationSec <= 0) {
+    throw new Error(`[\u914D\u7F6E\u9519\u8BEF] \u6301\u7EED\u4F24\u5BB3\u65F6\u957F\u5FC5\u987B\u4E3A\u6B63\u6570\uFF1A${trigger.id}`);
+  }
+  const durationMs = trigger.durationSec * 1e3;
+  if (!Number.isSafeInteger(durationMs) || durationMs % trigger.ticks !== 0) {
+    throw new Error(`[\u914D\u7F6E\u9519\u8BEF] \u6301\u7EED\u4F24\u5BB3\u65F6\u957F\u5FC5\u987B\u80FD\u5747\u5206\u4E3A\u6574\u6570\u6BEB\u79D2 tick\uFF1A${trigger.id}`);
+  }
+  if (!Number.isSafeInteger(trigger.maxStacks) || trigger.maxStacks <= 0) {
+    throw new Error(`[\u914D\u7F6E\u9519\u8BEF] \u6301\u7EED\u4F24\u5BB3\u5C42\u6570\u4E0A\u9650\u5FC5\u987B\u662F\u6B63\u6574\u6570\uFF1A${trigger.id}`);
   }
 }
 
@@ -3251,6 +3294,7 @@ function buildTrialCombatant(input) {
     skillMultiplier: averageSkillMultiplier(input.level) + setResolution.skillMultiplierBonus,
     onHitTriggers: setResolution.onHitTriggers,
     onLethalTriggers: setResolution.onLethalTriggers,
+    onCritTriggers: setResolution.onCritTriggers,
     combatPower: combatPower(stats),
     buildHash: canonicalBuildHash(input.equipped)
   };

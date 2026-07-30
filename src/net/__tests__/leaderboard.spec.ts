@@ -62,6 +62,32 @@ describe('submitTrialScore', () => {
     await expect(submitTrialScore(client, submission)).rejects.toThrow('网络连接失败');
   });
 
+  it('4xx 业务错误透出服务端中文原因，而不是笼统的 non-2xx', async () => {
+    // 复刻真实排障场景：FunctionsHttpError.context 是带 { error } 正文的 Response
+    const httpError = Object.assign(
+      new Error('Edge Function returned a non-2xx status code'),
+      {
+        context: new Response(JSON.stringify({ error: '装备词条数值不符合生成公式' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      },
+    );
+    const client = stubClient(async () => ({ data: null, error: httpError }));
+    await expect(submitTrialScore(client, submission)).rejects.toThrow(
+      '装备词条数值不符合生成公式',
+    );
+  });
+
+  it('业务错误正文缺失时仍走兜底翻译', async () => {
+    const httpError = Object.assign(
+      new Error('Edge Function returned a non-2xx status code'),
+      { context: new Response('not json', { status: 502 }) },
+    );
+    const client = stubClient(async () => ({ data: null, error: httpError }));
+    await expect(submitTrialScore(client, submission)).rejects.toThrow('成绩上传失败');
+  });
+
   it('响应缺字段时拒绝猜测，直接报错', async () => {
     const client = stubClient(async () => ({ data: { damage: 1 }, error: null }));
     await expect(submitTrialScore(client, submission)).rejects.toThrow('无法识别');

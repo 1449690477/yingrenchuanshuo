@@ -27,6 +27,7 @@ import {
   getEquipment,
   runTrial,
   SLOT_ORDER,
+  TRIAL_SEASON_ID,
   trialBracketFor,
   trialEquipmentSnapshotIssue,
   trialScoreSeed,
@@ -41,6 +42,8 @@ const corsHeaders = {
 
 const submissionSchema = z
   .object({
+    // 这三个字段保留接收以兼容各版本客户端，但取值一律忽略——
+    // 赛季 / 周次 / 分段由服务端权威决定（见下方注释）。
     seasonId: z.string().min(1).max(16),
     weekIndex: z.number().int().nonnegative(),
     bracketId: z.string().min(1),
@@ -86,13 +89,15 @@ Deno.serve(async (req: Request) => {
     if (!parsed.success) return json({ error: '提交的搭配快照不合法' }, 400);
     const sub = parsed.data;
 
-    // 周次必须与服务器当前周一致：防「穿越」到已结算的周次刷榜
+    // 赛季 / 周次 / 分段一律以服务端为准，客户端自报值仅作参考、永不拒绝。
+    //
+    // 安全性论证（docs/51 §6.3）：伤害由服务端现算，种子只依赖
+    // season + week + bracket + buildHash；周次与分段由服务端自己定，
+    // 客户端无论报什么都无法穿越到已结算周次刷榜，也无法跨段偷奖励。
+    // 之前「客户端报值 ≠ 服务端值 → 400」的两个校验是纯误伤源：
+    // 设备时钟有偏差、或 PWA 旧缓存里分段口径不同的真实玩家会被挡在榜外。
     const serverWeek = trialWeekIndex(Date.now());
-    if (sub.weekIndex !== serverWeek) return json({ error: '试炼周次已过期' }, 400);
-    // 分段必须与等级一致：防压级去低段虐菜、防越段偷高段奖励
-    if (trialBracketFor(sub.level).id !== sub.bracketId) {
-      return json({ error: '分段与等级不符' }, 400);
-    }
+    const serverBracketId = trialBracketFor(sub.level).id;
 
     // 槽位、等级、职业与词条公式硬限制（schema 只保证单件基础结构）
     for (let i = 0; i < SLOT_ORDER.length; i++) {
@@ -120,8 +125,8 @@ Deno.serve(async (req: Request) => {
       level: sub.level,
       equipped: sub.equipped,
     });
-    const boss = weeklyTrialBoss(sub.seasonId, sub.weekIndex, sub.bracketId);
-    const seed = trialScoreSeed(sub.seasonId, sub.weekIndex, sub.bracketId, build.buildHash);
+    const boss = weeklyTrialBoss(TRIAL_SEASON_ID, serverWeek, serverBracketId);
+    const seed = trialScoreSeed(TRIAL_SEASON_ID, serverWeek, serverBracketId, build.buildHash);
     const damage = runTrial(build, boss.combatant, seed).damage;
 
     // ── 4. 审核结论 ──
@@ -159,9 +164,9 @@ Deno.serve(async (req: Request) => {
       .from('trial_scores')
       .select('id, damage, verified')
       .eq('user_id', user.id)
-      .eq('season_id', sub.seasonId)
-      .eq('week_index', sub.weekIndex)
-      .eq('bracket_id', sub.bracketId)
+      .eq('season_id', TRIAL_SEASON_ID)
+      .eq('week_index', serverWeek)
+      .eq('bracket_id', serverBracketId)
       .maybeSingle();
 
     // 永不倒退：只保留每人每周每分段的最好成绩。
@@ -179,9 +184,9 @@ Deno.serve(async (req: Request) => {
     if (decision.action === 'insert') {
       const { error: scoreError } = await admin.from('trial_scores').insert({
         user_id: user.id,
-        season_id: sub.seasonId,
-        week_index: sub.weekIndex,
-        bracket_id: sub.bracketId,
+        season_id: TRIAL_SEASON_ID,
+        week_index: serverWeek,
+        bracket_id: serverBracketId,
         class_id: sub.classId,
         damage,
         build_hash: build.buildHash,
@@ -219,9 +224,9 @@ Deno.serve(async (req: Request) => {
         admin
           .from('trial_scores')
           .select('id', { count: 'exact', head: true })
-          .eq('season_id', sub.seasonId)
-          .eq('week_index', sub.weekIndex)
-          .eq('bracket_id', sub.bracketId)
+          .eq('season_id', TRIAL_SEASON_ID)
+          .eq('week_index', serverWeek)
+          .eq('bracket_id', serverBracketId)
           .eq('class_id', sub.classId)
           .eq('verified', true);
       const { count: totalCount } = await board();

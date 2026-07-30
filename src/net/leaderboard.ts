@@ -175,7 +175,10 @@ export async function submitTrialScore(
   const { data, error } = await client.functions.invoke('submit-trial', {
     body: submission,
   });
-  if (error) throw new NetRequestError(friendlyMessage(error.message, '成绩上传失败'));
+  if (error) {
+    const serverMessage = await extractFunctionErrorMessage(error);
+    throw new NetRequestError(serverMessage ?? friendlyMessage(error.message, '成绩上传失败'));
+  }
   const body = data as Partial<TrialSubmitResult> | null;
   if (
     !body ||
@@ -367,4 +370,28 @@ function friendlyMessage(raw: string, fallback: string): string {
     return '登录状态已过期，请重新打开排行榜';
   }
   return `${fallback}：${raw}`;
+}
+
+/**
+ * 读出 Edge Function 业务错误的正文（FunctionsHttpError.context 是 Response）。
+ *
+ * 服务端 4xx/5xx 的 { error } 是面向玩家的中文原因（如「装备词条数值不符合
+ * 生成公式」）；supabase-js 的 error.message 只有一句笼统的
+ * "Edge Function returned a non-2xx status code"，直接透出等于什么都没说。
+ */
+export async function extractFunctionErrorMessage(error: unknown): Promise<string | null> {
+  const context = (error as { context?: unknown }).context;
+  if (!(context instanceof Response)) return null;
+  try {
+    const body: unknown = await context.clone().json();
+    if (body !== null && typeof body === 'object' && 'error' in body) {
+      const message = (body as { error?: unknown }).error;
+      if (typeof message === 'string' && message.length > 0 && message.length <= 100) {
+        return message;
+      }
+    }
+  } catch {
+    // 网络层错误没有 JSON 正文，走兜底翻译
+  }
+  return null;
 }

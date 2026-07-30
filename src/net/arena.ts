@@ -14,6 +14,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { DuelLogEvent } from '@/core/duel';
 import type { ClassId, EquipmentInstance } from '@/core/types';
 import { NetRequestError } from './supabase';
+import { extractFunctionErrorMessage } from './leaderboard';
 
 // ─────────────────────────── 类型 ───────────────────────────
 
@@ -109,7 +110,7 @@ export async function uploadArenaSnapshot(
   payload: ArenaSnapshotPayload,
 ): Promise<ArenaSnapshotResult> {
   const { data, error } = await client.functions.invoke('arena-snapshot', { body: payload });
-  if (error) throw new NetRequestError(friendlyMessage(error.message, '搭配上传失败'));
+  if (error) await throwInvokeError(error, '搭配上传失败');
   const body = data as Partial<ArenaSnapshotResult> | null;
   if (!body || typeof body.rank !== 'number' || typeof body.honor !== 'number') {
     throw new NetRequestError('服务端返回了无法识别的竞技场状态，请稍后重试');
@@ -135,7 +136,7 @@ export async function fetchArenaCandidates(
   const { data, error } = await client.functions.invoke('arena-candidates', {
     body: { seasonId },
   });
-  if (error) throw new NetRequestError(friendlyMessage(error.message, '候选读取失败'));
+  if (error) await throwInvokeError(error, '候选读取失败');
   const body = data as Partial<ArenaCandidatesResult> | null;
   if (!body || !body.me || typeof body.me.rank !== 'number' || !Array.isArray(body.candidates)) {
     throw new NetRequestError('服务端返回了无法识别的候选列表，请稍后重试');
@@ -182,7 +183,7 @@ export async function submitArenaChallenge(
   payload: ArenaSnapshotPayload & { defenderId: string; stake: number; isRevenge?: boolean },
 ): Promise<ArenaChallengeResult> {
   const { data, error } = await client.functions.invoke('arena-challenge', { body: payload });
-  if (error) throw new NetRequestError(friendlyMessage(error.message, '挑战发起失败'));
+  if (error) await throwInvokeError(error, '挑战发起失败');
   const body = data as Partial<ArenaChallengeResult> | null;
   if (
     !body ||
@@ -257,7 +258,7 @@ export async function fetchPendingArenaGrants(client: SupabaseClient): Promise<A
     .select('id, kind, day_key, payload, created_at')
     .is('claimed_at', null)
     .order('created_at', { ascending: true });
-  if (error) throw new NetRequestError(friendlyMessage(error.message, '奖励同步失败'));
+  if (error) await throwInvokeError(error, '奖励同步失败');
   return (data ?? []).map((row) => ({
     id: String(row.id),
     kind: row.kind === 'shop' ? 'shop' : 'settle',
@@ -274,7 +275,7 @@ export async function markArenaGrantClaimed(client: SupabaseClient, grantId: str
     .update({ claimed_at: new Date().toISOString() })
     .eq('id', grantId)
     .is('claimed_at', null);
-  if (error) throw new NetRequestError(friendlyMessage(error.message, '奖励确认失败'));
+  if (error) await throwInvokeError(error, '奖励确认失败');
 }
 
 /** 荣誉商店兑换：服务端原子扣荣誉并写入奖励记录，返回扣后余额。 */
@@ -283,7 +284,7 @@ export async function buyArenaShopEntry(
   payload: { seasonId: string; entryId: string; classId: ClassId },
 ): Promise<{ honor: number }> {
   const { data, error } = await client.functions.invoke('arena-shop-buy', { body: payload });
-  if (error) throw new NetRequestError(friendlyMessage(error.message, '兑换失败'));
+  if (error) await throwInvokeError(error, '兑换失败');
   const body = data as { honor?: number } | null;
   if (!body || typeof body.honor !== 'number') {
     throw new NetRequestError('服务端返回了无法识别的兑换结果，请稍后重试');
@@ -303,7 +304,17 @@ function friendlyMessage(raw: string, fallback: string): string {
     return '登录状态已过期，请重新打开竞技场';
   }
   // Edge Function 的业务错误（次数用完、荣誉不足等）原文是中文，直接透出
-  const match = raw.match(/"error"\s*:\s*"([^"]+)"/);
-  if (match?.[1]) return match[1];
   return `${fallback}：${raw}`;
+}
+
+/**
+ * 优先透出服务端 { error } 里的中文业务原因；没有正文时走兜底翻译。
+ *
+ * 注意 supabase-js 的 error.message 只有 "Edge Function returned a non-2xx
+ * status code"，正文在 FunctionsHttpError.context（Response）里——
+ * 用正则匹配 message 永远匹配不到，必须读 context。
+ */
+async function throwInvokeError(error: unknown, fallback: string): Promise<never> {
+  const serverMessage = await extractFunctionErrorMessage(error);
+  throw new NetRequestError(serverMessage ?? friendlyMessage((error as Error).message, fallback));
 }
