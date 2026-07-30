@@ -3829,16 +3829,6 @@ function buildEquipmentDungeonGear() {
 }
 var EQUIPMENT_DUNGEON_GEAR = buildEquipmentDungeonGear();
 var EQUIPMENT_DUNGEON_GEAR_LIST = Object.values(EQUIPMENT_DUNGEON_GEAR);
-function requireEquipmentDungeonTier(tierId) {
-  const tier = TIER_BY_ID[tierId];
-  if (!tier) throw new Error(`[\u914D\u7F6E\u9519\u8BEF] \u88C5\u5907\u526F\u672C\u54C1\u8D28\u6863\u4E0D\u5B58\u5728\uFF1A${tierId}`);
-  return tier;
-}
-function equipmentDungeonGearFor(tierId, slot, classId) {
-  return EQUIPMENT_DUNGEON_GEAR_LIST.filter(
-    (definition) => definition.quality === requireEquipmentDungeonTier(tierId).quality && definition.slot === slot && (classId === void 0 || definition.classId === void 0 || definition.classId === classId)
-  );
-}
 
 // src/data/equipment.ts
 var THEMES = [
@@ -4209,8 +4199,9 @@ var EQUIPMENT_DUNGEON_SETS = {
       {
         pieces: 8,
         label: "\u84DD\u5323\u8C22\u5E55",
-        description: "\u5E73\u5747\u6280\u80FD\u500D\u7387 +0.05",
-        skillMultiplierBonus: 0.05
+        description: "\u96C6\u9F50\u516B\u4EF6\u7684\u8BC1\u660E\u3002\u6388\u4E88\u79F0\u53F7\u300C\u6674\u84DD\u7684\u5EA7\u4E0A\u5BBE\u300D\u4E0E\u4E13\u5C5E\u5FBD\u8BB0\u3002",
+        cosmeticOnly: true,
+        title: "\u6674\u84DD\u7684\u5EA7\u4E0A\u5BBE"
       }
     ]
   },
@@ -4242,8 +4233,9 @@ var EQUIPMENT_DUNGEON_SETS = {
       {
         pieces: 8,
         label: "\u7D2B\u5323\u661F\u6F6E",
-        description: "\u5E73\u5747\u6280\u80FD\u500D\u7387 +0.08",
-        skillMultiplierBonus: 0.08
+        description: "\u96C6\u9F50\u516B\u4EF6\u7684\u8BC1\u660E\u3002\u6388\u4E88\u79F0\u53F7\u300C\u6708\u7D2B\u7684\u8D74\u5BB4\u8005\u300D\u4E0E\u4E13\u5C5E\u5FBD\u8BB0\u3002",
+        cosmeticOnly: true,
+        title: "\u6708\u7D2B\u7684\u8D74\u5BB4\u8005"
       }
     ]
   },
@@ -4275,8 +4267,9 @@ var EQUIPMENT_DUNGEON_SETS = {
       {
         pieces: 8,
         label: "\u738B\u5EAD\u52A0\u5195",
-        description: "\u5E73\u5747\u6280\u80FD\u500D\u7387 +0.12",
-        skillMultiplierBonus: 0.12
+        description: "\u96C6\u9F50\u516B\u4EF6\u7684\u8BC1\u660E\u3002\u6388\u4E88\u79F0\u53F7\u300C\u7425\u73C0\u738B\u5EAD\u7684\u52A0\u5195\u8005\u300D\u4E0E\u4E13\u5C5E\u5FBD\u8BB0\u3002",
+        cosmeticOnly: true,
+        title: "\u7425\u73C0\u738B\u5EAD\u7684\u52A0\u5195\u8005"
       }
     ]
   },
@@ -4308,8 +4301,9 @@ var EQUIPMENT_DUNGEON_SETS = {
       {
         pieces: 8,
         label: "\u73CD\u54C1\u5171\u9E23",
-        description: "\u5E73\u5747\u6280\u80FD\u500D\u7387 +0.18",
-        skillMultiplierBonus: 0.18
+        description: "\u96C6\u9F50\u516B\u4EF6\u7684\u8BC1\u660E\u3002\u6388\u4E88\u79F0\u53F7\u300C\u7EEF\u6A31\u5178\u85CF\u7684\u6267\u6709\u4EBA\u300D\u4E0E\u4E13\u5C5E\u5FBD\u8BB0\u3002",
+        cosmeticOnly: true,
+        title: "\u7EEF\u6A31\u5178\u85CF\u7684\u6267\u6709\u4EBA"
       }
     ]
   }
@@ -6835,6 +6829,18 @@ var ORDERED_STAGE_IDS = ALL_CHAPTERS.flatMap(
 );
 var FIRST_STAGE_ID = ORDERED_STAGE_IDS[0];
 
+// src/data/imprintRules.ts
+var IMPRINT_CRYSTAL_IDS = {
+  azure: "imprint_crystal_azure",
+  violet: "imprint_crystal_violet",
+  auric: "imprint_crystal_auric",
+  crimson: "imprint_crystal_crimson"
+};
+var IMPRINT_CORE_ID = "imprint_core_star";
+var EQUIPMENT_DUNGEON_CRYSTAL_MIN = 2;
+var EQUIPMENT_DUNGEON_CRYSTAL_MAX = 3;
+var EQUIPMENT_DUNGEON_CORE_PITY = 6;
+
 // src/data/equipmentDungeons.ts
 var PORTAL_SPECS = [
   {
@@ -6997,23 +7003,30 @@ function stageId(slot, tierId) {
   return `equipment_${slot}_${tierId}`;
 }
 function lootTableFor(slot, tier) {
-  const definitions = equipmentDungeonGearFor(tier.id, slot);
-  if (definitions.length === 0) {
-    throw new Error(`[\u914D\u7F6E\u9519\u8BEF] ${tier.id} ${slot} \u6CA1\u6709\u88C5\u5907\u526F\u672C\u6389\u843D`);
-  }
   return {
     id: `loot_equipment_${slot}_${tier.id}`,
     rolls: 1,
-    entries: definitions.map((definition) => ({
-      itemId: definition.id,
-      ...definition.classId ? { classId: definition.classId } : {},
-      weight: 1,
-      minCount: 1,
-      maxCount: 1,
-      // 通用部位有两款；连续两次没见到其中一款，下一次会保底并额外正常 roll，
-      // 形成一次“补偿双掉”，避免定向本仍被重复件拖垮体验。
-      ...definition.classId ? {} : { pityCount: 2 }
-    }))
+    entries: [
+      {
+        // 星纹核只走保底、不参与正常掷骰，所以权重为 0。
+        //
+        // **它必须排在前面**：Rng.weighted 在浮点边界会回退到「最后一项」
+        // （rng.ts 的兜底分支）。权重 0 的条目若排最后，理论上存在被兜底
+        // 选中的路径 —— 当前总权重恰为 1 算不到，但那是巧合不是保证。
+        // 把它放前面，兜底永远落在真正该掉的烙印晶上。
+        itemId: IMPRINT_CORE_ID,
+        weight: 0,
+        minCount: 1,
+        maxCount: 1,
+        pityCount: EQUIPMENT_DUNGEON_CORE_PITY
+      },
+      {
+        itemId: IMPRINT_CRYSTAL_IDS[tier.id],
+        weight: 1,
+        minCount: EQUIPMENT_DUNGEON_CRYSTAL_MIN,
+        maxCount: EQUIPMENT_DUNGEON_CRYSTAL_MAX
+      }
+    ]
   };
 }
 var RECOMMEND_CP_RATIO = 0.9;

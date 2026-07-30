@@ -31,8 +31,14 @@ const iconSource = readFileSync(new URL('../EquipmentIcon.vue', import.meta.url)
 const detailSource = readFileSync(new URL('../EquipDetail.vue', import.meta.url), 'utf8');
 
 describe('激活开关（docs/58 §六 · 激活批次同上线）', () => {
-  it('上线前开关必须保持 false，且三件 UI 都挂在同一个开关上', () => {
-    expect(activationSource).toContain('IMPRINT_BATCH_ACTIVE = false');
+  it('激活批次已上线：开关为 true，且三件 UI 仍挂在同一个开关上', () => {
+    // 2026-07-31 激活批次落地（@claude）：材料注册 + 副本掉落表切材料 +
+    // 8 件效果降级 + @kimi 的三件 UI 同批上线，开关由 false 翻为 true。
+    // 断言从「必须是 false」改为「必须是 true」——这一行是 @kimi 交付时
+    // 特意留给翻开关的人改的，见他 18:42 的交接说明。
+    expect(activationSource).toContain('IMPRINT_BATCH_ACTIVE = true');
+    // 「三件 UI 挂同一个开关」这条不随上线失效：它防的是将来有人给某一件
+    // UI 单独加判定，导致三者不同步（掉落展示切了、烙印台没切）。
     expect(dungeonViewSource).toContain("from '@/ui/imprintActivation'");
     expect(iconSource).toContain("from '@/ui/imprintActivation'");
     expect(detailSource).toContain("from '@/ui/imprintActivation'");

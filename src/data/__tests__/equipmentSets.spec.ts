@@ -87,7 +87,9 @@ describe('通用装备套装注册表', () => {
           pieces: 8,
           statPercent: null,
           statFlat: null,
-          skillMultiplierBonus: 0.05,
+          // 2026-07-31 降级为纯外观（docs/58 §四）：烙印让集齐 8 件变容易，
+          // 再给战斗加成就是白送的战力台阶。只留称号与徽记。
+          skillMultiplierBonus: null,
         },
       ],
       set_dungeon_violet: [
@@ -113,7 +115,9 @@ describe('通用装备套装注册表', () => {
           pieces: 8,
           statPercent: null,
           statFlat: null,
-          skillMultiplierBonus: 0.08,
+          // 2026-07-31 降级为纯外观（docs/58 §四）：烙印让集齐 8 件变容易，
+          // 再给战斗加成就是白送的战力台阶。只留称号与徽记。
+          skillMultiplierBonus: null,
         },
       ],
       set_dungeon_auric: [
@@ -139,7 +143,9 @@ describe('通用装备套装注册表', () => {
           pieces: 8,
           statPercent: null,
           statFlat: null,
-          skillMultiplierBonus: 0.12,
+          // 2026-07-31 降级为纯外观（docs/58 §四）：烙印让集齐 8 件变容易，
+          // 再给战斗加成就是白送的战力台阶。只留称号与徽记。
+          skillMultiplierBonus: null,
         },
       ],
       set_dungeon_crimson: [
@@ -165,7 +171,9 @@ describe('通用装备套装注册表', () => {
           pieces: 8,
           statPercent: null,
           statFlat: null,
-          skillMultiplierBonus: 0.18,
+          // 2026-07-31 降级为纯外观（docs/58 §四）：烙印让集齐 8 件变容易，
+          // 再给战斗加成就是白送的战力台阶。只留称号与徽记。
+          skillMultiplierBonus: null,
         },
       ],
     });

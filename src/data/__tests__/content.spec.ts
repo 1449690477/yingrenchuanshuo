@@ -697,7 +697,9 @@ describe('区域 1–5 内容完整性', () => {
   });
 
   it('全部物品都引用真实存在的正式图标', () => {
-    expect(Object.keys(ITEMS)).toHaveLength(50);
+    // 数量断言的作用是「加物品时逼人来看一眼图标」，不是锁死内容规模。
+    // 2026-07-30 加入 5 个烙印材料（docs/58 §3.1）后 50 → 55。
+    expect(Object.keys(ITEMS)).toHaveLength(55);
     for (const [id, item] of Object.entries(ITEMS)) {
       expect(item.icon).toBe(`assets/items/${id}.png`);
       expect(existsSync(resolve('public', item.icon)), `${id} → ${item.icon}`).toBe(true);

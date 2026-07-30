@@ -12,6 +12,13 @@ import {
 import { requireEquipmentDungeonStage } from '@/data/equipmentDungeons';
 import { REGION_CRIMSON_SET } from '@/data/regionEquipmentSets';
 import type { Stats } from '../types';
+import {
+  EQUIPMENT_DUNGEON_CORE_PITY,
+  EQUIPMENT_DUNGEON_CRYSTAL_MAX,
+  EQUIPMENT_DUNGEON_CRYSTAL_MIN,
+  IMPRINT_CORE_ID,
+  IMPRINT_CRYSTAL_IDS,
+} from '@/data/imprintRules';
 
 const NOW = Date.parse('2026-07-28T04:30:00+08:00');
 const FLAMEBURST = REGION_CRIMSON_SET.bonuses.flatMap((bonus) => bonus.onHitTriggers ?? [])[0]!;
@@ -164,7 +171,10 @@ describe('装备副本解锁与战斗事务', () => {
     });
   });
 
-  it('胜利只产出当前职业的定向装备，并原子推进次数、记录、RNG 与保底', () => {
+  it('胜利产出该档烙印晶（不再是装备），并原子推进次数、记录、RNG 与保底', () => {
+    // 烙印重构（docs/58 §3.3）：副本只掉材料。原断言「产出当前职业的定向装备」
+    // 描述的正是被取代的设计 —— 副本曾经是第二条装备生产线，
+    // 导致主线掉落再极品也进不了套装。
     const result = resolveEquipmentDungeonChallenge(input());
     expect(result.ok).toBe(true);
     if (!result.ok || !result.win) return;
@@ -172,8 +182,10 @@ describe('装备副本解锁与战斗事务', () => {
     expect(result.waves).toHaveLength(2);
     expect(result.waves.every((wave) => wave.result.win)).toBe(true);
     expect(result.drops).toHaveLength(1);
-    expect(result.drops[0]?.itemId).toBe('eq_dungeon_azure_weapon_witch');
-    expect(result.drops[0]?.count).toBe(2);
+    expect(result.drops[0]?.itemId).toBe(IMPRINT_CRYSTAL_IDS.azure);
+    // 首通额外一次 bonus roll，所以是两次掷骰的合并（各 2~3 颗）
+    expect(result.drops[0]?.count).toBeGreaterThanOrEqual(EQUIPMENT_DUNGEON_CRYSTAL_MIN * 2);
+    expect(result.drops[0]?.count).toBeLessThanOrEqual(EQUIPMENT_DUNGEON_CRYSTAL_MAX * 2);
     // 首通同样计次（2026-07-30 回滚 docs/47 §4.1）
     expect(result.state.clearsToday).toBe(1);
     expect(result.state.totalClears).toBe(1);
@@ -220,19 +232,21 @@ describe('装备副本解锁与战斗事务', () => {
     }
   });
 
-  it('通用双款连续缺失触发补偿双掉', () => {
+  it('星纹核保底达成时强制掉出，并把计数清回阈值以下', () => {
+    // 旧断言是「通用双款连续缺失触发补偿双掉」—— 那是副本掉整装时代的保底，
+    // 用来缓解「同一部位反复掉重复件」。副本改掉材料后重复件问题消失，
+    // 保底的职责变成给坏运气兜底：连续掉最少数量的玩家不会卡在「差一颗」。
     const stage = requireEquipmentDungeonStage('equipment_ring_azure');
-    const forcedEntry = stage.lootTable.entries[0]!;
-    const pity = {
-      [`${stage.lootTable.id}:${forcedEntry.itemId}`]: forcedEntry.pityCount,
-    } as Record<string, number>;
+    const pityKey = `${stage.lootTable.id}:${IMPRINT_CORE_ID}`;
+    const pity = { [pityKey]: EQUIPMENT_DUNGEON_CORE_PITY } as Record<string, number>;
     const result = resolveEquipmentDungeonChallenge(input({ stage, pity }));
 
     expect(result.ok).toBe(true);
     if (!result.ok || !result.win) return;
-    expect(result.drops.reduce((sum, drop) => sum + drop.count, 0)).toBeGreaterThanOrEqual(2);
-    expect(result.drops.some((drop) => drop.itemId === forcedEntry.itemId)).toBe(true);
-    expect(result.pity[`${stage.lootTable.id}:${forcedEntry.itemId}`]).toBe(0);
+    expect(result.drops.some((drop) => drop.itemId === IMPRINT_CORE_ID)).toBe(true);
+    // 断言「已清零」而不是某个具体数字：首通会额外跑一次 bonus roll，
+    // 那一次核没再掉、计数会自然 +1。写死具体值会让测试依赖掷骰次数。
+    expect(result.pity[pityKey]).toBeLessThan(EQUIPMENT_DUNGEON_CORE_PITY);
   });
 
   it('重复通关保留首次时间并只更新更快纪录', () => {
@@ -252,7 +266,10 @@ describe('装备副本解锁与战斗事务', () => {
     expect(second.ok && second.win).toBe(true);
     if (!second.ok || !second.win) return;
     expect(second.firstClear).toBe(false);
-    expect(second.drops.reduce((sum, drop) => sum + drop.count, 0)).toBe(1);
+    // 非首通只掷一次骰：该档烙印晶 2~3 颗（首通那次是两轮所以更多）
+    const secondTotal = second.drops.reduce((sum, drop) => sum + drop.count, 0);
+    expect(secondTotal).toBeGreaterThanOrEqual(EQUIPMENT_DUNGEON_CRYSTAL_MIN);
+    expect(secondTotal).toBeLessThanOrEqual(EQUIPMENT_DUNGEON_CRYSTAL_MAX + 1);
     expect(second.state.records.equipment_weapon_azure?.clears).toBe(2);
     expect(second.state.records.equipment_weapon_azure?.firstClearedAt).toBe(previousFirstAt);
     expect(second.state.records.equipment_weapon_azure?.bestDurationMs).toBeLessThanOrEqual(

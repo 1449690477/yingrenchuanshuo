@@ -1,6 +1,10 @@
 /**
  * 烙印激活开关（docs/58 §六「激活批次」）。
  *
+ * **2026-07-31 已翻为 true：激活批次落地。** 材料注册、副本掉落表切材料、
+ * 8 件效果降级、@kimi 的烙印台 UI 三件同批上线，玩家从此在副本掉材料、
+ * 在烙印台把主线极品装备烙成任意套装。
+ *
  * 材料物品注册 + 副本掉落表切换（claude）与烙印台 UI / 材料掉落展示 /
  * 旧装绝版标（kimi）必须同批上线，任何一边先出都会让玩家看到半成品：
  *   - 开关开着但材料没注册 → 烙印台永远材料不足、材料图标 404
@@ -9,4 +13,4 @@
  * 激活批次由 claude 统一把本常量翻为 true 并同步推 Pages。
  * 开发/测试期需要预览激活态时，用 vi.mock('@/ui/imprintActivation') 覆盖。
  */
-export const IMPRINT_BATCH_ACTIVE = false;
+export const IMPRINT_BATCH_ACTIVE = true;

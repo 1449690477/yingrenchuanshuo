@@ -41,6 +41,27 @@ export const IMPRINT_CRYSTAL_IDS: Readonly<Record<EquipmentDungeonTierId, string
 /** 通用星纹核物品 id */
 export const IMPRINT_CORE_ID = 'imprint_core_star';
 
+/**
+ * 副本每次胜利的烙印晶产量（docs/58 §3.2）。
+ *
+ * **不要因为任何理由提高它**：docs/58 §七 有一条「2/4/6 件到手日 ≈
+ * D2 / D4~5 / D8~10（±2 天）」的验收门禁直接建在这个产量上。
+ * 提高产量 = 套装从「一到两周的流派养成线」压回「解锁日毕业」，
+ * 而那正是烙印重构要修的东西。docs/66 最早一版「深度提升晶产」
+ * 就是因为这条被否决的。
+ */
+export const EQUIPMENT_DUNGEON_CRYSTAL_MIN = 2;
+export const EQUIPMENT_DUNGEON_CRYSTAL_MAX = 3;
+
+/**
+ * 星纹核保底：每 6 次胜利必出 1 颗。
+ *
+ * 掷骰是每次胜利一次（core/equipmentDungeon.ts 的 normalDrops），
+ * 所以这个数字就是「多少次胜利」，不是「多少次掷骰」。
+ * 核的作用是给坏运气兜底 —— 连续掉最少数量的玩家不会卡在「差一颗」上。
+ */
+export const EQUIPMENT_DUNGEON_CORE_PITY = 6;
+
 /** 晶支付路径：烙一件 6 晶 */
 export const IMPRINT_CRYSTAL_COST = 6;
 /** 核支付路径：1 核 + 2 晶（核是保底产物，给坏运气兜底） */

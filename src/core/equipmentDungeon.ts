@@ -233,7 +233,7 @@ export function resolveEquipmentDungeonChallenge(
     : [];
   const drops = mergeLootResults(normalDrops, ...firstClearDrops);
   if (drops.length === 0) {
-    throw new Error(`[配置错误] 装备副本 ${input.stage.id} 胜利后没有产生装备`);
+    throw new Error(`[配置错误] 装备副本 ${input.stage.id} 胜利后没有产生任何掉落`);
   }
 
   const durationMs = durationMsOf(waves);

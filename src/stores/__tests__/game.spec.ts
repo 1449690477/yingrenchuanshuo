@@ -22,6 +22,8 @@ import {
   totalMonsterCount,
 } from '@/data/stages';
 import {
+  EQUIPMENT_DUNGEON_CRYSTAL_MAX,
+  EQUIPMENT_DUNGEON_CRYSTAL_MIN,
   IMPRINT_CRYSTAL_COST,
   IMPRINT_CRYSTAL_IDS,
   IMPRINT_GOLD_PER_LEVEL,
@@ -1384,18 +1386,16 @@ describe('equipment dungeon transaction', () => {
 
     expect(result.ok && result.win).toBe(true);
     if (!result.ok || !result.win) return;
-    expect(result.instances).toHaveLength(2);
-    expect(result.instances[0]).toMatchObject({
-      uid: `e${beforeUid}`,
-      defId: 'eq_dungeon_azure_weapon_witch',
-      enhance: 0,
-      locked: true,
-    });
-    // 蓝色装备两槽中，一条定向词条保存在定义里，实例仍生成一条可复现随机词条。
-    expect(result.instances[0]?.affixes).toHaveLength(1);
-    expect(result.instances[0]?.affixes.every((affix) => affix.tier >= 1 && affix.tier <= 5)).toBe(
-      true,
-    );
+
+    // 烙印激活批次（docs/58 §3.3）：副本只掉材料，不再产出装备实例。
+    // 原断言「生成 2 件定向装备」描述的正是被取代的设计。
+    expect(result.instances).toHaveLength(0);
+
+    // 材料直接进背包（首通两轮掷骰，各 2~3 颗）
+    const crystalId = IMPRINT_CRYSTAL_IDS.azure;
+    const gained = game.save?.bag.items[crystalId] ?? 0;
+    expect(gained).toBeGreaterThanOrEqual(EQUIPMENT_DUNGEON_CRYSTAL_MIN * 2);
+    expect(gained).toBeLessThanOrEqual(EQUIPMENT_DUNGEON_CRYSTAL_MAX * 2);
     // 首通同样计次（2026-07-30 回滚 docs/47 §4.1，理由见 core 注释）
     expect(game.save?.equipmentDungeon).toMatchObject({
       clearsToday: 1,
@@ -1403,15 +1403,14 @@ describe('equipment dungeon transaction', () => {
     });
     expect(game.save?.equipmentDungeon.records.equipment_weapon_azure?.clears).toBe(1);
     expect(game.save?.rngState).not.toBe(beforeRng);
-    expect(game.save?.nextUid).toBe(beforeUid + 2);
+    // 没有装备实例产出，uid 计数器不该前进
+    expect(game.save?.nextUid).toBe(beforeUid);
     expect(game.equipmentDungeonRemaining).toBe(2);
 
     await game.persist();
     const loaded = await loadSave();
     expect(loaded?.equipmentDungeon.records.equipment_weapon_azure?.clears).toBe(1);
-    expect(loaded?.bag.equipment.some((item) => item.defId === result.instances[0]?.defId)).toBe(
-      true,
-    );
+    expect(loaded?.bag.items[crystalId]).toBe(gained);
   });
 
   it('失败不消耗次数、不生成装备、不推进 RNG 与保底', async () => {
@@ -1505,8 +1504,11 @@ describe('equipment dungeon transaction', () => {
       equippedPieces: 8,
       activeBonuses: [{ pieces: 2 }, { pieces: 4 }, { pieces: 6 }, { pieces: 8 }],
     });
-    expect(game.equipmentSetResolution.skillMultiplierBonus).toBe(0.05);
-    const expectedSkillMultiplier = averageSkillMultiplier(save.player.level) + 0.05;
+    // 8 件档已降级为纯外观（docs/58 §四）：它仍然「激活」并授予称号，
+    // 但**一分战斗收益都不给**。这条端到端证明降级真的落到了结算里，
+    // 而不只是改了数据表 —— 数据改了但结算仍在加成，是最难发现的一类漏改。
+    expect(game.equipmentSetResolution.skillMultiplierBonus).toBe(0);
+    const expectedSkillMultiplier = averageSkillMultiplier(save.player.level);
     expect(game.playerSkillMultiplier).toBeCloseTo(expectedSkillMultiplier, 10);
     expect(usePlayerStore().playerSkillMultiplier).toBeCloseTo(expectedSkillMultiplier, 10);
     expect(game.equipmentSetResolution.statPercent).toMatchObject({

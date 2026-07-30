@@ -7,6 +7,8 @@ import { REGION_34_MATERIALS } from './region34';
 import { REGION_5_MATERIALS, type Region5MaterialSpec } from './region5';
 import { REGION_6_MATERIALS, type Region6MaterialSpec } from './region6';
 import { REGION_7_MATERIALS, type Region7MaterialSpec } from './region7';
+import { EQUIPMENT_DUNGEON_TIERS } from './equipmentDungeonGear';
+import { IMPRINT_CORE_ID, IMPRINT_CRYSTAL_IDS } from './imprintRules';
 
 export type ItemKind = 'material' | 'consumable' | 'currency' | 'fragment';
 
@@ -224,6 +226,44 @@ export const ITEMS: Record<string, ItemDef> = {
     icon: 'assets/items/exp_book_s.png',
     sellPrice: 120,
   },
+
+  // ── 烙印材料（docs/58 §3.1）──
+  //
+  // id 不在这里手写，一律从 imprintRules.ts 的契约取：那份表同时被
+  // core/equipmentImprint.ts 的成本计算与 store 的支付路径读取，
+  // 手抄一份就会出现「同一口径两处实现」——今天已经因为这个吃过一次线上事故
+  // （邻域榜 SQL 与客户端各写一套职业过滤，docs/61 §2.2）。
+  //
+  // 售价刻意压低（晶 30 / 核 150）：它们是烙印的唯一入口，
+  // 卖钱不该成为有竞争力的出路，否则玩家会把养成材料当金币来源。
+  ...Object.fromEntries(
+    EQUIPMENT_DUNGEON_TIERS.map((tier) => {
+      const id = IMPRINT_CRYSTAL_IDS[tier.id];
+      // 名字与描述都从档位定义派生：套装名只有 EQUIPMENT_DUNGEON_TIERS 一处来源，
+      // 改档位名时材料名自动跟上，不会出现材料名与套装名对不上的情况。
+      //
+      // 注意：docs/58 §3.1 里写的「苍蓝/绛紫/辉金/赤红烙印晶」是**占位名**，
+      // 与实装的档位名（晴蓝茶会/月紫星宴/琥珀蔷薇王庭/绯樱典藏）对不上。
+      // 以实装为准，别按文档把名字改回去。
+      return [
+        id,
+        mat(
+          id,
+          `${tier.setName.slice(0, 2)}烙印晶`,
+          'rare',
+          30,
+          `烙印「${tier.setName}」所需。由${tier.name}胜利产出。`,
+        ),
+      ];
+    }),
+  ),
+  [IMPRINT_CORE_ID]: mat(
+    IMPRINT_CORE_ID,
+    '星纹核',
+    'epic',
+    150,
+    '任意套装通用的烙印核心。各档副本稀有产出，并有保底 —— 运气差时靠它补上缺口。',
+  ),
 };
 
 export function getItem(id: string): ItemDef | undefined {

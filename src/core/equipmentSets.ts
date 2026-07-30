@@ -75,6 +75,17 @@ export interface EquipmentSetBonus {
   onCritTriggers?: readonly OnCritPeriodicDamageTrigger[];
   /** 加到技能倍率上的绝对值，例如 0.08 表示平均技能倍率 +0.08。 */
   skillMultiplierBonus?: number;
+  /**
+   * 纯外观档：只给称号与外观，**不产生任何战斗收益**（docs/58 §四）。
+   *
+   * 为什么要显式声明而不是「没配战斗字段就算外观」：
+   * 「没配」和「故意不配」在代码里长得一模一样，后人很容易顺手补一个
+   * statPercent 上去，而那正是本次重构要防的事 —— 烙印让集齐 8 件变得容易，
+   * 8 件若还给战斗加成就是白送的战力台阶。声明出来才能用测试锁住。
+   */
+  cosmeticOnly?: true;
+  /** 达成该档位授予的称号（静态展示，不做称号系统）。 */
+  title?: string;
 }
 
 /**

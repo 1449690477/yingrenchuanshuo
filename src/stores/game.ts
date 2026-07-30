@@ -1802,12 +1802,25 @@ export const useGameStore = defineStore('game', () => {
       };
     }
 
-    // 先把全部装备实例规划在局部变量中；配置缺失时在触碰存档前直接抛错。
+    // 先把全部产物规划在局部变量中；配置缺失时在触碰存档前直接抛错。
+    //
+    // 烙印重构后副本**只掉材料**（docs/58 §3.3），但这条链路仍然同时支持装备：
+    // 旧存档不受影响，将来 docs/66 的「深度掉胚子」也要走这里。
+    // 所以按物品类型分流，而不是假设掉落一定是装备 ——
+    // 原先写死 requireEquipment(drop.itemId) 的版本在掉材料时会当场抛错，
+    // 玩家打完副本直接崩在结算上。
     const instanceRng = new Rng(planned.nextRngState);
     const instances: EquipmentInstance[] = [];
+    const materialDrops: { itemId: string; count: number }[] = [];
     let nextUid = s.nextUid;
     for (const drop of planned.drops) {
-      const definition = requireEquipment(drop.itemId);
+      const definition = getEquipment(drop.itemId);
+      if (!definition) {
+        // 不是装备就必须是已注册的物品；两边都不认识才是真的配置错误。
+        requireItem(drop.itemId);
+        materialDrops.push({ itemId: drop.itemId, count: drop.count });
+        continue;
+      }
       if (definition.slot !== stage.slot || definition.quality !== stage.quality) {
         throw new Error(
           `[配置错误] ${stage.id} 掉出了错误装备 ${definition.id}（${definition.slot}/${definition.quality}）`,
@@ -1837,9 +1850,19 @@ export const useGameStore = defineStore('game', () => {
     rng.setState(planned.nextRngState);
     s.nextUid = nextUid;
     s.bag.equipment.push(...instances);
+    for (const material of materialDrops) {
+      s.bag.items[material.itemId] = (s.bag.items[material.itemId] ?? 0) + material.count;
+    }
     for (const drop of planned.drops) {
-      const definition = requireEquipment(drop.itemId);
-      pushLog(drop.itemId, definition.name, drop.count, definition.quality, true);
+      const definition = getEquipment(drop.itemId);
+      if (definition) {
+        pushLog(drop.itemId, definition.name, drop.count, definition.quality, true);
+      } else {
+        const item = requireItem(drop.itemId);
+        // 材料没有装备品质，用物品自己的稀有度着色；isEquipment=false 让掉落日志
+        // 不给它渲染装备专属的边框与「可穿戴」交互。
+        pushLog(drop.itemId, item.name, drop.count, item.tier, false);
+      }
     }
     enforceBagCapacity();
     void persist();

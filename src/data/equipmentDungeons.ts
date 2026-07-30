@@ -17,10 +17,17 @@ import { expectedFullGearCp } from './expectedPower';
 import { SLOT_LABELS, SLOT_ORDER } from './constants';
 import {
   EQUIPMENT_DUNGEON_TIERS,
-  equipmentDungeonGearFor,
   type EquipmentDungeonTier,
   type EquipmentDungeonTierId,
 } from './equipmentDungeonGear';
+import {
+  EQUIPMENT_DUNGEON_CORE_PITY,
+  EQUIPMENT_DUNGEON_CRYSTAL_MAX,
+  EQUIPMENT_DUNGEON_CRYSTAL_MIN,
+  IMPRINT_CORE_ID,
+  IMPRINT_CRYSTAL_IDS,
+} from './imprintRules';
+
 
 export interface EquipmentDungeonPortal {
   id: string;
@@ -243,27 +250,47 @@ function stageId(slot: EquipSlot, tierId: EquipmentDungeonTierId): string {
   return `equipment_${slot}_${tierId}`;
 }
 
-function lootTableFor(
-  slot: EquipSlot,
-  tier: EquipmentDungeonTier,
-): LootTable {
-  const definitions = equipmentDungeonGearFor(tier.id, slot);
-  if (definitions.length === 0) {
-    throw new Error(`[配置错误] ${tier.id} ${slot} 没有装备副本掉落`);
-  }
+/**
+ * 副本掉落表：**只掉烙印材料，一件装备都不掉**（docs/58 §3.3）。
+ *
+ * 这是烙印重构的核心转向。原先每档每部位掉一件带**定义级 setId** 的整装，
+ * 套装身份因此只能从副本获得 —— 主线掉落再极品也进不了套装，全成垃圾。
+ * 烙印把身份搬到玩家的选择上（`instance.imprintSetId ?? def.setId`），
+ * 副本的职责随之从「第二条装备生产线」变成「主线装备的深度加工坊」。
+ *
+ * 顺带解掉一个旧毛病：原掉落表按 classId 过滤后每个门户**只剩一个候选**、
+ * `rolls: 1`，掉的永远是同一件 —— 点进去之前就知道会掉什么，
+ * 完全没有变量奖励（docs/66 §1.1 的诊断）。材料没有职业之分，这条自然消失。
+ *
+ * 产量口径锁死在 docs/58 §3.2，**不要随深度或任何别的东西提高**：
+ * §七 有一条「2/4/6 件到手日 ≈ D2 / D4~5 / D8~10」的验收门禁建在它上面，
+ * 加产量会把套装从「一到两周的流派养成线」压回「解锁日毕业」。
+ */
+function lootTableFor(slot: EquipSlot, tier: EquipmentDungeonTier): LootTable {
   return {
     id: `loot_equipment_${slot}_${tier.id}`,
     rolls: 1,
-    entries: definitions.map((definition) => ({
-      itemId: definition.id,
-      ...(definition.classId ? { classId: definition.classId } : {}),
-      weight: 1,
-      minCount: 1,
-      maxCount: 1,
-      // 通用部位有两款；连续两次没见到其中一款，下一次会保底并额外正常 roll，
-      // 形成一次“补偿双掉”，避免定向本仍被重复件拖垮体验。
-      ...(definition.classId ? {} : { pityCount: 2 }),
-    })),
+    entries: [
+      {
+        // 星纹核只走保底、不参与正常掷骰，所以权重为 0。
+        //
+        // **它必须排在前面**：Rng.weighted 在浮点边界会回退到「最后一项」
+        // （rng.ts 的兜底分支）。权重 0 的条目若排最后，理论上存在被兜底
+        // 选中的路径 —— 当前总权重恰为 1 算不到，但那是巧合不是保证。
+        // 把它放前面，兜底永远落在真正该掉的烙印晶上。
+        itemId: IMPRINT_CORE_ID,
+        weight: 0,
+        minCount: 1,
+        maxCount: 1,
+        pityCount: EQUIPMENT_DUNGEON_CORE_PITY,
+      },
+      {
+        itemId: IMPRINT_CRYSTAL_IDS[tier.id],
+        weight: 1,
+        minCount: EQUIPMENT_DUNGEON_CRYSTAL_MIN,
+        maxCount: EQUIPMENT_DUNGEON_CRYSTAL_MAX,
+      },
+    ],
   };
 }
 

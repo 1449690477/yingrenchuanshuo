@@ -2409,8 +2409,9 @@ var EQUIPMENT_DUNGEON_SETS = {
       {
         pieces: 8,
         label: "\u84DD\u5323\u8C22\u5E55",
-        description: "\u5E73\u5747\u6280\u80FD\u500D\u7387 +0.05",
-        skillMultiplierBonus: 0.05
+        description: "\u96C6\u9F50\u516B\u4EF6\u7684\u8BC1\u660E\u3002\u6388\u4E88\u79F0\u53F7\u300C\u6674\u84DD\u7684\u5EA7\u4E0A\u5BBE\u300D\u4E0E\u4E13\u5C5E\u5FBD\u8BB0\u3002",
+        cosmeticOnly: true,
+        title: "\u6674\u84DD\u7684\u5EA7\u4E0A\u5BBE"
       }
     ]
   },
@@ -2442,8 +2443,9 @@ var EQUIPMENT_DUNGEON_SETS = {
       {
         pieces: 8,
         label: "\u7D2B\u5323\u661F\u6F6E",
-        description: "\u5E73\u5747\u6280\u80FD\u500D\u7387 +0.08",
-        skillMultiplierBonus: 0.08
+        description: "\u96C6\u9F50\u516B\u4EF6\u7684\u8BC1\u660E\u3002\u6388\u4E88\u79F0\u53F7\u300C\u6708\u7D2B\u7684\u8D74\u5BB4\u8005\u300D\u4E0E\u4E13\u5C5E\u5FBD\u8BB0\u3002",
+        cosmeticOnly: true,
+        title: "\u6708\u7D2B\u7684\u8D74\u5BB4\u8005"
       }
     ]
   },
@@ -2475,8 +2477,9 @@ var EQUIPMENT_DUNGEON_SETS = {
       {
         pieces: 8,
         label: "\u738B\u5EAD\u52A0\u5195",
-        description: "\u5E73\u5747\u6280\u80FD\u500D\u7387 +0.12",
-        skillMultiplierBonus: 0.12
+        description: "\u96C6\u9F50\u516B\u4EF6\u7684\u8BC1\u660E\u3002\u6388\u4E88\u79F0\u53F7\u300C\u7425\u73C0\u738B\u5EAD\u7684\u52A0\u5195\u8005\u300D\u4E0E\u4E13\u5C5E\u5FBD\u8BB0\u3002",
+        cosmeticOnly: true,
+        title: "\u7425\u73C0\u738B\u5EAD\u7684\u52A0\u5195\u8005"
       }
     ]
   },
@@ -2508,8 +2511,9 @@ var EQUIPMENT_DUNGEON_SETS = {
       {
         pieces: 8,
         label: "\u73CD\u54C1\u5171\u9E23",
-        description: "\u5E73\u5747\u6280\u80FD\u500D\u7387 +0.18",
-        skillMultiplierBonus: 0.18
+        description: "\u96C6\u9F50\u516B\u4EF6\u7684\u8BC1\u660E\u3002\u6388\u4E88\u79F0\u53F7\u300C\u7EEF\u6A31\u5178\u85CF\u7684\u6267\u6709\u4EBA\u300D\u4E0E\u4E13\u5C5E\u5FBD\u8BB0\u3002",
+        cosmeticOnly: true,
+        title: "\u7EEF\u6A31\u5178\u85CF\u7684\u6267\u6709\u4EBA"
       }
     ]
   }

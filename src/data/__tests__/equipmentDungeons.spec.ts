@@ -12,10 +12,17 @@ import {
 import {
   EQUIPMENT_DUNGEON_PORTALS,
   EQUIPMENT_DUNGEON_STAGE_LIST,
-  equipmentDungeonDropsForClass,
   equipmentDungeonStagesForSlot,
 } from '../equipmentDungeons';
 import { EQUIPMENT_DUNGEON_SETS } from '../equipmentDungeonSets';
+import { requireEquipment } from '../equipment';
+import {
+  EQUIPMENT_DUNGEON_CORE_PITY,
+  EQUIPMENT_DUNGEON_CRYSTAL_MAX,
+  EQUIPMENT_DUNGEON_CRYSTAL_MIN,
+  IMPRINT_CORE_ID,
+  IMPRINT_CRYSTAL_IDS,
+} from '../imprintRules';
 
 describe('装备副本 80 件装备矩阵', () => {
   it('精确生成 80 件且 ID、名称、图标路径各自唯一', () => {
@@ -78,6 +85,48 @@ describe('装备副本 80 件装备矩阵', () => {
       expect(set?.bonuses.every((bonus) => bonus.description.length >= 5)).toBe(true);
     }
   });
+
+  it('8 件档只给称号与外观，一分战斗收益都不给（docs/58 §四）', () => {
+    // 烙印让「集齐 8 件」变得容易 —— 任何主线装备都能烙成这一套。
+    // 8 件若还给战斗加成，就是白送一级战力台阶，而且是能被反复领取的。
+    // 所以战斗收益整条删掉，只留称号与徽记外观。
+    //
+    // 这条锁的是「后人顺手补一个 statPercent 回去」：`没配战斗字段` 和
+    // `故意不配` 在代码里长得一样，必须靠 cosmeticOnly 显式声明 + 本测试守住。
+    for (const set of Object.values(EQUIPMENT_DUNGEON_SETS)) {
+      const eight = set.bonuses.find((bonus) => bonus.pieces === 8);
+      expect(eight, `${set.id} 缺 8 件档`).toBeDefined();
+      expect(eight!.cosmeticOnly, `${set.id} 8 件档必须显式声明纯外观`).toBe(true);
+      expect(eight!.title, `${set.id} 8 件档必须有称号`).toBeTruthy();
+
+      // 任何一种战斗收益都不许出现
+      expect(eight!.statPercent).toBeUndefined();
+      expect(eight!.statFlat).toBeUndefined();
+      expect(eight!.combatBonuses).toBeUndefined();
+      expect(eight!.onHitTriggers).toBeUndefined();
+      expect(eight!.onLethalTriggers).toBeUndefined();
+      expect(eight!.onCritTriggers).toBeUndefined();
+      expect(eight!.skillMultiplierBonus).toBeUndefined();
+    }
+  });
+
+  it('2/4/6 件档仍然给真实战斗收益 —— 降级的只有 8 件', () => {
+    // 防止有人把「8 件不给收益」误读成「副本套装不再给收益」。
+    for (const set of Object.values(EQUIPMENT_DUNGEON_SETS)) {
+      for (const bonus of set.bonuses.filter((b) => b.pieces !== 8)) {
+        const hasCombat =
+          bonus.statPercent !== undefined ||
+          bonus.statFlat !== undefined ||
+          bonus.combatBonuses !== undefined ||
+          bonus.onHitTriggers !== undefined ||
+          bonus.onLethalTriggers !== undefined ||
+          bonus.onCritTriggers !== undefined ||
+          bonus.skillMultiplierBonus !== undefined;
+        expect(hasCombat, `${set.id} ${bonus.pieces} 件档没有任何战斗收益`).toBe(true);
+        expect(bonus.cosmeticOnly).toBeUndefined();
+      }
+    }
+  });
 });
 
 describe('8 门户 × 4 档装备副本', () => {
@@ -109,36 +158,79 @@ describe('8 门户 × 4 档装备副本', () => {
     }
   });
 
-  it('掉落只含目标品质、目标部位和当前职业可用装备', () => {
+  // ── 烙印重构后的掉落契约（docs/58 §3.3 / §七）──
+  //
+  // 副本从「第二条装备生产线」变成「主线装备的深度加工坊」：只掉烙印材料，
+  // 一件装备都不掉。原来那条「掉落只含目标品质/部位/职业装备」的断言
+  // 描述的正是被这次重构取代的设计，因此整条重写而不是修补。
+
+  it('副本掉落表里一件装备都没有 —— 这是烙印重构的核心红线', () => {
+    const gearIds = new Set(EQUIPMENT_DUNGEON_GEAR_LIST.map((item) => item.id));
     for (const stage of EQUIPMENT_DUNGEON_STAGE_LIST) {
-      for (const classId of CLASS_IDS) {
-        const ids = equipmentDungeonDropsForClass(stage, classId);
-        expect(ids.length, `${stage.id}/${classId}`).toBeGreaterThan(0);
-        const items = EQUIPMENT_DUNGEON_GEAR_LIST.filter((item) => ids.includes(item.id));
-        expect(items).toHaveLength(ids.length);
-        expect(
-          items.every(
-            (item) =>
-              item.slot === stage.slot &&
-              item.quality === stage.quality &&
-              (item.classId === undefined || item.classId === classId),
-          ),
-        ).toBe(true);
+      for (const entry of stage.lootTable.entries) {
+        expect(gearIds.has(entry.itemId), `${stage.id} 掉落了装备 ${entry.itemId}`).toBe(false);
       }
     }
   });
 
-  it('全部橙装与红色典藏珍品都有明确直掉关卡', () => {
+  it('每档只掉该档烙印晶与通用星纹核，数量与保底锁死 docs/58 §3.2', () => {
+    for (const stage of EQUIPMENT_DUNGEON_STAGE_LIST) {
+      const byId = Object.fromEntries(stage.lootTable.entries.map((e) => [e.itemId, e]));
+      const crystalId = IMPRINT_CRYSTAL_IDS[stage.tierId];
+
+      // 该档的晶：正常掉落，2~3 个
+      const crystal = byId[crystalId];
+      expect(crystal, `${stage.id} 缺少 ${crystalId}`).toBeDefined();
+      expect(crystal!.minCount).toBe(EQUIPMENT_DUNGEON_CRYSTAL_MIN);
+      expect(crystal!.maxCount).toBe(EQUIPMENT_DUNGEON_CRYSTAL_MAX);
+      expect(crystal!.weight).toBeGreaterThan(0);
+
+      // 星纹核：只走保底，权重必须为 0，否则会额外白掉
+      const core = byId[IMPRINT_CORE_ID];
+      expect(core, `${stage.id} 缺少星纹核保底`).toBeDefined();
+      expect(core!.weight).toBe(0);
+      expect(core!.pityCount).toBe(EQUIPMENT_DUNGEON_CORE_PITY);
+
+      // 不掉别的东西
+      expect(Object.keys(byId).sort()).toEqual([crystalId, IMPRINT_CORE_ID].sort());
+    }
+  });
+
+  it('星纹核排在权重条目之前 —— Rng.weighted 的浮点兜底会返回最后一项', () => {
+    // rng.ts 的加权选择在浮点边界会回退到数组最后一项。权重 0 的保底条目
+    // 若排在最后，理论上存在被兜底选中的路径。这条锁死顺序，防止后人调换。
+    for (const stage of EQUIPMENT_DUNGEON_STAGE_LIST) {
+      const last = stage.lootTable.entries[stage.lootTable.entries.length - 1]!;
+      expect(last.weight, `${stage.id} 最后一个条目权重不能为 0`).toBeGreaterThan(0);
+    }
+  });
+
+  it('材料掉落与职业无关 —— 旧设计按职业过滤后每门户只剩一个候选，毫无变量奖励', () => {
+    for (const stage of EQUIPMENT_DUNGEON_STAGE_LIST) {
+      for (const entry of stage.lootTable.entries) {
+        expect(entry.classId, `${stage.id}/${entry.itemId} 不该带职业限制`).toBeUndefined();
+      }
+    }
+  });
+
+  it('旧副本装备定义全部保留注册，只是不再掉落（老档不能读不出来）', () => {
+    // docs/58 §5.2：已掉落的旧副本整装可穿、可强化、可洗练，定义级 setId
+    // 继续走原路径，UI 打「绝版」标。所以定义必须留着 —— 删定义 = 废存档。
     const highGear = EQUIPMENT_DUNGEON_GEAR_LIST.filter(
       (item) => item.quality === 'legendary' || item.quality === 'mythic',
     );
+    expect(highGear).toHaveLength(40);
+    for (const item of highGear) {
+      expect(requireEquipment(item.id).id).toBe(item.id);
+    }
+
+    // 但它们一件都不该出现在任何掉落表里
     const dropIds = new Set(
       EQUIPMENT_DUNGEON_STAGE_LIST.flatMap((stage) =>
         stage.lootTable.entries.map((entry) => entry.itemId),
       ),
     );
-    expect(highGear).toHaveLength(40);
-    expect(highGear.every((item) => dropIds.has(item.id))).toBe(true);
+    expect(highGear.some((item) => dropIds.has(item.id))).toBe(false);
   });
 
   it('8 张地图、16 个怪物与 80 个独立装备图标均达到运行规格', async () => {
