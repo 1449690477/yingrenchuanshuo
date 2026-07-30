@@ -167,7 +167,7 @@ function requestClose(): void {
         <!-- 立绘舞台：角色形象浮动展示 -->
         <div class="art-stage" :style="{ '--class-color': classColor }">
           <span class="art-aura" aria-hidden="true" />
-          <ClassArtwork :class-id="classId" variant="thumb" class="art-figure" />
+          <ClassArtwork :class-id="classId" variant="preview" class="art-figure" />
           <span class="art-class" :style="{ color: classColor }">{{ className }}</span>
         </div>
 
@@ -388,7 +388,8 @@ function requestClose(): void {
 }
 
 .art-figure {
-  height: 128px;
+  width: min(52%, 168px);
+  height: 134px;
   animation: figure-float 3.8s ease-in-out infinite;
   filter: drop-shadow(0 8px 16px rgb(53 69 91 / 20%));
 }

@@ -561,7 +561,7 @@ onUnmounted(() => {
             @keydown.enter.prevent="openPeek(row, row.rank <= 3)"
             @keydown.space.prevent="openPeek(row, row.rank <= 3)"
           >
-            <span class="rank-no">{{ row.rank }}</span>
+            <span class="rank-no" :data-rank="row.rank">{{ row.rank }}</span>
             <span class="who">
               <ProfileAvatar
                 class="row-avatar"
@@ -1253,7 +1253,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 7px;
-  padding: 7px 8px;
+  padding: 9px 10px;
   border-radius: var(--r-sm);
   background: var(--panel-2);
 }
@@ -1370,8 +1370,9 @@ onUnmounted(() => {
 }
 
 .row-avatar {
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
+  flex: none;
   font-size: 18px;
 }
 

@@ -324,6 +324,7 @@ onMounted(() => {
 }
 .hero-aura {
   position: absolute;
+  z-index: 2;
   inset: -30%;
   background: conic-gradient(from 90deg, transparent, rgb(255 217 138 / 18%), transparent 32%);
   animation: aura-spin 9s linear infinite;
@@ -411,7 +412,7 @@ onMounted(() => {
   position: relative;
   z-index: 2;
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
   padding: 12px 14px 0;
 }
@@ -632,8 +633,9 @@ onMounted(() => {
 }
 .opponents-head {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
+  gap: 8px;
 }
 .opponents-title {
   display: inline-flex;

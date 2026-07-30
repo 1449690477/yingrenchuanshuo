@@ -152,8 +152,9 @@ function onFragmentExchange(defId: string): void {
 
 .shop-head {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
+  gap: 8px;
 }
 .shop-title {
   display: inline-flex;
