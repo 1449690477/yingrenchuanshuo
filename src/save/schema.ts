@@ -48,10 +48,11 @@ import { AFFECTION_CHARACTERS } from '@/data/affection';
 import { affectionEquipmentIdsForClass } from '@/data/affectionEquipment';
 import { AFFECTION_RULES } from '@/data/affectionRules';
 import { TRIAL_BEST_KEEP, TRIAL_BRACKETS } from '@/data/trialRules';
+import { MILESTONE_LEVELS, isMilestoneLevel } from '@/data/milestoneRules';
 import { getEquipment } from '@/data/equipment';
 
 /** 当前存档版本。加字段就 +1。 */
-export const SAVE_VERSION = 13;
+export const SAVE_VERSION = 14;
 
 export const SAVE_KEY = 'main';
 
@@ -138,6 +139,28 @@ export interface TrialSave {
   bests: TrialBest[];
 }
 
+/**
+ * 登顶速度榜的一条首次达成记录（docs/51 §4 榜 4）。
+ *
+ * **不可变**：里程碑是「第一次到达 Lv N 用了多久」这一历史事实，
+ * 和试炼的「本周最好成绩」不同 —— 后者会被更好的成绩刷新，
+ * 前者一旦写下就永不改动、永不重算。重复达成不产生新记录。
+ *
+ * 为什么把 elapsedMs 存下来而不是每次用 `at - createdAt` 现算：
+ * 它是达成那一刻的**声明值**。存下来意味着日后 createdAt 若因迁移或
+ * 修档变动，已提交的成绩不会跟着漂移。
+ */
+export interface MilestoneRecord {
+  /** 档位等级（MILESTONE_LEVELS 之一） */
+  level: number;
+  /** 首次达成时刻（毫秒时间戳） */
+  at: number;
+  /** 从建号到达成的用时（毫秒） */
+  elapsedMs: number;
+  /** 是否已成功上传服务端复核 */
+  submitted: boolean;
+}
+
 export interface SaveData {
   version: number;
   createdAt: number;
@@ -166,6 +189,8 @@ export interface SaveData {
   affection: AffectionState;
   /** 周常试炼个人最好成绩（联机排行榜的本地纪录）。 */
   trial: TrialSave;
+  /** 登顶速度榜的首次达成记录（docs/51 §4 榜 4）。 */
+  milestones: MilestoneRecord[];
 }
 
 export function emptyEquipped(): Record<EquipSlot, EquipmentInstance | null> {
@@ -221,6 +246,7 @@ export function createSave(name: string, classId: ClassId, seed: number, now: nu
     equipmentDungeon: createEquipmentDungeonState(now),
     affection: createAffectionState(now, AFFECTION_RULES),
     trial: createTrialSave(),
+    milestones: [],
   };
 }
 
@@ -287,10 +313,7 @@ const affixSchema = z
   .strict()
   .superRefine((affix, ctx) => {
     const requiresElement = affix.key === 'elemDmg' || affix.key === 'wit_elem';
-    if (
-      requiresElement &&
-      !['fire', 'ice', 'thunder'].includes(affix.element ?? '')
-    ) {
+    if (requiresElement && !['fire', 'ice', 'thunder'].includes(affix.element ?? '')) {
       ctx.addIssue({
         code: 'custom',
         path: ['element'],
@@ -511,11 +534,7 @@ export const equipmentInstanceSchema = z
     }
     if (
       pending.operation === 'inscribe' &&
-      !isProfessionAffixSlot(
-        definition.quality,
-        instance.affixes.length,
-        pending.affixIndex,
-      )
+      !isProfessionAffixSlot(definition.quality, instance.affixes.length, pending.affixIndex)
     ) {
       ctx.addIssue({
         code: 'custom',
@@ -626,6 +645,18 @@ const trialBestSchema = z
     classId: classIdSchema,
     damage: nonNegativeInteger,
     at: timestamp,
+    submitted: z.boolean(),
+  })
+  .strict();
+
+const milestoneRecordSchema = z
+  .object({
+    // 白名单校验：档位是固定常量，不在表里的等级不该能进存档
+    level: z.number().refine(isMilestoneLevel, '里程碑档位不存在'),
+    at: timestamp,
+    // 与数据库的 `elapsed_ms > 0` 约束对齐；不合理的用时由服务端判 verified=false，
+    // 但「≤ 0」是结构性非法，直接在存档层拒绝
+    elapsedMs: z.number().int().positive(),
     submitted: z.boolean(),
   })
   .strict();
@@ -751,6 +782,8 @@ export const saveDataSchema = z
         bests: z.array(trialBestSchema).max(TRIAL_BEST_KEEP),
       })
       .strict(),
+    // 上界取档位数：每个档位最多一条，改档存档塞不进第四条。
+    milestones: z.array(milestoneRecordSchema).max(MILESTONE_LEVELS.length),
   })
   .strict()
   .superRefine((save, ctx) => {

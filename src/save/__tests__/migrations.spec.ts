@@ -557,9 +557,8 @@ describe('save migrations', () => {
 
     const persistedV10 = migrations[9]!(structuredClone(rawV9));
     const persistedSkillMul = (
-      (persistedV10.bag as { equipment: { affixes: Record<string, unknown>[] }[] }).equipment[0]!
-        .affixes
-    ).find((affix) => affix.key === 'skillMul');
+      persistedV10.bag as { equipment: { affixes: Record<string, unknown>[] }[] }
+    ).equipment[0]!.affixes.find((affix) => affix.key === 'skillMul');
     expect(persistedSkillMul).toEqual({ key: 'skillMul', value: 3.35, tier: 5 });
 
     const direct = migrate(structuredClone(rawV9));
@@ -780,9 +779,7 @@ describe('save migrations', () => {
     expect(migrated.bag.items.sigil_catkin).toBeUndefined();
     const repeated = migrations[10]!(migrated as unknown as Record<string, unknown>);
     expect(repeated).toEqual(migrated);
-    expect(
-      (repeated.bag as { items: Record<string, number> }).items.sigil_shaman,
-    ).toBe(5);
+    expect((repeated.bag as { items: Record<string, number> }).items.sigil_shaman).toBe(5);
   });
 
   it('v10 → v11 已采用职业 target 转通用后，temper 候选同步到同 key 与百分位', () => {
@@ -1092,11 +1089,7 @@ describe('save migrations', () => {
       version: 10,
     });
     expect(migrated.bag.equipment.map((instance) => instance.affixes[0]?.value)).toEqual([
-      16.3,
-      15.6,
-      3.4,
-      0.046,
-      35.1,
+      16.3, 15.6, 3.4, 0.046, 35.1,
     ]);
     expect(migrated.bag.equipment[1]?.pendingAffixChange?.candidate.value).toBe(
       affixValueRange('wit_power', 20, 1).min,
@@ -1166,6 +1159,30 @@ describe('save migrations', () => {
     expect(migrated.player).toEqual(current.player);
     expect(migrated.bag).toEqual(current.bag);
     expect(migrated.affection).toEqual(current.affection);
+  });
+
+  it('v13 → v14 新增空里程碑簿，且刻意不补记已越过的档位', () => {
+    // 一个已经 Lv67 的老档：他确实早就跨过 Lv20/40/60，但存档里没有
+    // 「何时跨过」的任何痕迹，从现状反推只能是编造 —— 所以必须留空。
+    const current = createSave(
+      '里程碑前旧档',
+      'catkin',
+      11,
+      1_800_000_000_000,
+    ) as unknown as Record<string, unknown>;
+    (current.player as { level: number }).level = 67;
+    const raw = structuredClone(current);
+    delete raw.milestones;
+    raw.version = 13;
+
+    const migrated = migrate(raw);
+
+    expect(migrated.version).toBe(SAVE_VERSION);
+    expect(migrated.milestones).toEqual([]);
+    // 等级已远超所有档位，仍然不许凭等级凭空补记
+    expect(migrated.player.level).toBe(67);
+    expect(migrated.trial).toEqual((current as { trial: unknown }).trial);
+    expect(migrated.bag).toEqual((current as { bag: unknown }).bag);
   });
 
   it('当前版本不迁移，只做严格结构校验', () => {

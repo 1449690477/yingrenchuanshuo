@@ -61,6 +61,7 @@ import {
   type EquipmentSetCraftingResult,
 } from '@/core/equipmentSetCrafting';
 import { planClassSwitch } from '@/core/classSwitch';
+import { milestoneElapsedMs, newlyReachedMilestones } from '@/core/milestones';
 import { planImprint, imprintCostOf, type ImprintCost } from '@/core/equipmentImprint';
 import { IMPRINT_SET_TIER, IMPRINTABLE_SET_IDS, isImprintableSetId } from '@/data/imprintRules';
 import { getEquipmentSet } from '@/data/equipmentSets';
@@ -160,10 +161,7 @@ import {
   BAG_CAPACITY,
   SLOT_ORDER,
 } from '@/data/constants';
-import {
-  DEFEAT_EFFICIENCY_FLOOR,
-  DEFEAT_LOW_EFFICIENCY_SECONDS,
-} from '@/data/constants';
+import { DEFEAT_EFFICIENCY_FLOOR, DEFEAT_LOW_EFFICIENCY_SECONDS } from '@/data/constants';
 import { getEquipment, requireEquipment } from '@/data/equipment';
 import { requireMonster } from '@/data/monsters';
 import { requireLootTable } from '@/data/lootTables';
@@ -194,10 +192,7 @@ import {
 } from '@/data/affectionEquipment';
 import { requireAffectionGift } from '@/data/affectionGifts';
 import { getEquipmentDungeonStage, type EquipmentDungeonStage } from '@/data/equipmentDungeons';
-import {
-  REFORGE_UNLOCK_LEVEL,
-  requireRegionReforgeMaterials,
-} from '@/data/reforgeRules';
+import { REFORGE_UNLOCK_LEVEL, requireRegionReforgeMaterials } from '@/data/reforgeRules';
 import {
   equipmentAdvancementOption as resolveEquipmentAdvancementOption,
   type EquipmentAdvancementOption,
@@ -942,8 +937,7 @@ export const useGameStore = defineStore('game', () => {
     } catch (error) {
       save.value = previousSave;
       resetPersistencePending = false;
-      const shouldResume =
-        (resumeRealtime || resumeRequestedDuringReset) && realtimeMayRun();
+      const shouldResume = (resumeRealtime || resumeRequestedDuringReset) && realtimeMayRun();
       resumeRequestedDuringReset = false;
       if (error instanceof SaveConflictError) {
         enterStorageConflict();
@@ -1441,9 +1435,45 @@ export const useGameStore = defineStore('game', () => {
       p.exp = settled.exp;
       return;
     }
+    recordMilestonesCrossed(p.level, settled.level);
     p.level = settled.level;
     p.exp = settled.exp;
     syncBattleRhythmProjectionAfterLevelUp();
+  }
+
+  /**
+   * 记录本次升级跨过的登顶速度榜档位（docs/51 §4 榜 4）。
+   *
+   * 挂在 levelUpIfPossible 里是因为它是**等级变化的唯一收口** ——
+   * 在线 tick 与离线结算都从这里走，挂在别处必漏记。
+   *
+   * 一次跨多档是常态（离线收益、区域解锁后囤积经验一次性释放），
+   * 所以按区间取全部新档位而不只是最高那个。
+   *
+   * 用时一旦写下就不再改动：里程碑是「第一次到达用了多久」的历史事实，
+   * 不是可以刷新的成绩。用 now 作为达成时刻会把离线期间的达成算晚一点，
+   * 这是**安全方向的偏差**（只会让玩家显得慢，不会显得快），
+   * 比为了精确去反推离线时间线要可靠。
+   */
+  function recordMilestonesCrossed(fromLevel: number, toLevel: number): void {
+    const current = save.value;
+    if (!current) return;
+    const reached = newlyReachedMilestones(
+      fromLevel,
+      toLevel,
+      current.milestones.map((record) => record.level),
+    );
+    if (reached.length === 0) return;
+    const now = Date.now();
+    for (const level of reached) {
+      current.milestones.push({
+        level,
+        at: now,
+        elapsedMs: milestoneElapsedMs(current.createdAt, now),
+        submitted: false,
+      });
+    }
+    current.milestones.sort((a, b) => a.level - b.level);
   }
 
   /**
@@ -1782,7 +1812,13 @@ export const useGameStore = defineStore('game', () => {
       for (let index = 0; index < drop.count; index++) {
         const uid = `e${nextUid}`;
         const instance = hasFullyFixedAffixes(definition)
-          ? createFixedInstance(definition, uid, true, instanceRng.derive(nextUid), s.player.classId)
+          ? createFixedInstance(
+              definition,
+              uid,
+              true,
+              instanceRng.derive(nextUid),
+              s.player.classId,
+            )
           : createInstance(definition, instanceRng.derive(nextUid), uid, s.player.classId);
         // 首通奖励是图鉴启动资产，必须锁定，不能被满背包安全裁剪静默分解。
         if (planned.firstClear) instance.locked = true;
@@ -2817,7 +2853,12 @@ export const useGameStore = defineStore('game', () => {
     const s = save.value;
     const inst = findOwnedInstance(uid);
     if (!s || !inst) {
-      return { ok: false, reason: 'set-not-imprintable', cost: zeroImprintCost(), owned: { crystals: 0, cores: 0, gold: 0 } };
+      return {
+        ok: false,
+        reason: 'set-not-imprintable',
+        cost: zeroImprintCost(),
+        owned: { crystals: 0, cores: 0, gold: 0 },
+      };
     }
     const definition = requireEquipment(inst.defId);
     const itemCount = (itemId: string) => s.bag.items[itemId] ?? 0;
@@ -2859,7 +2900,8 @@ export const useGameStore = defineStore('game', () => {
 
     s.player.gold -= plan.cost.gold;
     if (plan.cost.crystals > 0) {
-      s.bag.items[plan.cost.crystalId] = (s.bag.items[plan.cost.crystalId] ?? 0) - plan.cost.crystals;
+      s.bag.items[plan.cost.crystalId] =
+        (s.bag.items[plan.cost.crystalId] ?? 0) - plan.cost.crystals;
     }
     if (plan.cost.cores > 0) {
       s.bag.items[plan.cost.coreId] = (s.bag.items[plan.cost.coreId] ?? 0) - plan.cost.cores;

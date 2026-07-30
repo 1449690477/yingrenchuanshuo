@@ -13,7 +13,14 @@ import { requireEquipment } from '@/data/equipment';
 import { requireMonster } from '@/data/monsters';
 import { SHOP_OFFERS } from '@/data/shop';
 import { battleRhythmSkills } from '@/data/skills';
-import { ORDERED_STAGE_IDS, STAGES, stageClearTarget, nextStageId, totalMonsterCount } from '@/data/stages';
+import {
+  FIRST_STAGE_ID,
+  ORDERED_STAGE_IDS,
+  STAGES,
+  stageClearTarget,
+  nextStageId,
+  totalMonsterCount,
+} from '@/data/stages';
 import {
   IMPRINT_CRYSTAL_COST,
   IMPRINT_CRYSTAL_IDS,
@@ -141,7 +148,10 @@ describe('game store persistence', () => {
     save.bag.equipment = [champion, combatAffix, ...junk];
     save.lastActiveAt = Date.now();
     await saveSave(save);
-    vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1));
+    vi.stubGlobal(
+      'requestAnimationFrame',
+      vi.fn(() => 1),
+    );
     vi.stubGlobal('cancelAnimationFrame', vi.fn());
 
     const game = useGameStore();
@@ -1702,5 +1712,82 @@ describe('套装烙印端到端（docs/58）', () => {
     expect(game.save!.bag.items[IMPRINT_CRYSTAL_IDS.azure]).toBe(1);
     expect(game.save!.player.gold).toBe(goldBefore);
     expect(game.save!.bag.equipment[0]?.imprintSetId).toBeUndefined();
+  });
+});
+
+// ─────────────── 登顶速度榜的达成记录（docs/51 §4 榜 4） ───────────────
+
+describe('里程碑记录挂在等级变化的唯一收口上', () => {
+  const NOW = 1_800_000_000_000;
+  const DAY_MS = 86_400_000;
+
+  /**
+   * loadFrom 内部会跑一次离线结算，所以「攒经验 + 回拨 lastActiveAt」即可触发升级。
+   *
+   * 必须先解锁足量关卡：等级软上限 = 可达关卡等级 + 3（docs/56 §2），
+   * 新档只解锁第一关时软上限约 Lv8，攒再多经验也升不到 Lv20 ——
+   * 这恰恰是软上限在正常工作，不是测试环境的怪癖。
+   */
+  function loadWithOfflineGains(
+    name: string,
+    classId: 'swordsman' | 'witch' | 'shaman',
+    seed: number,
+    offlineDays: number,
+    exp: number,
+    clearedStageCount: number,
+  ) {
+    vi.setSystemTime(NOW + offlineDays * DAY_MS);
+    const game = useGameStore();
+    const save = createSave(name, classId, seed, NOW);
+    // 通关记录决定软上限；但挂机关卡留在第一关 ——
+    // applyYield（升级收口的调用者）只在 kills > 0 时执行，
+    // 让 Lv1 无装备的测试档站在第 90 关会打不死怪，一次升级都不会发生。
+    save.progress.clearedStageIds = ORDERED_STAGE_IDS.slice(0, clearedStageCount);
+    save.progress.currentStageId = FIRST_STAGE_ID;
+    save.player.exp = exp;
+    save.lastActiveAt = NOW + offlineDays * DAY_MS - 60_000;
+    game.loadFrom(save);
+    return game;
+  }
+
+  it('连升数级时跨过的档位全部记下，用时从建号算起而不是从本次结算算起', () => {
+    // 解锁 90 关（约到区域 3 末），软上限足以放行 Lv20 与 Lv40
+    const game = loadWithOfflineGains('里程碑', 'swordsman', 31, 9, 5_000_000_000, 90);
+
+    const records = game.save!.milestones;
+    expect(records.length).toBeGreaterThan(0);
+    const levels = records.map((m) => m.level);
+    expect(levels).toEqual([...levels].sort((a, b) => a - b));
+    expect(new Set(levels).size).toBe(levels.length);
+    for (const record of records) {
+      expect(record.level).toBeLessThanOrEqual(game.save!.player.level);
+      // 关键断言：用时是「建号 → 达成」的 9 天，不是本次离线的 60 秒
+      expect(record.elapsedMs).toBeGreaterThanOrEqual(9 * DAY_MS - 60_000);
+      expect(record.submitted).toBe(false);
+    }
+  });
+
+  it('再次结算不会改写已记录的档位（里程碑是不可变的历史事实）', () => {
+    const game = loadWithOfflineGains('里程碑幂等', 'witch', 32, 9, 5_000_000_000, 90);
+    // 响应式代理不能 structuredClone，手动展开成普通对象
+    const first = game.save!.milestones.map((m) => ({ ...m }));
+    expect(first.length).toBeGreaterThan(0);
+
+    // 时间推进很久后再跑一次结算：旧记录的 at / elapsedMs 一个字节都不许变
+    vi.setSystemTime(NOW + 40 * DAY_MS);
+    const again = game.save!;
+    again.player.exp += 5_000_000_000;
+    again.lastActiveAt = NOW + 40 * DAY_MS - 60_000;
+    game.loadFrom(again);
+
+    for (const old of first) {
+      expect(game.save!.milestones.find((m) => m.level === old.level)).toEqual(old);
+    }
+  });
+
+  it('升了级但没跨过任何档位时不产生记录', () => {
+    const game = loadWithOfflineGains('未达档位', 'shaman', 33, 0, 0, 1);
+    expect(game.save!.player.level).toBeLessThan(20);
+    expect(game.save!.milestones).toEqual([]);
   });
 });
