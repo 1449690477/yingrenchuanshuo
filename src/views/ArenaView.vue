@@ -130,7 +130,9 @@ onMounted(() => {
       </header>
 
       <div class="hero-body">
-        <img :src="tierBadge" :alt="`${tierInfo.name}徽章`" class="tier-badge" />
+        <span class="badge-wrap">
+          <img :src="tierBadge" :alt="`${tierInfo.name}徽章`" class="tier-badge" />
+        </span>
         <div class="hero-stats">
           <span class="hero-tier">{{ tierInfo.name }}</span>
           <strong class="hero-rank">
@@ -442,6 +444,44 @@ onMounted(() => {
   gap: 14px;
   padding: 10px 16px 16px;
 }
+/* 段位徽章光环脉冲：呼吸的金色圆环，荣誉感的来源 */
+.badge-wrap {
+  position: relative;
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+}
+
+.badge-wrap::before,
+.badge-wrap::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border: 1.5px solid rgb(255 217 138 / 55%);
+  border-radius: 50%;
+  animation: badge-pulse 2.6s var(--ease-soft) infinite;
+  pointer-events: none;
+}
+
+.badge-wrap::after {
+  animation-delay: 1.3s;
+}
+
+@keyframes badge-pulse {
+  0% {
+    opacity: 0.9;
+    transform: scale(0.82);
+  }
+  70% {
+    opacity: 0;
+    transform: scale(1.28);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.28);
+  }
+}
+
 .tier-badge {
   width: 64px;
   height: 64px;
@@ -678,10 +718,23 @@ onMounted(() => {
 }
 .opponent-card.selected {
   border-color: var(--q-divine);
-  box-shadow:
-    0 0 0 3px rgb(232 172 31 / 18%),
-    0 6px 18px rgb(232 172 31 / 25%);
   background: linear-gradient(180deg, rgb(255 200 96 / 12%), var(--panel-2));
+  animation: selected-glow 2.2s ease-in-out infinite;
+}
+
+/* 选中金光脉冲：呼吸的金色光晕，锁定感一眼可见 */
+@keyframes selected-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 3px rgb(232 172 31 / 18%),
+      0 6px 18px rgb(232 172 31 / 25%);
+  }
+  50% {
+    box-shadow:
+      0 0 0 5px rgb(232 172 31 / 26%),
+      0 8px 24px rgb(232 172 31 / 38%);
+  }
 }
 
 /* 选中对勾角标：让「已锁定这位对手」一眼可辨 */
@@ -829,6 +882,20 @@ onMounted(() => {
     inset 0 1px 0 rgb(255 255 255 / 38%),
     0 4px 14px rgb(245 121 159 / 34%);
   text-shadow: 0 1px 3px rgb(173 62 104 / 35%);
+  animation: stake-pop 0.34s var(--ease-out-back) both;
+}
+
+/* 押注切换 pop：选中瞬间轻弹一下，确认手感 */
+@keyframes stake-pop {
+  0% {
+    transform: scale(0.88);
+  }
+  62% {
+    transform: scale(1.06);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 
 .challenge-btn {
@@ -961,6 +1028,14 @@ onMounted(() => {
     display: none;
   }
   .opponent-card.selected::after {
+    animation: none;
+  }
+  .badge-wrap::before,
+  .badge-wrap::after {
+    display: none;
+  }
+  .opponent-card.selected,
+  .stake-pill.active {
     animation: none;
   }
 }
