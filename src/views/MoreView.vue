@@ -96,7 +96,14 @@ function say(text: string, ok: boolean) {
       :inert="showShop || shopLeaving"
       :aria-hidden="showShop || shopLeaving ? 'true' : undefined"
     >
-      <section class="boutique-entry" :style="{ backgroundImage: `url(${shopSceneUrl})` }">
+      <button
+        ref="shopEntryButton"
+        type="button"
+        class="boutique-entry"
+        :style="{ backgroundImage: `url(${shopSceneUrl})` }"
+        aria-label="进入樱花珍品店"
+        @click="openShop"
+      >
         <span class="boutique-shade" />
         <span class="boutique-copy">
           <small><Sparkles :size="11" />35 件珍品 · 喵喵专属纸箱套</small>
@@ -104,11 +111,11 @@ function say(text: string, ok: boolean) {
           <span>紫 · 金 · 红洛丽塔系列，支持试穿、专属互动与攻击换肤。</span>
           <em><Coins :size="11" />只收分解与挂机获得的金币</em>
         </span>
-        <button ref="shopEntryButton" @click="openShop">
+        <span class="boutique-cta" aria-hidden="true">
           <ShoppingBag :size="15" />
           进入小店
-        </button>
-      </section>
+        </span>
+      </button>
 
       <CollapsibleCard title="游戏数据" persist-key="more.stats">
         <template #peek>
@@ -254,14 +261,29 @@ function say(text: string, ok: boolean) {
   align-items: flex-end;
   justify-content: space-between;
   gap: 9px;
+  width: 100%;
   overflow: hidden;
   padding: 12px;
   color: #fff;
+  text-align: left;
   background-position: center 56%;
   background-size: cover;
   border: 1px solid rgb(255 255 255 / 75%);
   border-radius: var(--r);
   box-shadow: 0 8px 18px rgb(67 50 76 / 16%);
+  transition:
+    transform var(--t-fast) var(--ease-spring),
+    box-shadow var(--t-mid) var(--ease-soft);
+}
+
+.boutique-entry:active {
+  transform: scale(0.985);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .boutique-entry:hover {
+    box-shadow: 0 12px 26px rgb(67 50 76 / 24%);
+  }
 }
 
 .boutique-shade {
@@ -298,12 +320,13 @@ function say(text: string, ok: boolean) {
   line-height: 1.45;
 }
 
-.boutique-entry > button {
+.boutique-cta {
   position: relative;
   z-index: 1;
   min-width: 94px;
   min-height: 46px;
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   justify-content: center;
   gap: 5px;

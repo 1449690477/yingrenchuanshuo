@@ -1160,7 +1160,15 @@ onUnmounted(() => {
   align-items: end;
   justify-content: space-between;
   gap: 8px;
+  padding: 4px 6px;
+  margin: -4px -6px;
   text-align: left;
+  border-radius: 10px;
+  transition: background-color var(--t-mid) var(--ease-soft);
+}
+
+.block-toggle:active {
+  background: color-mix(in srgb, var(--tier-color) 8%, white);
 }
 
 .block-toggle > span {

@@ -1071,6 +1071,16 @@ onUnmounted(() => {
   background: rgb(241 248 255 / 88%);
   border: 1px solid rgb(157 202 235 / 56%);
   border-radius: 999px;
+  transition:
+    transform var(--t-fast) var(--ease-spring),
+    background var(--t-mid) ease,
+    border-color var(--t-mid) ease;
+}
+
+.change-button:active {
+  background: rgb(219 236 252 / 92%);
+  border-color: rgb(128 184 226 / 70%);
+  transform: scale(0.94);
 }
 
 .selected-equipment {
@@ -1676,6 +1686,14 @@ onUnmounted(() => {
   background: #eef8ff;
   border: 1px solid #b7daef;
   border-radius: 999px;
+  transition:
+    transform var(--t-fast) var(--ease-spring),
+    background var(--t-mid) ease;
+}
+
+.empty-selection button:active {
+  background: #d9efff;
+  transform: scale(0.94);
 }
 
 .result-pop-enter-active,
@@ -2033,6 +2051,14 @@ onUnmounted(() => {
   background: rgb(255 255 255 / 82%);
   border: 1px solid var(--line);
   border-radius: 11px;
+  transition:
+    transform var(--t-fast) var(--ease-spring),
+    background var(--t-mid) ease,
+    border-color var(--t-mid) ease;
+}
+
+.batch-targets button:active {
+  transform: scale(0.93);
 }
 
 .batch-targets button.active {
@@ -2052,6 +2078,14 @@ onUnmounted(() => {
   font-size: 9.5px;
   font-weight: 800;
   border-radius: 12px;
+  transition:
+    transform var(--t-fast) var(--ease-spring),
+    filter var(--t-mid) ease;
+}
+
+.batch-actions button:active:not(:disabled) {
+  filter: brightness(1.06);
+  transform: scale(0.94);
 }
 
 .batch-single {

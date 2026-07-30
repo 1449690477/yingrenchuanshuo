@@ -42,10 +42,7 @@ const reactionText = ref('');
 const lastPreview = ref<'greet' | 'pose' | 'celebrate'>('greet');
 let previewTimer = 0;
 
-const previewLines: Record<
-  ClassId,
-  Readonly<Record<'greet' | 'pose' | 'celebrate', string>>
-> = {
+const previewLines: Record<ClassId, Readonly<Record<'greet' | 'pose' | 'celebrate', string>>> = {
   swordsman: {
     greet: '准备好了吗？动作预览随时可以开始。',
     pose: '这套装备的活动范围也确认过了。',
@@ -138,8 +135,7 @@ function previewInteraction(kind: 'greet' | 'pose' | 'celebrate' = 'greet'): voi
   lastPreview.value = kind;
   const themeLines = boutiqueTheme.value?.interactionLines ?? [];
   reactionText.value =
-    themeLines[kind === 'greet' ? 0 : kind === 'pose' ? 1 : 2] ??
-    previewLines[props.classId][kind];
+    themeLines[kind === 'greet' ? 0 : kind === 'pose' ? 1 : 2] ?? previewLines[props.classId][kind];
   action.value = kind === 'greet' ? 'react' : kind === 'pose' ? 'cast' : 'victory';
   activeSkill.value = null;
   showBasicEffect.value = false;
@@ -502,6 +498,18 @@ onUnmounted(() => clearTimeout(previewTimer));
   border: 1px solid rgb(188 205 222 / 68%);
   border-radius: 13px;
   box-shadow: 0 4px 9px rgb(77 93 120 / 9%);
+  transition:
+    transform var(--t-fast) var(--ease-spring),
+    border-color var(--t-mid) ease,
+    box-shadow var(--t-mid) ease;
+}
+
+.showcase-slot:active {
+  border-color: rgb(232 155 190 / 78%);
+  box-shadow:
+    inset 0 2px 6px rgb(127 95 127 / 10%),
+    0 2px 5px rgb(77 93 120 / 8%);
+  transform: scale(0.9);
 }
 
 .showcase-slot.empty {
@@ -547,6 +555,11 @@ onUnmounted(() => clearTimeout(previewTimer));
   overflow: visible;
   padding: 0;
   border-radius: 49% 49% 20px 20px;
+  transition: transform var(--t-fast) var(--ease-spring);
+}
+
+.character-stage:active {
+  transform: scale(0.985);
 }
 
 .stage-backdrop {
@@ -695,6 +708,14 @@ onUnmounted(() => clearTimeout(previewTimer));
   background: rgb(255 255 255 / 76%);
   border: 1px solid var(--line);
   border-radius: 11px;
+  transition:
+    transform var(--t-fast) var(--ease-spring),
+    background var(--t-mid) ease,
+    border-color var(--t-mid) ease;
+}
+
+.interaction-panel button:active {
+  transform: scale(0.92);
 }
 
 .interaction-panel button.active {
@@ -743,6 +764,14 @@ onUnmounted(() => clearTimeout(previewTimer));
   background: rgb(245 248 252 / 84%);
   border: 1px solid var(--line);
   border-radius: 11px;
+  transition:
+    transform var(--t-fast) var(--ease-spring),
+    background var(--t-mid) ease,
+    border-color var(--t-mid) ease;
+}
+
+.action-strip > button:active:not(:disabled) {
+  transform: scale(0.9);
 }
 
 .action-strip > button.active {

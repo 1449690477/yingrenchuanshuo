@@ -381,6 +381,13 @@ onUnmounted(() => {
   color: var(--text-mid);
   background: rgb(255 255 255 / 78%);
   border: 1px solid var(--line);
+  transition:
+    transform var(--t-fast) var(--ease-spring),
+    background var(--t-mid) ease;
+}
+.icon-button:active {
+  background: var(--panel-3);
+  transform: scale(0.88);
 }
 .head-copy {
   display: flex;
@@ -431,6 +438,13 @@ onUnmounted(() => {
   background: rgb(255 255 255 / 74%);
   border: 1px solid var(--line);
   border-radius: 999px;
+  transition:
+    transform var(--t-fast) var(--ease-spring),
+    background var(--t-mid) ease,
+    border-color var(--t-mid) ease;
+}
+.character-tabs button:active {
+  transform: scale(0.94);
 }
 .character-tabs button.active {
   color: var(--pink-deep);
@@ -688,6 +702,13 @@ onUnmounted(() => {
   background: rgb(25 40 60 / 52%);
   border-radius: 999px;
   backdrop-filter: blur(3px);
+  transition:
+    transform var(--t-fast) var(--ease-spring),
+    background var(--t-mid) ease;
+}
+.replay-skip:active {
+  background: rgb(25 40 60 / 68%);
+  transform: scale(0.9);
 }
 .replay-dialogue {
   position: relative;
@@ -778,6 +799,13 @@ onUnmounted(() => {
   color: #fff;
   background: linear-gradient(135deg, var(--pink), var(--pink-deep));
   border-radius: 999px;
+  transition:
+    transform var(--t-fast) var(--ease-spring),
+    filter var(--t-mid) ease;
+}
+.replay-footer button:active {
+  filter: brightness(1.07);
+  transform: scale(0.94);
 }
 @keyframes memory-drift {
   from {

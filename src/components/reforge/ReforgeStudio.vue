@@ -1311,6 +1311,10 @@ onBeforeUnmount(() => {
     box-shadow 160ms ease;
 }
 
+.gear-card:active:not(:disabled) {
+  transform: scale(0.93);
+}
+
 .gear-card.active {
   background: linear-gradient(150deg, #fff5fa, #eef7ff);
   border-color: var(--gear-q, #edb8d3);
@@ -1503,6 +1507,14 @@ onBeforeUnmount(() => {
   background: linear-gradient(100deg, #f0a06a, #e2745f);
   border: 0;
   border-radius: 999px;
+  transition:
+    transform var(--t-fast) var(--ease-spring),
+    filter var(--t-mid) ease;
+}
+
+.protect-apply:active:not(:disabled) {
+  filter: brightness(1.07);
+  transform: scale(0.92);
 }
 
 .operation-note p,
@@ -1540,6 +1552,10 @@ onBeforeUnmount(() => {
     border-color 160ms ease,
     box-shadow 160ms ease,
     transform 160ms var(--ease-soft, ease-out);
+}
+
+.operation-tabs button:active:not(:disabled) {
+  transform: scale(0.95);
 }
 
 .operation-tabs button.active {
@@ -1598,6 +1614,15 @@ onBeforeUnmount(() => {
   background: rgb(255 255 255 / 80%);
   border: 1px solid #e3e8ef;
   border-radius: 10px;
+  transition:
+    transform 160ms var(--ease-soft, ease-out),
+    border-color 160ms ease,
+    background 160ms ease;
+}
+
+.affix-row:active:not(:disabled) {
+  background: rgb(245 248 252 / 92%);
+  transform: scale(0.98);
 }
 
 .affix-row > :not(.lock-seal-fx) {
@@ -1771,6 +1796,16 @@ onBeforeUnmount(() => {
   background: linear-gradient(100deg, #79bde8, #ee88bd 55%, #f0b66f);
   border-radius: 12px;
   box-shadow: 0 7px 18px rgb(211 110 163 / 24%);
+  transition:
+    transform var(--t-fast) var(--ease-spring),
+    filter var(--t-mid) ease,
+    box-shadow var(--t-mid) ease;
+}
+
+.start-button:active:not(:disabled) {
+  filter: brightness(1.08);
+  box-shadow: 0 3px 9px rgb(211 110 163 / 28%);
+  transform: scale(0.965);
 }
 
 .start-button:disabled {
