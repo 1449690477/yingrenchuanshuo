@@ -1,7 +1,7 @@
 import { computed } from 'vue';
 import { defineStore } from 'pinia';
 import type { EquipmentInstance } from '@/core/types';
-import { createFixedInstance } from '@/core/equipment';
+import { createFixedPreviewInstance } from '@/core/equipment';
 import { BOUTIQUE_THEMES } from '@/data/boutique';
 import { requireEquipment } from '@/data/equipment';
 import { SHOP_OFFERS } from '@/data/shop';
@@ -31,8 +31,16 @@ export const useShopStore = defineStore('shop', () => {
   const gold = computed(() => game.player?.gold ?? 0);
   const purchasedCount = computed(() => game.save?.shop.purchasedOfferIds.length ?? 0);
 
+  /**
+   * 列表与详情的展示用实例。
+   *
+   * 必须用 createFixedPreviewInstance 而不是 createFixedInstance：
+   * 后者对「声明了额外可洗槽」的定义要求传 rng，而珍品全都有额外槽 ——
+   * 混用会让整个商店在渲染时抛错（2026-07-30 线上事故）。
+   * 预览也刻意不掷额外槽词条，避免展示值与实际购买结果不一致。
+   */
   function previewInstance(defId: string): EquipmentInstance {
-    return createFixedInstance(requireEquipment(defId), `shop-preview-${defId}`, true);
+    return createFixedPreviewInstance(requireEquipment(defId), `shop-preview-${defId}`);
   }
 
   return {

@@ -838,6 +838,40 @@ export function createFixedInstance(
   };
 }
 
+/**
+ * 纯展示用的固定模板实例（商店预览、合成预览）。
+ *
+ * 与 createFixedInstance 的区别，以及为什么必须单独开一个函数：
+ *
+ * 1. **不掷额外槽词条**。额外槽是购买那一刻才掷的，预览若先掷一份出来，
+ *    玩家看到 +50 却买到 +30 —— 那是欺骗（docs/40 红线）。
+ *    预览只呈现固定词条与基础属性，UI 另行说明「购买后随机产生 N 条可洗词条」。
+ *
+ * 2. **不受「声明了额外槽必须传 rng」的守卫约束**。那条守卫是为了防止
+ *    真实实例静默产出 0 条额外词条（曾经的 bug），而预览实例根本不进背包、
+ *    不参与战斗、不会被洗练，本来就不该被它拦。
+ *
+ * 2026-07-30 的线上事故正是混用两者的后果：商店预览走 createFixedInstance
+ * 且不传 rng，加了守卫后每个珍品都抛错，整个商店打不开。
+ * 分成两个函数后，调用点必须在「真实创建」和「只是看看」之间明确表态。
+ */
+export function createFixedPreviewInstance(def: EquipmentDef, uid: string): EquipmentInstance {
+  if (!hasFullyFixedAffixes(def)) {
+    throw new Error(`[配置错误] ${def.id} 未声明 fixedTemplate，不能创建预览实例`);
+  }
+  return {
+    uid,
+    defId: def.id,
+    enhance: 0,
+    baseRollPermille: 1000,
+    enhanceGainPermille: Array<number>(ENHANCE_MAX).fill(0),
+    enhanceLuck: {},
+    affixes: [],
+    reforgeResonance: 0,
+    locked: true,
+  };
+}
+
 function validateFixedAffixLayout(def: EquipmentDef): {
   fixedKeys: Set<AffixKey>;
   fixedCount: number;
