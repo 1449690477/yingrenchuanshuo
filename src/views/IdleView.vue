@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { BookOpen, ChevronDown, Gift, Sparkles } from '@lucide/vue';
+import { BookOpen, ChevronDown, Gift, Sparkles, Zap } from '@lucide/vue';
 import { abbr } from '@/core/format';
 import { battleVitalsAtProgress } from '@/core/battleVisual';
 import { aggregateLootEntries, type LootDisplayCategory } from '@/core/lootGrouping';
 import { makeMonster, makePlayer } from '@/core/progression';
+import { useGameStore } from '@/stores/game';
 import { useInventoryStore } from '@/stores/inventory';
 import { usePlayerStore } from '@/stores/player';
 import { useStageStore } from '@/stores/stage';
@@ -14,7 +15,8 @@ import { requireMonster } from '@/data/monsters';
 import { requireEquipment } from '@/data/equipment';
 import { equipmentDisplayPresentation } from '@/data/equipmentPresentation';
 import { requireItem } from '@/data/items';
-import { QUALITY_LABELS, QUALITY_ORDER, QUALITY_RANK } from '@/data/constants';
+import { QUALITY_LABELS, QUALITY_ORDER, QUALITY_RANK, STAMINA_RECOVER_SECONDS } from '@/data/constants';
+import { useNowTick } from '@/ui/useNowTick';
 import StageSelect from '@/components/StageSelect.vue';
 import BattleScene from '@/components/BattleScene.vue';
 import EquipmentIcon from '@/components/EquipmentIcon.vue';
@@ -28,6 +30,7 @@ import type { EquipmentInstance } from '@/core/types';
 import type { ItemDef } from '@/data/items';
 
 const player = usePlayerStore();
+const game = useGameStore();
 const activeClassId = computed(() => {
   const classId = player.player?.classId;
   if (!classId) throw new Error('[挂机页错误] 存档未载入，无法解析装备职业外观');
@@ -38,6 +41,33 @@ const stage = useStageStore();
 const showStages = ref(false);
 const showEncounters = ref(false);
 const showEncounterJournal = ref(false);
+
+// ─────────── K2 · 挑战体力（docs/57）：当前关未通关才消耗，已通关不显示任何体力元素 ───────────
+const staminaNow = useNowTick(30_000);
+
+/** 当前关的挑战体力核算。跳秒驱动恢复倒计时刷新；体力由 store 实时恢复。 */
+const challengeCost = computed(() => {
+  void staminaNow.value;
+  return game.evaluateStageEntry(stage.current.id).cost;
+});
+
+/** 当前关未通关且体力充足：按钮上显示「挑战 ⚡6」。 */
+const showChallengeCost = computed(
+  () => !stage.cleared && challengeCost.value.ok && challengeCost.value.cost > 0,
+);
+
+/** 体力不足：置灰 + 显示还需多久。 */
+const staminaBlocked = computed(() => !stage.cleared && !challengeCost.value.ok);
+
+/** 距可挑战的分钟数：下一点恢复 + 剩余缺口 × 恢复间隔。 */
+const staminaMinutes = computed(() => {
+  const cost = challengeCost.value;
+  const missing = Math.max(1, cost.cost - cost.stamina);
+  return Math.max(
+    1,
+    Math.ceil((cost.nextPointInSeconds + (missing - 1) * STAMINA_RECOVER_SECONDS) / 60),
+  );
+});
 
 /**
  * 掉落面板默认开合：矮屏（手机占绝大多数）默认收起成速览条，
@@ -250,6 +280,16 @@ function openLootEntry(entry: { itemId: string; isEquipment: boolean; count: num
         <span class="stage-name">{{ stage.current.name }}</span>
       </span>
       <span class="stage-right">
+        <!-- K2：当前关未通关才显示挑战体力；已通关恒 0 不显示（docs/57） -->
+        <span v-if="showChallengeCost" class="stage-cost">
+          挑战
+          <Zap :size="10" :stroke-width="2.4" aria-hidden="true" />
+          {{ challengeCost.cost }}
+        </span>
+        <span v-else-if="staminaBlocked" class="stage-cost blocked">
+          <Zap :size="10" :stroke-width="2.4" aria-hidden="true" />
+          {{ challengeCost.stamina }}/{{ challengeCost.cost }}
+        </span>
         <span class="lv num">Lv.{{ stage.current.level }}</span>
         <span class="chev">切换 ›</span>
       </span>
@@ -272,8 +312,14 @@ function openLootEntry(entry: { itemId: string; isEquipment: boolean; count: num
         <div class="window-chrome">
           <span class="status-dot" :class="{ running: stage.canIdle }" aria-hidden="true" />
           <span class="window-title">挂机战斗</span>
-          <span class="window-state" :class="{ running: stage.canIdle }">
-            {{ stage.canIdle ? '自动战斗中' : '已暂停' }}
+          <span class="window-state" :class="{ running: stage.canIdle && !staminaBlocked }">
+            {{
+              staminaBlocked
+                ? `体力恢复中 · ${staminaMinutes} 分钟后可挑战`
+                : stage.canIdle
+                  ? '自动战斗中'
+                  : '已暂停'
+            }}
           </span>
         </div>
         <!-- 发丝级击杀进度：贴在窗口眉下，余光一扫就知道这波推到哪了 -->
@@ -606,6 +652,26 @@ function openLootEntry(entry: { itemId: string; isEquipment: boolean; count: num
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
+}
+
+/* K2 挑战体力 chip：贴在关卡条右侧，与 Lv 徽章同一视觉层级 */
+.stage-cost {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 8px;
+  font-size: 9px;
+  font-weight: 700;
+  color: #8a5a1d;
+  background: rgb(255 247 230 / 92%);
+  border-radius: 999px;
+  box-shadow: 0 2px 6px rgb(80 60 30 / 12%);
+  white-space: nowrap;
+}
+
+.stage-cost.blocked {
+  color: #a04444;
+  background: rgb(255 238 238 / 94%);
 }
 
 .lv {

@@ -2,6 +2,7 @@
 import { computed, onUnmounted, ref, watch } from 'vue';
 import { Coins, Swords, Zap } from '@lucide/vue';
 import { abbr, signed } from '@/core/format';
+import { useGameStore } from '@/stores/game';
 import { useInventoryStore } from '@/stores/inventory';
 import { usePlayerStore } from '@/stores/player';
 import { CLASS_INFO } from '@/data/constants';
@@ -9,6 +10,22 @@ import CharacterAppearance from '@/components/CharacterAppearance.vue';
 
 const playerStore = usePlayerStore();
 const inventoryStore = useInventoryStore();
+const gameStore = useGameStore();
+
+// ─────────── K4 · 经验条冻结态（docs/57）：到达区域顶点时「停住」，攒的经验解锁后释放 ───────────
+const capInfo = computed(() => gameStore.levelCapInfo);
+const expFrozen = computed(() => capInfo.value.frozen);
+const capTipOpen = ref(false);
+
+function toggleCapTip(): void {
+  if (!expFrozen.value) return;
+  capTipOpen.value = !capTipOpen.value;
+}
+
+/** 解锁新章解冻后 tooltip 自动收起，不留残态。 */
+watch(expFrozen, (frozen) => {
+  if (!frozen) capTipOpen.value = false;
+});
 
 /** 战力变化飘字。任何操作导致战力变化都要让玩家看见。 */
 const floatCp = ref<{ value: number; key: number } | null>(null);
@@ -73,8 +90,27 @@ onUnmounted(() => {
         <span class="lv num">Lv.{{ playerStore.player.level }}</span>
         <span v-if="cls" class="cls">{{ cls.name }}</span>
       </div>
-      <div class="expbar">
-        <div class="expbar-fill" :style="{ width: playerStore.expPercent + '%' }" />
+      <div
+        class="expbar"
+        :class="{ frozen: expFrozen }"
+        :role="expFrozen ? 'button' : undefined"
+        :tabindex="expFrozen ? 0 : undefined"
+        :aria-expanded="expFrozen ? capTipOpen : undefined"
+        :aria-label="expFrozen ? '等级已到当前区域顶点，点击查看说明' : undefined"
+        @click="toggleCapTip"
+        @keydown.enter.prevent="toggleCapTip"
+        @keydown.space.prevent="toggleCapTip"
+      >
+        <div
+          class="expbar-fill"
+          :style="{ width: (expFrozen ? 100 : playerStore.expPercent) + '%' }"
+        />
+        <span v-if="expFrozen" class="cap-badge">区域顶点</span>
+      </div>
+      <!-- 冻结说明：推进关卡继续升级；积攒的经验解锁后一口气释放（连升是爽点，不是惩罚） -->
+      <div v-if="expFrozen && capTipOpen" class="cap-tip" role="status">
+        已达当前区域顶点（Lv{{ capInfo.softCap }}）· 推进关卡以继续升级，已积攒
+        {{ abbr(capInfo.pendingExp) }} 经验
       </div>
     </div>
 
@@ -154,6 +190,7 @@ onUnmounted(() => {
 }
 
 .info {
+  position: relative;
   flex: 1;
   min-width: 0;
 }
@@ -213,6 +250,83 @@ onUnmounted(() => {
   background: linear-gradient(100deg, transparent 12%, rgb(255 255 255 / 72%) 50%, transparent 88%);
   background-size: 220% 100%;
   animation: exp-shimmer 2.6s var(--ease-soft) infinite;
+}
+
+/* ── K4 冻结态：满格 + 呼吸。「停住了」必须成立——不再播普通增长流光 ── */
+.expbar {
+  position: relative;
+}
+
+.expbar.frozen {
+  cursor: pointer;
+}
+
+.expbar.frozen .expbar-fill::after {
+  content: none;
+  animation: none;
+}
+
+.expbar.frozen .expbar-fill {
+  animation: exp-frozen-breathe 3s ease-in-out infinite;
+}
+
+@keyframes exp-frozen-breathe {
+  0%,
+  100% {
+    filter: brightness(1);
+    box-shadow: 0 0 2px rgb(245 121 159 / 30%);
+  }
+  50% {
+    filter: brightness(1.12);
+    box-shadow: 0 0 9px rgb(245 121 159 / 70%);
+  }
+}
+
+/* 「区域顶点」角标：浮在经验条右端上方 */
+.cap-badge {
+  position: absolute;
+  right: 0;
+  top: -8px;
+  padding: 1px 6px;
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--pink-deep);
+  background: linear-gradient(120deg, #fff, var(--pink-soft));
+  border: 1px solid rgb(245 158 196 / 55%);
+  border-radius: 999px;
+  box-shadow: 0 2px 5px rgb(245 121 159 / 18%);
+  white-space: nowrap;
+}
+
+/* 冻结说明 tooltip：点经验条弹出，挂在 info 下方不顶布局 */
+.cap-tip {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 5px);
+  z-index: 20;
+  max-width: 240px;
+  padding: 7px 10px;
+  font-size: 9px;
+  line-height: 1.6;
+  color: var(--text-mid);
+  background: #fff;
+  border: 1px solid rgb(245 158 196 / 45%);
+  border-radius: var(--r-sm);
+  box-shadow: var(--shadow-lg);
+}
+
+.cap-tip::before {
+  content: '';
+  position: absolute;
+  left: 18px;
+  top: -4px;
+  width: 8px;
+  height: 8px;
+  background: #fff;
+  border-top: 1px solid rgb(245 158 196 / 45%);
+  border-left: 1px solid rgb(245 158 196 / 45%);
+  transform: rotate(45deg);
 }
 
 .stats {
@@ -336,6 +450,7 @@ onUnmounted(() => {
 
 @media (prefers-reduced-motion: reduce) {
   .expbar-fill::after,
+  .expbar.frozen .expbar-fill,
   .avatar-halo::after,
   .coin-icon.bump {
     animation: none;

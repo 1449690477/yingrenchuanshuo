@@ -1,22 +1,36 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { LockKeyhole, X } from '@lucide/vue';
+import { LockKeyhole, Sprout, X, Zap } from '@lucide/vue';
 import { abbr } from '@/core/format';
+import type { ChallengeCost, ChapterGate } from '@/core/stageProgress';
+import { useGameStore } from '@/stores/game';
 import { usePlayerStore } from '@/stores/player';
 import { useStageStore } from '@/stores/stage';
+import { useUiStore } from '@/stores/ui';
 import { REGIONS, regionIdForChapterId } from '@/data/regions';
 import { stagesOfChapter } from '@/data/stages';
 import { requireItem, type ItemDef } from '@/data/items';
+import { STAMINA_RECOVER_SECONDS } from '@/data/constants';
+import { useNowTick } from '@/ui/useNowTick';
 import SystemArtwork from '@/components/SystemArtwork.vue';
 
 const emit = defineEmits<{ close: [] }>();
 const player = usePlayerStore();
 const stage = useStageStore();
+const ui = useUiStore();
+const game = useGameStore();
 
 const openRegion = ref(regionIdForChapterId(stage.current.chapterId));
 const openChapter = ref(stage.current.chapterId);
 
 const regions = computed(() => REGIONS);
+
+/** 单关通关状态（存档的通关名单是体力「已通关恒 0」的判定依据）。 */
+const clearedStageIds = computed(() => game.save?.progress.clearedStageIds ?? []);
+
+function isStageCleared(stageId: string): boolean {
+  return clearedStageIds.value.includes(stageId);
+}
 
 function assetUrl(asset: string): string {
   return `${import.meta.env.BASE_URL}${asset}`;
@@ -35,6 +49,70 @@ function materialSourceLabel(tier: ItemDef['tier']): string {
 
 function pick(stageId: string) {
   if (stage.select(stageId)) emit('close');
+}
+
+// ─────────── K1 · 章节门槛（docs/57）：指路牌不是墙 ───────────
+
+/**
+ * 章节的进入门槛。返回 null 表示不显示门槛条：
+ *   - 玩家已进过这一章（store 只对「章节首关且未通关」判门槛）；
+ *   - gate.ok；
+ *   - legacy-bypass 老档后门放行（docs/57 K1：别提醒他被特殊对待）。
+ * 注意不能自己用顺序解锁状态预判——已解锁未通关的首关正是门槛生效的地方，
+ * 门槛判定一律走 store（docs/57 §四：UI 不复算）。
+ */
+function chapterGate(chapterId: string): ChapterGate | null {
+  const first = stagesOfChapter(chapterId)[0];
+  if (!first) return null;
+  const gate = game.evaluateStageEntry(first.id).gate;
+  return gate.reason === 'cp' ? gate : null;
+}
+
+/** 全章节门槛表。依赖玩家战力，战力提升后 gapCp 实时刷新。 */
+const gates = computed(() => {
+  const map = new Map<string, ChapterGate>();
+  for (const r of regions.value) {
+    for (const c of r.chapters) {
+      const gate = chapterGate(c.id);
+      if (gate) map.set(c.id, gate);
+    }
+  }
+  return map;
+});
+
+/** 门槛进度条：当前战力 / 所需战力，留 6% 底让 0 也看得见。 */
+function gateProgress(gate: ChapterGate): number {
+  if (gate.requiredCp <= 0) return 100;
+  return Math.min(100, Math.max(6, (gate.currentCp / gate.requiredCp) * 100));
+}
+
+function goGrowth(): void {
+  ui.setTab('growth');
+  emit('close');
+}
+
+// ─────────── K2 · 挑战体力（docs/57）：已通关恒 0，不显示任何体力元素 ───────────
+
+/** 体力恢复倒计时每分钟级刷新即可，30s 一跳保证跨分钟时不过期。 */
+const now = useNowTick(30_000);
+
+/** 挑战某关的体力核算。跳秒驱动倒计时刷新；体力由 store 实时恢复。 */
+function costOf(stageId: string): ChallengeCost {
+  void now.value;
+  return game.evaluateStageEntry(stageId).cost;
+}
+
+/** 体力不足时距可挑战的分钟数：下一点恢复 + 剩余缺口 × 恢复间隔。 */
+function minutesToChallenge(cost: ChallengeCost): number {
+  const missing = Math.max(1, cost.cost - cost.stamina);
+  const seconds = cost.nextPointInSeconds + (missing - 1) * STAMINA_RECOVER_SECONDS;
+  return Math.max(1, Math.ceil(seconds / 60));
+}
+
+/** 体力不足的关卡按钮置灰（已解锁但未通关 & cost.ok === false）。 */
+function staminaBlocked(stageId: string): boolean {
+  if (!stage.isUnlocked(stageId) || isStageCleared(stageId)) return false;
+  return !costOf(stageId).ok;
 }
 </script>
 
@@ -87,11 +165,43 @@ function pick(stageId: string) {
                   />
                   <span class="chapter-shade" />
                   <span class="c-name">{{ c.id }} {{ c.name }}</span>
-                  <span class="c-lv num">Lv {{ c.levelFrom }}–{{ c.levelTo }}</span>
+                  <span class="c-right">
+                    <span v-if="gates.get(c.id)" class="c-gate">
+                      <LockKeyhole :size="9" :stroke-width="2.4" aria-hidden="true" />
+                      还差 {{ abbr(gates.get(c.id)!.gapCp) }} 战力
+                    </span>
+                    <span class="c-lv num">Lv {{ c.levelFrom }}–{{ c.levelTo }}</span>
+                  </span>
                 </button>
 
                 <Transition name="fold">
-                  <div v-if="openChapter === c.id" :id="`stage-chapter-${c.id}`" class="stages">
+                  <div v-if="openChapter === c.id" :id="`stage-chapter-${c.id}`">
+                    <!-- K1 锁定卡：指路牌不是墙——说清差多少、去哪补（docs/57） -->
+                    <section
+                      v-if="gates.get(c.id)"
+                      class="gate-card"
+                      role="note"
+                      :aria-label="`${c.name}进入条件`"
+                    >
+                      <span class="gate-icon" aria-hidden="true">
+                        <LockKeyhole :size="15" :stroke-width="2.2" />
+                      </span>
+                      <span class="gate-copy">
+                        <strong>进入需要战力 {{ abbr(gates.get(c.id)!.requiredCp) }}</strong>
+                        <span class="gate-gap">
+                          还差 <b class="num">{{ abbr(gates.get(c.id)!.gapCp) }}</b> 战力 ——
+                          试试强化武器或洗练词条
+                        </span>
+                        <span class="gate-track" aria-hidden="true">
+                          <i :style="{ width: gateProgress(gates.get(c.id)!) + '%' }" />
+                        </span>
+                      </span>
+                      <button class="btn btn-pink gate-cta" type="button" @click="goGrowth">
+                        <Sprout :size="13" aria-hidden="true" />
+                        去养成
+                      </button>
+                    </section>
+                    <div v-else class="stages">
                     <section class="chapter-loot" aria-label="本章区域材料">
                       <span class="loot-title">本章掉落</span>
                       <div class="loot-chips">
@@ -116,9 +226,10 @@ function pick(stageId: string) {
                       :class="{
                         on: s.id === stage.current.id,
                         locked: !stage.isUnlocked(s.id),
+                        blocked: staminaBlocked(s.id),
                         boss: !!s.bossId,
                       }"
-                      :disabled="!stage.isUnlocked(s.id)"
+                      :disabled="!stage.isUnlocked(s.id) || staminaBlocked(s.id)"
                       :aria-current="s.id === stage.current.id ? 'true' : undefined"
                       @click="pick(s.id)"
                     >
@@ -131,11 +242,25 @@ function pick(stageId: string) {
                           <LockKeyhole :size="10" :stroke-width="2.2" aria-hidden="true" />
                           未解锁
                         </span>
-                        <span v-else class="s-cp num" :class="{ low: player.cp < s.recommendCP }">
-                          战力 {{ abbr(s.recommendCP) }}
-                        </span>
+                        <template v-else>
+                          <span class="s-cp num" :class="{ low: player.cp < s.recommendCP }">
+                            战力 {{ abbr(s.recommendCP) }}
+                          </span>
+                          <!-- K2：未通关才显示体力；已通关恒 0 不显示（docs/57） -->
+                          <span v-if="staminaBlocked(s.id)" class="s-cost insufficient">
+                            <Zap :size="9" :stroke-width="2.4" aria-hidden="true" />
+                            {{ costOf(s.id).stamina }}/{{ costOf(s.id).cost }} ·
+                            {{ minutesToChallenge(costOf(s.id)) }} 分钟后可挑战
+                          </span>
+                          <span v-else-if="costOf(s.id).cost > 0" class="s-cost">
+                            挑战
+                            <Zap :size="9" :stroke-width="2.4" aria-hidden="true" />
+                            {{ costOf(s.id).cost }}
+                          </span>
+                        </template>
                       </span>
                     </button>
+                    </div>
                   </div>
                 </Transition>
               </div>
@@ -345,6 +470,113 @@ function pick(stageId: string) {
   text-shadow: 0 1px 4px rgb(20 34 48 / 62%);
 }
 
+.c-right {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+}
+
+/* K1 章节门槛徽章：提醒「还差多少」，不做成一堵墙 */
+.c-gate {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  font-size: 8px;
+  font-weight: 700;
+  color: #fff;
+  background: rgb(30 45 62 / 55%);
+  border-radius: 999px;
+  backdrop-filter: blur(2px);
+}
+
+/* K1 锁定卡：指路牌——所需战力 / 还差多少 / 一键去养成 */
+.gate-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 6px 0 4px 6px;
+  padding: 10px 12px;
+  background: linear-gradient(135deg, rgb(255 246 250 / 96%), rgb(238 247 255 / 94%));
+  border: 1px solid rgb(245 158 196 / 38%);
+  border-radius: var(--r-sm);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 85%);
+}
+
+.gate-icon {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  color: var(--pink-deep);
+  background: rgb(255 255 255 / 78%);
+  border-radius: 50%;
+  box-shadow: 0 3px 8px rgb(245 121 159 / 18%);
+}
+
+.gate-copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.gate-copy strong {
+  font-size: 11px;
+}
+
+.gate-gap {
+  font-size: 9px;
+  line-height: 1.5;
+  color: var(--text-mid);
+}
+
+.gate-gap b {
+  color: var(--pink-deep);
+}
+
+.gate-track {
+  height: 4px;
+  overflow: hidden;
+  background: var(--panel-3);
+  border-radius: 2px;
+}
+
+.gate-track i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--pink), var(--gold));
+  border-radius: 2px;
+  transition: width var(--t-mid) var(--ease-soft);
+}
+
+.gate-cta {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 12px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+/* 320×568：锁定卡竖排，按钮通栏，保证完整可读 */
+@media (max-width: 340px) {
+  .gate-card {
+    flex-wrap: wrap;
+  }
+
+  .gate-cta {
+    flex: 1 0 100%;
+    justify-content: center;
+  }
+}
+
 .stages {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -493,6 +725,9 @@ function pick(stageId: string) {
 }
 
 .s-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   font-size: 9px;
 }
 
@@ -509,6 +744,25 @@ function pick(stageId: string) {
   align-items: center;
   gap: 2px;
   color: var(--text-dim);
+}
+
+/* K2 挑战体力：未通关关卡的挑战成本 */
+.s-cost {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: #d88a31;
+  font-weight: 600;
+}
+
+.s-cost.insufficient {
+  color: var(--danger);
+  line-height: 1.4;
+}
+
+/* 体力不足的关卡：置灰但不隐藏原因——chip 里写清了何时能再来 */
+.stage.blocked {
+  opacity: 0.62;
 }
 
 .tip {

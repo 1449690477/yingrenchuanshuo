@@ -6,6 +6,7 @@ import {
   ChevronDown,
   Crown,
   Gem,
+  Hourglass,
   LockKeyhole,
   Map,
   ShieldCheck,
@@ -28,7 +29,7 @@ import {
   equipmentDungeonDropsForClass,
   equipmentDungeonStagesForSlot,
 } from '@/data/equipmentDungeons';
-import { EQUIPMENT_DUNGEON_TIERS, type EquipmentDungeonTierId } from '@/data/equipmentDungeonGear';
+import { EQUIPMENT_DUNGEON_TIERS, type EquipmentDungeonTier, type EquipmentDungeonTierId } from '@/data/equipmentDungeonGear';
 import { EQUIPMENT_DUNGEON_RULES } from '@/data/equipmentDungeonRules';
 import { requireEquipmentDungeonSet } from '@/data/equipmentDungeonSets';
 import { emptyEquipped } from '@/save/schema';
@@ -127,6 +128,19 @@ const cpPercent = computed(() => Math.min(100, Math.max(5, cpRatio.value * 100))
 const currentTier = computed(() =>
   EQUIPMENT_DUNGEON_TIERS.find((tier) => tier.id === selectedTierId.value)!,
 );
+
+/**
+ * K5（docs/57）：crimson 档「区域 7 开放后解锁」。
+ * comingSoon 标记由 claude 在 equipmentDungeonGear.ts 的 EQUIPMENT_DUNGEON_TIERS 添加；
+ * 防御式读取，字段落地后自动生效。敬请期待卡不显示门槛数字、不可点击——
+ * 下调门槛会让神话品质提前两个版本出现，打乱阶梯（docs/56 方案⑥）。
+ */
+function tierComingSoon(tierId: EquipmentDungeonTierId): boolean {
+  const tier = EQUIPMENT_DUNGEON_TIERS.find((candidate) => candidate.id === tierId);
+  return Boolean(
+    tier && (tier as EquipmentDungeonTier & { comingSoon?: boolean }).comingSoon,
+  );
+}
 const currentSet = computed(() => requireEquipmentDungeonSet(currentTier.value.setId));
 const currentSetProgress = computed(
   () =>
@@ -323,26 +337,38 @@ onUnmounted(() => {
                 {
                   active: candidate.tierId === selectedTierId,
                   cleared: dungeonState?.records[candidate.id],
+                  'coming-soon': tierComingSoon(candidate.tierId),
                   locked:
-                    !dungeonState ||
-                    !isEquipmentDungeonStageUnlocked(candidate, dungeonState, playerLevel),
+                    !tierComingSoon(candidate.tierId) &&
+                    (!dungeonState ||
+                      !isEquipmentDungeonStageUnlocked(candidate, dungeonState, playerLevel)),
                 },
               ]"
               type="button"
+              :disabled="tierComingSoon(candidate.tierId)"
               :aria-pressed="candidate.tierId === selectedTierId"
-              :aria-label="`${QUALITY_LABELS[candidate.quality]} Lv${candidate.unlockLevel}${
-                !dungeonState ||
-                !isEquipmentDungeonStageUnlocked(candidate, dungeonState, playerLevel)
-                  ? '，未解锁'
-                  : dungeonState.records[candidate.id]
-                    ? '，已首通'
-                    : ''
-              }`"
+              :aria-label="
+                tierComingSoon(candidate.tierId)
+                  ? `${QUALITY_LABELS[candidate.quality]}，区域 7 开放后解锁`
+                  : `${QUALITY_LABELS[candidate.quality]} Lv${candidate.unlockLevel}${
+                      !dungeonState ||
+                      !isEquipmentDungeonStageUnlocked(candidate, dungeonState, playerLevel)
+                        ? '，未解锁'
+                        : dungeonState.records[candidate.id]
+                          ? '，已首通'
+                          : ''
+                    }`
+              "
               @click="selectTier(candidate.tierId)"
             >
               <span class="tier-gem">
+                <Hourglass
+                  v-if="tierComingSoon(candidate.tierId)"
+                  :size="12"
+                  aria-hidden="true"
+                />
                 <LockKeyhole
-                  v-if="
+                  v-else-if="
                     !dungeonState ||
                     !isEquipmentDungeonStageUnlocked(candidate, dungeonState, playerLevel)
                   "
@@ -352,8 +378,14 @@ onUnmounted(() => {
                 <Gem v-else :size="13" aria-hidden="true" />
               </span>
               <strong>{{ QUALITY_LABELS[candidate.quality] }}</strong>
-              <small>Lv{{ candidate.unlockLevel }}</small>
-              <Check v-if="dungeonState?.records[candidate.id]" :size="11" aria-label="已首通" />
+              <!-- K5：敬请期待卡不显示门槛数字（docs/57） -->
+              <small v-if="tierComingSoon(candidate.tierId)">区域 7 开放后解锁</small>
+              <small v-else>Lv{{ candidate.unlockLevel }}</small>
+              <Check
+                v-if="!tierComingSoon(candidate.tierId) && dungeonState?.records[candidate.id]"
+                :size="11"
+                aria-label="已首通"
+              />
             </button>
           </div>
         </section>
@@ -905,6 +937,24 @@ onUnmounted(() => {
 .tier-tab.locked {
   filter: grayscale(0.45);
   opacity: 0.66;
+}
+
+/* K5 敬请期待卡：暗色但留一点绯红轮廓——「未来会来」，不是「不存在」 */
+.tier-tab.coming-soon {
+  color: rgb(214 172 190 / 88%);
+  background: linear-gradient(150deg, #3d2b38, #2b2233);
+  border-color: rgb(255 79 114 / 30%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 6%);
+  cursor: default;
+}
+
+.tier-tab.coming-soon .tier-gem {
+  color: rgb(255 209 220 / 90%);
+  background: rgb(255 79 114 / 16%);
+}
+
+.tier-tab.coming-soon > small {
+  color: rgb(214 172 190 / 62%);
 }
 
 .tier-tab > strong {

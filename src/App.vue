@@ -6,6 +6,7 @@ import { useGameStore } from '@/stores/game';
 import TopBar from '@/components/TopBar.vue';
 import BottomTabs from '@/components/BottomTabs.vue';
 import OfflineModal from '@/components/OfflineModal.vue';
+import DefeatReport from '@/components/DefeatReport.vue';
 import SakuraField from '@/components/SakuraField.vue';
 
 import CreateView from '@/views/CreateView.vue';
@@ -102,6 +103,8 @@ onUnmounted(() => {
       </main>
       <BottomTabs />
       <OfflineModal />
+      <!-- 战败战报：全局单值弹层，与离线结算同级（docs/57 K3） -->
+      <DefeatReport />
     </template>
   </div>
 </template>
