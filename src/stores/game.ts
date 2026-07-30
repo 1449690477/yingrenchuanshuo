@@ -66,10 +66,12 @@ import {
   averageSkillMultiplier,
   baseStatsFor,
   expToNext,
+  levelSoftCap,
   makeMonster,
   makePlayer,
   monsterExp,
   monsterGold,
+  settleLevelUps,
   staminaMaxForLevel,
 } from '@/core/progression';
 import {
@@ -668,6 +670,30 @@ export const useGameStore = defineStore('game', () => {
   const cpRatio = computed(() =>
     currentStage.value.recommendCP > 0 ? cp.value / currentStage.value.recommendCP : 1,
   );
+
+  /**
+   * 玩家当前可进入的最高关卡等级（含正卡着没通的那一关 —— 那正是他在打的内容）。
+   * 顺着关卡序遍历：第一个「未解锁」关的前一关即最远可达。
+   */
+  const highestReachableStageLevel = computed(() => {
+    let best = STAGES[FIRST_STAGE_ID]!.level;
+    for (const stageId of ORDERED_STAGE_IDS) {
+      if (!isStageUnlocked(stageId)) break;
+      best = Math.max(best, STAGES[stageId]!.level);
+    }
+    return best;
+  });
+
+  /** 等级软上限状态（docs/56 §2；接口契约见 docs/57 §1.3，kimi 的经验条 UI 依赖它）。 */
+  const levelCapInfo = computed(() => {
+    const softCap = levelSoftCap(highestReachableStageLevel.value);
+    const level = save.value?.player.level ?? 1;
+    return {
+      softCap,
+      frozen: level >= softCap,
+      pendingExp: level >= softCap ? (save.value?.player.exp ?? 0) : 0,
+    };
+  });
   const canIdle = computed(() => save.value !== null);
 
   /** 挂机上下文，供 core 使用 */
@@ -1358,13 +1384,16 @@ export const useGameStore = defineStore('game', () => {
   function levelUpIfPossible(): void {
     if (!save.value) return;
     const p = save.value.player;
-    const previousLevel = p.level;
-    let guard = 0;
-    while (p.exp >= expToNext(p.level) && guard++ < 500) {
-      p.exp -= expToNext(p.level);
-      p.level++;
+    // 软上限：等级追内容不许反超（docs/56 §2）。超限经验留在 exp 里，
+    // 解锁新章节使上限上移后，下一次结算自动释放（可能连升数级）。
+    const settled = settleLevelUps(p.level, p.exp, levelSoftCap(highestReachableStageLevel.value));
+    if (settled.levelsGained === 0) {
+      p.exp = settled.exp;
+      return;
     }
-    if (p.level !== previousLevel) syncBattleRhythmProjectionAfterLevelUp();
+    p.level = settled.level;
+    p.exp = settled.exp;
+    syncBattleRhythmProjectionAfterLevelUp();
   }
 
   /**
@@ -2771,6 +2800,7 @@ export const useGameStore = defineStore('game', () => {
     affectionInteractionsRemaining,
     cp,
     cpRatio,
+    levelCapInfo,
     battleEfficiency,
     canIdle,
     currentStage,

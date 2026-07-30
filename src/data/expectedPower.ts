@@ -77,3 +77,48 @@ export function expectedFullGearCp(level: number, classId: ClassId = 'swordsman'
   const quality = typicalQualityAt(level);
   return combatPower(addStats(baseStatsFor(classId, level), expectedGearStats(level, quality)));
 }
+
+/**
+ * 典型强化倍率（docs/56 §3.1）。
+ *
+ * 强化只放大装备的数值型基础属性（见 core/equipment.ts instanceStats），
+ * 全 +15 时为 ×2.2~2.35。取 1.6 对应「八件平均 +9 上下」的普通玩家 ——
+ * 全量 +15 是肝帝行为，不能当典型。该值由 sim 的 G3 门禁反向约束：
+ * 若逐日「实际战力 ÷ 推荐」越出 [0.9, 1.6]，先调这里，再考虑动曲线。
+ */
+export const TYPICAL_ENHANCE_MUL = 1.6;
+
+/**
+ * 典型词条对总战力的放大（docs/56 §3.1）。
+ *
+ * 洗练验收实测：全 T5 词条相对新掉落词条提升总战力 12%~25%（见
+ * `npm run sim` 词条门禁）。普通玩家介于两者之间，取 1.15。
+ */
+export const TYPICAL_AFFIX_CP_MUL = 1.15;
+
+/**
+ * 该等级玩家「典型完整养成」的战力：满配 × 典型强化 × 典型词条。
+ *
+ * 与 expectedFullGearCp 的区别：那是「刚穿齐装备、一点没养」的下限口径，
+ * 用于装备副本门槛（留 10% 给养成，docs/47）；这里是「养成到普通水平」
+ * 的中位口径，用于主线推荐与章节/区域门槛（docs/56 §3）。
+ *
+ * 强化只乘装备的数值型部分，百分比属性与裸属性不乘 ——
+ * 结构必须与 instanceStats 的真实结算一致，否则口径又会裂开。
+ */
+export function expectedBuildCp(level: number, classId: ClassId = 'swordsman'): number {
+  const quality = typicalQualityAt(level);
+  const gear = expectedGearStats(level, quality);
+  const enhanced: Stats = {
+    atk: gear.atk * TYPICAL_ENHANCE_MUL,
+    def: gear.def * TYPICAL_ENHANCE_MUL,
+    hp: gear.hp * TYPICAL_ENHANCE_MUL,
+    acc: gear.acc * TYPICAL_ENHANCE_MUL,
+    eva: gear.eva * TYPICAL_ENHANCE_MUL,
+    critRate: gear.critRate,
+    critDmg: gear.critDmg,
+    spd: gear.spd,
+  };
+  const cp = combatPower(addStats(baseStatsFor(classId, level), enhanced));
+  return cp * TYPICAL_AFFIX_CP_MUL;
+}

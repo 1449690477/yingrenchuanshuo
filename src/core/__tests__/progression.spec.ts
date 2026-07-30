@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
+  levelSoftCap,
+  settleLevelUps,
   averageSkillMultiplier,
   baseStatsFor,
   expToNext,
@@ -14,6 +16,7 @@ import {
   AVG_SKILL_MULTIPLIERS,
   CLASS_BASE_STATS,
   EXP_BASE,
+  LEVEL_SOFT_CAP_MARGIN,
   STAMINA_BASE_MAX,
 } from '@/data/constants';
 import { CLASS_IDS } from '../types';
@@ -32,6 +35,49 @@ describe('expToNext', () => {
 
   it('等级 < 1 时报错', () => {
     expect(() => expToNext(0)).toThrow();
+  });
+});
+
+describe('等级软上限（docs/56 §2）', () => {
+  it('上限 = 可达最高关卡等级 + 余量', () => {
+    expect(levelSoftCap(10)).toBe(10 + LEVEL_SOFT_CAP_MARGIN);
+    expect(levelSoftCap(52)).toBe(52 + LEVEL_SOFT_CAP_MARGIN);
+    expect(() => levelSoftCap(0)).toThrow('正整数');
+  });
+
+  it('未到上限正常连升，经验逐级扣除', () => {
+    const exp = expToNext(5) + expToNext(6);
+    const r = settleLevelUps(5, exp, 13);
+    expect(r.level).toBe(7);
+    expect(r.exp).toBe(0);
+    expect(r.levelsGained).toBe(2);
+  });
+
+  it('顶到上限即停，超限经验原样保留不作废', () => {
+    const exp = expToNext(12) + 999_999;
+    const r = settleLevelUps(12, exp, 13);
+    expect(r.level).toBe(13);
+    // 只扣了升到 13 的那一级，剩余全部囤着
+    expect(r.exp).toBe(999_999);
+  });
+
+  it('上限上移后囤积经验一次性释放（解锁新章的爽点）', () => {
+    const hoard = expToNext(13) + expToNext(14) + expToNext(15);
+    const frozen = settleLevelUps(13, hoard, 13);
+    expect(frozen.level).toBe(13);
+    expect(frozen.exp).toBe(hoard);
+
+    const released = settleLevelUps(frozen.level, frozen.exp, 16);
+    expect(released.level).toBe(16);
+    expect(released.exp).toBe(0);
+    expect(released.levelsGained).toBe(3);
+  });
+
+  it('老档等级高于上限：原样保留绝不回收，只是不再升（docs/40 红线）', () => {
+    const r = settleLevelUps(118, 5_000_000, 55);
+    expect(r.level).toBe(118);
+    expect(r.exp).toBe(5_000_000);
+    expect(r.levelsGained).toBe(0);
   });
 });
 
