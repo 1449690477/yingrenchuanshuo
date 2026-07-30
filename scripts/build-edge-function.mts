@@ -27,6 +27,7 @@ const FUNCTIONS = [
   'arena-challenge',
   'arena-daily-settle',
   'arena-shop-buy',
+  'guild-expedition',
 ] as const;
 
 for (const name of FUNCTIONS) {
@@ -118,14 +119,18 @@ const duelFromSource = duelSource.simulateDuel(
   new duelGenerated.Rng(seed),
 );
 
-const duelKey = (r: { winner: string; attackerDamage: number; defenderDamage: number; log: readonly unknown[] }) =>
-  `${r.winner}|${r.attackerDamage}|${r.defenderDamage}|${r.log.length}`;
+const duelKey = (r: {
+  winner: string;
+  attackerDamage: number;
+  defenderDamage: number;
+  log: readonly unknown[];
+}) => `${r.winner}|${r.attackerDamage}|${r.defenderDamage}|${r.log.length}`;
 if (duelKey(duelFromGenerated) !== duelKey(duelFromSource)) {
   console.error(
     `✗ 对决自检失败：打包产物 ${duelKey(duelFromGenerated)} ≠ 源实现 ${duelKey(duelFromSource)}`,
   );
   process.exit(1);
 }
-console.log(
-  `✓ 对决确定性自检通过：打包产物与 src/core 胜负一致（${duelKey(duelFromSource)}）`,
-);
+console.log(`✓ 对决确定性自检通过：打包产物与 src/core 胜负一致（${duelKey(duelFromSource)}）`);
+
+await import('./guild-edge-self-check.mts');

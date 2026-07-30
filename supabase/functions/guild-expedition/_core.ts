@@ -96,6 +96,34 @@ var CP_WEIGHTS = {
   critRate: 250,
   critDmg: 80
 };
+var MONSTER_ATK_BASE = 4.9;
+var MONSTER_ATK_POW = 1.35;
+var MONSTER_DEF_BASE = 4;
+var MONSTER_DEF_POW = 1.3;
+var MONSTER_ACC_BASE = 80;
+var MONSTER_ACC_PER_LEVEL = 1.2;
+var MONSTER_EVA_PER_LEVEL = 0.6;
+var MONSTER_BASE_CRIT_DMG = 50;
+var MONSTER_TYPE_MUL = {
+  normal: { hp: 1, atk: 1, exp: 1 },
+  elite: { hp: 6, atk: 1.8, exp: 5 },
+  boss: { hp: 40, atk: 3, exp: 30 }
+};
+var MONSTER_DEF_TYPE_MUL = {
+  normal: 1,
+  elite: 1.4,
+  boss: 2
+};
+var MONSTER_CRIT_RATE = {
+  normal: 2,
+  elite: 5,
+  boss: 10
+};
+var MONSTER_SPEED = {
+  normal: 1,
+  elite: 1,
+  boss: 1.2
+};
 var CLASS_BASE_STATS = {
   swordsman: { atk: 12, def: 8, hp: 200, acc: 85, eva: 5, critRate: 5, critDmg: 50, spd: 1 },
   witch: { atk: 18, def: 4, hp: 120, acc: 80, eva: 8, critRate: 8, critDmg: 50, spd: 0.9 },
@@ -569,9 +597,27 @@ function calcDamage(attacker, defender, skillMultiplier, rng) {
     crit
   };
 }
+function expectedDamage(attacker, defender, skillMultiplier) {
+  const hitP = hitChance(attacker.stats.acc, defender.stats.eva);
+  const critP = clamp(attacker.stats.critRate / 100, 0, 1);
+  const avgVariance = (DAMAGE_VARIANCE_MIN + DAMAGE_VARIANCE_MAX) / 2;
+  const avgCritMul = 1 + critP * (critMultiplier(attacker.stats.critDmg) - 1);
+  return hitP * damageAfterConfirmedHit(
+    attacker,
+    defender,
+    skillMultiplier,
+    attacker.element,
+    avgVariance,
+    avgCritMul
+  );
+}
 function calcConfirmedElementalDamage(attacker, defender, atkMultiplier, element, rng) {
   const variance = rng.float(DAMAGE_VARIANCE_MIN, DAMAGE_VARIANCE_MAX);
   return damageAfterConfirmedHit(attacker, defender, atkMultiplier, element, variance, 1);
+}
+function expectedConfirmedElementalDamage(attacker, defender, atkMultiplier, element) {
+  const avgVariance = (DAMAGE_VARIANCE_MIN + DAMAGE_VARIANCE_MAX) / 2;
+  return damageAfterConfirmedHit(attacker, defender, atkMultiplier, element, avgVariance, 1);
 }
 function calcPeriodicDamage(attacker, defender, atkMultiplier, element = attacker.element) {
   if (!Number.isFinite(atkMultiplier) || atkMultiplier < 0) {
@@ -982,6 +1028,15 @@ function resolveDamageSegment(attacker, defender, skillMultiplier, rng, onHitTri
   }
   return { direct, events };
 }
+function expectedDamageSegment(attacker, defender, skillMultiplier, onHitTriggers = []) {
+  let total = expectedDamage(attacker, defender, skillMultiplier);
+  const directHitChance = hitChance(attacker.stats.acc, defender.stats.eva);
+  for (const trigger of onHitTriggers) {
+    assertOnHitElementalDamageTrigger(trigger);
+    total += directHitChance * trigger.chance * expectedConfirmedElementalDamage(attacker, defender, trigger.atkMultiplier, trigger.element);
+  }
+  return total;
+}
 function simulateFight(player, monster, rng, opts = {}) {
   const pMul = opts.playerSkillMultiplier ?? 1;
   const mMul = opts.monsterSkillMultiplier ?? 1;
@@ -1093,6 +1148,9 @@ function simulateFight(player, monster, rng, opts = {}) {
     kills: win ? 1 : 0,
     events
   };
+}
+function estimateDps(player, monster, skillMultiplier = 1, onHitTriggers = []) {
+  return expectedDamageSegment(player, monster, skillMultiplier, onHitTriggers) * player.stats.spd;
 }
 function createLethalTriggerUses(triggers = []) {
   const uses = /* @__PURE__ */ new Map();
@@ -1285,6 +1343,16 @@ function baseStatsFor(classId, level) {
     critDmg: base.critDmg,
     spd: base.spd
   };
+}
+function monsterAtk(level, type = "normal", mul = 1) {
+  return Math.round(
+    MONSTER_ATK_BASE * Math.pow(level, MONSTER_ATK_POW) * MONSTER_TYPE_MUL[type].atk * mul
+  );
+}
+function monsterDef(level, type = "normal") {
+  return Math.round(
+    MONSTER_DEF_BASE * Math.pow(level, MONSTER_DEF_POW) * MONSTER_DEF_TYPE_MUL[type]
+  );
 }
 function applyClassMods(classId, stats) {
   return { ...stats, atk: stats.atk * CLASS_ATK_MUL[classId] };
@@ -2524,14 +2592,6 @@ var ARENA_EQUIPMENT_LIST = SPECS2.map(buildDefinition2);
 var ARENA_EQUIPMENT = Object.fromEntries(
   ARENA_EQUIPMENT_LIST.map((definition) => [definition.id, definition])
 );
-function arenaSetPieceCount(equipped) {
-  let count = 0;
-  for (const instance of equipped) {
-    if (!instance) continue;
-    if (ARENA_EQUIPMENT[instance.defId]) count++;
-  }
-  return count;
-}
 
 // src/data/weaponElements.ts
 var REGION_WEAPON_ELEMENTS = {
@@ -3879,11 +3939,52 @@ function expectedBuildCp(level, classId = "swordsman") {
 }
 
 // src/data/trialRules.ts
+var TRIAL_SEASON_ID = "s1";
+var TRIAL_DURATION_SEC = 60;
+var TRIAL_RESET_HOUR_CST = 4;
+var TRIAL_BOSS_HP_HEADROOM = 6;
 var TRIAL_BRACKETS = [
   { id: "chuying", name: "\u521D\u6A31", minLevel: 1, maxLevel: 30, bossLevel: 15 },
   { id: "feiyue", name: "\u7EEF\u6708", minLevel: 31, maxLevel: 60, bossLevel: 45 },
   { id: "hupo", name: "\u7425\u73C0", minLevel: 61, maxLevel: 90, bossLevel: 75 },
   { id: "feiying", name: "\u7EEF\u6A31", minLevel: 91, maxLevel: 120, bossLevel: 105 }
+];
+var TRIAL_TILTS = [
+  {
+    id: "shell",
+    name: "\u575A\u58F3",
+    hint: "\u7532\u58F3\u539A\u91CD\uFF0C\u653B\u51FB\u4E0E\u66B4\u4F24\u8BCD\u6761\u672C\u5468\u66F4\u6709\u4EF7\u503C",
+    defMul: 1.8,
+    evaMul: 1,
+    atkMul: 1,
+    damageReductionPoints: 25,
+    names: { fire: "\u575A\u58F3\xB7\u70EC\u7532\u9F99", ice: "\u575A\u58F3\xB7\u971C\u566C\u4E4B\u5F71", thunder: "\u575A\u58F3\xB7\u9706\u9CDE\u9547\u5CB3" }
+  },
+  {
+    id: "mirage",
+    name: "\u5E7B\u5F71",
+    hint: "\u8EAB\u6CD5\u98D8\u5FFD\uFF0C\u547D\u4E2D\u8BCD\u6761\u672C\u5468\u66F4\u6709\u4EF7\u503C",
+    defMul: 1,
+    evaMul: 2.6,
+    atkMul: 1,
+    damageReductionPoints: 0,
+    names: { fire: "\u5E7B\u5F71\xB7\u7130\u9B45\u6D41\u8424", ice: "\u5E7B\u5F71\xB7\u51B0\u9730\u5E7B\u7FBD", thunder: "\u5E7B\u5F71\xB7\u96F7\u75D5\u77AC\u5F71" }
+  },
+  {
+    id: "fury",
+    name: "\u72C2\u6012",
+    hint: "\u653B\u52BF\u51F6\u731B\uFF0C\u6D3B\u7740\u624D\u80FD\u6253\u6EE1\u5168\u7A0B",
+    defMul: 1,
+    evaMul: 1,
+    atkMul: 2.1,
+    damageReductionPoints: 0,
+    names: { fire: "\u72C2\u6012\xB7\u7EEF\u7130\u6012\u7360", ice: "\u72C2\u6012\xB7\u51DB\u7259\u788E\u5BD2", thunder: "\u72C2\u6012\xB7\u5954\u96F7\u88C2\u7A7A" }
+  }
+];
+var TRIAL_BOSS_ELEMENTS = [
+  "fire",
+  "ice",
+  "thunder"
 ];
 var TRIAL_BEST_KEEP = 26;
 
@@ -3898,6 +3999,37 @@ function fnv1a32(text) {
 }
 var TRIAL_WEEK_EPOCH_MS = Date.UTC(2026, 0, 5);
 var WEEK_MS = 7 * 24 * 36e5;
+function trialWeekIndex(now) {
+  if (!Number.isFinite(now) || now < 0) {
+    throw new Error(`[\u8BD5\u70BC] now \u5FC5\u987B\u662F\u975E\u8D1F\u6709\u9650\u65F6\u95F4\u6233\uFF0C\u6536\u5230 ${now}`);
+  }
+  const shifted = now + (8 - TRIAL_RESET_HOUR_CST) * 36e5;
+  return Math.max(0, Math.floor((shifted - TRIAL_WEEK_EPOCH_MS) / WEEK_MS));
+}
+function trialBracketFor(level) {
+  const bracket = TRIAL_BRACKETS.find((b) => level >= b.minLevel && level <= b.maxLevel);
+  if (!bracket) {
+    throw new Error(`[\u8BD5\u70BC] \u7B49\u7EA7 ${level} \u4E0D\u5728\u4EFB\u4F55\u5206\u6BB5\u5185\uFF081~120\uFF09`);
+  }
+  return bracket;
+}
+function trialBracketById(bracketId) {
+  const bracket = TRIAL_BRACKETS.find((b) => b.id === bracketId);
+  if (!bracket) throw new Error(`[\u8BD5\u70BC] \u672A\u77E5\u5206\u6BB5\uFF1A${bracketId}`);
+  return bracket;
+}
+function trialEquipmentSnapshotIssue(instance, classId, playerLevel) {
+  const definition = getEquipment(instance.defId);
+  if (!definition) return "unknown-equipment";
+  if (definition.level > playerLevel) return "equipment-level";
+  if (definition.classId && definition.classId !== classId) return "equipment-class";
+  for (const affix of instance.affixes) {
+    if (!isRolledAffixValue(affix.key, definition.level, affix.tier, affix.value)) {
+      return "affix-value";
+    }
+  }
+  return null;
+}
 function buildTrialCombatant(input) {
   if (input.equipped.length !== SLOT_ORDER.length) {
     throw new Error(`[\u8BD5\u70BC] equipped \u5FC5\u987B\u6709 ${SLOT_ORDER.length} \u4E2A\u69FD\u4F4D`);
@@ -3945,269 +4077,122 @@ function canonicalInstance(inst) {
     inst.reforgeResonance
   ].join("#");
 }
-
-// src/core/dayKey.ts
-function businessDayKey(now, resetHourCst = 4) {
-  if (!Number.isFinite(now) || now < 0) {
-    throw new Error(`[\u65E5\u5207] now \u5FC5\u987B\u662F\u975E\u8D1F\u6709\u9650\u65F6\u95F4\u6233\uFF0C\u6536\u5230 ${now}`);
-  }
-  if (!Number.isInteger(resetHourCst) || resetHourCst < 0 || resetHourCst > 23) {
-    throw new Error(`[\u65E5\u5207] resetHourCst \u5FC5\u987B\u662F 0~23 \u7684\u6574\u6570\uFF0C\u6536\u5230 ${resetHourCst}`);
-  }
-  const shifted = new Date(now + (8 - resetHourCst) * 36e5);
-  return shifted.toISOString().slice(0, 10);
-}
-
-// src/data/arenaRules.ts
-var ARENA_DAILY_CHALLENGES = 5;
-var ARENA_RESET_HOUR_CST = 4;
-var ARENA_MAX_ROUNDS = 30;
-var ARENA_OPPONENT_CANDIDATES = 3;
-var ARENA_OPPONENT_MIN_ABOVE = 1;
-var ARENA_OPPONENT_MAX_ABOVE = 15;
-var ARENA_REVENGE_WINDOW_HOURS = 24;
-var ARENA_SET_DEFENDER_DR_BONUS = 5;
-var ARENA_TIERS = [
-  { id: "yingguan", name: "\u6A31\u51A0", topRank: 10, topPercent: null, dailyHonor: 300, dailyBoxes: { sacred: 2, starlight: 0 } },
-  { id: "feiying", name: "\u7EEF\u6A31", topRank: 100, topPercent: null, dailyHonor: 200, dailyBoxes: { sacred: 1, starlight: 0 } },
-  { id: "hupo", name: "\u7425\u73C0", topRank: null, topPercent: 0.3, dailyHonor: 120, dailyBoxes: { sacred: 0, starlight: 2 } },
-  { id: "feiyue", name: "\u7EEF\u6708", topRank: null, topPercent: 0.6, dailyHonor: 80, dailyBoxes: { sacred: 0, starlight: 1 } },
-  { id: "qingying", name: "\u9752\u6A31", topRank: null, topPercent: null, dailyHonor: 50, dailyBoxes: { sacred: 0, starlight: 1 } }
-];
-var ARENA_WIN_CHANCE_SIMULATIONS = 120;
-
-// src/core/duel.ts
-function buildArenaDuelSide(input, role) {
-  const build = buildTrialCombatant({ ...input, arena: true });
-  const pieces = arenaSetPieceCount(input.equipped);
-  const baseBonuses = build.combatant.combatBonuses ?? {
-    damageReduction: 0,
-    lifesteal: 0,
-    elementDamage: { fire: 0, ice: 0, thunder: 0 }
-  };
-  const combatant = {
+function runTrial(build, boss, seed) {
+  const player = {
     ...build.combatant,
-    combatBonuses: { ...baseBonuses, elementDamage: { ...baseBonuses.elementDamage } }
+    stats: { ...build.combatant.stats },
+    currentHp: build.combatant.stats.hp
   };
-  if (role === "defender" && pieces >= 4) {
-    combatant.combatBonuses.damageReduction += ARENA_SET_DEFENDER_DR_BONUS;
-  }
-  return {
-    combatant,
-    skillMultiplier: build.skillMultiplier,
-    onHitTriggers: build.onHitTriggers,
-    onLethalTriggers: build.onLethalTriggers,
-    combatPower: build.combatPower,
-    buildHash: build.buildHash,
-    arenaSetPieces: pieces
-  };
-}
-function assertDuelSide(side, label) {
-  const { stats } = side.combatant;
-  if (!Number.isFinite(stats.hp) || stats.hp <= 0) {
-    throw new Error(`[\u5BF9\u51B3] ${label} \u751F\u547D\u5FC5\u987B\u4E3A\u6B63\uFF0C\u6536\u5230 ${stats.hp}`);
-  }
-  if (!Number.isFinite(side.skillMultiplier) || side.skillMultiplier <= 0) {
-    throw new Error(`[\u5BF9\u51B3] ${label} \u6280\u80FD\u500D\u7387\u5FC5\u987B\u4E3A\u6B63\uFF0C\u6536\u5230 ${side.skillMultiplier}`);
-  }
-}
-function simulateDuelWithFirst(attacker, defender, rng, attackerFirst) {
-  assertDuelSide(attacker, "\u6311\u6218\u8005");
-  assertDuelSide(defender, "\u9632\u5B88\u65B9");
-  const first = attackerFirst ? attacker : defender;
-  const second = attackerFirst ? defender : attacker;
-  const p = {
-    ...first.combatant,
-    stats: { ...first.combatant.stats },
-    currentHp: first.combatant.stats.hp
-  };
-  const m = {
-    ...second.combatant,
-    stats: { ...second.combatant.stats },
-    currentHp: second.combatant.stats.hp
-  };
-  const slowSpd = Math.max(0.01, Math.min(p.stats.spd, m.stats.spd));
-  const maxSeconds = ARENA_MAX_ROUNDS / slowSpd;
-  const result = simulateFight(p, m, rng, {
-    maxSeconds,
-    playerSkillMultiplier: first.skillMultiplier,
-    monsterSkillMultiplier: second.skillMultiplier,
-    playerOnHitTriggers: first.onHitTriggers,
-    monsterOnHitTriggers: second.onHitTriggers,
-    playerOnLethalTriggers: first.onLethalTriggers,
-    monsterOnLethalTriggers: second.onLethalTriggers,
-    playerOnCritTriggers: first.onCritTriggers,
-    monsterOnCritTriggers: second.onCritTriggers
-  });
-  const pPct = Math.max(0, p.currentHp) / p.stats.hp;
-  const mPct = Math.max(0, m.currentHp) / m.stats.hp;
-  const attackerPct = attackerFirst ? pPct : mPct;
-  const defenderPct = attackerFirst ? mPct : pPct;
-  let winner;
-  let reason;
-  if (m.currentHp <= 0 && p.currentHp > 0) {
-    winner = attackerFirst ? "attacker" : "defender";
-    reason = "knockout";
-  } else if (p.currentHp <= 0) {
-    winner = attackerFirst ? "defender" : "attacker";
-    reason = "knockout";
-  } else {
-    winner = attackerPct > defenderPct ? "attacker" : "defender";
-    reason = "hp-percent";
-  }
-  let attackerActions = 0;
-  let defenderActions = 0;
-  const log = result.events.map((ev) => {
-    const source4 = ev.source === "player" === attackerFirst ? "attacker" : "defender";
-    const target = ev.target === "player" === attackerFirst ? "attacker" : "defender";
-    if (ev.event.kind === "direct-damage") {
-      if (source4 === "attacker") attackerActions++;
-      else defenderActions++;
-      return {
-        sequence: ev.sequence,
-        source: source4,
-        target,
-        kind: ev.event.kind,
-        damage: ev.event.damage,
-        hit: ev.event.hit,
-        crit: ev.event.crit,
-        element: ev.event.element
-      };
-    }
-    if (ev.event.kind === "on-hit-elemental-damage") {
-      return {
-        sequence: ev.sequence,
-        source: source4,
-        target,
-        kind: ev.event.kind,
-        damage: ev.event.damage,
-        hit: true,
-        crit: false,
-        element: ev.event.element,
-        triggerId: ev.event.triggerId
-      };
-    }
-    if (ev.event.kind === "periodic-damage") {
-      return {
-        sequence: ev.sequence,
-        source: source4,
-        target,
-        kind: ev.event.kind,
-        damage: ev.event.damage,
-        hit: true,
-        crit: false,
-        element: ev.event.element,
-        triggerId: ev.event.triggerId,
-        statusId: ev.event.statusId,
-        stacks: ev.event.stacks
-      };
-    }
-    return {
-      sequence: ev.sequence,
-      source: source4,
-      target,
-      kind: ev.event.kind,
-      damage: ev.event.damage,
-      healing: ev.event.healing,
-      hit: true,
-      crit: false,
-      triggerId: ev.event.triggerId
-    };
+  const target = { ...boss, stats: { ...boss.stats }, currentHp: boss.stats.hp };
+  const result = simulateFight(player, target, new Rng(seed), {
+    maxSeconds: TRIAL_DURATION_SEC,
+    playerSkillMultiplier: build.skillMultiplier,
+    playerOnHitTriggers: build.onHitTriggers,
+    playerOnLethalTriggers: build.onLethalTriggers,
+    playerOnCritTriggers: build.onCritTriggers
   });
   return {
-    winner,
-    reason,
+    damage: Math.max(0, Math.round(result.damageDealt)),
+    damageTaken: Math.max(0, Math.round(result.damageTaken)),
+    survived: player.currentHp > 0,
     durationSec: result.duration,
-    attackerActions,
-    defenderActions,
-    attackerHpRemainPct: attackerPct,
-    defenderHpRemainPct: defenderPct,
-    attackerDamage: Math.max(0, Math.round(attackerFirst ? result.damageDealt : result.damageTaken)),
-    defenderDamage: Math.max(0, Math.round(attackerFirst ? result.damageTaken : result.damageDealt)),
-    log
+    timeline: result.events,
+    playerHpRemaining: player.currentHp,
+    playerHpMax: player.stats.hp,
+    bossHpRemaining: target.currentHp,
+    bossHpMax: target.stats.hp
   };
 }
-function arenaDayKey(now) {
-  return businessDayKey(now, ARENA_RESET_HOUR_CST);
-}
-function estimateDuelWinChance(attacker, defender, simulations = ARENA_WIN_CHANCE_SIMULATIONS) {
-  if (!Number.isInteger(simulations) || simulations <= 0) {
-    throw new Error(`[\u5BF9\u51B3] \u80DC\u7387\u9884\u4F30\u6B21\u6570\u5FC5\u987B\u662F\u6B63\u6574\u6570\uFF0C\u6536\u5230 ${simulations}`);
+
+// src/data/guildRules.ts
+var GUILD_RESET_HOUR_CST = 4;
+var GUILD_DAILY_SUBMISSIONS = 3;
+var GUILD_CONTRIBUTION_MAX = 1e3;
+var GUILD_TARGET_DAMAGE_FRACTION = 0.25;
+var GUILD_WEEKLY_TARGET_PER_MEMBER = 4e3;
+var GUILD_WEEK_CLEAR_REPUTATION = 100;
+
+// src/core/guildExpedition.ts
+var HOUR_MS = 36e5;
+function guildDayKey(now) {
+  if (!Number.isFinite(now) || now < 0) {
+    throw new Error(`[\u516C\u4F1A] now \u5FC5\u987B\u662F\u975E\u8D1F\u6709\u9650\u65F6\u95F4\u6233\uFF0C\u6536\u5230 ${now}`);
   }
-  const salt = fnv1a32(`${duelSideDigest(attacker)}#${duelSideDigest(defender)}`);
-  const pairs = Math.ceil(simulations / 2);
-  let wins = 0;
-  let total = 0;
-  for (let k = 0; k < pairs && total < simulations; k++) {
-    const seed = salt + Math.imul(k + 1, 2654435769) >>> 0;
-    for (const attackerFirst of [true, false]) {
-      if (total >= simulations) break;
-      const rng = new Rng(seed);
-      if (simulateDuelWithFirst(attacker, defender, rng, attackerFirst).winner === "attacker") {
-        wins++;
+  return new Date(now + (8 - GUILD_RESET_HOUR_CST) * HOUR_MS).toISOString().slice(0, 10);
+}
+function guildWeekKey(seasonId, now) {
+  if (!seasonId.trim()) throw new Error("[\u516C\u4F1A] seasonId \u4E0D\u80FD\u4E3A\u7A7A");
+  return `${seasonId}:w${trialWeekIndex(now)}`;
+}
+function guildBossThemeSeed(seasonId, weekIndex) {
+  return fnv1a32(`${seasonId}:guild-boss:${weekIndex}`);
+}
+function guildRunSeed(seasonId, weekIndex, userId, dayKey, submissionIndex, buildHash) {
+  if (!Number.isInteger(submissionIndex) || submissionIndex < 1) {
+    throw new Error(`[\u516C\u4F1A] submissionIndex \u5FC5\u987B\u662F\u6B63\u6574\u6570\uFF0C\u6536\u5230 ${submissionIndex}`);
+  }
+  return fnv1a32(
+    `${seasonId}:guild-run:${weekIndex}:${userId}:${dayKey}:${submissionIndex}:${buildHash}`
+  );
+}
+function guildExpeditionBoss(seasonId, weekIndex, bracketId) {
+  const bracket = trialBracketById(bracketId);
+  const rng = new Rng(guildBossThemeSeed(seasonId, weekIndex));
+  const tilt = rng.pick(TRIAL_TILTS);
+  const element = rng.pick(TRIAL_BOSS_ELEMENTS);
+  const level = bracket.bossLevel;
+  const def = Math.round(monsterDef(level, "boss") * tilt.defMul);
+  const eva = Math.round(level * MONSTER_EVA_PER_LEVEL * tilt.evaMul);
+  const atk = Math.round(monsterAtk(level, "boss") * tilt.atkMul);
+  const protoStats = {
+    atk,
+    def,
+    hp: 1,
+    acc: Math.round(MONSTER_ACC_BASE + level * MONSTER_ACC_PER_LEVEL),
+    eva,
+    critRate: MONSTER_CRIT_RATE.boss,
+    critDmg: MONSTER_BASE_CRIT_DMG,
+    spd: MONSTER_SPEED.boss
+  };
+  const proto = {
+    name: tilt.names[element],
+    level,
+    element,
+    stats: protoStats,
+    currentHp: 1,
+    ...tilt.damageReductionPoints > 0 ? {
+      combatBonuses: {
+        damageReduction: tilt.damageReductionPoints,
+        lifesteal: 0,
+        elementDamage: { fire: 0, ice: 0, thunder: 0 }
       }
-      total++;
-    }
-  }
-  return wins / total;
+    } : {}
+  };
+  const quality = typicalQualityAt(level);
+  const referenceStats = applyClassMods(
+    "swordsman",
+    addStats(baseStatsFor("swordsman", level), expectedGearStats(level, quality))
+  );
+  const reference = makePlayer("\u516C\u4F1A\u57FA\u51C6\u6210\u5458", level, referenceStats);
+  const referenceDps = estimateDps(reference, proto, averageSkillMultiplier(level));
+  const hp = Math.max(1, Math.ceil(referenceDps * TRIAL_DURATION_SEC * TRIAL_BOSS_HP_HEADROOM));
+  return {
+    combatant: { ...proto, stats: { ...protoStats, hp }, currentHp: hp },
+    tilt,
+    name: tilt.names[element],
+    bracket,
+    weekIndex
+  };
 }
-function duelSideDigest(side) {
-  const s = side.combatant.stats;
-  const triggers = (side.onHitTriggers ?? []).map((t) => `${t.id}:${t.chance}:${t.atkMultiplier}:${t.element}`).join(",");
-  const lethalTriggers = (side.onLethalTriggers ?? []).map((t) => `${t.id}:${t.healRatio}:${t.activationsPerFight}`).join(",");
-  const critTriggers = (side.onCritTriggers ?? []).map(
-    (t) => `${t.id}:${t.healMaxHpRatio}:${t.statusId}:${t.atkMultiplierPerTick}:${t.ticks}:${t.durationSec}:${t.maxStacks}:${t.refresh}:${t.element ?? ""}`
-  ).join(",");
-  return [
-    s.hp,
-    s.atk,
-    s.def,
-    s.spd,
-    s.acc,
-    s.eva,
-    s.critRate,
-    s.critDmg,
-    side.skillMultiplier,
-    side.combatant.element,
-    JSON.stringify(side.combatant.combatBonuses ?? null),
-    triggers,
-    lethalTriggers,
-    critTriggers
-  ].join("|");
-}
-function arenaCandidateSeed(userId, dayKey) {
-  return fnv1a32(`cand|${userId}|${dayKey}`);
-}
-function arenaCandidateRanks(myRank, seed, count = ARENA_OPPONENT_MAX_ABOVE) {
-  if (!Number.isInteger(myRank) || myRank <= 0) {
-    throw new Error(`[\u5BF9\u51B3] \u6392\u540D\u5FC5\u987B\u662F\u6B63\u6574\u6570\uFF0C\u6536\u5230 ${myRank}`);
+function guildContributionPoints(damage, bossMaxHp) {
+  if (!Number.isFinite(damage) || damage < 0) {
+    throw new Error(`[\u516C\u4F1A] damage \u5FC5\u987B\u662F\u975E\u8D1F\u6709\u9650\u6570\uFF0C\u6536\u5230 ${damage}`);
   }
-  if (!Number.isInteger(count) || count <= 0) {
-    throw new Error(`[\u5BF9\u51B3] \u5019\u9009\u6570\u91CF\u5FC5\u987B\u662F\u6B63\u6574\u6570\uFF0C\u6536\u5230 ${count}`);
+  if (!Number.isFinite(bossMaxHp) || bossMaxHp <= 0) {
+    throw new Error(`[\u516C\u4F1A] bossMaxHp \u5FC5\u987B\u662F\u6B63\u6709\u9650\u6570\uFF0C\u6536\u5230 ${bossMaxHp}`);
   }
-  const lo = Math.max(1, myRank - ARENA_OPPONENT_MAX_ABOVE);
-  const hi = myRank - ARENA_OPPONENT_MIN_ABOVE;
-  if (hi < lo) return [];
-  const pool = [];
-  for (let r = lo; r <= hi; r++) pool.push(r);
-  const rng = new Rng(seed);
-  const n = Math.min(count, pool.length);
-  for (let i = 0; i < n; i++) {
-    const j = i + rng.int(0, pool.length - 1 - i);
-    [pool[i], pool[j]] = [pool[j], pool[i]];
-  }
-  return pool.slice(0, n);
-}
-function arenaTierFor(rank, totalPlayers) {
-  if (!Number.isInteger(rank) || rank <= 0) {
-    throw new Error(`[\u5BF9\u51B3] \u6392\u540D\u5FC5\u987B\u662F\u6B63\u6574\u6570\uFF0C\u6536\u5230 ${rank}`);
-  }
-  const total = Math.max(1, totalPlayers);
-  for (const tier of ARENA_TIERS) {
-    if (tier.topRank !== null && rank <= tier.topRank) return tier;
-    if (tier.topPercent !== null && rank / total <= tier.topPercent) return tier;
-  }
-  return ARENA_TIERS[ARENA_TIERS.length - 1];
+  const normalized = damage / bossMaxHp / GUILD_TARGET_DAMAGE_FRACTION * GUILD_CONTRIBUTION_MAX;
+  return Math.min(GUILD_CONTRIBUTION_MAX, Math.max(0, Math.round(normalized)));
 }
 
 // src/save/schema.ts
@@ -10096,17 +10081,22 @@ var saveDataSchema = z.object({
   }
 });
 export {
-  ARENA_DAILY_CHALLENGES,
-  ARENA_OPPONENT_CANDIDATES,
-  ARENA_OPPONENT_MAX_ABOVE,
-  ARENA_REVENGE_WINDOW_HOURS,
   CLASS_IDS,
-  arenaCandidateRanks,
-  arenaCandidateSeed,
-  arenaDayKey,
-  arenaTierFor,
-  buildArenaDuelSide,
+  GUILD_DAILY_SUBMISSIONS,
+  GUILD_WEEKLY_TARGET_PER_MEMBER,
+  GUILD_WEEK_CLEAR_REPUTATION,
+  SLOT_ORDER,
+  TRIAL_SEASON_ID,
   buildTrialCombatant,
   equipmentInstanceSchema,
-  estimateDuelWinChance
+  getEquipment,
+  guildContributionPoints,
+  guildDayKey,
+  guildExpeditionBoss,
+  guildRunSeed,
+  guildWeekKey,
+  runTrial,
+  trialBracketFor,
+  trialEquipmentSnapshotIssue,
+  trialWeekIndex
 };

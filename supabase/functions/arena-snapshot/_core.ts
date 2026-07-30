@@ -409,6 +409,17 @@ var ENHANCE_MATERIAL_IDS = {
 };
 var OFFLINE_CAP_SECONDS = 8 * 3600;
 var DEFAULT_MAX_KILLS_PER_SEC = 3;
+var STAGE_PACING_FACTORS = {
+  1: 1,
+  // 教学区保持零压力，几分钟一关
+  2: 45,
+  3: 90,
+  4: 110,
+  5: 200,
+  6: 340
+};
+var STAGE_PACING_BOSS_MUL = 2.5;
+var STAGE_PACING_ELITE_MUL = 1.5;
 var SWEEP_EQUIV_SECONDS = 30 * 60;
 var AVG_SKILL_MULTIPLIERS = [
   { minLevel: 85, multiplier: 2.6 },
@@ -1980,6 +1991,7 @@ var EQUIPMENT_DUNGEON_TIERS = [
     quality: "mythic",
     level: 81,
     unlockLevel: 81,
+    comingSoon: true,
     color: "#ff4f72",
     glow: "#ffd1dc",
     setId: "set_dungeon_crimson",
@@ -3233,6 +3245,24 @@ function expectedGearStats(level, quality) {
 function expectedFullGearCp(level, classId = "swordsman") {
   const quality = typicalQualityAt(level);
   return combatPower(addStats(baseStatsFor(classId, level), expectedGearStats(level, quality)));
+}
+var TYPICAL_ENHANCE_MUL = 1.6;
+var TYPICAL_AFFIX_CP_MUL = 1.15;
+function expectedBuildCp(level, classId = "swordsman") {
+  const quality = typicalQualityAt(level);
+  const gear = expectedGearStats(level, quality);
+  const enhanced = {
+    atk: gear.atk * TYPICAL_ENHANCE_MUL,
+    def: gear.def * TYPICAL_ENHANCE_MUL,
+    hp: gear.hp * TYPICAL_ENHANCE_MUL,
+    acc: gear.acc * TYPICAL_ENHANCE_MUL,
+    eva: gear.eva * TYPICAL_ENHANCE_MUL,
+    critRate: gear.critRate,
+    critDmg: gear.critDmg,
+    spd: gear.spd
+  };
+  const cp = combatPower(addStats(baseStatsFor(classId, level), enhanced));
+  return cp * TYPICAL_AFFIX_CP_MUL;
 }
 
 // src/data/trialRules.ts
@@ -5372,10 +5402,18 @@ function stageLevel(spec, idx) {
   const t = STAGES_PER_CHAPTER <= 1 ? 0 : idx / (STAGES_PER_CHAPTER - 1);
   return Math.round(spec.levelFrom + (spec.levelTo - spec.levelFrom) * t);
 }
+var RECOMMEND_BUILD_RATIO = 0.85;
 function estimateRecommendCP(level) {
   const bare = combatPower(baseStatsFor("swordsman", level));
-  const gearFactor = 0.85 + Math.min(1, (level - 1) * 0.02);
-  return Math.round(bare * gearFactor);
+  if (level <= 5) return Math.round(bare * 0.85);
+  return Math.round(Math.max(bare * 0.85, expectedBuildCp(level) * RECOMMEND_BUILD_RATIO));
+}
+function regionIndexOfChapter(chapterId) {
+  const n = Number.parseInt(chapterId.split("-")[0], 10);
+  if (!Number.isInteger(n) || n < 1) {
+    throw new Error(`[\u914D\u7F6E\u9519\u8BEF] \u65E0\u6CD5\u4ECE\u7AE0\u8282 id \u89E3\u6790\u533A\u57DF\u53F7\uFF1A${chapterId}`);
+  }
+  return n;
 }
 function buildWaves(spec, idx) {
   const normals = normalsOfChapter(spec.id);
@@ -5410,6 +5448,14 @@ function buildStages() {
     for (let idx = 0; idx < STAGES_PER_CHAPTER; idx++) {
       const level = stageLevel(spec, idx);
       const { waves, bossId } = buildWaves(spec, idx);
+      const regionPacing = STAGE_PACING_FACTORS[regionIndexOfChapter(spec.id)];
+      if (regionPacing === void 0) {
+        throw new Error(
+          `[\u914D\u7F6E\u9519\u8BEF] \u533A\u57DF ${regionIndexOfChapter(spec.id)} \u672A\u767B\u8BB0\u8282\u594F\u7CFB\u6570 \u2014\u2014 \u65B0\u533A\u57DF\u4E0A\u7EBF\u5FC5\u987B\u5728 STAGE_PACING_FACTORS \u91CC\u505A\u8282\u594F\u51B3\u7B56\uFF08docs/56 \xA78\uFF09`
+        );
+      }
+      const positionMul = idx === STAGES_PER_CHAPTER - 1 ? STAGE_PACING_BOSS_MUL : idx === 2 ? STAGE_PACING_ELITE_MUL : 1;
+      const clearCycles = Math.max(1, Math.round(regionPacing * positionMul));
       const id = `stage_${spec.id}_${idx + 1}`;
       const firstClearGearRewards = STAGE_FIRST_CLEAR_GEAR_REWARDS[id] ?? [];
       out[id] = {
@@ -5420,6 +5466,7 @@ function buildStages() {
         waves,
         ...bossId ? { bossId } : {},
         recommendCP: estimateRecommendCP(level),
+        clearCycles,
         firstClearRewards: [
           ...enhanceFirstClearRewards(spec.id, idx, Boolean(bossId)),
           ...firstClearGearRewards.map((reward) => ({ ...reward }))
@@ -5590,9 +5637,15 @@ var PORTAL_BY_SLOT = Object.fromEntries(
   EQUIPMENT_DUNGEON_PORTALS.map((portal) => [portal.slot, portal])
 );
 var TIER_ENCOUNTER_SCALE = {
-  azure: { hp: 1.1, atk: 0.58 },
-  violet: { hp: 0.72, atk: 0.24 },
-  auric: { hp: 1.5, atk: 1 },
+  // 2026-07-30 按 codex 平衡模拟修订（docs/56 停更修基配套）：
+  // 苍蓝原 8 秒即结束、入场战力比 2.4~2.7，副本毫无仪式感 —— 血量翻倍
+  // 把入场套装战斗拉到 15~25 秒；攻击不动，低生命职业的容错保持不变。
+  azure: { hp: 2.4, atk: 0.58 },
+  // 绛紫 21~24 秒尚可，小幅上调与苍蓝形成递进
+  violet: { hp: 0.85, atk: 0.24 },
+  // 辉金 weapon 入口对魔女胜率仅 47.5%（喵喵 61.7%）：败因是被打死
+  // 而不是打不动，砍攻击救低生命职业，时长几乎不变
+  auric: { hp: 1.5, atk: 0.85 },
   crimson: { hp: 2.6, atk: 1.4 }
 };
 function stageId(slot, tierId) {
