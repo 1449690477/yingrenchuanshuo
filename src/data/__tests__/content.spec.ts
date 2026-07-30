@@ -304,7 +304,7 @@ describe('区域 1–5 内容完整性', () => {
       }
       expect(bottomVisibleY, `${asset} 脚底锚点`).toBe(503);
     }
-  });
+  }, 15_000);
 
   it('全部区域和章节都引用真实存在的地图场景', async () => {
     for (const region of REGIONS) {

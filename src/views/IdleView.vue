@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, nextTick, ref } from 'vue';
 import { BookOpen, ChevronDown, Gift, Sparkles } from '@lucide/vue';
 import { abbr } from '@/core/format';
 import { battleVitalsAtProgress } from '@/core/battleVisual';
@@ -24,6 +24,8 @@ import EncounterJournalPanel from '@/components/EncounterJournalPanel.vue';
 import CollapsibleCard from '@/components/CollapsibleCard.vue';
 import EquipDetail from '@/components/EquipDetail.vue';
 import ItemPeekSheet from '@/components/ItemPeekSheet.vue';
+import EquipmentAdvancementPanel from '@/components/EquipmentAdvancementPanel.vue';
+import ReforgeStudio from '@/components/reforge/ReforgeStudio.vue';
 import type { EquipmentInstance } from '@/core/types';
 import type { ItemDef } from '@/data/items';
 
@@ -200,6 +202,8 @@ const lootSubtitle = computed(() =>
 );
 
 const selectedEquip = ref<EquipmentInstance | null>(null);
+const advancement = ref<EquipmentInstance | null>(null);
+const reforgeUid = ref<string | null>(null);
 const peekItem = ref<{ def: ItemDef; owned: number } | null>(null);
 const lootNotice = ref<string | null>(null);
 let noticeTimer = 0;
@@ -214,6 +218,24 @@ function notice(text: string): void {
  * 点开一件掉落：装备找背包里同定义的最新实例弹详情；
  * 材料/货币弹轻量速览。实例不在背包（已分解/出售）时给一句兜底提示。
  */
+async function openReforgeFromDetail(uid: string): Promise<void> {
+  selectedEquip.value = null;
+  await nextTick();
+  reforgeUid.value = uid;
+}
+
+async function openAdvancementFromDetail(uid: string): Promise<void> {
+  const selected = selectedEquip.value?.uid === uid ? selectedEquip.value : null;
+  selectedEquip.value = null;
+  await nextTick();
+  advancement.value = selected;
+}
+
+function onEquipmentUpgraded(result: { targetName: string; cpDelta: number }): void {
+  const delta =
+    result.cpDelta === 0 ? '' : `，战力 ${result.cpDelta > 0 ? '+' : ''}${abbr(result.cpDelta)}`;
+  notice(`已升阶为 ${result.targetName}${delta}`);
+}
 function openLootEntry(entry: { itemId: string; isEquipment: boolean; count: number }): void {
   if (entry.isEquipment) {
     const list = inventory.bag?.equipment ?? [];
@@ -468,6 +490,8 @@ function openLootEntry(entry: { itemId: string; isEquipment: boolean; count: num
         :inst="selectedEquip"
         from="bag"
         @close="selectedEquip = null"
+        @request-reforge="openReforgeFromDetail"
+        @request-advancement="openAdvancementFromDetail"
       />
     </Transition>
     <ItemPeekSheet
@@ -476,6 +500,16 @@ function openLootEntry(entry: { itemId: string; isEquipment: boolean; count: num
       :owned="peekItem.owned"
       @close="peekItem = null"
     />
+    <EquipmentAdvancementPanel
+      v-if="advancement"
+      :inst="advancement"
+      @close="advancement = null"
+      @upgraded="onEquipmentUpgraded"
+    />
+
+    <Teleport to="body">
+      <ReforgeStudio v-if="reforgeUid" :initial-uid="reforgeUid" @close="reforgeUid = null" />
+    </Teleport>
 
     <Transition name="toast-up">
       <div v-if="lootNotice" class="loot-toast">{{ lootNotice }}</div>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed } from 'vue';
 import { ArrowUpRight, Sparkles, X } from '@lucide/vue';
 import { abbr, signed } from '@/core/format';
 import { zeroStats } from '@/core/formula';
@@ -27,13 +27,21 @@ import {
   formatAffixValue,
 } from '@/ui/affixPresentation';
 import EquipmentIcon from '@/components/EquipmentIcon.vue';
-import EquipmentAdvancementPanel from '@/components/EquipmentAdvancementPanel.vue';
 import EquipmentSetStatus from '@/components/EquipmentSetStatus.vue';
-import ReforgePanel from '@/components/ReforgePanel.vue';
 
-const props = defineProps<{ inst: EquipmentInstance; from: 'bag' | 'equipped' }>();
-const emit = defineEmits<{ close: [] }>();
-
+const props = withDefaults(
+  defineProps<{
+    inst: EquipmentInstance;
+    from: 'bag' | 'equipped';
+    allowAdvancedActions?: boolean;
+  }>(),
+  { allowAdvancedActions: true },
+);
+const emit = defineEmits<{
+  close: [];
+  requestReforge: [uid: string];
+  requestAdvancement: [uid: string];
+}>();
 const inventory = useInventoryStore();
 const player = usePlayerStore();
 const activeClassId = computed(() => {
@@ -41,8 +49,6 @@ const activeClassId = computed(() => {
   if (!classId) throw new Error('[装备详情错误] 存档未载入，无法解析装备职业外观');
   return classId;
 });
-const showReforge = ref(false);
-const showAdvancement = ref(false);
 const def = computed(() => requireEquipment(props.inst.defId));
 const presentation = computed(() => equipmentDisplayPresentation(def.value, activeClassId.value));
 const advancementOption = computed(() => inventory.equipmentAdvancementOption(props.inst.uid));
@@ -271,14 +277,18 @@ function doDecompose() {
 
       <footer class="foot">
         <button
-          v-if="advancementOption"
+          v-if="allowAdvancedActions && advancementOption"
           class="btn advancement-entry"
-          @click="showAdvancement = true"
+          @click="emit('requestAdvancement', inst.uid)"
         >
           <ArrowUpRight :size="16" aria-hidden="true" />
           跨区升阶
         </button>
-        <button v-if="canReforge" class="btn reforge-entry" @click="showReforge = true">
+        <button
+          v-if="allowAdvancedActions && canReforge"
+          class="btn reforge-entry"
+          @click="emit('requestReforge', inst.uid)"
+        >
           <Sparkles :size="16" aria-hidden="true" />
           {{ inst.pendingAffixChange ? '查看洗练候选' : '词条洗练' }}
         </button>
@@ -306,13 +316,6 @@ function doDecompose() {
           <button class="btn btn-plain f2" @click="doUnequip">卸下</button>
         </template>
       </footer>
-
-      <ReforgePanel v-if="showReforge" :inst="inst" @close="showReforge = false" />
-      <EquipmentAdvancementPanel
-        v-if="showAdvancement"
-        :inst="inst"
-        @close="showAdvancement = false"
-      />
     </div>
   </div>
 </template>

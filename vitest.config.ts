@@ -8,6 +8,8 @@ export default defineConfig({
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },
   test: {
+    // 多个 Sharp/libvips 资产审计并行会争抢原生内存；限制 worker 保证本地与 CI 可复现。
+    maxWorkers: 2,
     environment: 'node',
     include: ['src/**/__tests__/**/*.spec.ts'],
   },

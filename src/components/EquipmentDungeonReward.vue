@@ -104,7 +104,13 @@ const hasPrize = computed(() =>
 
     <Teleport to="body">
       <Transition name="modal-pop">
-        <EquipDetail v-if="detail" :inst="detail" from="bag" @close="detail = null" />
+        <EquipDetail
+          v-if="detail"
+          :inst="detail"
+          from="bag"
+          :allow-advanced-actions="false"
+          @close="detail = null"
+        />
       </Transition>
     </Teleport>
   </section>

@@ -17,6 +17,7 @@ import CrimsonForgePanel from '@/components/CrimsonForgePanel.vue';
 import EquipmentAdvancementPanel from '@/components/EquipmentAdvancementPanel.vue';
 import EquipmentIcon from '@/components/EquipmentIcon.vue';
 import ItemIcon from '@/components/ItemIcon.vue';
+import ReforgeStudio from '@/components/reforge/ReforgeStudio.vue';
 import SystemArtwork from '@/components/SystemArtwork.vue';
 
 const inventory = useInventoryStore();
@@ -29,6 +30,7 @@ const activeClassId = computed(() => {
 const tab = ref<'equip' | 'item'>('equip');
 const detail = ref<EquipmentInstance | null>(null);
 const advancement = ref<EquipmentInstance | null>(null);
+const reforgeUid = ref<string | null>(null);
 const toast = ref('');
 const salvageBurst = ref(false);
 const decomposeOpen = ref(false);
@@ -363,6 +365,18 @@ function openAdvancement(inst: EquipmentInstance): void {
   advancement.value = inst;
 }
 
+async function openReforgeFromDetail(uid: string): Promise<void> {
+  detail.value = null;
+  await nextTick();
+  reforgeUid.value = uid;
+}
+
+async function openAdvancementFromDetail(uid: string): Promise<void> {
+  const selected = detail.value?.uid === uid ? detail.value : null;
+  detail.value = null;
+  await nextTick();
+  advancement.value = selected;
+}
 function onEquipmentUpgraded(result: { targetName: string; cpDelta: number }): void {
   const delta =
     result.cpDelta === 0 ? '' : `，战力 ${result.cpDelta > 0 ? '+' : ''}${abbr(result.cpDelta)}`;
@@ -564,7 +578,14 @@ onUnmounted(() => {
     </Transition>
 
     <Transition name="modal-pop">
-      <EquipDetail v-if="detail" :inst="detail" from="bag" @close="detail = null" />
+      <EquipDetail
+        v-if="detail"
+        :inst="detail"
+        from="bag"
+        @close="detail = null"
+        @request-reforge="openReforgeFromDetail"
+        @request-advancement="openAdvancementFromDetail"
+      />
     </Transition>
 
     <EquipmentAdvancementPanel
@@ -573,6 +594,9 @@ onUnmounted(() => {
       @close="advancement = null"
       @upgraded="onEquipmentUpgraded"
     />
+    <Teleport to="body">
+      <ReforgeStudio v-if="reforgeUid" :initial-uid="reforgeUid" @close="reforgeUid = null" />
+    </Teleport>
 
     <Teleport to="body">
       <Transition name="modal-pop">

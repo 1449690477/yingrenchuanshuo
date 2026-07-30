@@ -41,12 +41,13 @@ import ItemIcon from '@/components/ItemIcon.vue';
 /**
  * 星辉洗练坊：词条洗练的独立操作台。
  *
- * 与装备详情页里的 ReforgePanel 共用同一套核心规则（core/reforge.ts），
+ * 统一承载装备词条洗练，并复用 core/reforge.ts 的纯规则与 store 事务，
  * 这里额外承担两件事：
  *  1. 把背包+穿戴里所有可洗练装备聚到一条轨道上，玩家不用逐件翻详情；
  *  2. 用 core/reforgeAdvisor 给出首推建议，一键「按推荐选用」只做选中与
  *     切换操作，消耗材料永远由玩家亲手点「洗练一次」。
  */
+const props = withDefaults(defineProps<{ initialUid?: string | null }>(), { initialUid: null });
 const emit = defineEmits<{ close: [] }>();
 
 const inventory = useInventoryStore();
@@ -152,7 +153,10 @@ watch(
       selectedUid.value = list[0]!.uid;
       return;
     }
-    const initial = topPick.value?.assessment ?? list[0]!;
+    const requested = props.initialUid
+      ? list.find((entry) => entry.uid === props.initialUid)
+      : undefined;
+    const initial = requested ?? topPick.value?.assessment ?? list[0]!;
     selectedUid.value = initial.uid;
     // 开局就让操作台与首推一致，否则横幅写着「同调」而页签停在「重铸」
     adoptRecommendation(initial);
@@ -769,14 +773,14 @@ onBeforeUnmount(() => {
                   </em>
                 </div>
               </div>
-              <p>材料已经消耗；采用与否由你决定，保留原样不会把装备洗坏。</p>
+              <p>材料已经消耗；采用与否由你决定，保留原词条不会把装备洗坏。</p>
               <p v-if="feedback" class="feedback">{{ feedback }}</p>
               <div class="decision-row">
                 <button class="btn btn-plain" :disabled="saving" @click="decide('keep')">
-                  保留原样
+                  保留原词条
                 </button>
                 <button class="btn btn-pink" :disabled="saving" @click="decide('adopt')">
-                  {{ saving ? '正在写入存档…' : '采用新词条' }}
+                  {{ saving ? '正在写入存档…' : '替换为新词条' }}
                 </button>
               </div>
             </div>
@@ -1260,7 +1264,7 @@ onBeforeUnmount(() => {
 }
 
 .advisor-apply {
-  min-height: 40px;
+  min-height: 44px;
   width: 100%;
   margin-top: 9px;
   color: #fff;
