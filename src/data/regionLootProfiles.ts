@@ -55,11 +55,24 @@ export const REGION_5_LOOT_PROFILE: RegionLootProfile = {
   },
 };
 
+export const REGION_6_LOOT_PROFILE: RegionLootProfile = {
+  qualityWeights: {
+    normal: { rare: 0.7 },
+    elite: { rare: 8, epic: 1.2 },
+    boss: { epic: 12, legendary: 0.15 },
+  },
+  bossQualityPity: {
+    quality: 'legendary',
+    groupId: 'r6-legendary',
+    pityCount: 210,
+  },
+};
+
 export const REGION_LOOT_PROFILES: Readonly<Record<string, RegionLootProfile>> = {
   r5: REGION_5_LOOT_PROFILE,
+  r6: REGION_6_LOOT_PROFILE,
 };
 
 export function regionLootProfile(regionId: string): RegionLootProfile {
   return REGION_LOOT_PROFILES[regionId] ?? LEGACY_REGION_LOOT_PROFILE;
 }
-

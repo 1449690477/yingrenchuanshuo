@@ -10,12 +10,13 @@ import { CLASS_IDS, type EquipmentDef } from '../types';
 import {
   buildTrialCombatant,
   canonicalBuildHash,
+  decideTrialScoreWrite,
   fnv1a32,
   runTrial,
   trialBossSeed,
   trialBracketById,
   trialBracketFor,
-  trialPlausibilityCap,
+  trialEquipmentSnapshotIssue,
   trialScoreSeed,
   trialWeekIndex,
   trialWeekRemainingMs,
@@ -305,10 +306,55 @@ describe('榜单展示辅助', () => {
     expect(upperPercentText(0, 0)).toBe('—');
   });
 
-  it('战力合理性上界随等级提升', () => {
-    expect(trialPlausibilityCap(45, 'swordsman')).toBeGreaterThan(
-      trialPlausibilityCap(10, 'swordsman'),
+  it('真实生成的装备通过硬校验，伪造词条数值与越级装备被拒绝', () => {
+    const definition = firstWeaponDef();
+    const instance = createInstance(definition, new Rng(20260730), 'trial-legal', 'swordsman');
+    expect(trialEquipmentSnapshotIssue(instance, 'swordsman', definition.level)).toBeNull();
+
+    const forged = {
+      ...instance,
+      affixes: instance.affixes.map((affix, index) =>
+        index === 0 ? { ...affix, value: affix.value * 1000 + 1 } : affix,
+      ),
+    };
+    expect(trialEquipmentSnapshotIssue(forged, 'swordsman', definition.level)).toBe(
+      'affix-value',
     );
+    expect(trialEquipmentSnapshotIssue(instance, 'swordsman', definition.level - 1)).toBe(
+      'equipment-level',
+    );
+  });
+});
+
+describe('decideTrialScoreWrite / 最好成绩写入决策', () => {
+  it('首次提交与更高成绩正常写入', () => {
+    expect(decideTrialScoreWrite(null, 100, true)).toEqual({
+      action: 'insert',
+      bestDamage: 100,
+      bestVerified: true,
+      improved: true,
+    });
+    expect(decideTrialScoreWrite({ damage: 100, verified: true }, 120, true)).toEqual({
+      action: 'replace',
+      bestDamage: 120,
+      bestVerified: true,
+      improved: true,
+    });
+  });
+
+  it('同一真实成绩可修复旧版误审，较低成绩不能洗白较高旧分', () => {
+    expect(decideTrialScoreWrite({ damage: 100, verified: false }, 100, true)).toEqual({
+      action: 'reverify',
+      bestDamage: 100,
+      bestVerified: true,
+      improved: false,
+    });
+    expect(decideTrialScoreWrite({ damage: 100, verified: false }, 99, true)).toEqual({
+      action: 'keep',
+      bestDamage: 100,
+      bestVerified: false,
+      improved: false,
+    });
   });
 });
 

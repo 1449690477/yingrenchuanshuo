@@ -9,10 +9,12 @@ const props = withDefaults(
     monster: MonsterDef;
     variant?: 'battle' | 'thumb';
     action?: MonsterAction;
+    awakening?: boolean;
   }>(),
   {
     variant: 'battle',
     action: 'idle',
+    awakening: false,
   },
 );
 
@@ -35,6 +37,7 @@ const motionStyle = computed<Record<string, string>>(() => ({
       `type-${monster.type}`,
       `motion-${visual.motion}`,
       `action-${action}`,
+      { 'is-statue-awakening': awakening && visual.statueAwaken },
     ]"
     :style="motionStyle"
     role="img"
@@ -162,6 +165,99 @@ img {
 
 .is-thumb img {
   animation: none !important;
+}
+
+/*
+ * 幽影祀塔的石像怪先以真正的“石材静止态”入场，再由符文裂光唤醒。
+ * 这只是可辨认的出场演出，不提供额外伤害或隐藏数值优势。
+ */
+.is-battle.is-statue-awakening::before,
+.is-battle.is-statue-awakening::after {
+  content: '';
+  position: absolute;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.is-battle.is-statue-awakening::before {
+  inset: 8% 12% 12%;
+  border-radius: 48% 52% 44% 56%;
+  background:
+    linear-gradient(112deg, transparent 43%, rgb(185 164 255 / 88%) 45% 47%, transparent 49%),
+    linear-gradient(68deg, transparent 52%, rgb(116 227 255 / 82%) 54% 56%, transparent 58%);
+  filter: drop-shadow(0 0 5px rgb(163 125 255 / 70%));
+  opacity: 0;
+  animation: statue-rune-crack 480ms cubic-bezier(0.22, 0.78, 0.3, 1) both;
+}
+
+.is-battle.is-statue-awakening::after {
+  inset: 4%;
+  border-radius: 50%;
+  border: 1px solid rgb(192 170 255 / 0%);
+  box-shadow: 0 0 0 0 rgb(147 207 255 / 0%);
+  animation: statue-awaken-ring 480ms ease-out both;
+}
+
+.is-battle.is-statue-awakening img {
+  animation: statue-awaken 480ms cubic-bezier(0.2, 0.7, 0.24, 1) both !important;
+}
+
+@keyframes statue-awaken {
+  0%,
+  23% {
+    transform: translateY(3%) scale(0.97);
+    filter: grayscale(1) saturate(0.25) brightness(0.7) contrast(1.12)
+      drop-shadow(0 3px 3px rgb(58 53 81 / 12%));
+  }
+  48% {
+    transform: translateY(-1%) scale(1.035);
+    filter: grayscale(0.7) saturate(0.6) brightness(1.35) contrast(1.06)
+      drop-shadow(0 0 8px rgb(175 139 255 / 62%));
+  }
+  72% {
+    transform: translateY(-2%) scale(1.06);
+    filter: grayscale(0.08) saturate(1.16) brightness(1.18)
+      drop-shadow(0 0 10px rgb(115 220 255 / 46%));
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    filter: grayscale(0) saturate(1) brightness(1)
+      drop-shadow(0 3px 3px rgb(58 53 81 / 17%));
+  }
+}
+
+@keyframes statue-rune-crack {
+  0%,
+  29% {
+    opacity: 0;
+  }
+  45%,
+  66% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes statue-awaken-ring {
+  0%,
+  42% {
+    opacity: 0;
+    transform: scale(0.72);
+  }
+  54% {
+    opacity: 0.9;
+    transform: scale(0.82);
+    border-color: rgb(192 170 255 / 78%);
+    box-shadow: 0 0 0 2px rgb(147 207 255 / 24%);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.16);
+    border-color: rgb(192 170 255 / 0%);
+    box-shadow: 0 0 0 10px rgb(147 207 255 / 0%);
+  }
 }
 
 @keyframes monster-idle-flutter {
@@ -448,6 +544,11 @@ img {
 @media (prefers-reduced-motion: reduce) {
   .is-battle img {
     animation: none !important;
+  }
+
+  .is-battle.is-statue-awakening::before,
+  .is-battle.is-statue-awakening::after {
+    display: none;
   }
 }
 </style>

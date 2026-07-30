@@ -5,21 +5,28 @@ import {
   REGION_CRIMSON_FLAMEBURST_TRIGGER_ID,
   REGION_CRIMSON_SET,
   REGION_CRIMSON_SET_ID,
+  REGION_SHADOW_SET,
+  REGION_SHADOW_SET_ID,
 } from '../regionEquipmentSets';
+import { ARENA_EQUIPMENT_SET, ARENA_SET_ID } from '../arenaEquipment';
 
 describe('通用装备套装注册表', () => {
-  it('完整聚合现有四套副本套装与绯焰套，且保持同一权威定义', () => {
+  it('完整聚合现有四套副本套装、区域套装与圣痕套，且保持同一权威定义', () => {
     expect(Object.keys(EQUIPMENT_SETS)).toEqual([
       'set_dungeon_azure',
       'set_dungeon_violet',
       'set_dungeon_auric',
       'set_dungeon_crimson',
       REGION_CRIMSON_SET_ID,
+      REGION_SHADOW_SET_ID,
+      ARENA_SET_ID,
     ]);
     for (const [id, definition] of Object.entries(EQUIPMENT_DUNGEON_SETS)) {
       expect(getEquipmentSet(id)).toBe(definition);
     }
     expect(getEquipmentSet(REGION_CRIMSON_SET_ID)).toBe(REGION_CRIMSON_SET);
+    expect(getEquipmentSet(REGION_SHADOW_SET_ID)).toBe(REGION_SHADOW_SET);
+    expect(getEquipmentSet(ARENA_SET_ID)).toBe(ARENA_EQUIPMENT_SET);
   });
 
   it('锁住现有四套的全部结算数值', () => {

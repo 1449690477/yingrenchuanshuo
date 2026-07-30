@@ -21,6 +21,7 @@ import type {
 import { CLASS_IDS } from '@/core/types';
 import { QUALITY_AFFIX_COUNT, SLOT_ORDER } from './constants';
 import { AFFECTION_EQUIPMENT_LIST } from './affectionEquipment';
+import { ARENA_EQUIPMENT_LIST } from './arenaEquipment';
 import { BOUTIQUE_THEME_LIST, boutiqueAppearanceId, boutiqueEquipmentId } from './boutique';
 import { EQUIPMENT_DUNGEON_GEAR_LIST } from './equipmentDungeonGear';
 import { REGION_34_EQUIPMENT_THEMES } from './region34';
@@ -34,6 +35,16 @@ import {
   REGION_5_SET_WEAPON_NAMES,
   region5SetEquipmentId,
 } from './region5';
+import {
+  REGION_6_EQUIPMENT_THEME,
+  REGION_6_SET_ID,
+  REGION_6_SET_LEVEL,
+  REGION_6_SET_NAMES,
+  REGION_6_SET_QUALITY,
+  REGION_6_SET_SLOTS,
+  REGION_6_SET_WEAPON_NAMES,
+  region6SetEquipmentId,
+} from './region6';
 import { BOUTIQUE_WEAPON_ELEMENTS, REGION_WEAPON_ELEMENTS } from './weaponElements';
 
 /** 每个区域一套命名主题：8 个槽位各一个词根 */
@@ -144,6 +155,17 @@ const THEMES: NamingTheme[] = [
     names: REGION_5_EQUIPMENT_THEME.names,
     weaponNames: REGION_5_EQUIPMENT_THEME.weaponNames,
   },
+  {
+    regionId: REGION_6_EQUIPMENT_THEME.regionId,
+    level: REGION_6_EQUIPMENT_THEME.level,
+    weaponElement: REGION_WEAPON_ELEMENTS.r6,
+    qualities: [...REGION_6_EQUIPMENT_THEME.qualities],
+    icons: Object.fromEntries(
+      SLOT_ORDER.map((slot) => [slot, `assets/equipment/r6/${slot}.png`]),
+    ) as Record<EquipSlot, string>,
+    names: REGION_6_EQUIPMENT_THEME.names,
+    weaponNames: REGION_6_EQUIPMENT_THEME.weaponNames,
+  },
 ];
 
 /** 品质前缀，让同名装备在背包里能区分开 */
@@ -243,6 +265,31 @@ function buildEquipment(): Record<string, EquipmentDef> {
         : { ...common, slot };
   }
 
+  for (const slot of REGION_6_SET_SLOTS) {
+    const id = region6SetEquipmentId(slot);
+    const common = {
+      id,
+      name: REGION_6_SET_NAMES[slot],
+      quality: REGION_6_SET_QUALITY,
+      level: REGION_6_SET_LEVEL,
+      setId: REGION_6_SET_ID,
+      icon: `assets/equipment/sets/r6-shadow/${slot}.png`,
+      appearanceId: `r6-set-${slot}`,
+    } as const;
+    out[id] =
+      slot === 'weapon'
+        ? {
+            ...common,
+            slot,
+            element: REGION_WEAPON_ELEMENTS.r6,
+            classPresentations: weaponClassPresentations(
+              'r6-set-weapon',
+              REGION_6_SET_WEAPON_NAMES,
+            ),
+          }
+        : { ...common, slot };
+  }
+
   for (const theme of BOUTIQUE_THEME_LIST) {
     const percentile = theme.quality === 'epic' ? 0.6 : theme.quality === 'legendary' ? 0.75 : 0.9;
     for (const item of theme.items) {
@@ -282,6 +329,13 @@ function buildEquipment(): Record<string, EquipmentDef> {
 
   for (const entry of AFFECTION_EQUIPMENT_LIST) {
     const definition = entry.definition;
+    if (out[definition.id]) {
+      throw new Error(`[配置错误] 装备 ID 重复：${definition.id}`);
+    }
+    out[definition.id] = definition;
+  }
+
+  for (const definition of ARENA_EQUIPMENT_LIST) {
     if (out[definition.id]) {
       throw new Error(`[配置错误] 装备 ID 重复：${definition.id}`);
     }

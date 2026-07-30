@@ -46,5 +46,8 @@ describe('TrialBattleScene / 周常试炼战斗窗口', () => {
     expect(html).toContain(visual.bossAsset);
     expect(html).toContain('第 1 阶段');
     expect(html).toContain('镜门开启');
+    expect(html).toContain('speed-lines');
+    expect(html).toContain('telegraph-ring');
+    expect(html).toContain('burst-layer');
   });
 });

@@ -7,6 +7,7 @@ import type {
   Stats,
 } from './types';
 import { zeroStats } from './formula';
+import type { PeriodicStatusRefresh } from './combatStatus';
 
 export type EquipmentSetCombatBonus = Partial<Omit<CombatBonuses, 'elementDamage'>> & {
   elementDamage?: Partial<CombatBonuses['elementDamage']>;
@@ -26,6 +27,38 @@ export interface OnHitElementalDamageTrigger {
   element: Exclude<Element, 'none'>;
 }
 
+/**
+ * 受到致命伤害后免于倒下并按最大生命回复。
+ *
+ * 触发次数属于一次真实战斗实例；开始下一关/下一次挑战时由 simulateFight
+ * 创建新状态，因此不会把次数写进存档，也不会跨关残留。
+ */
+export interface OnLethalRecoveryTrigger {
+  id: string;
+  kind: 'lethal-recovery';
+  healRatio: number;
+  activationsPerFight: number;
+}
+
+/**
+ * 每个已经确认暴击的直接伤害段触发一次回复与持续伤害。
+ *
+ * 持续伤害使用施加瞬间的单跳伤害快照；之后只由战斗状态时钟推进，不再次
+ * 命中、暴击、吸血或触发任何逐击 / 暴击效果。
+ */
+export interface OnCritPeriodicDamageTrigger {
+  id: string;
+  kind: 'crit-periodic-damage';
+  healMaxHpRatio: number;
+  statusId: string;
+  atkMultiplierPerTick: number;
+  ticks: number;
+  durationSec: number;
+  maxStacks: number;
+  refresh: PeriodicStatusRefresh;
+  element?: Element;
+}
+
 export interface EquipmentSetBonus {
   pieces: 2 | 4 | 6 | 8;
   label: string;
@@ -36,6 +69,10 @@ export interface EquipmentSetBonus {
   combatBonuses?: EquipmentSetCombatBonus;
   /** 每个直接真实命中独立触发；不得折算进 skillMultiplierBonus。 */
   onHitTriggers?: readonly OnHitElementalDamageTrigger[];
+  /** 每场战斗独立计数的致命伤保护。 */
+  onLethalTriggers?: readonly OnLethalRecoveryTrigger[];
+  /** 每个直接真实暴击独立触发；持续伤害不得折算进平均技能倍率。 */
+  onCritTriggers?: readonly OnCritPeriodicDamageTrigger[];
   /** 加到技能倍率上的绝对值，例如 0.08 表示平均技能倍率 +0.08。 */
   skillMultiplierBonus?: number;
 }
@@ -68,6 +105,8 @@ export interface EquipmentSetResolution {
   statFlat: Stats;
   combatBonuses: CombatBonuses;
   onHitTriggers: readonly OnHitElementalDamageTrigger[];
+  onLethalTriggers: readonly OnLethalRecoveryTrigger[];
+  onCritTriggers: readonly OnCritPeriodicDamageTrigger[];
   skillMultiplierBonus: number;
 }
 
@@ -117,6 +156,8 @@ export function resolveEquipmentSetBonuses(
   const statFlat = zeroStats();
   const combatBonuses = zeroSetCombatBonuses();
   const onHitTriggers: OnHitElementalDamageTrigger[] = [];
+  const onLethalTriggers: OnLethalRecoveryTrigger[] = [];
+  const onCritTriggers: OnCritPeriodicDamageTrigger[] = [];
   let skillMultiplierBonus = 0;
   const sets: ActiveEquipmentSet[] = [];
 
@@ -134,6 +175,18 @@ export function resolveEquipmentSetBonuses(
         }
         onHitTriggers.push(trigger);
       }
+      for (const trigger of bonus.onLethalTriggers ?? []) {
+        if (onLethalTriggers.some((existing) => existing.id === trigger.id)) {
+          throw new Error(`[配置错误] 重复的致命伤触发 ID：${trigger.id}`);
+        }
+        onLethalTriggers.push(trigger);
+      }
+      for (const trigger of bonus.onCritTriggers ?? []) {
+        if (onCritTriggers.some((existing) => existing.id === trigger.id)) {
+          throw new Error(`[配置错误] 重复的暴击触发 ID：${trigger.id}`);
+        }
+        onCritTriggers.push(trigger);
+      }
       skillMultiplierBonus += bonus.skillMultiplierBonus ?? 0;
     }
     sets.push({ definition, equippedPieces, activeBonuses, nextBonus });
@@ -146,6 +199,8 @@ export function resolveEquipmentSetBonuses(
     statFlat,
     combatBonuses,
     onHitTriggers,
+    onLethalTriggers,
+    onCritTriggers,
     skillMultiplierBonus,
   };
 }
@@ -200,6 +255,8 @@ function assertSetDefinition(definition: EquipmentSetDefinition): void {
   }
   let previousPieces = 0;
   const triggerIds = new Set<string>();
+  const lethalTriggerIds = new Set<string>();
+  const critTriggerIds = new Set<string>();
   for (const bonus of definition.bonuses) {
     if (bonus.pieces <= previousPieces || bonus.pieces > definition.pieceSlots.length) {
       throw new Error(`[配置错误] 套装激活件数非法：${definition.id} / ${bonus.pieces}`);
@@ -211,7 +268,39 @@ function assertSetDefinition(definition: EquipmentSetDefinition): void {
       }
       triggerIds.add(trigger.id);
     }
+    for (const trigger of bonus.onLethalTriggers ?? []) {
+      assertOnLethalRecoveryTrigger(trigger);
+      if (lethalTriggerIds.has(trigger.id)) {
+        throw new Error(`[配置错误] 重复的致命伤触发 ID：${trigger.id}`);
+      }
+      lethalTriggerIds.add(trigger.id);
+    }
+    for (const trigger of bonus.onCritTriggers ?? []) {
+      assertOnCritPeriodicDamageTrigger(trigger);
+      if (critTriggerIds.has(trigger.id)) {
+        throw new Error(`[配置错误] 重复的暴击触发 ID：${trigger.id}`);
+      }
+      critTriggerIds.add(trigger.id);
+    }
     previousPieces = bonus.pieces;
+  }
+}
+
+export function assertOnLethalRecoveryTrigger(trigger: OnLethalRecoveryTrigger): void {
+  if (trigger.kind !== 'lethal-recovery') {
+    throw new Error(`[配置错误] 未知致命伤触发类型：${trigger.id}`);
+  }
+  if (!trigger.id.trim()) {
+    throw new Error('[配置错误] 致命伤触发缺少稳定 ID');
+  }
+  if (!Number.isFinite(trigger.healRatio) || trigger.healRatio <= 0 || trigger.healRatio > 1) {
+    throw new Error(`[配置错误] 致命伤回复比例必须在 (0, 1]：${trigger.id}`);
+  }
+  if (
+    !Number.isSafeInteger(trigger.activationsPerFight) ||
+    trigger.activationsPerFight <= 0
+  ) {
+    throw new Error(`[配置错误] 致命伤触发次数必须是正整数：${trigger.id}`);
   }
 }
 
@@ -230,5 +319,37 @@ export function assertOnHitElementalDamageTrigger(trigger: OnHitElementalDamageT
   }
   if (!(['fire', 'ice', 'thunder'] as readonly Element[]).includes(trigger.element)) {
     throw new Error(`[配置错误] 追加元素伤害不能是无属性：${trigger.id}`);
+  }
+}
+
+export function assertOnCritPeriodicDamageTrigger(trigger: OnCritPeriodicDamageTrigger): void {
+  if (trigger.kind !== 'crit-periodic-damage') {
+    throw new Error(`[配置错误] 未知暴击触发类型：${trigger.id}`);
+  }
+  if (!trigger.id.trim() || !trigger.statusId.trim()) {
+    throw new Error('[配置错误] 暴击持续伤害缺少稳定 ID');
+  }
+  if (
+    !Number.isFinite(trigger.healMaxHpRatio) ||
+    trigger.healMaxHpRatio < 0 ||
+    trigger.healMaxHpRatio > 1
+  ) {
+    throw new Error(`[配置错误] 暴击回复比例必须在 [0, 1]：${trigger.id}`);
+  }
+  if (!Number.isFinite(trigger.atkMultiplierPerTick) || trigger.atkMultiplierPerTick < 0) {
+    throw new Error(`[配置错误] 持续伤害单跳倍率必须是非负数：${trigger.id}`);
+  }
+  if (!Number.isSafeInteger(trigger.ticks) || trigger.ticks <= 0) {
+    throw new Error(`[配置错误] 持续伤害跳数必须是正整数：${trigger.id}`);
+  }
+  if (!Number.isFinite(trigger.durationSec) || trigger.durationSec <= 0) {
+    throw new Error(`[配置错误] 持续伤害时长必须为正数：${trigger.id}`);
+  }
+  const durationMs = trigger.durationSec * 1_000;
+  if (!Number.isSafeInteger(durationMs) || durationMs % trigger.ticks !== 0) {
+    throw new Error(`[配置错误] 持续伤害时长必须能均分为整数毫秒 tick：${trigger.id}`);
+  }
+  if (!Number.isSafeInteger(trigger.maxStacks) || trigger.maxStacks <= 0) {
+    throw new Error(`[配置错误] 持续伤害层数上限必须是正整数：${trigger.id}`);
   }
 }

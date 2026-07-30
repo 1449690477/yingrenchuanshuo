@@ -10,9 +10,14 @@ import type { PityCounters } from './loot';
 import { Rng } from './rng';
 import { rollLoot } from './loot';
 import { simulateFight, type SimulatedFightResult } from './combat';
-import type { OnHitElementalDamageTrigger } from './equipmentSets';
+import type {
+  OnCritPeriodicDamageTrigger,
+  OnHitElementalDamageTrigger,
+  OnLethalRecoveryTrigger,
+} from './equipmentSets';
 import { makeMonster } from './progression';
 import { mergeLootResults } from './stageLoot';
+import { businessDayKey } from './dayKey';
 import type { EquipmentDungeonStage } from '@/data/equipmentDungeons';
 import { EQUIPMENT_DUNGEON_RULES } from '@/data/equipmentDungeonRules';
 
@@ -79,6 +84,8 @@ export interface EquipmentDungeonChallengeInput {
   classId: ClassId;
   playerSkillMultiplier: number;
   playerOnHitTriggers?: readonly OnHitElementalDamageTrigger[];
+  playerOnLethalTriggers?: readonly OnLethalRecoveryTrigger[];
+  playerOnCritTriggers?: readonly OnCritPeriodicDamageTrigger[];
   rngState: number;
   now: number;
 }
@@ -86,15 +93,11 @@ export interface EquipmentDungeonChallengeInput {
 /**
  * 北京时间 04:00 日切。
  *
- * 北京是 UTC+8；把时间先加 4 小时再取 UTC 日期，等价于
- * “北京时间减去 4 小时后的自然日”，同时避免依赖宿主机时区。
+ * 口径已收敛到 src/core/dayKey.ts 的 businessDayKey（全游戏共用）；
+ * 本函数保留原名与原行为，仅作委托。
  */
 export function equipmentDungeonDayKey(now: number): string {
-  if (!Number.isFinite(now) || now < 0) {
-    throw new Error(`[装备副本] now 必须是非负有限时间戳，收到 ${now}`);
-  }
-  const shifted = new Date(now + (8 - EQUIPMENT_DUNGEON_RULES.resetHourCst) * 3_600_000);
-  return shifted.toISOString().slice(0, 10);
+  return businessDayKey(now, EQUIPMENT_DUNGEON_RULES.resetHourCst);
 }
 
 export function createEquipmentDungeonState(now: number): EquipmentDungeonState {
@@ -179,6 +182,8 @@ export function resolveEquipmentDungeonChallenge(
     const result = simulateFight(player, monster, challengeRng, {
       playerSkillMultiplier: input.playerSkillMultiplier,
       playerOnHitTriggers: input.playerOnHitTriggers,
+      playerOnLethalTriggers: input.playerOnLethalTriggers,
+      playerOnCritTriggers: input.playerOnCritTriggers,
       maxSeconds: EQUIPMENT_DUNGEON_RULES.maxFightSeconds,
     });
     waves.push({

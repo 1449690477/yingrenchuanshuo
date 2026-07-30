@@ -13,10 +13,22 @@ import {
 } from '../combat';
 import { makeMonster, makePlayer } from '../progression';
 import { Rng } from '../rng';
+import type { OnCritPeriodicDamageTrigger } from '../equipmentSets';
 import type { Combatant, Stats } from '../types';
 import { REGION_CRIMSON_SET } from '@/data/regionEquipmentSets';
 
 const FLAMEBURST = REGION_CRIMSON_SET.bonuses.flatMap((bonus) => bonus.onHitTriggers ?? [])[0]!;
+const BLOODMOON: OnCritPeriodicDamageTrigger = {
+  id: 'test-bloodmoon',
+  kind: 'crit-periodic-damage',
+  healMaxHpRatio: 0.03,
+  statusId: 'bleed',
+  atkMultiplierPerTick: 0.08,
+  ticks: 4,
+  durationSec: 4,
+  maxStacks: 1,
+  refresh: 'duration',
+};
 
 const s = (o: Partial<Stats> = {}): Stats => ({
   atk: 500,
@@ -163,6 +175,72 @@ describe('simulateFight', () => {
       playerEvents.reduce((sum, event) => sum + event.event.damage, 0),
       8,
     );
+  });
+
+  it('暴击回血后按固定时钟结算四次流血，流血不暴击、不吸血、不递归触发', () => {
+    const player = makePlayer(
+      'p',
+      20,
+      s({
+        atk: 100,
+        hp: 1_000,
+        acc: 99_999,
+        critRate: 100,
+        critDmg: 50,
+        spd: 0.01,
+      }),
+      'none',
+      {
+        damageReduction: 0,
+        lifesteal: 100,
+        elementDamage: { fire: 0, ice: 0, thunder: 0 },
+      },
+    );
+    player.currentHp = 100;
+    const target = makePlayer(
+      'm',
+      20,
+      s({ atk: 0, hp: 10_000, def: 0, eva: 0, critRate: 0, spd: 0.01 }),
+    );
+
+    const result = simulateFight(player, target, new Rng(907), {
+      maxSeconds: 4.1,
+      playerOnCritTriggers: [BLOODMOON],
+    });
+    const direct = result.events.find(
+      (event) => event.source === 'player' && event.event.kind === 'direct-damage',
+    );
+    const recoveries = result.events.filter(
+      (event) => event.event.kind === 'on-crit-recovery',
+    );
+    const bleeding = result.events.filter(
+      (event) => event.event.kind === 'periodic-damage',
+    );
+
+    expect(direct?.event.kind).toBe('direct-damage');
+    expect(recoveries).toHaveLength(1);
+    expect(recoveries[0]?.event).toMatchObject({
+      kind: 'on-crit-recovery',
+      healing: 30,
+      triggerId: BLOODMOON.id,
+    });
+    expect(bleeding).toHaveLength(4);
+    expect(
+      bleeding.every(
+        ({ event }) =>
+          event.kind === 'periodic-damage' &&
+          event.statusId === 'bleed' &&
+          event.damage === 8 &&
+          event.hit &&
+          !event.crit,
+      ),
+    ).toBe(true);
+    if (!direct || direct.event.kind !== 'direct-damage') {
+      throw new Error('测试缺少玩家直接伤害事件');
+    }
+    // 100% 吸血只作用于开场直接段；4 次流血不会再回复 32 点生命。
+    expect(player.currentHp).toBeCloseTo(100 + direct.event.damage + 30, 8);
+    expect(result.damageDealt).toBeCloseTo(direct.event.damage + 32, 8);
   });
 });
 

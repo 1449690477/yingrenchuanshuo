@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { CATKIN_SKILLS, primaryDamageEffect } from '@/data/skills';
-import { canCastSkill, damageHitMultipliers, levelScalarAt } from '../skills';
+import {
+  canCastSkill,
+  commitAutoSkillCast,
+  createSkillCooldownState,
+  damageHitMultipliers,
+  levelScalarAt,
+  selectAutoSkill,
+  skillCooldownRemainingMs,
+  type ActiveSkillLoadoutEntry,
+} from '../skills';
 
 function requireCatkinSkill(id: string) {
   const skill = CATKIN_SKILLS.find((entry) => entry.id === id);
@@ -88,5 +97,77 @@ describe('catkin cast conditions', () => {
   it('被动技能永远不会进入主动释放队列', () => {
     const passive = requireCatkinSkill('skill_catkin_claw_mark');
     expect(canCastSkill(passive, baseContext)).toBe(false);
+  });
+});
+
+describe('真实自动技能调度', () => {
+  const baseContext = {
+    selfHpRatio: 1,
+    targetHpRatio: 1,
+    monsterType: 'normal' as const,
+    statusStacks: {},
+  };
+  const low = requireCatkinSkill('skill_catkin_paw_combo');
+  const conditional = requireCatkinSkill('skill_catkin_bristle_counter');
+  const high = requireCatkinSkill('skill_catkin_scratch_frenzy');
+  if (low.type !== 'active' || conditional.type !== 'active' || high.type !== 'active') {
+    throw new Error('测试技能必须是主动技能');
+  }
+  const loadout: readonly ActiveSkillLoadoutEntry[] = [
+    { skill: low, level: 1 },
+    { skill: conditional, level: 1 },
+    { skill: high, level: 1 },
+  ];
+
+  it('开场选择满足条件的最高优先级技能，条件不满足不会空耗冷却', () => {
+    const cooldowns = createSkillCooldownState(loadout);
+    const selection = selectAutoSkill(loadout, cooldowns, 0, baseContext);
+
+    expect(selection?.entry.skill.id).toBe(high.id);
+    expect(skillCooldownRemainingMs(cooldowns, conditional.id, 0)).toBe(0);
+  });
+
+  it('提交施法后使用稳定 ID 记录绝对就绪时点，并继续轮询下一技能', () => {
+    const initial = createSkillCooldownState(loadout);
+    const first = selectAutoSkill(loadout, initial, 1_250, baseContext)!;
+    const afterFirst = commitAutoSkillCast(loadout, initial, first, 1_250);
+
+    expect(initial[high.id]).toBe(0);
+    expect(skillCooldownRemainingMs(afterFirst, high.id, 1_250)).toBe(
+      high.cooldownSec * 1_000,
+    );
+    expect(selectAutoSkill(loadout, afterFirst, 1_250, baseContext)?.entry.skill.id).toBe(low.id);
+    expect(selectAutoSkill(loadout, afterFirst, 1_250 + high.cooldownSec * 1_000, baseContext)
+      ?.entry.skill.id).toBe(high.id);
+  });
+
+  it('同优先级严格按技能栏顺序决定，不依赖对象键顺序', () => {
+    const tiedLoadout: readonly ActiveSkillLoadoutEntry[] = [
+      { skill: { ...low, id: 'slot-a', priority: 50 }, level: 1 },
+      { skill: { ...high, id: 'slot-b', priority: 50 }, level: 1 },
+    ];
+    const cooldowns = createSkillCooldownState(tiedLoadout);
+
+    expect(selectAutoSkill(tiedLoadout, cooldowns, 0, baseContext)?.entry.skill.id).toBe(
+      'slot-a',
+    );
+  });
+
+  it('拒绝重复、超过四栏和与技能栏不一致的冷却状态', () => {
+    expect(() =>
+      createSkillCooldownState([
+        { skill: low, level: 1 },
+        { skill: low, level: 1 },
+      ]),
+    ).toThrow('重复技能');
+    expect(() =>
+      createSkillCooldownState(
+        Array.from({ length: 5 }, (_, index) => ({
+          skill: { ...low, id: `skill-${index}` },
+          level: 1,
+        })),
+      ),
+    ).toThrow('最多 4 个');
+    expect(() => selectAutoSkill(loadout, {}, 0, baseContext)).toThrow('冷却表与当前技能栏');
   });
 });

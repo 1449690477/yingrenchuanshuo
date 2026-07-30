@@ -49,6 +49,8 @@ export interface TrialBoardRow {
   rank: number;
   userId: string;
   displayName: string;
+  bio: string | null;
+  avatarUrl: string | null;
   classId: ClassId;
   damage: number;
   isMe: boolean;
@@ -60,6 +62,8 @@ export interface PowerBoardRow {
   rank: number;
   userId: string;
   displayName: string;
+  bio: string | null;
+  avatarUrl: string | null;
   classId: ClassId;
   level: number;
   combatPower: number;
@@ -68,7 +72,19 @@ export interface PowerBoardRow {
 
 // ─────────────────────────── 档案 ───────────────────────────
 
-/** 同步公开档案（排行榜是公开信息，见 SQL RLS 策略）。 */
+interface PublicProfileIdentity {
+  displayName: string;
+  bio: string | null;
+  avatarUrl: string | null;
+}
+
+/**
+ * 同步公开档案里的游戏进度字段。
+ *
+ * display_name 只在档案首次创建时写入默认值，之后绝不再碰。玩家自设昵称
+ * 与当前游戏角色名是两套身份；如果每次同步战力都 upsert display_name，
+ * 换职业或上传成绩就会把玩家刚改好的昵称覆盖掉。
+ */
 export async function upsertProfile(
   client: SupabaseClient,
   profile: {
@@ -79,15 +95,74 @@ export async function upsertProfile(
     combatPower: number;
   },
 ): Promise<void> {
-  const { error } = await client.from('profiles').upsert({
-    id: profile.id,
-    display_name: profile.displayName.slice(0, 20),
+  const updatedAt = new Date().toISOString();
+  const progress = {
     class_id: profile.classId,
     level: profile.level,
     combat_power: profile.combatPower,
-    updated_at: new Date().toISOString(),
-  });
-  if (error) throw new NetRequestError(friendlyMessage(error.message, '档案同步失败'));
+    updated_at: updatedAt,
+  };
+
+  const { error: createError } = await client.from('profiles').upsert(
+    {
+      id: profile.id,
+      display_name: profile.displayName.trim().slice(0, 20) || '无名旅人',
+      ...progress,
+    },
+    {
+      onConflict: 'id',
+      // PostgreSQL 的 ON CONFLICT DO NOTHING：已有档案时不覆盖玩家自设身份。
+      ignoreDuplicates: true,
+    },
+  );
+  if (createError) {
+    throw new NetRequestError(friendlyMessage(createError.message, '档案初始化失败'));
+  }
+
+  const { error: updateError } = await client
+    .from('profiles')
+    .update(progress)
+    .eq('id', profile.id);
+  if (updateError) {
+    throw new NetRequestError(friendlyMessage(updateError.message, '档案同步失败'));
+  }
+}
+
+/**
+ * RPC 的邻域榜返回固定列，头像字段在它建成后才加入档案。
+ * 用榜单里的少量 user id 一次性补读身份，避免为每一行各发一个请求。
+ */
+export async function fetchPublicProfileIdentities(
+  client: SupabaseClient,
+  userIds: readonly string[],
+): Promise<Map<string, PublicProfileIdentity>> {
+  const uniqueIds = [...new Set(userIds)].filter(Boolean);
+  if (uniqueIds.length === 0) return new Map();
+
+  const { data, error } = await client
+    .from('profiles')
+    .select('id, display_name, bio, avatar_url')
+    .in('id', uniqueIds);
+  if (error) throw new NetRequestError(friendlyMessage(error.message, '玩家档案读取失败'));
+
+  return new Map(
+    (data ?? []).map((row) => {
+      const profile = row as {
+        id: string;
+        display_name: string;
+        bio: string | null;
+        avatar_url: string | null;
+      };
+      return [
+        profile.id,
+        {
+          displayName: profile.display_name,
+          bio: profile.bio,
+          avatarUrl: profile.avatar_url,
+        },
+      ];
+    }),
+  );
 }
 
 // ─────────────────────────── 试炼成绩 ───────────────────────────
@@ -130,7 +205,7 @@ export async function fetchTrialTop(
 ): Promise<TrialBoardRow[]> {
   let query = client
     .from('trial_scores')
-    .select('user_id, class_id, damage, created_at, profiles(display_name)')
+    .select('user_id, class_id, damage, created_at, profiles(display_name, bio, avatar_url)')
     .eq('season_id', filter.seasonId)
     .eq('week_index', filter.weekIndex)
     .eq('bracket_id', filter.bracketId)
@@ -147,13 +222,18 @@ export async function fetchTrialTop(
       user_id: string;
       class_id: ClassId;
       damage: number;
-      profiles: { display_name: string } | { display_name: string }[] | null;
+      profiles:
+        | { display_name: string; bio: string | null; avatar_url: string | null }
+        | { display_name: string; bio: string | null; avatar_url: string | null }[]
+        | null;
     };
     const profile = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles;
     return {
       rank: index + 1,
       userId: r.user_id,
       displayName: profile?.display_name ?? '无名旅人',
+      bio: profile?.bio ?? null,
+      avatarUrl: profile?.avatar_url ?? null,
       classId: r.class_id,
       damage: Number(r.damage),
       isMe: r.user_id === myUserId,
@@ -184,7 +264,7 @@ export async function fetchTrialNeighborhood(
   });
   if (error) throw new NetRequestError(friendlyMessage(error.message, '邻域榜读取失败'));
 
-  return (data ?? []).map((row: unknown) => {
+  const rawRows: Omit<TrialBoardRow, 'bio' | 'avatarUrl'>[] = (data ?? []).map((row: unknown) => {
     const r = row as {
       rank: number;
       user_id: string;
@@ -204,6 +284,19 @@ export async function fetchTrialNeighborhood(
       total: Number(r.total),
     };
   });
+  const identities = await fetchPublicProfileIdentities(
+    client,
+    rawRows.map((row) => row.userId),
+  );
+  return rawRows.map((row) => {
+    const identity = identities.get(row.userId);
+    return {
+      ...row,
+      displayName: identity?.displayName ?? row.displayName,
+      bio: identity?.bio ?? null,
+      avatarUrl: identity?.avatarUrl ?? null,
+    };
+  });
 }
 
 // ─────────────────────────── 战力榜（次级页签） ───────────────────────────
@@ -219,7 +312,7 @@ export async function fetchPowerTop(
 ): Promise<PowerBoardRow[]> {
   const { data, error } = await client
     .from('profiles')
-    .select('id, display_name, class_id, level, combat_power')
+    .select('id, display_name, bio, avatar_url, class_id, level, combat_power')
     .order('combat_power', { ascending: false })
     .order('updated_at', { ascending: true })
     .limit(limit);
@@ -229,6 +322,8 @@ export async function fetchPowerTop(
     const r = row as {
       id: string;
       display_name: string;
+      bio: string | null;
+      avatar_url: string | null;
       class_id: ClassId;
       level: number;
       combat_power: number;
@@ -237,6 +332,8 @@ export async function fetchPowerTop(
       rank: index + 1,
       userId: r.id,
       displayName: r.display_name,
+      bio: r.bio,
+      avatarUrl: r.avatar_url,
       classId: r.class_id,
       level: Number(r.level),
       combatPower: Number(r.combat_power),

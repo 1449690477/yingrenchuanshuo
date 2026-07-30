@@ -186,6 +186,25 @@ export function expectedConfirmedElementalDamage(
 }
 
 /**
+ * 确定性的持续伤害单跳结算。
+ *
+ * 状态施加时对来源攻击与目标防御做一次伤害快照；不做命中、浮动或暴击判定，
+ * 也不消费 RNG。调用方必须把结果放进持续状态时钟，不能重新送入 on-hit 管线。
+ */
+export function calcPeriodicDamage(
+  attacker: Combatant,
+  defender: Combatant,
+  atkMultiplier: number,
+  element: Element = attacker.element,
+): number {
+  if (!Number.isFinite(atkMultiplier) || atkMultiplier < 0) {
+    throw new Error(`持续伤害攻击倍率必须是非负有限数：${atkMultiplier}`);
+  }
+  if (atkMultiplier === 0 || attacker.stats.atk <= 0) return 0;
+  return damageAfterConfirmedHit(attacker, defender, atkMultiplier, element, 1, 1);
+}
+
+/**
  * 战力。这只是给玩家看的单一数字指标，用来判断能不能打过某关。
  * 它不参与任何战斗计算。
  */

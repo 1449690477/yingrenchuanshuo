@@ -15,18 +15,31 @@ if (!existsSync(serviceWorkerPath)) {
 const serviceWorker = readFileSync(serviceWorkerPath, 'utf8');
 const r5CacheName = 'region-content-r5-v1';
 const r5SetCacheName = 'region-set-r5-v1';
+const r6CacheName = 'region-content-r6-v1';
+const r6SetCacheName = 'region-set-r6-v1';
 const genericAppearanceCacheName = 'character-appearance-v1';
 const r5Index = serviceWorker.indexOf(r5CacheName);
 const r5SetIndex = serviceWorker.indexOf(r5SetCacheName);
+const r6Index = serviceWorker.indexOf(r6CacheName);
+const r6SetIndex = serviceWorker.indexOf(r6SetCacheName);
 const genericAppearanceIndex = serviceWorker.indexOf(genericAppearanceCacheName);
 
 if (r5Index < 0) fail(`产物缺少 ${r5CacheName}`);
 if (r5SetIndex < 0) fail(`产物缺少 ${r5SetCacheName}`);
+if (r6Index < 0) fail(`产物缺少 ${r6CacheName}`);
+if (r6SetIndex < 0) fail(`产物缺少 ${r6SetCacheName}`);
 if (genericAppearanceIndex < 0) fail(`产物缺少 ${genericAppearanceCacheName}`);
-if (r5Index >= genericAppearanceIndex || r5SetIndex >= genericAppearanceIndex) {
-  fail('R5 区域 / 套装路由必须注册在通用 modular 路由之前，否则换装层会被先截走');
+if (
+  [r5Index, r5SetIndex, r6Index, r6SetIndex].some(
+    (regionIndex) => regionIndex >= genericAppearanceIndex,
+  )
+) {
+  fail('R5 / R6 区域与套装路由必须注册在通用 modular 路由之前，否则换装层会被先截走');
 }
-if (serviceWorker.includes('isRegion5RuntimeAssetPath')) {
+if (
+  serviceWorker.includes('isRegion5RuntimeAssetPath') ||
+  serviceWorker.includes('isRegion6RuntimeAssetPath')
+) {
   fail('GenerateSW 产物引用了未序列化的 matcher 函数');
 }
 if (
@@ -43,6 +56,20 @@ if (
 ) {
   fail('R5 套装缓存必须使用 StaleWhileRevalidate 且 maxEntries=24');
 }
+if (
+  !/StaleWhileRevalidate\(\{cacheName:"region-content-r6-v1",.{0,600}?maxEntries:64/.test(
+    serviceWorker,
+  )
+) {
+  fail('R6 缓存必须使用 StaleWhileRevalidate 且 maxEntries=64');
+}
+if (
+  !/StaleWhileRevalidate\(\{cacheName:"region-set-r6-v1",.{0,600}?maxEntries:24/.test(
+    serviceWorker,
+  )
+) {
+  fail('R6 套装缓存必须使用 StaleWhileRevalidate 且 maxEntries=24');
+}
 
 const precacheStart = serviceWorker.indexOf('precacheAndRoute([');
 const precacheEnd = serviceWorker.indexOf('],{})', precacheStart);
@@ -57,6 +84,12 @@ const forbiddenHeavyFragments = [
   '"assets/monsters/r5/',
   '"assets/equipment/r5/',
   '"assets/equipment/sets/r5-crimson/',
+  '"assets/maps/r6.webp"',
+  '"assets/maps/chapter-6-',
+  '"assets/battlefields/chapter-6-',
+  '"assets/monsters/r6/',
+  '"assets/equipment/r6/',
+  '"assets/equipment/sets/r6-shadow/',
   '"assets/characters/modular/',
 ];
 for (const fragment of forbiddenHeavyFragments) {
@@ -65,7 +98,7 @@ for (const fragment of forbiddenHeavyFragments) {
     if (precache.includes(fragment)) fail('换装层误入首次预缓存');
     continue;
   }
-  if (precache.includes(fragment)) fail(`R5 重资产误入首次预缓存：${fragment}`);
+  if (precache.includes(fragment)) fail(`区域重资产误入首次预缓存：${fragment}`);
 }
 
 const r5MaterialIds = [
@@ -75,13 +108,20 @@ const r5MaterialIds = [
   'core_moltenheart',
   'frag_crimson',
 ];
-for (const itemId of r5MaterialIds) {
+const r6MaterialIds = [
+  'dust_statue',
+  'scroll_faded',
+  'wisp_shadow',
+  'stone_void',
+  'frag_shadow',
+];
+for (const itemId of [...r5MaterialIds, ...r6MaterialIds]) {
   const relativePath = `assets/items/${itemId}.png`;
   if (existsSync(resolve(root, 'public', relativePath)) && !precache.includes(`"${relativePath}"`)) {
-    fail(`已存在的 R5 材料小图未进入首次预缓存：${relativePath}`);
+    fail(`已存在的区域材料小图未进入首次预缓存：${relativePath}`);
   }
 }
 
 console.log(
-  `✓ PWA 缓存门禁通过：${r5CacheName} SWR/64 + ${r5SetCacheName} SWR/24，路由顺序正确，R5 重资产未预缓存`,
+  `✓ PWA 缓存门禁通过：R5 / R6 基础区均 SWR/64、套装区均 SWR/24，路由顺序正确，重资产未预缓存`,
 );

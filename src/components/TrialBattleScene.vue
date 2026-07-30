@@ -2,7 +2,6 @@
 import { computed, onUnmounted, ref, watch } from 'vue';
 import { FastForward, Shield, Sparkles, Swords, Timer } from '@lucide/vue';
 import type { ClassId } from '@/core/types';
-import type { CombatTimelineEvent } from '@/core/combat';
 import { abbr } from '@/core/format';
 import type { TrialRunResult, WeeklyTrialBoss } from '@/core/trial';
 import {
@@ -11,10 +10,20 @@ import {
   type CharacterAction,
   type EquippedRecord,
 } from '@/data/characterAppearance';
-import { basicBattleAction } from '@/data/battleMotions';
+import {
+  basicBattleAction,
+  impactTierFor,
+  requireImpactFeedback,
+  type ImpactTier,
+} from '@/data/battleMotions';
 import { battleRhythmSkills } from '@/data/skills';
 import { ELEMENT_LABELS, TRIAL_DURATION_SEC } from '@/data/trialRules';
 import { requireTrialVisual, TRIAL_PHASES, type TrialBossElement } from '@/data/trialVisuals';
+import {
+  createTrialPlaybackPlan,
+  type TrialPlaybackPlan,
+  type TrialPresentationBeat,
+} from '@/ui/trialPlayback';
 import CharacterAppearance from '@/components/CharacterAppearance.vue';
 
 const props = withDefaults(
@@ -39,12 +48,23 @@ const emit = defineEmits<{
 
 interface LiveFloat {
   id: number;
-  source: CombatTimelineEvent['source'];
+  source: TrialPresentationBeat['source'];
   damage: number;
   crit: boolean;
   miss: boolean;
   element: string;
   offset: number;
+  delay: number;
+  scale: number;
+  expiresAt: number;
+}
+
+interface ImpactBurst {
+  id: number;
+  side: 'hero' | 'boss';
+  tier: ImpactTier;
+  element: string;
+  expiresAt: number;
 }
 
 const visual = computed(() => requireTrialVisual(props.boss.tilt.id, props.boss.combatant.element));
@@ -66,28 +86,44 @@ const bossHp = ref(props.boss.combatant.stats.hp);
 const playerHp = ref(1);
 const heroAction = ref<CharacterAction>('idle');
 const heroSeq = ref(0);
-const bossPose = ref<'idle' | 'attack' | 'hit'>('idle');
+const bossPose = ref<'idle' | 'attack' | 'hit' | 'dodge'>('idle');
 const bossPoseSeq = ref(0);
 const currentEffectUrl = ref('');
 const currentEffectSeq = ref(0);
+const bossEffectSeq = ref(0);
 const signatureSeq = ref(0);
+const calloutText = ref('');
 const liveFloats = ref<LiveFloat[]>([]);
+const impactBursts = ref<ImpactBurst[]>([]);
 const impactSide = ref<'hero' | 'boss' | null>(null);
+const telegraphSide = ref<'hero' | 'boss' | null>(null);
+const impactTier = ref<ImpactTier>('light');
+const impactAlpha = ref(0);
+const damageScale = ref(1);
+const hitstop = ref(false);
+const phaseAnnouncement = ref('');
+const phaseAnnouncementSeq = ref(0);
 const canSkip = ref(false);
+const stageRef = ref<HTMLElement | null>(null);
 
 let frameId = 0;
 let finishTimer = 0;
-let playbackStartedAt = 0;
+let playbackPlan: TrialPlaybackPlan | null = null;
 let playbackDurationMs = 0;
-let eventCursor = 0;
-let directPlayerHits = 0;
+let playbackTimeMs = 0;
+let lastFrameAt = 0;
+let beatCursor = 0;
+let beatStage: 'waiting' | 'windup' | 'impact' = 'waiting';
 let directMonsterHits = 0;
 let floatSeq = 0;
+let burstSeq = 0;
 let completedKey = -1;
-let poseResetAt = 0;
 let effectResetAt = 0;
 let signatureResetAt = 0;
 let impactResetAt = 0;
+let hitstopResetAt = 0;
+let phaseAnnouncementResetAt = 0;
+let lastPhaseIndex = 0;
 let presentationHealing = 0;
 
 const playerMaxHp = computed(() => props.run?.playerHpMax ?? Math.max(1, playerHp.value));
@@ -120,6 +156,8 @@ const sceneStyle = computed(() => ({
   '--trial-glow': visual.value.glow,
   '--boss-scale': String(visual.value.bossScale),
   '--trial-progress': String(progressRatio.value),
+  '--impact-alpha': String(impactAlpha.value),
+  '--damage-scale': String(damageScale.value),
 }));
 
 watch(
@@ -152,9 +190,14 @@ function resetPreview(): void {
   heroAction.value = 'idle';
   bossPose.value = 'idle';
   liveFloats.value = [];
+  impactBursts.value = [];
   currentEffectUrl.value = '';
   impactSide.value = null;
+  telegraphSide.value = null;
+  hitstop.value = false;
+  phaseAnnouncement.value = '';
   canSkip.value = false;
+  playbackPlan = null;
 }
 
 function startPlayback(run: TrialRunResult): void {
@@ -170,42 +213,46 @@ function startPlayback(run: TrialRunResult): void {
   heroAction.value = 'idle';
   bossPose.value = 'idle';
   liveFloats.value = [];
+  impactBursts.value = [];
   currentEffectUrl.value = '';
   impactSide.value = null;
+  telegraphSide.value = null;
+  hitstop.value = false;
+  phaseAnnouncement.value = '';
   canSkip.value = false;
-  eventCursor = 0;
-  directPlayerHits = 0;
+  beatCursor = 0;
+  beatStage = 'waiting';
   directMonsterHits = 0;
+  lastPhaseIndex = 0;
   presentationHealing = Math.max(
     0,
     run.playerHpRemaining - Math.max(0, run.playerHpMax - run.damageTaken),
   );
-  playbackDurationMs = props.reduceMotion
-    ? Math.min(1_800, Math.max(600, run.durationSec * 1_000))
-    : Math.max(6_000, run.durationSec * 1_000);
-  playbackStartedAt = performance.now();
+  playbackPlan = createTrialPlaybackPlan(
+    run.timeline,
+    run.durationSec,
+    visual.value.motion,
+    props.reduceMotion,
+  );
+  playbackDurationMs = playbackPlan.durationMs;
+  playbackTimeMs = 0;
+  lastFrameAt = performance.now();
   frameId = requestAnimationFrame(playbackFrame);
 }
 
 function playbackFrame(now: number): void {
   const run = props.run;
-  if (!run || !running.value) return;
-  const progress = Math.min(1, Math.max(0, (now - playbackStartedAt) / playbackDurationMs));
-  if (!props.reduceMotion && now - playbackStartedAt >= 3_000) canSkip.value = true;
+  if (!run || !running.value || !playbackPlan) return;
+  const delta = Math.min(34, Math.max(0, now - lastFrameAt));
+  lastFrameAt = now;
+  playbackTimeMs = Math.min(playbackDurationMs, playbackTimeMs + delta);
+  const progress = Math.min(1, Math.max(0, playbackTimeMs / playbackDurationMs));
+  if (!props.reduceMotion && playbackTimeMs >= 3_000) canSkip.value = true;
   elapsedSec.value = run.durationSec * progress;
-  const targetCursor = Math.min(run.timeline.length, Math.floor(run.timeline.length * progress));
-  while (eventCursor < targetCursor) {
-    processEvent(run.timeline[eventCursor], eventCursor >= targetCursor - 5);
-    eventCursor++;
-  }
 
-  if (now >= poseResetAt) {
-    heroAction.value = 'idle';
-    bossPose.value = 'idle';
-  }
-  if (now >= effectResetAt) currentEffectUrl.value = '';
-  if (now >= signatureResetAt) signatureSeq.value = 0;
-  if (now >= impactResetAt) impactSide.value = null;
+  advanceBeat(playbackTimeMs);
+  updateTransientEffects(playbackTimeMs);
+  updatePhaseAnnouncement(playbackTimeMs);
 
   if (progress < 1) {
     frameId = requestAnimationFrame(playbackFrame);
@@ -214,83 +261,204 @@ function playbackFrame(now: number): void {
   finishPlayback(false);
 }
 
-function processEvent(event: CombatTimelineEvent, showFloat: boolean): void {
-  const damage = Math.max(0, event.event.damage);
-  const direct = event.event.kind === 'direct-damage';
-  const crit = event.event.kind === 'direct-damage' && event.event.crit;
-  const miss = event.event.kind === 'direct-damage' && !event.event.hit;
+function advanceBeat(nowMs: number): void {
+  const beat = playbackPlan?.beats[beatCursor];
+  if (!beat) return;
 
-  if (event.source === 'player') {
-    bossHp.value = Math.max(0, bossHp.value - damage);
-    score.value += damage;
+  if (beatStage === 'waiting' && nowMs >= beat.startMs) {
+    beginWindup(beat, nowMs);
+    beatStage = 'windup';
+    return;
+  }
+  if (beatStage === 'windup' && nowMs >= beat.impactMs) {
+    resolveImpact(beat, nowMs);
+    beatStage = 'impact';
+    return;
+  }
+  if (beatStage === 'impact' && nowMs >= beat.endMs) {
+    finishBeat();
+    beatCursor++;
+    beatStage = 'waiting';
+  }
+}
+
+function beginWindup(beat: TrialPresentationBeat, nowMs: number): void {
+  impactSide.value = null;
+  telegraphSide.value = beat.source === 'player' ? 'boss' : 'hero';
+
+  if (beat.source === 'player') {
+    const skill = skillForBeat(beat);
+    heroAction.value =
+      skill?.characterAction ?? basicBattleAction(props.classId, beat.playerHitOrdinal);
+    heroSeq.value++;
+    if (skill) {
+      calloutText.value = skill.name;
+      signatureSeq.value++;
+      signatureResetAt = beat.impactMs + 560;
+    }
+    return;
+  }
+
+  directMonsterHits++;
+  bossPose.value = 'attack';
+  bossPoseSeq.value++;
+  if (directMonsterHits % 3 === 0) {
+    calloutText.value = visual.value.signatureMove;
+    signatureSeq.value++;
+    signatureResetAt = beat.impactMs + 700;
+  }
+  if (props.reduceMotion) signatureResetAt = nowMs + 30;
+}
+
+function resolveImpact(beat: TrialPresentationBeat, nowMs: number): void {
+  const miss = !beat.direct.hit;
+  const crit = beat.direct.crit;
+  const tier = impactTierFor({ kind: beat.kind, crit });
+  const feedback = requireImpactFeedback(tier);
+  impactTier.value = tier;
+  impactAlpha.value = feedback.flashAlpha;
+  damageScale.value = feedback.damageScale;
+  telegraphSide.value = null;
+
+  if (beat.source === 'player') {
+    bossHp.value = Math.max(0, bossHp.value - beat.totalDamage);
+    score.value += beat.totalDamage;
     if (presentationHealing > 0 && props.run && props.run.damage > 0) {
       playerHp.value = Math.min(
         props.run.playerHpMax,
-        playerHp.value + presentationHealing * (damage / props.run.damage),
+        playerHp.value + presentationHealing * (beat.totalDamage / props.run.damage),
       );
     }
-    if (direct) {
-      directPlayerHits++;
-      const skill =
-        directPlayerHits % 5 === 0 && skills.value.length > 0
-          ? skills.value[(Math.floor(directPlayerHits / 5) - 1) % skills.value.length]
-          : null;
-      heroAction.value = skill
-        ? skill.characterAction
-        : basicBattleAction(props.classId, directPlayerHits);
-      heroSeq.value++;
-      bossPose.value = 'hit';
-      bossPoseSeq.value++;
-      currentEffectUrl.value = skill
-        ? `${import.meta.env.BASE_URL}${skill.effectAsset}`
-        : basicEffectUrl.value;
-      currentEffectSeq.value++;
-      impactSide.value = 'boss';
-      const now = performance.now();
-      poseResetAt = now + 520;
-      effectResetAt = now + 680;
-      impactResetAt = now + (crit ? 280 : 180);
-    }
+    bossPose.value = miss ? 'dodge' : 'hit';
+    bossPoseSeq.value++;
+    const skill = skillForBeat(beat);
+    currentEffectUrl.value = skill
+      ? `${import.meta.env.BASE_URL}${skill.effectAsset}`
+      : basicEffectUrl.value;
+    currentEffectSeq.value++;
+    effectResetAt = nowMs + (skill ? 620 : 420);
   } else {
-    playerHp.value = Math.max(0, playerHp.value - damage);
-    if (direct) {
-      directMonsterHits++;
-      bossPose.value = 'attack';
-      bossPoseSeq.value++;
+    playerHp.value = Math.max(0, playerHp.value - beat.totalDamage);
+    if (beat.recoveries.length > 0 && props.run) {
+      playerHp.value = Math.min(
+        props.run.playerHpMax,
+        playerHp.value +
+          beat.recoveries.reduce((sum, recovery) => sum + recovery.healing, 0),
+      );
+      calloutText.value = '幽影护命';
+      signatureSeq.value++;
+      signatureResetAt = nowMs + 720;
+    }
+    if (!miss) {
       heroAction.value = 'react';
       heroSeq.value++;
-      impactSide.value = 'hero';
-      if (directMonsterHits % 3 === 0) {
-        signatureSeq.value++;
-        signatureResetAt = performance.now() + 900;
-      }
-      const now = performance.now();
-      poseResetAt = now + 620;
-      impactResetAt = now + 220;
+    }
+    bossEffectSeq.value++;
+  }
+
+  if (!miss) {
+    impactSide.value = beat.source === 'player' ? 'boss' : 'hero';
+    impactResetAt = nowMs + Math.max(150, feedback.shakeMs);
+    impactBursts.value.push({
+      id: ++burstSeq,
+      side: impactSide.value,
+      tier,
+      element: beat.direct.element,
+      expiresAt: nowMs + (tier === 'ultimate' ? 620 : 430),
+    });
+    triggerCameraShake(feedback.shakePx, feedback.shakeMs);
+    if (!props.reduceMotion && feedback.hitstopMs > 0) {
+      hitstop.value = true;
+      hitstopResetAt = nowMs + feedback.hitstopMs;
     }
   }
 
-  if (!showFloat || props.reduceMotion) return;
-  liveFloats.value.push({
-    id: ++floatSeq,
-    source: event.source,
-    damage,
-    crit,
-    miss,
-    element: event.event.element,
-    offset: ((event.sequence * 37) % 42) - 21,
-  });
-  if (liveFloats.value.length > 7) liveFloats.value.shift();
+  pushDamageFloats(beat, feedback.damageScale, nowMs);
+}
+
+function finishBeat(): void {
+  heroAction.value = 'idle';
+  heroSeq.value++;
+  bossPose.value = 'idle';
+  bossPoseSeq.value++;
+  telegraphSide.value = null;
+}
+
+function skillForBeat(beat: TrialPresentationBeat) {
+  if (
+    beat.kind !== 'player-skill' ||
+    beat.direct.kind === 'periodic-damage' ||
+    skills.value.length === 0
+  ) return null;
+  const skillOrdinal = Math.floor(beat.playerHitOrdinal / 5) - 1;
+  return skills.value[skillOrdinal % skills.value.length]!;
+}
+
+function pushDamageFloats(beat: TrialPresentationBeat, feedbackScale: number, nowMs: number): void {
+  if (props.reduceMotion) return;
+  const segments = [beat.direct, ...beat.extras];
+  for (const [index, segment] of segments.entries()) {
+    const direct = segment.kind === 'direct-damage';
+    liveFloats.value.push({
+      id: ++floatSeq,
+      source: beat.source,
+      damage: Math.max(0, segment.damage),
+      crit: direct && segment.crit,
+      miss: direct && !segment.hit,
+      element: segment.element,
+      offset: ((beat.id * 37 + index * 19) % 42) - 21,
+      delay: index * 90,
+      scale: direct ? feedbackScale : 0.86,
+      expiresAt: nowMs + 1_050 + index * 90,
+    });
+  }
+  if (liveFloats.value.length > 10) {
+    liveFloats.value.splice(0, liveFloats.value.length - 10);
+  }
+}
+
+function triggerCameraShake(shakePx: number, shakeMs: number): void {
+  if (props.reduceMotion || shakePx <= 0 || shakeMs <= 0 || !stageRef.value) return;
+  stageRef.value.animate(
+    [
+      { transform: 'translate3d(0, 0, 0)' },
+      { transform: `translate3d(${-shakePx}px, ${Math.ceil(shakePx * 0.45)}px, 0)` },
+      {
+        transform: `translate3d(${Math.ceil(shakePx * 0.7)}px, ${-Math.ceil(shakePx * 0.3)}px, 0)`,
+      },
+      { transform: `translate3d(${-Math.ceil(shakePx * 0.35)}px, 0, 0)` },
+      { transform: 'translate3d(0, 0, 0)' },
+    ],
+    { duration: shakeMs, easing: 'cubic-bezier(.2,.8,.2,1)' },
+  );
+}
+
+function updateTransientEffects(nowMs: number): void {
+  if (nowMs >= effectResetAt) currentEffectUrl.value = '';
+  if (nowMs >= signatureResetAt) {
+    signatureSeq.value = 0;
+    calloutText.value = '';
+  }
+  if (nowMs >= impactResetAt) impactSide.value = null;
+  if (nowMs >= hitstopResetAt) hitstop.value = false;
+  if (nowMs >= phaseAnnouncementResetAt) phaseAnnouncement.value = '';
+  liveFloats.value = liveFloats.value.filter((item) => item.expiresAt > nowMs);
+  impactBursts.value = impactBursts.value.filter((item) => item.expiresAt > nowMs);
+}
+
+function updatePhaseAnnouncement(nowMs: number): void {
+  const nextIndex = Math.min(TRIAL_PHASES.length - 1, Math.floor(elapsedSec.value / 15));
+  if (nextIndex <= lastPhaseIndex) return;
+  lastPhaseIndex = nextIndex;
+  phaseAnnouncement.value = TRIAL_PHASES[nextIndex]!.label;
+  phaseAnnouncementSeq.value++;
+  phaseAnnouncementResetAt = nowMs + 1_250;
 }
 
 function finishPlayback(skip: boolean): void {
   const run = props.run;
   if (!run || completedKey === props.playbackKey) return;
   cancelAnimationFrame(frameId);
-  while (eventCursor < run.timeline.length) {
-    processEvent(run.timeline[eventCursor], false);
-    eventCursor++;
-  }
   elapsedSec.value = run.durationSec;
   score.value = run.damage;
   bossHp.value = run.bossHpRemaining;
@@ -299,7 +467,11 @@ function finishPlayback(skip: boolean): void {
   bossPose.value = 'idle';
   currentEffectUrl.value = '';
   liveFloats.value = [];
+  impactBursts.value = [];
   impactSide.value = null;
+  telegraphSide.value = null;
+  hitstop.value = false;
+  phaseAnnouncement.value = '';
   canSkip.value = false;
   running.value = false;
   completedKey = props.playbackKey;
@@ -346,16 +518,24 @@ function finishPlayback(skip: boolean): void {
     </div>
 
     <div
+      ref="stageRef"
       class="battle-stage"
       :class="{
         'impact-boss': impactSide === 'boss',
         'impact-hero': impactSide === 'hero',
+        'telegraph-boss': telegraphSide === 'boss',
+        'telegraph-hero': telegraphSide === 'hero',
+        hitstop,
+        [`impact-${impactTier}`]: impactSide,
       }"
     >
       <img class="scene-background" :src="sceneUrl" alt="" aria-hidden="true" />
       <span class="element-wash" aria-hidden="true" />
       <span class="mirror-ray ray-one" aria-hidden="true" />
       <span class="mirror-ray ray-two" aria-hidden="true" />
+      <span class="speed-lines" aria-hidden="true" />
+      <span class="telegraph-ring hero-ring" aria-hidden="true" />
+      <span class="telegraph-ring boss-ring" aria-hidden="true" />
       <span class="scene-vignette" aria-hidden="true" />
 
       <div class="trial-clock">
@@ -413,6 +593,22 @@ function finishPlayback(skip: boolean): void {
         :class="[`pose-${bossPose}`, `motion-${visual.motion}`]"
       >
         <span class="unit-shadow" aria-hidden="true" />
+        <img
+          v-if="bossPose === 'attack' && visual.motion === 'elusive'"
+          class="boss-afterimage afterimage-one"
+          :src="bossUrl"
+          alt=""
+          aria-hidden="true"
+          draggable="false"
+        />
+        <img
+          v-if="bossPose === 'attack' && visual.motion === 'elusive'"
+          class="boss-afterimage afterimage-two"
+          :src="bossUrl"
+          alt=""
+          aria-hidden="true"
+          draggable="false"
+        />
         <img :src="bossUrl" :alt="boss.name" draggable="false" />
       </div>
 
@@ -430,8 +626,47 @@ function finishPlayback(skip: boolean): void {
 
       <Transition name="callout">
         <span v-if="signatureSeq" :key="signatureSeq" class="signature-move">
-          {{ visual.signatureMove }}
+          {{ calloutText }}
         </span>
+      </Transition>
+
+      <Transition name="boss-strike">
+        <span
+          v-if="bossEffectSeq && impactSide === 'hero'"
+          :key="bossEffectSeq"
+          class="boss-strike"
+          aria-hidden="true"
+        >
+          <i />
+          <i />
+          <i />
+        </span>
+      </Transition>
+
+      <TransitionGroup name="burst" tag="div" class="burst-layer" aria-hidden="true">
+        <span
+          v-for="burst in impactBursts"
+          :key="burst.id"
+          class="impact-burst"
+          :class="[`burst-${burst.side}`, `burst-${burst.tier}`, `burst-${burst.element}`]"
+        >
+          <i class="burst-core" />
+          <i class="burst-ring ring-a" />
+          <i class="burst-ring ring-b" />
+          <b v-for="spark in 8" :key="spark" :style="{ '--spark-index': spark - 1 }" />
+        </span>
+      </TransitionGroup>
+
+      <Transition name="phase-callout">
+        <div
+          v-if="phaseAnnouncement"
+          :key="phaseAnnouncementSeq"
+          class="phase-announcement"
+          aria-live="polite"
+        >
+          <small>PHASE {{ phaseIndex + 1 }}</small>
+          <strong>{{ phaseAnnouncement }}</strong>
+        </div>
       </Transition>
 
       <TransitionGroup name="float" tag="div" class="float-layer" aria-hidden="true">
@@ -444,7 +679,11 @@ function finishPlayback(skip: boolean): void {
             `damage-${item.element}`,
             { crit: item.crit, miss: item.miss },
           ]"
-          :style="{ '--float-offset': `${item.offset}px` }"
+          :style="{
+            '--float-offset': `${item.offset}px`,
+            '--float-delay': `${item.delay}ms`,
+            '--float-scale': item.scale,
+          }"
         >
           <template v-if="item.miss">MISS</template>
           <template v-else
@@ -705,6 +944,79 @@ function finishPlayback(skip: boolean): void {
   transform: rotate(18deg);
 }
 
+.speed-lines {
+  position: absolute;
+  z-index: 6;
+  inset: -18%;
+  opacity: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    165deg,
+    transparent 0 13px,
+    rgb(255 255 255 / 0%) 13px 17px,
+    rgb(255 255 255 / 28%) 18px,
+    transparent 20px 33px
+  );
+  mix-blend-mode: screen;
+  transform: translate3d(-8%, 0, 0);
+}
+
+.telegraph-boss .speed-lines,
+.telegraph-hero .speed-lines {
+  opacity: 0.48;
+  animation: speed-line-charge 0.34s linear infinite;
+}
+
+.telegraph-ring {
+  position: absolute;
+  z-index: 7;
+  bottom: 11%;
+  width: 31%;
+  aspect-ratio: 1;
+  opacity: 0;
+  pointer-events: none;
+  border: 2px solid var(--trial-glow);
+  border-radius: 50%;
+  box-shadow:
+    0 0 7px var(--trial-glow),
+    inset 0 0 10px color-mix(in srgb, var(--trial-accent) 62%, transparent);
+  transform: scale(1.24) rotate(0);
+}
+
+.telegraph-ring::before,
+.telegraph-ring::after {
+  position: absolute;
+  content: '';
+  border: 1px solid color-mix(in srgb, var(--trial-glow) 72%, transparent);
+  border-radius: inherit;
+}
+
+.telegraph-ring::before {
+  inset: 10%;
+  border-style: dashed;
+}
+
+.telegraph-ring::after {
+  inset: 23%;
+  background: radial-gradient(circle, var(--trial-glow), transparent 62%);
+  border: 0;
+  filter: blur(4px);
+}
+
+.hero-ring {
+  left: 13%;
+}
+
+.boss-ring {
+  right: 11%;
+}
+
+.telegraph-hero .hero-ring,
+.telegraph-boss .boss-ring {
+  opacity: 0.72;
+  animation: telegraph-charge 0.46s cubic-bezier(0.2, 0.76, 0.32, 1) both;
+}
+
 .ray-one {
   left: 34%;
   animation: ray-sweep 6.8s ease-in-out infinite;
@@ -892,6 +1204,7 @@ function finishPlayback(skip: boolean): void {
   z-index: 8;
   bottom: -1%;
   transform-origin: 50% 100%;
+  will-change: transform, filter;
 }
 
 .hero-unit {
@@ -944,6 +1257,10 @@ function finishPlayback(skip: boolean): void {
   animation: boss-hit 0.34s ease-out both;
 }
 
+.boss-unit.pose-dodge img {
+  animation: boss-dodge 0.42s cubic-bezier(0.18, 0.8, 0.3, 1) both;
+}
+
 .boss-unit.pose-attack.motion-weighty img {
   animation: boss-slam 0.62s cubic-bezier(0.18, 0.78, 0.28, 1) both;
 }
@@ -954,6 +1271,29 @@ function finishPlayback(skip: boolean): void {
 
 .boss-unit.pose-attack.motion-fierce img {
   animation: boss-lunge 0.58s cubic-bezier(0.18, 0.78, 0.28, 1) both;
+}
+
+.boss-unit .boss-afterimage {
+  z-index: 1;
+  opacity: 0.3;
+  filter: saturate(1.25)
+    drop-shadow(0 0 8px color-mix(in srgb, var(--trial-accent) 74%, transparent));
+  mix-blend-mode: screen;
+}
+
+.boss-unit .afterimage-one {
+  animation: afterimage-one 0.48s ease-out both !important;
+}
+
+.boss-unit .afterimage-two {
+  animation: afterimage-two 0.52s ease-out 40ms both !important;
+}
+
+.hitstop .hero-unit,
+.hitstop .boss-unit img,
+.hitstop .hero-strike,
+.hitstop .boss-strike {
+  animation-play-state: paused !important;
 }
 
 .hero-strike {
@@ -967,6 +1307,165 @@ function finishPlayback(skip: boolean): void {
   pointer-events: none;
   filter: drop-shadow(0 0 8px rgb(255 255 255 / 78%))
     drop-shadow(0 0 13px color-mix(in srgb, var(--trial-accent) 72%, transparent));
+}
+
+.boss-strike {
+  position: absolute;
+  z-index: 19;
+  top: 38%;
+  left: 10%;
+  width: 42%;
+  height: 34%;
+  pointer-events: none;
+  filter: drop-shadow(0 0 7px var(--trial-glow));
+  transform: rotate(-12deg);
+}
+
+.boss-strike i {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 100%;
+  height: 5px;
+  background: linear-gradient(90deg, transparent, var(--trial-glow) 24% 72%, transparent);
+  border-radius: 999px;
+  box-shadow: 0 0 9px var(--trial-accent);
+}
+
+.boss-strike i:nth-child(1) {
+  transform: translateY(-13px) rotate(-7deg);
+}
+
+.boss-strike i:nth-child(2) {
+  transform: rotate(2deg);
+}
+
+.boss-strike i:nth-child(3) {
+  transform: translateY(13px) rotate(9deg);
+}
+
+.burst-layer {
+  position: absolute;
+  z-index: 27;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.impact-burst {
+  position: absolute;
+  width: 26%;
+  aspect-ratio: 1;
+  color: var(--trial-glow);
+  transform: translate(-50%, -50%);
+}
+
+.burst-boss {
+  top: 53%;
+  left: 76%;
+}
+
+.burst-hero {
+  top: 59%;
+  left: 27%;
+}
+
+.burst-core,
+.burst-ring {
+  position: absolute;
+  border-radius: 50%;
+}
+
+.burst-core {
+  inset: 31%;
+  background: radial-gradient(circle, #fff 0 18%, currentColor 38%, transparent 72%);
+  filter: blur(0.4px);
+  mix-blend-mode: screen;
+  animation: burst-core 0.36s ease-out both;
+}
+
+.burst-ring {
+  inset: 18%;
+  border: 2px solid currentColor;
+  box-shadow:
+    0 0 6px currentColor,
+    inset 0 0 6px currentColor;
+}
+
+.ring-a {
+  animation: burst-ring 0.42s cubic-bezier(0.16, 0.8, 0.3, 1) both;
+}
+
+.ring-b {
+  inset: 27%;
+  opacity: 0.7;
+  animation: burst-ring 0.46s cubic-bezier(0.16, 0.8, 0.3, 1) 55ms both;
+}
+
+.impact-burst b {
+  --spark-angle: calc(var(--spark-index) * 45deg);
+  position: absolute;
+  top: 49%;
+  left: 49%;
+  width: 25%;
+  height: 3px;
+  background: linear-gradient(90deg, currentColor, transparent);
+  border-radius: 999px;
+  box-shadow: 0 0 4px currentColor;
+  transform-origin: 0 50%;
+  animation: burst-spark 0.4s ease-out both;
+  animation-delay: calc(var(--spark-index) * 8ms);
+}
+
+.burst-heavy,
+.burst-critical {
+  width: 31%;
+}
+
+.burst-ultimate {
+  width: 38%;
+  color: #fff2a8;
+  filter: drop-shadow(0 0 8px var(--trial-accent));
+}
+
+.burst-fire {
+  color: #ffce93;
+}
+
+.burst-ice {
+  color: #d8f8ff;
+}
+
+.burst-thunder {
+  color: #eadcff;
+}
+
+.phase-announcement {
+  position: absolute;
+  z-index: 35;
+  top: 43%;
+  left: 50%;
+  min-width: 46%;
+  display: grid;
+  justify-items: center;
+  padding: 6px 19px 7px;
+  color: #fff;
+  text-align: center;
+  text-shadow: 0 2px 7px rgb(13 25 42 / 90%);
+  background: linear-gradient(90deg, transparent, rgb(27 38 65 / 80%) 18% 82%, transparent);
+  transform: translate(-50%, -50%);
+}
+
+.phase-announcement small {
+  font-size: 7px;
+  font-weight: 900;
+  letter-spacing: 0.2em;
+  color: var(--trial-glow);
+}
+
+.phase-announcement strong {
+  font-size: 14px;
+  letter-spacing: 0.09em;
 }
 
 .signature-move {
@@ -999,6 +1498,7 @@ function finishPlayback(skip: boolean): void {
     0 1px 0 rgb(68 46 22 / 88%),
     0 0 6px rgb(255 220 127 / 72%);
   animation: damage-rise 0.92s ease-out both;
+  animation-delay: var(--float-delay);
 }
 
 .damage-float.to-boss {
@@ -1013,7 +1513,7 @@ function finishPlayback(skip: boolean): void {
 }
 
 .damage-float.crit {
-  font-size: 14px;
+  font-size: calc(11px * var(--float-scale));
   color: #ffe576;
   text-shadow:
     0 1px 0 rgb(98 54 12 / 90%),
@@ -1094,11 +1594,19 @@ function finishPlayback(skip: boolean): void {
 }
 
 .impact-boss::after {
-  background: radial-gradient(circle at 76% 55%, rgb(255 255 255 / 28%), transparent 24%);
+  background: radial-gradient(
+    circle at 76% 55%,
+    rgb(255 255 255 / calc(var(--impact-alpha) * 0.58)),
+    transparent 25%
+  );
 }
 
 .impact-hero::after {
-  background: radial-gradient(circle at 26% 60%, rgb(255 112 137 / 24%), transparent 24%);
+  background: radial-gradient(
+    circle at 26% 60%,
+    rgb(255 112 137 / calc(var(--impact-alpha) * 0.46)),
+    transparent 25%
+  );
 }
 
 .battle-readout {
@@ -1159,6 +1667,23 @@ function finishPlayback(skip: boolean): void {
   transform: translate3d(10%, -5%, 0) scale(1.16);
 }
 
+.boss-strike-enter-active,
+.boss-strike-leave-active {
+  transition:
+    opacity 0.16s ease,
+    transform 0.22s ease;
+}
+
+.boss-strike-enter-from {
+  opacity: 0;
+  transform: translate3d(34%, -8%, 0) rotate(-12deg) scale(0.72);
+}
+
+.boss-strike-leave-to {
+  opacity: 0;
+  transform: translate3d(-16%, 4%, 0) rotate(-12deg) scale(1.12);
+}
+
 .callout-enter-active,
 .callout-leave-active {
   transition:
@@ -1170,6 +1695,27 @@ function finishPlayback(skip: boolean): void {
 .callout-leave-to {
   opacity: 0;
   transform: translateX(16px);
+}
+
+.phase-callout-enter-active,
+.phase-callout-leave-active {
+  transition:
+    opacity 0.24s ease,
+    transform 0.36s cubic-bezier(0.16, 0.8, 0.3, 1);
+}
+
+.phase-callout-enter-from,
+.phase-callout-leave-to {
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(1.18);
+}
+
+.burst-leave-active {
+  transition: opacity 0.14s ease;
+}
+
+.burst-leave-to {
+  opacity: 0;
 }
 
 .float-leave-active {
@@ -1210,6 +1756,29 @@ function finishPlayback(skip: boolean): void {
   }
 }
 
+@keyframes speed-line-charge {
+  from {
+    transform: translate3d(-8%, 0, 0);
+  }
+  to {
+    transform: translate3d(8%, 0, 0);
+  }
+}
+
+@keyframes telegraph-charge {
+  0% {
+    opacity: 0;
+    transform: scale(1.28) rotate(-24deg);
+  }
+  64% {
+    opacity: 0.88;
+  }
+  100% {
+    opacity: 0.32;
+    transform: scale(0.68) rotate(28deg);
+  }
+}
+
 @keyframes boss-breathe {
   0%,
   100% {
@@ -1232,6 +1801,20 @@ function finishPlayback(skip: boolean): void {
   100% {
     transform: translateX(0) rotate(0);
     filter: brightness(1);
+  }
+}
+
+@keyframes boss-dodge {
+  0%,
+  100% {
+    transform: translateX(0) skewX(0);
+  }
+  34% {
+    opacity: 0.56;
+    transform: translateX(16px) skewX(-4deg);
+  }
+  62% {
+    transform: translateX(10px) skewX(2deg);
   }
 }
 
@@ -1283,18 +1866,91 @@ function finishPlayback(skip: boolean): void {
   }
 }
 
-@keyframes damage-rise {
+@keyframes afterimage-one {
   0% {
     opacity: 0;
-    transform: translateY(6px) scale(0.72);
+    transform: translateX(0);
   }
-  18% {
-    opacity: 1;
-    transform: translateY(0) scale(1.08);
+  36% {
+    opacity: 0.34;
+    transform: translateX(14px);
   }
   100% {
     opacity: 0;
-    transform: translateY(-36px) scale(0.94);
+    transform: translateX(-22px);
+  }
+}
+
+@keyframes afterimage-two {
+  0% {
+    opacity: 0;
+    transform: translateX(4px);
+  }
+  42% {
+    opacity: 0.22;
+    transform: translateX(24px);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-13px);
+  }
+}
+
+@keyframes burst-core {
+  0% {
+    opacity: 0;
+    transform: scale(0.18);
+  }
+  22% {
+    opacity: 1;
+    transform: scale(1.28);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.85);
+  }
+}
+
+@keyframes burst-ring {
+  0% {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+  28% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.75);
+  }
+}
+
+@keyframes burst-spark {
+  0% {
+    opacity: 0;
+    transform: rotate(var(--spark-angle)) translateX(3px) scaleX(0.18);
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(var(--spark-angle)) translateX(39px) scaleX(1);
+  }
+}
+
+@keyframes damage-rise {
+  0% {
+    opacity: 0;
+    transform: translateY(6px) scale(calc(var(--float-scale) * 0.72));
+  }
+  18% {
+    opacity: 1;
+    transform: translateY(0) scale(calc(var(--float-scale) * 1.08));
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-36px) scale(calc(var(--float-scale) * 0.94));
   }
 }
 

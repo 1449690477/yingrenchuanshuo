@@ -84,6 +84,19 @@ const TEST_SETS: Readonly<Record<string, EquipmentSetDefinition>> = {
         label: '甲八件',
         description: '平均技能倍率 +0.12',
         skillMultiplierBonus: 0.12,
+        onCritTriggers: [
+          {
+            id: 'set_alpha:bleed',
+            kind: 'crit-periodic-damage',
+            healMaxHpRatio: 0.03,
+            statusId: 'bleed',
+            atkMultiplierPerTick: 0.08,
+            ticks: 4,
+            durationSec: 4,
+            maxStacks: 1,
+            refresh: 'duration',
+          },
+        ],
       },
     ],
   },
@@ -169,6 +182,19 @@ describe('通用装备套装共鸣', () => {
         chance: 0.25,
         atkMultiplier: 1.1,
         element: 'fire',
+      },
+    ]);
+    expect(eight.onCritTriggers).toEqual([
+      {
+        id: 'set_alpha:bleed',
+        kind: 'crit-periodic-damage',
+        healMaxHpRatio: 0.03,
+        statusId: 'bleed',
+        atkMultiplierPerTick: 0.08,
+        ticks: 4,
+        durationSec: 4,
+        maxStacks: 1,
+        refresh: 'duration',
       },
     ]);
     expect(eight.skillMultiplierBonus).toBe(0.12);
@@ -276,6 +302,43 @@ describe('通用装备套装共鸣', () => {
         () => limitedSet,
       ),
     ).toThrow('触发概率');
+  });
+
+  it('暴击持续伤害必须使用可均分的整数毫秒时钟', () => {
+    const invalid: EquipmentSetDefinition = {
+      id: 'set_invalid_dot',
+      name: '非法流血套',
+      pieceSlots: ['ring', 'bracelet'],
+      bonuses: [
+        {
+          pieces: 2,
+          label: '非法流血',
+          description: '测试',
+          onCritTriggers: [
+            {
+              id: 'bad-dot',
+              kind: 'crit-periodic-damage',
+              healMaxHpRatio: 0.03,
+              statusId: 'bleed',
+              atkMultiplierPerTick: 0.08,
+              ticks: 3,
+              durationSec: 1,
+              maxStacks: 1,
+              refresh: 'duration',
+            },
+          ],
+        },
+      ],
+    };
+    const allowed = equipmentDef('invalid_dot_ring', invalid.id);
+
+    expect(() =>
+      resolveEquipmentSetBonuses(
+        [instance(allowed.id, 'e1'), instance(allowed.id, 'e2')],
+        () => allowed,
+        () => invalid,
+      ),
+    ).toThrow('均分为整数毫秒');
   });
 
   it('核心实现不依赖任何具体 data 表', () => {

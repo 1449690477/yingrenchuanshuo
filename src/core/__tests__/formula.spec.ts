@@ -3,6 +3,7 @@ import {
   addStats,
   calcConfirmedElementalDamage,
   calcDamage,
+  calcPeriodicDamage,
   clamp,
   combatBonusDamageMultiplier,
   combatPower,
@@ -219,6 +220,31 @@ describe('确认命中后的追加元素伤害', () => {
       1_000 * 1.2 * 0.5 * 0.8 * 1.37,
       8,
     );
+  });
+});
+
+describe('持续伤害单跳', () => {
+  it('不读取命中、暴击或 RNG，只走防御、减伤与指定元素', () => {
+    const attacker = makePlayer(
+      '流血来源',
+      10,
+      stats({ atk: 1_000, acc: 0, critRate: 100, critDmg: 999 }),
+      'none',
+      bonuses({ elementDamage: { fire: 12 } }),
+    );
+    const defender = makePlayer(
+      '冰目标',
+      10,
+      stats({ def: K_DEF * 10, eva: 999_999 }),
+      'ice',
+      bonuses({ damageReduction: 20 }),
+    );
+
+    expect(calcPeriodicDamage(attacker, defender, 0.8, 'fire')).toBeCloseTo(
+      1_000 * 0.8 * 0.5 * 0.8 * 1.37,
+      8,
+    );
+    expect(() => calcPeriodicDamage(attacker, defender, -0.1)).toThrow('非负有限数');
   });
 });
 

@@ -11,13 +11,15 @@
 export {
   buildTrialCombatant,
   canonicalBuildHash,
+  decideTrialScoreWrite,
   runTrial,
   trialBracketFor,
-  trialPlausibilityCap,
+  trialEquipmentSnapshotIssue,
   trialScoreSeed,
   trialWeekIndex,
   weeklyTrialBoss,
   type TrialBuild,
+  type TrialScoreWriteDecision,
   type TrialRunResult,
 } from '@/core/trial';
 export { equipmentInstanceSchema } from '@/save/schema';

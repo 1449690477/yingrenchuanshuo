@@ -12,6 +12,7 @@ import { requireEquipment } from './equipment';
 import { equipmentPresentation } from './equipmentPresentation';
 import { BOUTIQUE_THEME_LIST, BOUTIQUE_THEMES, boutiqueAppearanceId } from './boutique';
 import { QUALITY_RANK } from './constants';
+import { ARENA_EQUIPMENT_LIST } from './arenaEquipment';
 import {
   EQUIPMENT_DUNGEON_TIERS,
   equipmentDungeonAppearanceId,
@@ -254,6 +255,30 @@ function buildRegion5SetAppearances(): Record<string, EquipmentAppearance> {
   return out;
 }
 
+function buildRegion6SetAppearances(): Record<string, EquipmentAppearance> {
+  const out: Record<string, EquipmentAppearance> = {};
+  for (const slot of ['body', 'head', 'weapon'] as const) {
+    const id = `r6-set-${slot}`;
+    out[id] = {
+      id,
+      slot,
+      renderMode: 'layer',
+      assets: Object.fromEntries(
+        CLASS_IDS.map((classId) => [
+          classId,
+          `assets/characters/modular/${classId}/r6-shadow-${slot}.png`,
+        ]),
+      ) as Record<ClassId, string>,
+      transforms: alignedTransforms,
+    };
+  }
+  for (const slot of ['necklace', 'bracelet', 'ring', 'belt', 'shoes'] as const) {
+    const id = `r6-set-${slot}`;
+    out[id] = { id, slot, renderMode: 'slot-only' };
+  }
+  return out;
+}
+
 /**
  * R5 普通八部位与绯焰六件套的完整外观注册表。
  *
@@ -266,6 +291,30 @@ export const REGION_5_EQUIPMENT_APPEARANCES: Readonly<
   ...buildRegionAppearances(['r5']),
   ...buildRegion5SetAppearances(),
 };
+
+export const REGION_6_EQUIPMENT_APPEARANCES: Readonly<
+  Record<string, EquipmentAppearance>
+> = {
+  ...buildRegionAppearances(['r6']),
+  ...buildRegion6SetAppearances(),
+};
+
+/**
+ * 圣痕装备（竞技场）：四槽统一 slot-only
+ * —— 图标完整显示在装备槽里，人物立绘不变。
+ * 换装层是第二批工作（docs/53 §2.4），落地后在这里升级为 layer。
+ */
+function buildArenaAppearances(): Record<string, EquipmentAppearance> {
+  const out: Record<string, EquipmentAppearance> = {};
+  for (const definition of ARENA_EQUIPMENT_LIST) {
+    out[definition.appearanceId] = {
+      id: definition.appearanceId,
+      slot: definition.slot,
+      renderMode: 'slot-only',
+    };
+  }
+  return out;
+}
 
 /**
  * 装备定义到运行时外观的显式注册表。
@@ -348,9 +397,11 @@ export const EQUIPMENT_APPEARANCES: Readonly<Record<string, EquipmentAppearance>
     ]),
   ),
   ...REGION_5_EQUIPMENT_APPEARANCES,
+  ...REGION_6_EQUIPMENT_APPEARANCES,
 
   ...buildBoutiqueAppearances(),
   ...buildEquipmentDungeonAppearances(),
+  ...buildArenaAppearances(),
 };
 
 export const CHARACTER_BASE_ASSETS: Readonly<Record<ClassId, string>> = {

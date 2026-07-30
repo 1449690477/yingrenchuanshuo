@@ -17,8 +17,23 @@ export const REGION_5_SET_CACHE_NAME = 'region-set-r5-v1';
 export const REGION_5_SET_URL_PATTERN =
   /\/assets\/(?:equipment\/sets\/r5-crimson\/.+|characters\/modular\/(?:swordsman|witch|shaman|catkin)\/r5-crimson-(?:body|head|weapon)\.png)$/;
 
+export const REGION_6_RUNTIME_HEAVY_ASSET_COUNT = 55;
+export const REGION_6_RUNTIME_CACHE_MAX_ENTRIES = 64;
+export const REGION_6_RUNTIME_CACHE_NAME = 'region-content-r6-v1';
+export const REGION_6_RUNTIME_URL_PATTERN =
+  /\/assets\/(?:maps\/(?:r6|chapter-6-\d+)\.webp|battlefields\/chapter-6-\d+\.webp|(?:monsters|equipment)\/r6\/.+|characters\/modular\/(?:swordsman|witch|shaman|catkin)\/r6-(?:body|head|weapon)\.png)$/;
+export const REGION_6_SET_RUNTIME_ASSET_COUNT = 20;
+export const REGION_6_SET_CACHE_MAX_ENTRIES = 24;
+export const REGION_6_SET_CACHE_NAME = 'region-set-r6-v1';
+export const REGION_6_SET_URL_PATTERN =
+  /\/assets\/(?:equipment\/sets\/r6-shadow\/.+|characters\/modular\/(?:swordsman|witch|shaman|catkin)\/r6-shadow-(?:body|head|weapon)\.png)$/;
+
 export function isRegion5RuntimeAssetPath(pathname: string): boolean {
   return REGION_5_RUNTIME_URL_PATTERN.test(pathname);
+}
+
+export function isRegion6RuntimeAssetPath(pathname: string): boolean {
+  return REGION_6_RUNTIME_URL_PATTERN.test(pathname);
 }
 
 export function createRegion5RuntimeCacheRule() {
@@ -57,6 +72,40 @@ export function createRegion5SetCacheRule() {
       expiration: {
         maxEntries: REGION_5_SET_CACHE_MAX_ENTRIES,
       },
+    },
+  };
+}
+
+export function createRegion6RuntimeCacheRule() {
+  if (REGION_6_RUNTIME_HEAVY_ASSET_COUNT > REGION_6_RUNTIME_CACHE_MAX_ENTRIES) {
+    throw new Error(
+      `[PWA 配置错误] R6 重资产 ${REGION_6_RUNTIME_HEAVY_ASSET_COUNT} 项超过缓存上限 ${REGION_6_RUNTIME_CACHE_MAX_ENTRIES}`,
+    );
+  }
+  return {
+    urlPattern: REGION_6_RUNTIME_URL_PATTERN,
+    handler: 'StaleWhileRevalidate' as const,
+    options: {
+      cacheName: REGION_6_RUNTIME_CACHE_NAME,
+      cacheableResponse: { statuses: [0, 200] },
+      expiration: { maxEntries: REGION_6_RUNTIME_CACHE_MAX_ENTRIES },
+    },
+  };
+}
+
+export function createRegion6SetCacheRule() {
+  if (REGION_6_SET_RUNTIME_ASSET_COUNT > REGION_6_SET_CACHE_MAX_ENTRIES) {
+    throw new Error(
+      `[PWA 配置错误] R6 套装重资产 ${REGION_6_SET_RUNTIME_ASSET_COUNT} 项超过缓存上限 ${REGION_6_SET_CACHE_MAX_ENTRIES}`,
+    );
+  }
+  return {
+    urlPattern: REGION_6_SET_URL_PATTERN,
+    handler: 'StaleWhileRevalidate' as const,
+    options: {
+      cacheName: REGION_6_SET_CACHE_NAME,
+      cacheableResponse: { statuses: [0, 200] },
+      expiration: { maxEntries: REGION_6_SET_CACHE_MAX_ENTRIES },
     },
   };
 }

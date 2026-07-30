@@ -24,6 +24,8 @@ const REGION_WEAPON_APPEARANCES = [
   'r4-weapon',
   'r5-weapon',
   'r5-set-weapon',
+  'r6-weapon',
+  'r6-set-weapon',
 ] as const;
 
 const HAND_ANCHORS: Readonly<
@@ -135,7 +137,14 @@ describe('装备职业表现与手部对位', () => {
         );
         if (
           classId === 'catkin' &&
-          ['r1-weapon', 'r3-weapon', 'r5-weapon', 'r5-set-weapon'].includes(appearanceId)
+          [
+            'r1-weapon',
+            'r3-weapon',
+            'r5-weapon',
+            'r5-set-weapon',
+            'r6-weapon',
+            'r6-set-weapon',
+          ].includes(appearanceId)
         ) {
           expect(
             counts.every((count) => count > 150),

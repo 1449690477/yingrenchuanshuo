@@ -264,6 +264,39 @@ describe('绯焰套通用碎片自选重铸面板', () => {
     expect(inventory.craftEquipmentSetPiece).not.toHaveBeenCalled();
   });
 
+  it('同一图鉴管线接入幽影八槽、四来源与 2/4/6/8 件真实效果', async () => {
+    app?.unmount();
+    app = null;
+    inventory.bag.items = { frag_shadow: 55 };
+    inventory.bag.equipment = [];
+    for (const slot of Object.keys(inventory.equipped) as EquipSlot[]) {
+      inventory.equipped[slot] = null;
+    }
+    app = createApp({
+      render: () =>
+        h(CrimsonForgePanel, {
+          recipeId: 'craft_set_shadow',
+          onCrafted,
+        }),
+    });
+    app.mount(host!);
+    await flushUi();
+
+    expect(document.body.textContent).toContain('幽影祀塔 · 套装图鉴');
+    expect(document.body.textContent).toContain('幽影重铸台');
+    expect(document.body.textContent).toContain('55/55');
+    await openForge();
+
+    expect(document.querySelector('.forge-sheet.is-shadow')).not.toBeNull();
+    expect(document.querySelectorAll('.slot-choice')).toHaveLength(8);
+    expect(document.body.textContent).toContain('幽影祭司');
+    expect(document.body.textContent).toContain('幽影教主·诺瓦');
+    expect(document.body.textContent).toContain('生命 +10%');
+    expect(document.body.textContent).toContain('伤害减免 +6%');
+    expect(document.body.textContent).toContain('暴击伤害 +20%');
+    expect(document.body.textContent).toContain('回复 30% 最大生命');
+  });
+
   it('保持竖屏安全区、极窄屏布局、减弱动效和成熟焦点陷阱门禁', async () => {
     const source = await Promise.all([import('node:fs/promises'), import('node:path')]).then(
       ([{ readFile }, { resolve }]) =>

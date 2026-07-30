@@ -20,6 +20,8 @@ const FAMILIES = [
   { appearanceId: 'r4-weapon', layerName: 'r4-weapon' },
   { appearanceId: 'r5-weapon', layerName: 'r5-weapon' },
   { appearanceId: 'r5-set-weapon', layerName: 'r5-crimson-weapon' },
+  { appearanceId: 'r6-weapon', layerName: 'r6-weapon' },
+  { appearanceId: 'r6-set-weapon', layerName: 'r6-shadow-weapon' },
 ];
 const ICON_SIZE = 256;
 const MAX_ICON_BYTES = 82 * 1024;

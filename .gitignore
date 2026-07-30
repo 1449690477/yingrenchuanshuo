@@ -37,3 +37,6 @@ tmp-*.jpg
 
 # Edge Function 打包产物（npm run edge:build 重新生成）
 supabase/functions/submit-trial/_core.ts
+
+# Supabase CLI 本地链接与版本缓存
+supabase/.temp/

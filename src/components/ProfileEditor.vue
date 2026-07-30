@@ -10,6 +10,7 @@
  */
 import { computed, ref, watch } from 'vue';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { ClassId } from '@/core/types';
 import { AVATAR_ACCEPT, compressAvatar } from '@/ui/imageResize';
 import {
   fetchOwnProfile,
@@ -18,10 +19,12 @@ import {
   uploadAvatar,
   type PlayerProfile,
 } from '@/net/profile';
+import ProfileAvatar from '@/components/ProfileAvatar.vue';
 
 const props = defineProps<{
   client: SupabaseClient;
   userId: string;
+  classId: ClassId;
   /** 没填过档案时用它作为昵称初值，省得玩家从空白开始 */
   fallbackName: string;
 }>();
@@ -42,10 +45,19 @@ const fileInput = ref<HTMLInputElement | null>(null);
 const nameLeft = computed(() => NAME_MAX - [...displayName.value].length);
 const bioLeft = computed(() => BIO_MAX - [...bio.value].length);
 const canSave = computed(
-  () => !busy.value && displayName.value.trim().length > 0 && nameLeft.value >= 0 && bioLeft.value >= 0,
+  () =>
+    !busy.value && displayName.value.trim().length > 0 && nameLeft.value >= 0 && bioLeft.value >= 0,
 );
 
 const acceptAttr = AVATAR_ACCEPT.join(',');
+
+function currentProfile(): PlayerProfile {
+  return {
+    displayName: displayName.value.trim() || props.fallbackName,
+    bio: bio.value.trim() || null,
+    avatarUrl: avatarUrl.value,
+  };
+}
 
 watch(
   () => props.userId,
@@ -79,6 +91,7 @@ async function onPickFile(event: Event): Promise<void> {
     const { blob } = await compressAvatar(file);
     avatarUrl.value = await uploadAvatar(props.client, props.userId, blob);
     feedback.value = '头像已更新';
+    emit('saved', currentProfile());
   } catch (error) {
     feedback.value = error instanceof Error ? error.message : '头像上传失败';
   } finally {
@@ -92,6 +105,7 @@ async function onRemoveAvatar(): Promise<void> {
     await removeAvatar(props.client, props.userId);
     avatarUrl.value = null;
     feedback.value = '已移除头像';
+    emit('saved', currentProfile());
   } catch (error) {
     feedback.value = error instanceof Error ? error.message : '移除失败';
   } finally {
@@ -107,11 +121,7 @@ async function onSave(): Promise<void> {
       displayName: displayName.value,
       bio: bio.value,
     });
-    emit('saved', {
-      displayName: displayName.value.trim(),
-      bio: bio.value.trim() || null,
-      avatarUrl: avatarUrl.value,
-    });
+    emit('saved', currentProfile());
     emit('close');
   } catch (error) {
     feedback.value = error instanceof Error ? error.message : '保存失败';
@@ -134,35 +144,51 @@ async function onSave(): Promise<void> {
       <template v-else>
         <div class="avatar-row">
           <div class="avatar-frame">
-            <img v-if="avatarUrl" :src="avatarUrl" alt="当前头像" />
-            <span v-else aria-hidden="true">＋</span>
+            <ProfileAvatar
+              :avatar-url="avatarUrl"
+              :class-id="classId"
+              :alt="`${displayName || fallbackName}的榜单头像`"
+            />
           </div>
           <div class="avatar-actions">
             <button class="btn sm" :disabled="busy" @click="fileInput?.click()">
               {{ avatarUrl ? '换一张' : '上传头像' }}
             </button>
-            <button v-if="avatarUrl" class="btn btn-plain sm" :disabled="busy" @click="onRemoveAvatar">
+            <button
+              v-if="avatarUrl"
+              class="btn btn-plain sm"
+              :disabled="busy"
+              @click="onRemoveAvatar"
+            >
               移除
             </button>
             <small>JPG / PNG / WebP，会自动压缩</small>
           </div>
-          <input
-            ref="fileInput"
-            type="file"
-            :accept="acceptAttr"
-            hidden
-            @change="onPickFile"
-          />
+          <input ref="fileInput" type="file" :accept="acceptAttr" hidden @change="onPickFile" />
         </div>
 
         <label class="field">
-          <span>昵称<em :class="{ over: nameLeft < 0 }">还可输入 {{ nameLeft }} 字</em></span>
-          <input v-model="displayName" type="text" :maxlength="NAME_MAX" placeholder="给自己起个名字" />
+          <span
+            >昵称<em :class="{ over: nameLeft < 0 }">还可输入 {{ nameLeft }} 字</em></span
+          >
+          <input
+            v-model="displayName"
+            type="text"
+            :maxlength="NAME_MAX"
+            placeholder="给自己起个名字"
+          />
         </label>
 
         <label class="field">
-          <span>简介<em :class="{ over: bioLeft < 0 }">还可输入 {{ bioLeft }} 字</em></span>
-          <textarea v-model="bio" :maxlength="BIO_MAX" rows="2" placeholder="一句话介绍自己（可留空）" />
+          <span
+            >简介<em :class="{ over: bioLeft < 0 }">还可输入 {{ bioLeft }} 字</em></span
+          >
+          <textarea
+            v-model="bio"
+            :maxlength="BIO_MAX"
+            rows="2"
+            placeholder="一句话介绍自己（可留空）"
+          />
         </label>
 
         <p v-if="feedback" class="hint" role="status">{{ feedback }}</p>
@@ -218,10 +244,11 @@ async function onSave(): Promise<void> {
   border-radius: 50%;
 }
 
-.avatar-frame img {
+.avatar-frame :deep(.profile-avatar) {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  border: 0;
+  box-shadow: none;
 }
 
 .avatar-actions {

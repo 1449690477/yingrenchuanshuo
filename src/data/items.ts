@@ -5,6 +5,7 @@
 
 import { REGION_34_MATERIALS } from './region34';
 import { REGION_5_MATERIALS, type Region5MaterialSpec } from './region5';
+import { REGION_6_MATERIALS, type Region6MaterialSpec } from './region6';
 
 export type ItemKind = 'material' | 'consumable' | 'currency' | 'fragment';
 
@@ -40,7 +41,7 @@ function mat(
   };
 }
 
-function region5Item(spec: Region5MaterialSpec): ItemDef {
+function regionSetItem(spec: Region5MaterialSpec | Region6MaterialSpec): ItemDef {
   return {
     id: spec.id,
     name: spec.name,
@@ -150,8 +151,51 @@ export const ITEMS: Record<string, ItemDef> = {
   // ── 区域 5：熔岩神殿 ──
   // frag_crimson 是套装碎片，不属于 ChapterSpec.materials，必须保留 fragment 类型。
   ...Object.fromEntries(
-    REGION_5_MATERIALS.map((spec) => [spec.id, region5Item(spec)]),
+    REGION_5_MATERIALS.map((spec) => [spec.id, regionSetItem(spec)]),
   ),
+
+  // ── 区域 6：幽影祀塔 ──
+  ...Object.fromEntries(
+    REGION_6_MATERIALS.map((spec) => [spec.id, regionSetItem(spec)]),
+  ),
+
+  // ── 竞技场（docs/53 §二/§四）──
+  honor_sigil: {
+    id: 'honor_sigil',
+    name: '荣誉印记',
+    kind: 'currency',
+    tier: 'epic',
+    desc: '竞技场的荣耀铸成的印记，可在荣誉商店兑换圣痕装备。',
+    icon: 'assets/items/honor_sigil.png',
+    sellPrice: 0,
+  },
+  box_starlight: {
+    id: 'box_starlight',
+    name: '星辉匣',
+    kind: 'consumable',
+    tier: 'rare',
+    desc: '竞技场每日结算的嘉奖，盛着星辉般的小惊喜。',
+    icon: 'assets/items/box_starlight.png',
+    sellPrice: 0,
+  },
+  box_sacred: {
+    id: 'box_sacred',
+    name: '圣痕匣',
+    kind: 'consumable',
+    tier: 'legendary',
+    desc: '绯樱段位以上才有的重赏，装着通往圣痕套的碎片。',
+    icon: 'assets/items/box_sacred.png',
+    sellPrice: 0,
+  },
+  frag_stigma: {
+    id: 'frag_stigma',
+    name: '圣痕碎片',
+    kind: 'fragment',
+    tier: 'legendary',
+    desc: '圣痕装备崩解后的碎片，40 枚可在荣誉商店任选一件圣痕装备。',
+    icon: 'assets/items/frag_stigma.png',
+    sellPrice: 0,
+  },
 
   // ── 消耗品 ──
   potion_hp_s: {

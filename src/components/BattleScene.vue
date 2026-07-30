@@ -597,7 +597,12 @@ onUnmounted(() => {
       >
         <span class="actor-shadow" aria-hidden="true" />
         <div class="enemy-actor">
-          <MonsterArtwork :key="enemyActorKey" :monster="monster" :action="enemyAction" />
+          <MonsterArtwork
+            :key="enemyActorKey"
+            :monster="monster"
+            :action="enemyAction"
+            :awakening="spawning"
+          />
         </div>
         <span class="actor-name enemy-name">{{ monster.name }}</span>
       </div>

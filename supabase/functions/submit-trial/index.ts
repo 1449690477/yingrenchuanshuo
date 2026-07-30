@@ -11,8 +11,7 @@
  * 务实分级（§6.3 威胁模型）：
  *   L1 服务端复算伤害            ✅ 本函数
  *   L2 装备结构/取值 schema 校验  ✅ equipmentInstanceSchema
- *   L3 战力合理性上界            ✅ 超出标 verified=false
- *   L4 账号年龄合理性            ✅ 同上
+ *   L3 等级/职业/词条公式硬校验   ✅ trialEquipmentSnapshotIssue
  *   L5 服务端权威存档            ❌ 后续阶段（伪造「合法但未获得的装备」挡不住）
  *
  * 部署前必须先运行：npm run edge:build（生成 _core.ts）
@@ -23,12 +22,13 @@ import { z } from 'zod';
 import {
   buildTrialCombatant,
   CLASS_IDS,
+  decideTrialScoreWrite,
   equipmentInstanceSchema,
   getEquipment,
   runTrial,
   SLOT_ORDER,
   trialBracketFor,
-  trialPlausibilityCap,
+  trialEquipmentSnapshotIssue,
   trialScoreSeed,
   trialWeekIndex,
   weeklyTrialBoss,
@@ -94,15 +94,22 @@ Deno.serve(async (req: Request) => {
       return json({ error: '分段与等级不符' }, 400);
     }
 
-    // 槽位与职业限制（schema 只保证单件合法，不保证穿在对的位置）
+    // 槽位、等级、职业与词条公式硬限制（schema 只保证单件基础结构）
     for (let i = 0; i < SLOT_ORDER.length; i++) {
       const inst = sub.equipped[i];
       if (!inst) continue;
       const def = getEquipment(inst.defId);
       if (!def) return json({ error: '装备定义不存在' }, 400);
       if (def.slot !== SLOT_ORDER[i]) return json({ error: '装备槽位不符' }, 400);
-      if (def.classId && def.classId !== sub.classId) {
-        return json({ error: '装备职业限制不符' }, 400);
+      const snapshotIssue = trialEquipmentSnapshotIssue(inst, sub.classId, sub.level);
+      if (snapshotIssue) {
+        const issueMessages: Record<typeof snapshotIssue, string> = {
+          'unknown-equipment': '装备定义不存在',
+          'equipment-level': '装备等级超过角色等级',
+          'equipment-class': '装备职业限制不符',
+          'affix-value': '装备词条数值不符合生成公式',
+        };
+        return json({ error: issueMessages[snapshotIssue] }, 400);
       }
     }
 
@@ -117,36 +124,60 @@ Deno.serve(async (req: Request) => {
     const seed = trialScoreSeed(sub.seasonId, sub.weekIndex, sub.bracketId, build.buildHash);
     const damage = runTrial(build, boss.combatant, seed).damage;
 
-    // ── 4. 合理性（L3/L4：不封号，只移出榜单展示，避免误伤）──
-    let verified = true;
-    if (build.combatPower > trialPlausibilityCap(sub.level, sub.classId)) verified = false;
-    const accountAgeMs = Date.now() - new Date(user.created_at).getTime();
-    if (sub.level >= 100 && accountAgeMs < 3 * 86_400_000) verified = false;
+    // ── 4. 审核结论 ──
+    // 走到这里的快照已通过全部可证明的硬校验，伤害也由服务端亲自复算。
+    // 匿名账号创建时间不等于玩家存档年龄；平均战力也不等于合法上限。
+    // 两者都不能作为拒绝真实成绩的证据。
+    const verified = true;
 
     // ── 5. 写入（service role；成绩表对客户端无写权限）──
     const admin = createClient(supabaseUrl, serviceKey);
-    await admin.from('profiles').upsert({
-      id: user.id,
-      display_name: sub.displayName,
+    const profileProgress = {
       class_id: sub.classId,
       level: sub.level,
       combat_power: build.combatPower,
       updated_at: new Date().toISOString(),
-    });
+    };
+    const { error: createProfileError } = await admin.from('profiles').upsert(
+      {
+        id: user.id,
+        // 只在首次建档时使用角色名；已有档案的自设昵称绝不能被成绩上传覆盖。
+        display_name: sub.displayName,
+        ...profileProgress,
+      },
+      { onConflict: 'id', ignoreDuplicates: true },
+    );
+    if (createProfileError) return json({ error: '档案初始化失败' }, 500);
+
+    const { error: updateProfileError } = await admin
+      .from('profiles')
+      .update(profileProgress)
+      .eq('id', user.id);
+    if (updateProfileError) return json({ error: '档案同步失败' }, 500);
 
     const { data: existing } = await admin
       .from('trial_scores')
-      .select('id, damage')
+      .select('id, damage, verified')
       .eq('user_id', user.id)
       .eq('season_id', sub.seasonId)
       .eq('week_index', sub.weekIndex)
       .eq('bracket_id', sub.bracketId)
       .maybeSingle();
 
-    // 永不倒退：只保留每人每周每分段的最好成绩
-    let improved = false;
-    if (!existing) {
-      await admin.from('trial_scores').insert({
+    // 永不倒退：只保留每人每周每分段的最好成绩。
+    // 同分重提可修复旧版错误阈值留下的 verified=false，不允许低分洗白高分。
+    const decision = decideTrialScoreWrite(
+      existing
+        ? {
+            damage: Number(existing.damage),
+            verified: existing.verified === true,
+          }
+        : null,
+      damage,
+      verified,
+    );
+    if (decision.action === 'insert') {
+      const { error: scoreError } = await admin.from('trial_scores').insert({
         user_id: user.id,
         season_id: sub.seasonId,
         week_index: sub.weekIndex,
@@ -156,9 +187,9 @@ Deno.serve(async (req: Request) => {
         build_hash: build.buildHash,
         verified,
       });
-      improved = true;
-    } else if (damage > Number(existing.damage)) {
-      await admin
+      if (scoreError) return json({ error: '成绩写入失败' }, 500);
+    } else if (decision.action === 'replace') {
+      const { error: scoreError } = await admin
         .from('trial_scores')
         .update({
           damage,
@@ -167,14 +198,23 @@ Deno.serve(async (req: Request) => {
           created_at: new Date().toISOString(),
         })
         .eq('id', existing.id);
-      improved = true;
+      if (scoreError) return json({ error: '成绩更新失败' }, 500);
+    } else if (decision.action === 'reverify') {
+      const { error: scoreError } = await admin
+        .from('trial_scores')
+        .update({
+          build_hash: build.buildHash,
+          verified: true,
+          created_at: new Date().toISOString(),
+        })
+        .eq('id', existing.id);
+      if (scoreError) return json({ error: '成绩复核状态更新失败' }, 500);
     }
-    const bestDamage = improved ? damage : Number((existing as { damage: number }).damage);
 
     // ── 6. 名次（同职业子榜内；未通过复核不入榜）──
     let rank = 0;
     let total = 0;
-    if (verified) {
+    if (decision.bestVerified) {
       const board = () =>
         admin
           .from('trial_scores')
@@ -185,12 +225,18 @@ Deno.serve(async (req: Request) => {
           .eq('class_id', sub.classId)
           .eq('verified', true);
       const { count: totalCount } = await board();
-      const { count: betterCount } = await board().gt('damage', bestDamage);
+      const { count: betterCount } = await board().gt('damage', decision.bestDamage);
       rank = (betterCount ?? 0) + 1;
       total = totalCount ?? 0;
     }
 
-    return json({ damage: bestDamage, rank, total, verified, improved });
+    return json({
+      damage: decision.bestDamage,
+      rank,
+      total,
+      verified: decision.bestVerified,
+      improved: decision.improved,
+    });
   } catch (error) {
     return json({ error: `服务端复算失败：${(error as Error).message}` }, 500);
   }

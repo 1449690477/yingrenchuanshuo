@@ -1,10 +1,16 @@
 import type { MonsterMotionProfile } from './battleMotions';
 import { REGION_34_MONSTER_MOTIONS } from './region34';
 import { REGION_5_MONSTER_MOTIONS } from './region5';
+import {
+  REGION_6_MONSTER_MOTIONS,
+  REGION_6_STATUE_MONSTER_IDS,
+} from './region6';
 
 export interface MonsterVisual {
   asset: string;
   motion: MonsterMotionProfile;
+  /** 石像怪入场静止、首次受击苏醒；仅表现，不改变结算。 */
+  statueAwaken?: boolean;
 }
 
 function buildRegion34MonsterVisuals(): Record<string, MonsterVisual> {
@@ -45,6 +51,20 @@ export const REGION_5_MONSTER_VISUALS: Readonly<Record<string, MonsterVisual>> =
     ]),
   );
 
+const REGION_6_STATUE_MONSTER_ID_SET = new Set<string>(REGION_6_STATUE_MONSTER_IDS);
+
+export const REGION_6_MONSTER_VISUALS: Readonly<Record<string, MonsterVisual>> =
+  Object.fromEntries(
+    Object.entries(REGION_6_MONSTER_MOTIONS).map(([id, motion]) => [
+      id,
+      {
+        asset: `assets/monsters/r6/${id}.webp`,
+        motion,
+        ...(REGION_6_STATUE_MONSTER_ID_SET.has(id) ? { statueAwaken: true } : {}),
+      },
+    ]),
+  );
+
 /**
  * 已完成制作和校验的怪物素材注册表。
  * 未进入本表的怪物会直接报配置错误，禁止用文字占位掩盖资源漏接。
@@ -54,6 +74,7 @@ export const MONSTER_VISUALS: Readonly<Record<string, MonsterVisual>> = {
   // 展开前 REGION_34_MONSTER_VISUALS 只作为待启用注册表存在。
   ...REGION_34_MONSTER_VISUALS,
   ...REGION_5_MONSTER_VISUALS,
+  ...REGION_6_MONSTER_VISUALS,
   'mon_1-1_0': { asset: 'assets/monsters/r1/mon_1-1_0.webp', motion: 'flutter' },
   'mon_1-1_1': { asset: 'assets/monsters/r1/mon_1-1_1.webp', motion: 'hopper' },
   'mon_1-1_2': { asset: 'assets/monsters/r1/mon_1-1_2.webp', motion: 'flutter' },

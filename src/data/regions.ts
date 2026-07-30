@@ -11,6 +11,7 @@
 import type { Element } from '@/core/types';
 import { REGION_34 } from './region34';
 import { REGION_5 } from './region5';
+import { REGION_6 } from './region6';
 
 export interface ChapterSpec {
   /** 章节号，如 '1-3' */
@@ -215,6 +216,7 @@ export const REGIONS: RegionSpec[] = [
   REGION_2,
   ...REGION_34,
   REGION_5,
+  REGION_6,
 ];
 
 /** 每章的关卡数 */

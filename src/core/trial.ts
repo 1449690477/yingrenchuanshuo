@@ -17,7 +17,11 @@ import type { ClassId, Combatant, CombatBonuses, EquipmentInstance, Stats } from
 import { Rng } from './rng';
 import { addStats, combatPower } from './formula';
 import { estimateDps, simulateFight, type CombatTimelineEvent } from './combat';
-import { type OnHitElementalDamageTrigger } from './equipmentSets';
+import type {
+  OnCritPeriodicDamageTrigger,
+  OnHitElementalDamageTrigger,
+  OnLethalRecoveryTrigger,
+} from './equipmentSets';
 import {
   applyClassMods,
   averageSkillMultiplier,
@@ -28,14 +32,15 @@ import {
 } from './progression';
 import {
   addCombatBonuses,
+  isRolledAffixValue,
   totalEquipCombatBonuses,
   totalEquipStats,
   weaponElementOf,
 } from './equipment';
 import { applyEquipmentSetStats, resolveEquipmentSetBonuses } from './equipmentSets';
 import { getEquipment, requireEquipment } from '@/data/equipment';
-import { getEquipmentSet } from '@/data/equipmentSets';
-import { expectedFullGearCp, expectedGearStats, typicalQualityAt } from '@/data/expectedPower';
+import { getEquipmentSet, getFieldEquipmentSet } from '@/data/equipmentSets';
+import { expectedGearStats, typicalQualityAt } from '@/data/expectedPower';
 import {
   CRIT_RATE_CAP,
   MONSTER_ACC_BASE,
@@ -230,15 +235,118 @@ export interface TrialBuildInput {
   level: number;
   /** 8 槽位穿戴实例，顺序必须与 SLOT_ORDER 一致；未穿戴为 null */
   equipped: readonly (EquipmentInstance | null)[];
+  /**
+   * 竞技场对决构建置 true：圣痕套效果只在竞技场内生效（docs/53 §六），
+   * 此时用全量套装查询；缺省 false 走 PvE 空效果查询（试炼/挂机一致）。
+   */
+  arena?: boolean;
 }
 
 export interface TrialBuild {
   combatant: Combatant;
   skillMultiplier: number;
   onHitTriggers: readonly OnHitElementalDamageTrigger[];
+  onLethalTriggers: readonly OnLethalRecoveryTrigger[];
+  onCritTriggers: readonly OnCritPeriodicDamageTrigger[];
   combatPower: number;
   /** 搭配哈希：提交服务端查重与成绩种子的输入之一 */
   buildHash: string;
+}
+
+export type TrialEquipmentSnapshotIssue =
+  | 'unknown-equipment'
+  | 'equipment-level'
+  | 'equipment-class'
+  | 'affix-value';
+
+/**
+ * 服务端对单件试炼装备做可证明的合法性检查。
+ *
+ * 客户端存档不是服务端权威数据，因此服务端无法判断一件“结构完全合法”的
+ * 装备是否真的掉落过；它能可靠判断的只有定义、穿戴等级、职业归属与词条
+ * 是否可能由当前公式产生。这里不使用“同级平均战力 × 经验倍率”之类启发式
+ * 上限，因为强化、洗练和套装本来就允许真实玩家大幅超过平均值。
+ */
+export function trialEquipmentSnapshotIssue(
+  instance: EquipmentInstance,
+  classId: ClassId,
+  playerLevel: number,
+): TrialEquipmentSnapshotIssue | null {
+  const definition = getEquipment(instance.defId);
+  if (!definition) return 'unknown-equipment';
+  if (definition.level > playerLevel) return 'equipment-level';
+  if (definition.classId && definition.classId !== classId) return 'equipment-class';
+
+  for (const affix of instance.affixes) {
+    if (!isRolledAffixValue(affix.key, definition.level, affix.tier, affix.value)) {
+      return 'affix-value';
+    }
+  }
+  return null;
+}
+
+export type TrialScoreWriteAction = 'insert' | 'replace' | 'reverify' | 'keep';
+
+export interface ExistingTrialScore {
+  damage: number;
+  verified: boolean;
+}
+
+export interface TrialScoreWriteDecision {
+  action: TrialScoreWriteAction;
+  bestDamage: number;
+  bestVerified: boolean;
+  improved: boolean;
+}
+
+/**
+ * 决定本次服务端复算结果如何写回“每周最好成绩”。
+ *
+ * 特别处理 `reverify`：旧版错误的经验战力上限可能把真实成绩存成
+ * verified=false。玩家用同一搭配重提、服务端得到完全相同的伤害后，应当
+ * 原地恢复审核状态；较低的新成绩绝不能借此洗白较高的旧成绩。
+ */
+export function decideTrialScoreWrite(
+  existing: ExistingTrialScore | null,
+  candidateDamage: number,
+  candidateVerified: boolean,
+): TrialScoreWriteDecision {
+  if (!Number.isSafeInteger(candidateDamage) || candidateDamage < 0) {
+    throw new Error(`[试炼] 候选伤害必须是非负安全整数，收到 ${candidateDamage}`);
+  }
+  if (!existing) {
+    return {
+      action: 'insert',
+      bestDamage: candidateDamage,
+      bestVerified: candidateVerified,
+      improved: true,
+    };
+  }
+  if (!Number.isSafeInteger(existing.damage) || existing.damage < 0) {
+    throw new Error(`[试炼] 已有伤害必须是非负安全整数，收到 ${existing.damage}`);
+  }
+  if (candidateDamage > existing.damage) {
+    return {
+      action: 'replace',
+      bestDamage: candidateDamage,
+      bestVerified: candidateVerified,
+      improved: true,
+    };
+  }
+  if (candidateDamage === existing.damage && candidateVerified && !existing.verified) {
+    return {
+      action: 'reverify',
+      bestDamage: existing.damage,
+      bestVerified: true,
+      improved: false,
+    };
+  }
+  return {
+    action: 'keep',
+    bestDamage: existing.damage,
+    bestVerified: existing.verified,
+    improved: false,
+  };
 }
 
 /**
@@ -257,7 +365,12 @@ export function buildTrialCombatant(input: TrialBuildInput): TrialBuild {
   const equipped = [...input.equipped];
   const base = baseStatsFor(input.classId, input.level);
   const equipStats = totalEquipStats(equipped, getEquipment, input.classId);
-  const setResolution = resolveEquipmentSetBonuses(equipped, getEquipment, getEquipmentSet);
+  const setResolution = resolveEquipmentSetBonuses(
+    equipped,
+    getEquipment,
+    // 圣痕套只在竞技场内生效（docs/53 §六）：对决构建用全量查询，试炼走空效果查询
+    input.arena ? getEquipmentSet : getFieldEquipmentSet,
+  );
   const combined = applyEquipmentSetStats(addStats(base, equipStats), setResolution);
   combined.critRate = Math.min(CRIT_RATE_CAP, combined.critRate);
   const stats = applyClassMods(input.classId, combined);
@@ -273,6 +386,8 @@ export function buildTrialCombatant(input: TrialBuildInput): TrialBuild {
     combatant: makePlayer(input.name, input.level, stats, element, bonuses),
     skillMultiplier: averageSkillMultiplier(input.level) + setResolution.skillMultiplierBonus,
     onHitTriggers: setResolution.onHitTriggers,
+    onLethalTriggers: setResolution.onLethalTriggers,
+    onCritTriggers: setResolution.onCritTriggers,
     combatPower: combatPower(stats),
     buildHash: canonicalBuildHash(input.equipped),
   };
@@ -338,6 +453,8 @@ export function runTrial(build: TrialBuild, boss: Combatant, seed: number): Tria
     maxSeconds: TRIAL_DURATION_SEC,
     playerSkillMultiplier: build.skillMultiplier,
     playerOnHitTriggers: build.onHitTriggers,
+    playerOnLethalTriggers: build.onLethalTriggers,
+    playerOnCritTriggers: build.onCritTriggers,
   });
   return {
     damage: Math.max(0, Math.round(result.damageDealt)),
@@ -364,12 +481,4 @@ export function upperPercentText(rank: number, total: number): string {
   if (total <= 0 || rank <= 0) return '—';
   const pct = Math.max(1, Math.ceil((Math.min(rank, total) / total) * 100));
   return `上位 ${pct}%`;
-}
-
-/**
- * 战力合理性上界（docs/51 §6.3 L3）：
- * 超过「同级满配战力 × 倍率」的成绩标记待审并移出榜单展示，不封号。
- */
-export function trialPlausibilityCap(level: number, classId: ClassId): number {
-  return expectedFullGearCp(level, classId) * 1.6;
 }

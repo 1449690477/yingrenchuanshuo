@@ -9,6 +9,25 @@ import type { Element } from '@/core/types';
 export type TrialBossElement = Exclude<Element, 'none'>;
 export type TrialBossMotion = 'weighty' | 'elusive' | 'fierce';
 
+export interface TrialMotionTiming {
+  /** Boss 从开始蓄力到真正命中的时间。 */
+  windupMs: number;
+  /** 命中后回到待机姿态所需的时间。 */
+  recoveryMs: number;
+}
+
+/**
+ * 三类试炼 Boss 的动作重量集中登记。
+ *
+ * 这些值只控制演出，不参与战斗结算。沉重型需要更长的预备动作，
+ * 诡谲型出手更快，狂攻型介于二者之间。
+ */
+export const TRIAL_MOTION_TIMINGS: Readonly<Record<TrialBossMotion, TrialMotionTiming>> = {
+  weighty: { windupMs: 455, recoveryMs: 330 },
+  elusive: { windupMs: 285, recoveryMs: 245 },
+  fierce: { windupMs: 350, recoveryMs: 270 },
+};
+
 export interface TrialVisual {
   sceneAsset: string;
   bossAsset: string;
@@ -116,4 +135,12 @@ export function requireTrialVisual(tiltId: string, element: Element): TrialVisua
     arenaName: '镜界试炼场',
     ...ELEMENT_STYLE[element],
   };
+}
+
+export function requireTrialMotionTiming(motion: TrialBossMotion): TrialMotionTiming {
+  const timing = TRIAL_MOTION_TIMINGS[motion];
+  if (!timing) {
+    throw new Error(`[试炼表现] 未登记 Boss 动作节奏：${String(motion)}`);
+  }
+  return timing;
 }

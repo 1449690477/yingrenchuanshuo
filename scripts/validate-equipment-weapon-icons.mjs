@@ -10,6 +10,8 @@ const APPEARANCE_IDS = [
   'r4-weapon',
   'r5-weapon',
   'r5-set-weapon',
+  'r6-weapon',
+  'r6-set-weapon',
 ];
 const MAX_ICON_BYTES = 82 * 1024;
 
