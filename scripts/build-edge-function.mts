@@ -27,6 +27,7 @@ const FUNCTIONS = [
   'arena-challenge',
   'arena-daily-settle',
   'arena-shop-buy',
+  'guild-expedition',
 ] as const;
 
 for (const name of FUNCTIONS) {
@@ -160,3 +161,5 @@ if (duelKey(duelFromGenerated) !== duelKey(duelFromSource)) {
   process.exit(1);
 }
 console.log(`✓ 对决确定性自检通过：打包产物与 src/core 胜负一致（${duelKey(duelFromSource)}）`);
+
+await import('./guild-edge-self-check.mts');

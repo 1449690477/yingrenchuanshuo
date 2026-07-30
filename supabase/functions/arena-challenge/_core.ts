@@ -630,15 +630,16 @@ function resolveEquipmentSetBonuses(equipped, defOf, setDefOf) {
     if (!equipmentDefinition) {
       throw new Error(`[\u914D\u7F6E\u9519\u8BEF] \u88C5\u5907\u5B9A\u4E49\u4E0D\u5B58\u5728\uFF1A${instance.defId}`);
     }
-    if (!equipmentDefinition.setId) continue;
-    const cachedDefinition = definitions.get(equipmentDefinition.setId);
-    const setDefinition = cachedDefinition ?? setDefOf(equipmentDefinition.setId);
+    const setId = instance.imprintSetId ?? equipmentDefinition.setId;
+    if (!setId) continue;
+    const cachedDefinition = definitions.get(setId);
+    const setDefinition = cachedDefinition ?? setDefOf(setId);
     if (!setDefinition) {
-      throw new Error(`[\u914D\u7F6E\u9519\u8BEF] \u88C5\u5907\u5F15\u7528\u4E86\u672A\u767B\u8BB0\u5957\u88C5\uFF1A${equipmentDefinition.setId}`);
+      throw new Error(`[\u914D\u7F6E\u9519\u8BEF] \u88C5\u5907\u5F15\u7528\u4E86\u672A\u767B\u8BB0\u5957\u88C5\uFF1A${setId}`);
     }
-    if (setDefinition.id !== equipmentDefinition.setId) {
+    if (setDefinition.id !== setId) {
       throw new Error(
-        `[\u914D\u7F6E\u9519\u8BEF] \u5957\u88C5\u67E5\u8BE2\u952E\u4E0E\u5B9A\u4E49 ID \u4E0D\u4E00\u81F4\uFF1A${equipmentDefinition.setId} / ${setDefinition.id}`
+        `[\u914D\u7F6E\u9519\u8BEF] \u5957\u88C5\u67E5\u8BE2\u952E\u4E0E\u5B9A\u4E49 ID \u4E0D\u4E00\u81F4\uFF1A${setId} / ${setDefinition.id}`
       );
     }
     if (!setDefinition.pieceSlots.includes(equipmentDefinition.slot)) {
@@ -9658,7 +9659,7 @@ var AFFECTION_RULES = {
 };
 
 // src/save/schema.ts
-var SAVE_VERSION = 12;
+var SAVE_VERSION = 13;
 var classIdSchema = z.enum(CLASS_IDS);
 var qualitySchema = z.enum(QUALITY_ORDER);
 var affectionMoodSchema = z.enum(["calm", "bright", "shy", "moved", "playful"]);
@@ -9727,6 +9728,10 @@ var equipmentInstanceSchema = z.object({
   affixes: z.array(affixSchema),
   reforgeResonance: z.number().int().min(0).max(20),
   pendingAffixChange: pendingAffixChangeSchema.optional(),
+  // 套装烙印（docs/58 v13）：必须指向已登记套装，防止悬空引用进档
+  imprintSetId: z.string().min(1).refine((setId) => getEquipmentSet(setId) !== void 0, {
+    message: "\u70D9\u5370\u5F15\u7528\u4E86\u672A\u767B\u8BB0\u7684\u5957\u88C5"
+  }).optional(),
   locked: z.boolean()
 }).strict().superRefine((instance, ctx) => {
   for (let index = 0; index < instance.enhance; index++) {

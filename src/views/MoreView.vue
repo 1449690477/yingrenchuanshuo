@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed, nextTick, ref } from 'vue';
-import { Coins, ShoppingBag, Sparkles } from '@lucide/vue';
+import { Castle, Coins, ShoppingBag, Sparkles, Users } from '@lucide/vue';
 import { abbr, duration } from '@/core/format';
 import { usePlayerStore } from '@/stores/player';
 import { useSettingsStore } from '@/stores/settings';
 import type { SaveData } from '@/save/schema';
 import { downloadSave, importFromJson } from '@/save/storage';
 import ShopView from '@/views/ShopView.vue';
+import GuildView from '@/views/GuildView.vue';
 import CollapsibleCard from '@/components/CollapsibleCard.vue';
 
 const player = usePlayerStore();
@@ -18,6 +19,9 @@ const pendingImport = ref<SaveData | null>(null);
 const showShop = ref(false);
 const shopLeaving = ref(false);
 const shopEntryButton = ref<HTMLButtonElement | null>(null);
+const showGuild = ref(false);
+const guildLeaving = ref(false);
+const guildEntryButton = ref<HTMLButtonElement | null>(null);
 const shopSceneUrl = `${import.meta.env.BASE_URL}assets/shops/sakura-boutique.webp`;
 
 const stats = computed(() => settings.saveData?.stats ?? null);
@@ -42,6 +46,16 @@ function closeShop() {
   showShop.value = false;
 }
 
+function openGuild() {
+  guildLeaving.value = false;
+  showGuild.value = true;
+}
+
+function closeGuild() {
+  guildLeaving.value = true;
+  showGuild.value = false;
+}
+
 function updateHaptics(event: Event) {
   settings.setHaptics((event.currentTarget as HTMLInputElement).checked);
 }
@@ -50,6 +64,12 @@ async function afterShopLeave() {
   shopLeaving.value = false;
   await nextTick();
   shopEntryButton.value?.focus();
+}
+
+async function afterGuildLeave() {
+  guildLeaving.value = false;
+  await nextTick();
+  guildEntryButton.value?.focus();
 }
 
 async function onFile(e: Event) {
@@ -93,8 +113,8 @@ function say(text: string, ok: boolean) {
   <div class="more scroll-y">
     <div
       class="more-content"
-      :inert="showShop || shopLeaving"
-      :aria-hidden="showShop || shopLeaving ? 'true' : undefined"
+      :inert="showShop || shopLeaving || showGuild || guildLeaving"
+      :aria-hidden="showShop || shopLeaving || showGuild || guildLeaving ? 'true' : undefined"
     >
       <button
         ref="shopEntryButton"
@@ -114,6 +134,24 @@ function say(text: string, ok: boolean) {
         <span class="boutique-cta" aria-hidden="true">
           <ShoppingBag :size="15" />
           进入小店
+        </span>
+      </button>
+      <button
+        ref="guildEntryButton"
+        type="button"
+        class="guild-entry"
+        aria-label="进入樱庭公会"
+        @click="openGuild"
+      >
+        <span class="guild-entry-crest"><Castle :size="24" /></span>
+        <span class="guild-entry-copy">
+          <small>异步共享世界 · 不影响挂机</small>
+          <strong>樱庭公会</strong>
+          <span>和旅伴共同挑战每周首领，首版只积累荣誉与据点故事。</span>
+        </span>
+        <span class="guild-entry-cta" aria-hidden="true">
+          <Users :size="15" />
+          进入公会
         </span>
       </button>
 
@@ -221,7 +259,6 @@ function say(text: string, ok: boolean) {
           <span class="chip">成就 · M4-7</span>
           <span class="chip">图鉴 · M4-8</span>
           <span class="chip">排行榜 · M7-4</span>
-          <span class="chip">公会 · M8-3</span>
         </div>
       </CollapsibleCard>
 
@@ -234,6 +271,10 @@ function say(text: string, ok: boolean) {
 
     <Transition name="page-up" @after-leave="afterShopLeave">
       <ShopView v-if="showShop" @close="closeShop" />
+    </Transition>
+
+    <Transition name="page-up" @after-leave="afterGuildLeave">
+      <GuildView v-if="showGuild" @close="closeGuild" />
     </Transition>
   </div>
 </template>
@@ -573,6 +614,78 @@ function say(text: string, ok: boolean) {
   100% {
     transform: translate3d(420%, 0, 0) skewX(-18deg);
   }
+}
+
+.guild-entry {
+  position: relative;
+  min-height: 6.5rem;
+  display: grid;
+  grid-template-columns: 2.8rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.65rem;
+  width: 100%;
+  overflow: hidden;
+  padding: 0.8rem;
+  color: #fff;
+  text-align: left;
+  background:
+    radial-gradient(circle at 82% 20%, rgb(255 255 255 / 22%), transparent 28%),
+    linear-gradient(135deg, #6f9fbe, #86b4cf 52%, #df89ab);
+  border: 1px solid rgb(255 255 255 / 78%);
+  border-radius: var(--r);
+  box-shadow: 0 0.5rem 1.1rem rgb(68 100 126 / 15%);
+  transition: transform var(--t-fast) var(--ease-spring);
+}
+
+.guild-entry:active {
+  transform: scale(0.985);
+}
+
+.guild-entry-crest {
+  width: 2.8rem;
+  height: 2.8rem;
+  display: grid;
+  place-items: center;
+  color: #7383a0;
+  background: rgb(255 255 255 / 92%);
+  border-radius: 0.85rem;
+  box-shadow: 0 0.3rem 0.7rem rgb(43 68 90 / 18%);
+}
+
+.guild-entry-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+  text-shadow: 0 1px 4px rgb(38 57 73 / 45%);
+}
+
+.guild-entry-copy small {
+  font-size: 0.62rem;
+  opacity: 0.85;
+}
+.guild-entry-copy strong {
+  font-size: 1rem;
+}
+.guild-entry-copy > span {
+  font-size: 0.67rem;
+  line-height: 1.45;
+  opacity: 0.9;
+}
+
+.guild-entry-cta {
+  min-width: 5.2rem;
+  min-height: 2.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  padding: 0 0.55rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  color: #6b6178;
+  background: rgb(255 255 255 / 92%);
+  border-radius: 0.75rem;
 }
 
 @media (prefers-reduced-motion: reduce) {
