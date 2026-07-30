@@ -76,14 +76,19 @@ export interface StageKillProgress {
 /**
  * 推进关卡击杀数，并把 BOSS 关转换为可重复的完整波次循环。
  *
- * 普通关通关后保持满进度；BOSS 关通关后保存 0..target-1 的循环余数，
- * 因此刷新页面或离线结算后仍能从正确位置继续，而不是把 BOSS 掉落表
- * 错误地应用到最终关卡的每一只普通怪。
+ * 波次循环长度（cycleLength）与首通目标解耦（docs/56 §8）：
+ * 首通目标 = cycleLength × clearCycles。未通关阶段波次照常循环 ——
+ * BOSS/精英按原节奏出场掉落，每小时经济与通关前后完全一致；
+ * 变的只有「要打满多少轮才算通」。
+ *
+ * 普通关通关后保持一轮满进度；BOSS 关通关后保存 0..cycleLength-1 的
+ * 循环余数，因此刷新页面或离线结算后仍能从正确位置继续。
  */
 export function advanceStageKillProgress(
   currentKills: number,
   addedKills: number,
-  target: number,
+  cycleLength: number,
+  clearCycles: number,
   alreadyCleared: boolean,
   hasBoss: boolean,
 ): StageKillProgress {
@@ -93,38 +98,46 @@ export function advanceStageKillProgress(
   if (!Number.isInteger(addedKills) || addedKills < 0) {
     throw new Error(`[关卡进度错误] 新增击杀数必须是非负整数：${addedKills}`);
   }
-  if (!Number.isInteger(target) || target <= 0) {
-    throw new Error(`[关卡进度错误] 击杀目标必须是正整数：${target}`);
+  if (!Number.isInteger(cycleLength) || cycleLength <= 0) {
+    throw new Error(`[关卡进度错误] 波次循环长度必须是正整数：${cycleLength}`);
   }
-  if (!alreadyCleared && currentKills >= target) {
-    throw new Error(`[关卡进度错误] 未通关关卡的击杀数越界：${currentKills}/${target}`);
+  if (!Number.isInteger(clearCycles) || clearCycles <= 0) {
+    throw new Error(`[关卡进度错误] 通关循环数必须是正整数：${clearCycles}`);
+  }
+  const clearTarget = cycleLength * clearCycles;
+  if (!alreadyCleared && currentKills >= clearTarget) {
+    throw new Error(`[关卡进度错误] 未通关关卡的击杀数越界：${currentKills}/${clearTarget}`);
   }
 
   if (alreadyCleared) {
-    if (!hasBoss) return { progress: target, clearedNow: false, bossKills: 0 };
+    if (!hasBoss) return { progress: cycleLength, clearedNow: false, bossKills: 0 };
 
-    // 旧版存档会把已通关关卡保存为 target；取模可无损转换为新循环起点。
-    const total = (currentKills % target) + addedKills;
+    // 旧版存档会把已通关关卡保存为满值；取模可无损转换为新循环起点。
+    const total = (currentKills % cycleLength) + addedKills;
     return {
-      progress: total % target,
+      progress: total % cycleLength,
       clearedNow: false,
-      bossKills: Math.floor(total / target),
+      bossKills: Math.floor(total / cycleLength),
     };
   }
 
   const total = currentKills + addedKills;
-  if (total < target) {
-    return { progress: total, clearedNow: false, bossKills: 0 };
+  // 未通关阶段 BOSS 也随波次循环出场：跨过几个循环边界就打了几只
+  const bossKills = hasBoss
+    ? Math.floor(total / cycleLength) - Math.floor(currentKills / cycleLength)
+    : 0;
+
+  if (total < clearTarget) {
+    return { progress: total, clearedNow: false, bossKills };
   }
 
   if (!hasBoss) {
-    return { progress: target, clearedNow: true, bossKills: 0 };
+    return { progress: cycleLength, clearedNow: true, bossKills: 0 };
   }
 
-  const overflow = total - target;
   return {
-    progress: overflow % target,
+    progress: total % cycleLength,
     clearedNow: true,
-    bossKills: 1 + Math.floor(overflow / target),
+    bossKills,
   };
 }

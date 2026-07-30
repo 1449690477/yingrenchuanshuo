@@ -15,7 +15,12 @@ import { baseStatsFor, monsterHp } from '@/core/progression';
 import { expectedBuildCp } from './expectedPower';
 import { ALL_CHAPTERS, STAGES_PER_CHAPTER, type ChapterSpec } from './regions';
 import { bossOfChapter, eliteOfChapter, lootTableIdFor, normalsOfChapter } from './monsters';
-import { DEFAULT_MAX_KILLS_PER_SEC } from './constants';
+import {
+  DEFAULT_MAX_KILLS_PER_SEC,
+  STAGE_PACING_BOSS_MUL,
+  STAGE_PACING_ELITE_MUL,
+  STAGE_PACING_FACTORS,
+} from './constants';
 import { enhanceFirstClearRewards } from './enhanceProgression';
 
 /**
@@ -59,6 +64,15 @@ function estimateRecommendCP(level: number): number {
   // 满配口径在低段可能低于裸属性口径（common 装备贡献小），取两者较大值
   // 保证推荐线单调、不出现「升级后推荐反而变低」的怪相。
   return Math.round(Math.max(bare * 0.85, expectedBuildCp(level) * RECOMMEND_BUILD_RATIO));
+}
+
+/** 章节所属区域号：'4-2' → 4。节奏系数按区域登记。 */
+function regionIndexOfChapter(chapterId: string): number {
+  const n = Number.parseInt(chapterId.split('-')[0]!, 10);
+  if (!Number.isInteger(n) || n < 1) {
+    throw new Error(`[配置错误] 无法从章节 id 解析区域号：${chapterId}`);
+  }
+  return n;
 }
 
 function buildWaves(spec: ChapterSpec, idx: number): { waves: Wave[]; bossId?: string } {
@@ -105,6 +119,22 @@ function buildStages(): Record<string, Stage> {
     for (let idx = 0; idx < STAGES_PER_CHAPTER; idx++) {
       const level = stageLevel(spec, idx);
       const { waves, bossId } = buildWaves(spec, idx);
+      // 通关循环数（docs/56 §8）：波次保持原样，BOSS 掉落节奏与每小时经济
+      // 完全不变；变的只有「首通要打满多少轮」。新区域必须显式登记。
+      const regionPacing = STAGE_PACING_FACTORS[regionIndexOfChapter(spec.id)];
+      if (regionPacing === undefined) {
+        throw new Error(
+          `[配置错误] 区域 ${regionIndexOfChapter(spec.id)} 未登记节奏系数 ` +
+            `—— 新区域上线必须在 STAGE_PACING_FACTORS 里做节奏决策（docs/56 §8）`,
+        );
+      }
+      const positionMul =
+        idx === STAGES_PER_CHAPTER - 1
+          ? STAGE_PACING_BOSS_MUL
+          : idx === 2
+            ? STAGE_PACING_ELITE_MUL
+            : 1;
+      const clearCycles = Math.max(1, Math.round(regionPacing * positionMul));
       const id = `stage_${spec.id}_${idx + 1}`;
       const firstClearGearRewards = STAGE_FIRST_CLEAR_GEAR_REWARDS[id] ?? [];
 
@@ -116,6 +146,7 @@ function buildStages(): Record<string, Stage> {
         waves,
         ...(bossId ? { bossId } : {}),
         recommendCP: estimateRecommendCP(level),
+        clearCycles,
         firstClearRewards: [
           ...enhanceFirstClearRewards(spec.id, idx, Boolean(bossId)),
           ...firstClearGearRewards.map((reward) => ({ ...reward })),
@@ -163,9 +194,14 @@ export function representativeMonsterLevel(stage: Stage): number {
   return stage.level;
 }
 
-/** 关卡内怪物总数，用于「通关需要打多少只」的显示 */
+/** 一轮完整波次的怪物总数 —— BOSS/精英按此循环出场，掉落节奏由它决定 */
 export function totalMonsterCount(stage: Stage): number {
   return stage.waves.reduce((s, w) => s + w.monsters.reduce((n, m) => n + m.count, 0), 0);
+}
+
+/** 首通击杀目标 = 一轮怪物总数 × 通关循环数（docs/56 §8） */
+export function stageClearTarget(stage: Stage): number {
+  return totalMonsterCount(stage) * stage.clearCycles;
 }
 
 /** 关卡平均怪物血量（含精英/BOSS 加权），挂机估算用 */

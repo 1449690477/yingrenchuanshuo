@@ -167,6 +167,7 @@ import {
   STAGES,
   nextStageId,
   totalMonsterCount,
+  stageClearTarget,
 } from '@/data/stages';
 import { requireChapter, requireRegionOfChapter } from '@/data/regions';
 import { requireShopOffer } from '@/data/shop';
@@ -651,16 +652,33 @@ export const useGameStore = defineStore('game', () => {
   const currentCleared = computed(
     () => save.value?.progress.clearedStageIds.includes(currentStage.value.id) ?? false,
   );
-  const currentKillTarget = computed(() => totalMonsterCount(currentStage.value));
+  /**
+   * 进度条口径（docs/56 §8）：未通关显示首通目标（一轮 × clearCycles），
+   * 已通关的 BOSS 关显示单轮循环 —— 两者语义不同，别再共用一个数。
+   */
+  const currentKillTarget = computed(() =>
+    currentCleared.value
+      ? totalMonsterCount(currentStage.value)
+      : stageClearTarget(currentStage.value),
+  );
   const currentStageKills = computed(() =>
     Math.min(currentKillTarget.value, save.value?.progress.stageKills[currentStage.value.id] ?? 0),
   );
+  /**
+   * 波次位置游标：首通目标可以是循环长度的很多倍，
+   * 波次表出怪、掉落分配只认「这一轮打到第几只」，必须取模。
+   */
+  const waveCursor = computed(() => {
+    const cycle = totalMonsterCount(currentStage.value);
+    const raw = save.value?.progress.stageKills[currentStage.value.id] ?? 0;
+    return cycle > 0 ? raw % cycle : 0;
+  });
   /** 没有击杀定格时，下一只应出场的视觉目标。 */
   const nextBattleTargetId = computed(() => {
     const cursor =
       currentCleared.value && !currentStage.value.bossId
         ? battleVisualCursor.value
-        : currentStageKills.value;
+        : waveCursor.value;
     return battleMonsterIdAt(currentStage.value, cursor);
   });
   /** 击杀动画期间固定显示倒下的旧目标，动画结束后再切到下一只。 */
@@ -983,7 +1001,7 @@ export const useGameStore = defineStore('game', () => {
         const lootCursor =
           currentCleared.value && !currentStage.value.bossId
             ? battleVisualCursor.value
-            : currentStageKills.value;
+            : waveCursor.value;
         applyYield(r.yield);
         save.value.stats.totalKills += r.yield.kills;
         const stageSettlement = applyStageKills(r.yield.kills, lootCursor, false);
@@ -1231,7 +1249,7 @@ export const useGameStore = defineStore('game', () => {
         const visualCursor =
           currentCleared.value && !currentStage.value.bossId
             ? battleVisualCursor.value
-            : currentStageKills.value;
+            : waveCursor.value;
         const visualAdvance = advanceBattleVisualCursor(currentStage.value, visualCursor, y.kills);
         if (!battlePulse.value && battlePulseCooldownSec <= 0) {
           const defeatedMonster = makeMonster(requireMonster(visualAdvance.defeatedTargetId));
@@ -1409,7 +1427,7 @@ export const useGameStore = defineStore('game', () => {
     if (!save.value) return { firstClearedStageId: null, bonusLoot: [] };
     const stage = currentStage.value;
     const distribution = countStageMonsterKills(stage, startCursor, kills);
-    const need = stage.waves.reduce(
+    const cycleLength = stage.waves.reduce(
       (sum, w) => sum + w.monsters.reduce((n, m) => n + m.count, 0),
       0,
     );
@@ -1417,7 +1435,8 @@ export const useGameStore = defineStore('game', () => {
     const result = advanceStageKillProgress(
       save.value.progress.stageKills[stage.id] ?? 0,
       kills,
-      need,
+      cycleLength,
+      stage.clearCycles,
       wasCleared,
       !!stage.bossId,
     );

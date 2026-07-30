@@ -78,7 +78,7 @@ import { EQUIPMENT } from '../src/data/equipment';
 import { idleCombatEfficiency, killsPerSecond } from '../src/core/idle';
 import { ALL_CHAPTERS } from '../src/data/regions';
 import { LEVEL_SOFT_CAP_MARGIN } from '../src/data/constants';
-import { ORDERED_STAGE_IDS, STAGES, totalMonsterCount } from '../src/data/stages';
+import { ORDERED_STAGE_IDS, STAGES, stageClearTarget } from '../src/data/stages';
 import { evaluateChapterGate } from '../src/core/stageProgress';
 import { TYPICAL_ENHANCE_MUL } from '../src/data/expectedPower';
 import { timeToKill } from '../src/core/combat';
@@ -224,6 +224,8 @@ interface DayRecord {
   当日经验: number;
   挂机关卡: number;
   每秒击杀: string;
+  /** 当天结束时是否顶在局部软上限（正在磨的关卡等级 + 余量）—— 卡点标记 */
+  顶上限: boolean;
 }
 
 /** 玩家每天实际挂机的有效秒数：8 小时离线上限 + 白天零散在线，按 14 小时估算 */
@@ -313,7 +315,7 @@ function simulateDays(cls: ClassId, days: number): DayRecord[] {
       lastKps = kps;
       if (kps <= 0) break; // 完全打不动：这天剩余时间白挂（真实行为是效率归零）
 
-      const target = totalMonsterCount(stage);
+      const target = stageClearTarget(stage);
       const isLastStage = stageIndex >= ORDERED_STAGE_IDS.length - 1;
       const cleared = killsInStage >= target;
 
@@ -355,6 +357,7 @@ function simulateDays(cls: ClassId, days: number): DayRecord[] {
       当日经验: dayExp,
       挂机关卡: stageIndex + 1,
       每秒击杀: lastKps.toFixed(2),
+      顶上限: level >= Math.min(stageAt(stageIndex).level + LEVEL_SOFT_CAP_MARGIN, CONTENT_SOFT_CAP),
     });
   }
 
@@ -1347,6 +1350,8 @@ function main() {
   );
 
   // 健康检查（docs/56 §8）
+  const stageAtIndex = (i: number) =>
+    STAGES[ORDERED_STAGE_IDS[Math.min(Math.max(i, 0), ORDERED_STAGE_IDS.length - 1)]!]!;
   const day30 = curve[curve.length - 1]!;
   console.log('【健康检查】');
   console.log(`  30 天后等级：Lv${day30.等级}（软上限 Lv${CONTENT_SOFT_CAP}）`);
@@ -1368,17 +1373,78 @@ function main() {
   const lastStageDay = curve.find((r) => r.挂机关卡 >= ORDERED_STAGE_IDS.length)?.天 ?? '>30';
   console.log(`  ◇ 内容耗尽日：D${lastStageDay}（目标 ≥ D25，靠击杀目标重排实现）`);
 
-  // 软上限之下不允许长期停滞（到顶后停滞是设计使然，不算病）
-  const stalledBelowCap = curve.findIndex(
-    (r, i) => i > 0 && r.等级 < CONTENT_SOFT_CAP && r.等级 === curve[i - 1]!.等级,
+  // 停滞只有在「没顶在局部软上限」时才是病（经验断供）；
+  // 顶着上限磨关卡是节奏设计本身 —— 那些天正是 G4 要数的卡点。
+  const starved = curve.findIndex(
+    (r, i) => i > 0 && !r.顶上限 && r.等级 < CONTENT_SOFT_CAP && r.等级 === curve[i - 1]!.等级,
   );
-  if (stalledBelowCap >= 0) {
+  if (starved >= 0) {
     throw new Error(
-      `[成长曲线验收失败] 第 ${curve[stalledBelowCap]!.天} 天在软上限之下等级未增长` +
-        `（Lv${curve[stalledBelowCap]!.等级}）—— 到顶前不该有整天零增长`,
+      `[成长曲线验收失败] 第 ${curve[starved]!.天} 天未顶上限却整天零升级` +
+        `（Lv${curve[starved]!.等级}）—— 经验供给断档`,
     );
   }
-  console.log('  ✔ 软上限之下无整天停滞');
+  console.log('  ✔ 无经验断档（未顶上限的天必有升级）');
+
+  // ─── G1/G3/G4/G5/耗尽日 硬门禁（docs/56 §8，按逐关模型实测锁定） ───
+
+  // G1：新玩家第一天不该吃掉三成以上内容。实测 D1 = Lv21 / 53 关，
+  // 锁在略宽处防回退（曾经是 Lv34 / 94 关）。
+  const d1r = curve[0]!;
+  if (d1r.等级 > 24 || d1r.挂机关卡 > 60) {
+    throw new Error(`[G1 失败] D1 等级 Lv${d1r.等级}、关卡 ${d1r.挂机关卡}（上限 Lv24 / 60 关）`);
+  }
+  console.log(`  ✔ G1：D1 等级 Lv${d1r.等级} ≤ 24、关卡 ${d1r.挂机关卡} ≤ 60`);
+
+  // 内容耗尽日：全部关卡至少要撑过 25 天
+  const exhaustedDay = curve.find((r) => r.挂机关卡 >= ORDERED_STAGE_IDS.length)?.天;
+  if (exhaustedDay !== undefined && exhaustedDay < 25) {
+    throw new Error(`[耗尽日失败] 内容 D${exhaustedDay} 被推完（目标 ≥ D25）`);
+  }
+  console.log(`  ✔ 内容耗尽日：${exhaustedDay === undefined ? '>30' : 'D' + exhaustedDay}（≥ D25）`);
+
+  // G3：逐日「实际战力 ÷ 当前关卡推荐」必须贴着推荐线走
+  let g3Min = Number.POSITIVE_INFINITY;
+  let g3Max = 0;
+  for (const r of curve) {
+    const rec = stageAtIndex(r.挂机关卡 - 1).recommendCP;
+    if (rec <= 0) continue;
+    const ratio = r.战力 / rec;
+    g3Min = Math.min(g3Min, ratio);
+    g3Max = Math.max(g3Max, ratio);
+  }
+  if (g3Min < 0.8 || g3Max > 1.8) {
+    throw new Error(
+      `[G3 失败] 战力÷推荐 ${g3Min.toFixed(2)}~${g3Max.toFixed(2)} 越出 [0.80, 1.80] —— 口径再次脱锚`,
+    );
+  }
+  console.log(`  ✔ G3：战力÷推荐 ${g3Min.toFixed(2)}~${g3Max.toFixed(2)}（0.80~1.80）`);
+
+  // G4：得有卡点（顶上限磨关卡的天数），否则是匀速传送带
+  const pinnedDays = curve.filter((r) => r.顶上限 && r.挂机关卡 < ORDERED_STAGE_IDS.length).length;
+  if (pinnedDays < 3) {
+    throw new Error(`[G4 失败] 30 天内卡点仅 ${pinnedDays} 天（目标 ≥ 3）`);
+  }
+  console.log(`  ✔ G4：顶上限磨关卡 ${pinnedDays} 天 ≥ 3`);
+
+  // G5：单关不许卡超过 3 整天（卡太久 = 劝退）
+  let g5Max = 1;
+  let streak = 1;
+  for (let i = 1; i < curve.length; i++) {
+    if (
+      curve[i]!.挂机关卡 === curve[i - 1]!.挂机关卡 &&
+      curve[i]!.挂机关卡 < ORDERED_STAGE_IDS.length
+    ) {
+      streak++;
+      g5Max = Math.max(g5Max, streak);
+    } else {
+      streak = 1;
+    }
+  }
+  if (g5Max > 3) {
+    throw new Error(`[G5 失败] 单关连续停留 ${g5Max} 天（上限 3 天）`);
+  }
+  console.log(`  ✔ G5：单关最长停留 ${g5Max} 天 ≤ 3`);
 
   assertReforgeAcceptance(reforge, balance, offenseExtreme);
   assertPvpBalance(pvp);

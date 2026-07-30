@@ -518,6 +518,12 @@ export interface Stage {
   bossId?: string;
   /** 由 scripts/simulate.ts 生成，不要手填 */
   recommendCP: number;
+  /**
+   * 首通需要打满的完整波次循环数（docs/56 §8 节奏重排）。
+   * 波次本身保持原样 —— BOSS/精英掉落节奏与每小时经济不变，
+   * 变的只有「通关要打多少轮」。通关目标 = 波次怪物总数 × clearCycles。
+   */
+  clearCycles: number;
   firstClearRewards: LootResult[];
   lootTableId: string;
   /** 每秒击杀上限，防止高战玩家无限刷低级图 */

@@ -13,7 +13,7 @@ import { requireEquipment } from '@/data/equipment';
 import { requireMonster } from '@/data/monsters';
 import { SHOP_OFFERS } from '@/data/shop';
 import { battleRhythmSkills } from '@/data/skills';
-import { ORDERED_STAGE_IDS, STAGES, nextStageId, totalMonsterCount } from '@/data/stages';
+import { ORDERED_STAGE_IDS, STAGES, stageClearTarget, nextStageId, totalMonsterCount } from '@/data/stages';
 import { createSave, SAVE_VERSION, type SaveData } from '@/save/schema';
 import { clearSave, loadSave, saveSave } from '@/save/storage';
 import { useGameStore } from '../game';
@@ -830,6 +830,10 @@ describe('encounter transaction', () => {
     save.equipped.weapon = weapon;
     save.nextUid = 2;
     save.progress.currentStageId = lastStageId;
+    // 节奏重排后末关首通要打满 clearCycles 轮（docs/56 §8），两分钟离线
+    // 打不完是设计使然；本测试验证的是「首通结算」而非「从零打穿」，
+    // 预置到只差 5 只，让这次结算恰好跨过终点线。
+    save.progress.stageKills[lastStageId] = stageClearTarget(lastStage) - 5;
     game.loadFrom(save);
 
     expect(game.save?.progress.clearedStageIds).toContain(lastStageId);
