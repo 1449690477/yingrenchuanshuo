@@ -152,7 +152,7 @@ function onFragmentExchange(defId: string): void {
 
 .shop-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 8px;
 }

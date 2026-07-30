@@ -1255,6 +1255,9 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
+  /* flex: none 是命根子：.rows 是限高 flex 列容器，子项默认 shrink——
+     战力榜 16+ 行时所有行被压扁到 24px，头像/小字溢出卡片被裁（错位根因） */
+  flex: none;
   padding: 11px 12px;
   border-radius: var(--r-sm);
   background: var(--panel-2);

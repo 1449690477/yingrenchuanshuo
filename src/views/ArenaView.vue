@@ -412,7 +412,7 @@ onMounted(() => {
   position: relative;
   z-index: 2;
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   padding: 12px 14px 0;
 }
@@ -511,7 +511,7 @@ onMounted(() => {
 }
 .hero-rank {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 5px;
   font-size: 22px;
   font-weight: 900;
@@ -633,7 +633,7 @@ onMounted(() => {
 }
 .opponents-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 8px;
 }
