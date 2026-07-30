@@ -42,7 +42,9 @@ const characterSchema = z
 
 const submissionSchema = z
   .object({
-    characters: z.record(z.enum(CLASS_IDS), characterSchema),
+    // zod v4 的 z.record(z.enum) 是穷举键（缺键即拒），
+    // 这里要的是「缺的角色允许不报」—— 用 partialRecord（线上探针抓获）。
+    characters: z.partialRecord(z.enum(CLASS_IDS), characterSchema),
   })
   .strict();
 
