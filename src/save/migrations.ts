@@ -212,6 +212,22 @@ export const migrations: Record<number, Migration> = {
     version: 14,
     milestones: [],
   }),
+  // v15 新增各关首次通关时刻（进度榜「同关按最早达成排」，docs/51 §4 榜 3）。
+  //
+  // 同样不补记：老档只有「通关了哪些关」，没有「哪天通的」。
+  // 按当下时间补记会让所有老档并列在同一个时刻，既不真实也毫无区分度。
+  // 缺条目的关卡在榜上排在有时刻的之后 —— 没有证据就不能主张更早。
+  //
+  // 这个字段抢在区域 7 上线前落地：那 30 个新关卡的开荒竞速由此可被记录，
+  // 而前 180 关的时刻已经永久丢失（docs/63 §一）。
+  14: (save) => {
+    const progress = asObject(save.progress, 14, 'progress');
+    return {
+      ...save,
+      version: 15,
+      progress: { ...progress, stageFirstClearedAt: {} },
+    };
+  },
 };
 
 function migrateV10Save(

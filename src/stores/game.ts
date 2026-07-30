@@ -1511,6 +1511,10 @@ export const useGameStore = defineStore('game', () => {
 
     if (result.clearedNow) {
       save.value.progress.clearedStageIds.push(stage.id);
+      // 首通时刻：进度榜「同关按最早达成排」的依据（docs/51 §4 榜 3、docs/63 §一）。
+      // 只在这一处写，因为这里是全仓唯一往 clearedStageIds 追加的地方。
+      // 老档已通关的关卡没有时刻且不补记 —— 理由同 docs/62 §4.1。
+      save.value.progress.stageFirstClearedAt[stage.id] = Date.now();
       for (const reward of stage.firstClearRewards) grantBonus(reward);
     }
 

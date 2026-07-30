@@ -1791,3 +1791,62 @@ describe('里程碑记录挂在等级变化的唯一收口上', () => {
     expect(game.save!.milestones).toEqual([]);
   });
 });
+
+// ────────── 首通时刻捕获（进度榜「同关按最早达成排」，docs/63 §一） ──────────
+
+describe('关卡首通时刻', () => {
+  const NOW = 1_800_000_000_000;
+  const DAY_MS = 86_400_000;
+
+  it('首通时写入时刻，之后再刷同一关不覆盖（最早达成才是榜单口径）', () => {
+    // 走离线结算：loadFrom 内部会跑一次，足够长的离线时长能打穿首关。
+    vi.setSystemTime(NOW + DAY_MS);
+    const game = useGameStore();
+    const save = createSave('首通时刻', 'swordsman', 41, NOW);
+    save.lastActiveAt = NOW;
+    game.loadFrom(save);
+
+    const cleared = game.save!.progress.clearedStageIds;
+    expect(cleared.length).toBeGreaterThan(0);
+    const stamps = game.save!.progress.stageFirstClearedAt;
+    // 每个新通关的关卡都必须有时刻
+    for (const stageId of cleared) {
+      expect(stamps[stageId]).toBeGreaterThan(0);
+    }
+    const firstStageId = cleared[0]!;
+    const firstAt = stamps[firstStageId]!;
+
+    // 一天后再结算一次：已记录的时刻一个字节都不许变
+    vi.setSystemTime(NOW + 5 * DAY_MS);
+    const again = game.save!;
+    again.lastActiveAt = NOW + 4 * DAY_MS;
+    game.loadFrom(again);
+
+    expect(game.save!.progress.stageFirstClearedAt[firstStageId]).toBe(firstAt);
+  });
+
+  it('老档迁移后没有时刻，但新通关的关卡照常记下', () => {
+    vi.setSystemTime(NOW + DAY_MS);
+    const game = useGameStore();
+    const save = createSave('老档续推', 'witch', 42, NOW);
+    // 模拟迁移后的状态：已通关若干关但一个时刻都没有
+    save.progress.clearedStageIds = ORDERED_STAGE_IDS.slice(0, 3);
+    save.progress.currentStageId = ORDERED_STAGE_IDS[3]!;
+    save.progress.stageFirstClearedAt = {};
+    save.lastActiveAt = NOW;
+    game.loadFrom(save);
+
+    const stamps = game.save!.progress.stageFirstClearedAt;
+    // 老的三关不许被补记
+    for (const stageId of ORDERED_STAGE_IDS.slice(0, 3)) {
+      expect(stamps[stageId]).toBeUndefined();
+    }
+    // 这次新通关的关卡必须有时刻
+    const newlyCleared = game.save!.progress.clearedStageIds.filter(
+      (id) => !ORDERED_STAGE_IDS.slice(0, 3).includes(id),
+    );
+    for (const stageId of newlyCleared) {
+      expect(stamps[stageId]).toBeGreaterThan(0);
+    }
+  });
+});

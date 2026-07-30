@@ -52,7 +52,7 @@ import { MILESTONE_LEVELS, isMilestoneLevel } from '@/data/milestoneRules';
 import { getEquipment } from '@/data/equipment';
 
 /** 当前存档版本。加字段就 +1。 */
-export const SAVE_VERSION = 14;
+export const SAVE_VERSION = 15;
 
 export const SAVE_KEY = 'main';
 
@@ -80,6 +80,18 @@ export interface ProgressSave {
   currentStageId: string;
   /** 已通关的关卡 id */
   clearedStageIds: string[];
+  /**
+   * 各关首次通关时刻（毫秒时间戳）。
+   *
+   * 进度榜「同关按最早达成排」的依据（docs/51 §4 榜 3）——
+   * 没有它，那个榜就退化成又一张进度快照，而它的定位是「开荒者的荣誉」。
+   *
+   * v15 之前通关的关卡在这里**没有条目且不补记**：从现状反推不出「哪天打的」，
+   * 按当下补记就是把猜测写成纪录（同 docs/62 §4.1）。
+   * 缺条目的关卡在并列里排在有时刻的之后 —— 不是惩罚，
+   * 而是「没有证据就不能主张更早」。
+   */
+  stageFirstClearedAt: Record<string, number>;
   /** 各关已累计的击杀数，中途关闭页面也不能丢进度 */
   stageKills: Record<string, number>;
   /**
@@ -229,6 +241,7 @@ export function createSave(name: string, classId: ClassId, seed: number, now: nu
     progress: {
       currentStageId: FIRST_STAGE_ID,
       clearedStageIds: [],
+      stageFirstClearedAt: {},
       stageKills: {},
       pity: {},
       seenTutorials: [],
@@ -691,6 +704,7 @@ export const saveDataSchema = z
       .object({
         currentStageId: z.string().min(1),
         clearedStageIds: z.array(z.string().min(1)),
+        stageFirstClearedAt: z.record(z.string(), timestamp),
         stageKills: z.record(z.string(), nonNegativeInteger),
         pity: z.record(z.string(), nonNegativeInteger),
         seenTutorials: z.array(z.string().min(1)),

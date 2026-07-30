@@ -4,6 +4,7 @@ import { promoteAffix } from '@/core/reforge';
 import type { EquipmentInstance } from '@/core/types';
 import { AFFIX_POOL, ENHANCE_MAX, ENHANCE_PER_LEVEL, SLOT_ORDER } from '@/data/constants';
 import { requireEquipment } from '@/data/equipment';
+import { ORDERED_STAGE_IDS } from '@/data/stages';
 import { createSave, SAVE_VERSION, SaveValidationError } from '../schema';
 import { migrate, MigrationError, migrations, SaveTooNewError } from '../migrations';
 import { V10_EQUIPMENT_DEFINITION_IDS } from '../v10EquipmentDefinitions';
@@ -1183,6 +1184,30 @@ describe('save migrations', () => {
     expect(migrated.player.level).toBe(67);
     expect(migrated.trial).toEqual((current as { trial: unknown }).trial);
     expect(migrated.bag).toEqual((current as { bag: unknown }).bag);
+  });
+
+  it('v14 → v15 新增首通时刻表，同样不按当下补记老关卡', () => {
+    // 一个推到第 90 关的老档：这 90 关确实通过了，但「哪天通的」无处可查。
+    // 若按当下补记，所有老档会并列在同一时刻 —— 既不真实也毫无区分度。
+    const current = createSave(
+      '首通时刻前旧档',
+      'swordsman',
+      12,
+      1_800_000_000_000,
+    ) as unknown as Record<string, unknown>;
+    const progress = current.progress as Record<string, unknown>;
+    progress.clearedStageIds = ORDERED_STAGE_IDS.slice(0, 90);
+    const raw = structuredClone(current);
+    delete (raw.progress as Record<string, unknown>).stageFirstClearedAt;
+    raw.version = 14;
+
+    const migrated = migrate(raw);
+
+    expect(migrated.version).toBe(SAVE_VERSION);
+    expect(migrated.progress.stageFirstClearedAt).toEqual({});
+    // 通关记录本身一个都不许丢
+    expect(migrated.progress.clearedStageIds).toHaveLength(90);
+    expect(migrated.milestones).toEqual([]);
   });
 
   it('当前版本不迁移，只做严格结构校验', () => {
