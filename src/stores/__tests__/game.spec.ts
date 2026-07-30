@@ -14,6 +14,11 @@ import { requireMonster } from '@/data/monsters';
 import { SHOP_OFFERS } from '@/data/shop';
 import { battleRhythmSkills } from '@/data/skills';
 import { ORDERED_STAGE_IDS, STAGES, stageClearTarget, nextStageId, totalMonsterCount } from '@/data/stages';
+import {
+  IMPRINT_CRYSTAL_COST,
+  IMPRINT_CRYSTAL_IDS,
+  IMPRINT_GOLD_PER_LEVEL,
+} from '@/data/imprintRules';
 import { createSave, SAVE_VERSION, type SaveData } from '@/save/schema';
 import { clearSave, loadSave, saveSave } from '@/save/storage';
 import { useGameStore } from '../game';
@@ -1583,5 +1588,115 @@ describe('boutique purchase transaction', () => {
     });
     expect(game.save).toEqual(before);
     await game.persist();
+  });
+});
+
+describe('套装烙印端到端（docs/58）', () => {
+  const SET = 'set_dungeon_azure';
+
+  function imprintReadySave() {
+    const save = createSave('烙印测试', 'swordsman', 4242, Date.now());
+    save.player.level = 40;
+    save.player.gold = 500_000;
+    // 首通苍蓝任意入口 → 解锁该套可烙
+    save.equipmentDungeon.records.equipment_ring_azure = {
+      clears: 1,
+      firstClearedAt: Date.now() - 1000,
+      bestDurationMs: 20_000,
+    };
+    save.bag.items[IMPRINT_CRYSTAL_IDS.azure] = 20;
+    return save;
+  }
+
+  function plainPiece(slot: 'ring' | 'belt', uid: string): EquipmentInstance {
+    const definition = requireEquipment(`eq_r2_${slot}_rare`);
+    const instance = createInstance(definition, new Rng(77), uid, 'swordsman');
+    instance.affixes = [{ key: 'atk', value: 30, tier: 4 }];
+    return instance;
+  }
+
+  it('未首通该档时不可烙，首通后进入可烙列表', () => {
+    const game = useGameStore();
+    const save = imprintReadySave();
+    delete save.equipmentDungeon.records.equipment_ring_azure;
+    save.bag.equipment = [plainPiece('ring', 'imp-1')];
+    game.loadFrom(save);
+
+    expect(game.unlockedImprintSetIds).not.toContain(SET);
+    expect(game.evaluateImprint('imp-1', SET, false)).toMatchObject({
+      ok: false,
+      reason: 'set-locked',
+    });
+
+    game.save!.equipmentDungeon.records.equipment_ring_azure = {
+      clears: 1,
+      firstClearedAt: Date.now() - 1000,
+      bestDurationMs: 20_000,
+    };
+    expect(game.unlockedImprintSetIds).toContain(SET);
+  });
+
+  it('烙印原子扣款并保留全部养成成果，穿戴中的装备也能烙', async () => {
+    const game = useGameStore();
+    const save = imprintReadySave();
+    const worn = plainPiece('ring', 'imp-worn');
+    worn.enhance = 6;
+    worn.enhanceGainPermille = worn.enhanceGainPermille.map((_, i) => (i < 6 ? 80 : 0));
+    save.equipped.ring = worn;
+    game.loadFrom(save);
+
+    const before = game.evaluateImprint('imp-worn', SET, false);
+    expect(before.ok).toBe(true);
+    expect(before.owned.crystals).toBe(20);
+
+    const goldBefore = game.save!.player.gold;
+    expect(game.imprintEquipment('imp-worn', SET, false)).toBe(true);
+
+    const after = game.save!.equipped.ring!;
+    expect(after.imprintSetId).toBe(SET);
+    // 四不原则：品质由 defId 决定、词条与强化原样
+    expect(after.defId).toBe(worn.defId);
+    expect(after.enhance).toBe(6);
+    expect(after.affixes).toEqual([{ key: 'atk', value: 30, tier: 4 }]);
+    // 扣款精确
+    expect(game.save!.bag.items[IMPRINT_CRYSTAL_IDS.azure]).toBe(20 - IMPRINT_CRYSTAL_COST);
+    expect(goldBefore - game.save!.player.gold).toBe(
+      requireEquipment(worn.defId).level * IMPRINT_GOLD_PER_LEVEL,
+    );
+    await game.persist();
+  });
+
+  it('烙满两件即激活 2 件套效果，战力随之上升', () => {
+    const game = useGameStore();
+    const save = imprintReadySave();
+    save.equipped.ring = plainPiece('ring', 'imp-a');
+    save.equipped.belt = plainPiece('belt', 'imp-b');
+    game.loadFrom(save);
+
+    const cpBefore = game.cp;
+    expect(game.imprintEquipment('imp-a', SET, false)).toBe(true);
+    expect(game.imprintEquipment('imp-b', SET, false)).toBe(true);
+
+    // 烙印本身不改任何基础属性，战力上升只可能来自套装效果生效
+    expect(game.cp).toBeGreaterThan(cpBefore);
+    expect(game.save!.bag.items[IMPRINT_CRYSTAL_IDS.azure]).toBe(20 - IMPRINT_CRYSTAL_COST * 2);
+  });
+
+  it('材料不足时拒绝且分文不扣', () => {
+    const game = useGameStore();
+    const save = imprintReadySave();
+    save.bag.items[IMPRINT_CRYSTAL_IDS.azure] = 1;
+    save.bag.equipment = [plainPiece('ring', 'imp-poor')];
+    game.loadFrom(save);
+
+    const goldBefore = game.save!.player.gold;
+    expect(game.evaluateImprint('imp-poor', SET, false)).toMatchObject({
+      ok: false,
+      reason: 'materials',
+    });
+    expect(game.imprintEquipment('imp-poor', SET, false)).toBe(false);
+    expect(game.save!.bag.items[IMPRINT_CRYSTAL_IDS.azure]).toBe(1);
+    expect(game.save!.player.gold).toBe(goldBefore);
+    expect(game.save!.bag.equipment[0]?.imprintSetId).toBeUndefined();
   });
 });

@@ -63,6 +63,7 @@ import {
 import { planClassSwitch } from '@/core/classSwitch';
 import { planImprint, imprintCostOf, type ImprintCost } from '@/core/equipmentImprint';
 import { IMPRINT_SET_TIER, IMPRINTABLE_SET_IDS, isImprintableSetId } from '@/data/imprintRules';
+import { getEquipmentSet } from '@/data/equipmentSets';
 import {
   applyClassMods,
   averageSkillMultiplier,
@@ -2820,6 +2821,7 @@ export const useGameStore = defineStore('game', () => {
       unlockedImprintSetIds.value.includes(setId),
       { gold: s.player.gold, itemCount },
       useCore,
+      getEquipmentSet(setId)?.pieceSlots,
     );
     const cost = plan.cost ?? imprintCostOf(definition, setId, useCore) ?? zeroImprintCost();
     const owned = {
@@ -2844,6 +2846,7 @@ export const useGameStore = defineStore('game', () => {
       unlockedImprintSetIds.value.includes(setId),
       { gold: s.player.gold, itemCount: (itemId) => s.bag.items[itemId] ?? 0 },
       useCore,
+      getEquipmentSet(setId)?.pieceSlots,
     );
     if (!plan.ok) return false;
 

@@ -8,7 +8,7 @@
  * 本模块不读存档不掷骰，材料扣减由 store 在原子提交里做。
  */
 
-import type { EquipmentDef, EquipmentInstance } from './types';
+import type { EquipmentDef, EquipmentInstance, EquipSlot } from './types';
 import {
   IMPRINT_CORE_ALT_CRYSTALS,
   IMPRINT_CORE_ID,
@@ -21,6 +21,7 @@ import {
 
 export type ImprintBlockReason =
   | 'set-not-imprintable'
+  | 'slot-not-in-set'
   | 'set-locked'
   | 'def-set-conflict'
   | 'fixed-template'
@@ -77,9 +78,21 @@ export function planImprint(
   setUnlocked: boolean,
   wallet: ImprintWallet,
   useCore: boolean,
+  /**
+   * 目标套装涵盖的部位。传入时校验部位归属 ——
+   * 不传等于跳过该校验（调用方确认套装覆盖全部位时可省）。
+   *
+   * 为什么必须有：resolveEquipmentSetBonuses 遇到「套装不含该部位」会**抛错**，
+   * 那是配置错误级别的硬失败。若在这里放行，玩家一穿上就崩在装备栏 ——
+   * 当前四个副本套都覆盖 8 部位碰不到，但这不该是靠巧合守住的。
+   */
+  setPieceSlots?: readonly EquipSlot[],
 ): ImprintPlan {
   const cost = imprintCostOf(definition, setId, useCore);
   if (!cost) return { ok: false, reason: 'set-not-imprintable', cost: null };
+  if (setPieceSlots && !setPieceSlots.includes(definition.slot)) {
+    return { ok: false, reason: 'slot-not-in-set', cost };
+  }
   if (!setUnlocked) return { ok: false, reason: 'set-locked', cost };
 
   // 定义级套装身份不可覆盖：绯焰/圣痕/副本旧整装是「这件装备是谁」，
