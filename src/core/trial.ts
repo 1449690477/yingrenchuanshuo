@@ -18,6 +18,7 @@ import { Rng } from './rng';
 import { addStats, combatPower } from './formula';
 import { estimateDps, simulateFight, type CombatTimelineEvent } from './combat';
 import type {
+  OnCritPeriodicDamageTrigger,
   OnHitElementalDamageTrigger,
   OnLethalRecoveryTrigger,
 } from './equipmentSets';
@@ -245,6 +246,7 @@ export interface TrialBuild {
   skillMultiplier: number;
   onHitTriggers: readonly OnHitElementalDamageTrigger[];
   onLethalTriggers: readonly OnLethalRecoveryTrigger[];
+  onCritTriggers: readonly OnCritPeriodicDamageTrigger[];
   combatPower: number;
   /** 搭配哈希：提交服务端查重与成绩种子的输入之一 */
   buildHash: string;
@@ -288,6 +290,7 @@ export function buildTrialCombatant(input: TrialBuildInput): TrialBuild {
     skillMultiplier: averageSkillMultiplier(input.level) + setResolution.skillMultiplierBonus,
     onHitTriggers: setResolution.onHitTriggers,
     onLethalTriggers: setResolution.onLethalTriggers,
+    onCritTriggers: setResolution.onCritTriggers,
     combatPower: combatPower(stats),
     buildHash: canonicalBuildHash(input.equipped),
   };
@@ -354,6 +357,7 @@ export function runTrial(build: TrialBuild, boss: Combatant, seed: number): Tria
     playerSkillMultiplier: build.skillMultiplier,
     playerOnHitTriggers: build.onHitTriggers,
     playerOnLethalTriggers: build.onLethalTriggers,
+    playerOnCritTriggers: build.onCritTriggers,
   });
   return {
     damage: Math.max(0, Math.round(result.damageDealt)),

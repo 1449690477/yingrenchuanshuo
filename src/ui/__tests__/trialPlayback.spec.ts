@@ -98,6 +98,47 @@ describe('trialPlayback / 试炼逐击表现调度', () => {
     expect(() => createTrialPlaybackPlan(orphan, 1, 'weighty')).toThrow('前没有直接伤害');
   });
 
+  it('持续伤害是独立结算拍，不伪装成上一击的元素追加段', () => {
+    const timeline: CombatTimelineEvent[] = [
+      TIMELINE[0]!,
+      {
+        sequence: 1,
+        source: 'player',
+        target: 'player',
+        event: {
+          kind: 'on-crit-recovery',
+          damage: 0,
+          healing: 30,
+          triggerId: 'bloodmoon',
+        },
+      },
+      {
+        sequence: 2,
+        source: 'player',
+        target: 'monster',
+        event: {
+          kind: 'periodic-damage',
+          damage: 8,
+          hit: true,
+          crit: false,
+          element: 'none',
+          triggerId: 'bloodmoon',
+          statusId: 'bleed',
+          stacks: 1,
+        },
+      },
+    ];
+
+    const plan = createTrialPlaybackPlan(timeline, 4, 'weighty');
+    expect(plan.beats).toHaveLength(2);
+    expect(plan.beats[0]?.recoveries[0]).toMatchObject({ kind: 'on-crit-recovery' });
+    expect(plan.beats[1]).toMatchObject({
+      kind: 'player-skill',
+      direct: { kind: 'periodic-damage', damage: 8 },
+      totalDamage: 8,
+    });
+  });
+
   it('60 秒存活局保持完整时长，减少动态效果时压缩演出', () => {
     expect(createTrialPlaybackPlan(TIMELINE, 60, 'weighty').durationMs).toBe(60_000);
     expect(createTrialPlaybackPlan(TIMELINE, 60, 'weighty', true).durationMs).toBe(1_800);

@@ -11,6 +11,7 @@ import { Rng } from './rng';
 import { rollLoot } from './loot';
 import { simulateFight, type SimulatedFightResult } from './combat';
 import type {
+  OnCritPeriodicDamageTrigger,
   OnHitElementalDamageTrigger,
   OnLethalRecoveryTrigger,
 } from './equipmentSets';
@@ -84,6 +85,7 @@ export interface EquipmentDungeonChallengeInput {
   playerSkillMultiplier: number;
   playerOnHitTriggers?: readonly OnHitElementalDamageTrigger[];
   playerOnLethalTriggers?: readonly OnLethalRecoveryTrigger[];
+  playerOnCritTriggers?: readonly OnCritPeriodicDamageTrigger[];
   rngState: number;
   now: number;
 }
@@ -181,6 +183,7 @@ export function resolveEquipmentDungeonChallenge(
       playerSkillMultiplier: input.playerSkillMultiplier,
       playerOnHitTriggers: input.playerOnHitTriggers,
       playerOnLethalTriggers: input.playerOnLethalTriggers,
+      playerOnCritTriggers: input.playerOnCritTriggers,
       maxSeconds: EQUIPMENT_DUNGEON_RULES.maxFightSeconds,
     });
     waves.push({

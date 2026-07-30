@@ -1588,6 +1588,7 @@ export const useGameStore = defineStore('game', () => {
       playerSkillMultiplier: playerSkillMultiplier.value,
       playerOnHitTriggers: equipmentSetResolution.value.onHitTriggers,
       playerOnLethalTriggers: equipmentSetResolution.value.onLethalTriggers,
+      playerOnCritTriggers: equipmentSetResolution.value.onCritTriggers,
       rngState: rng.getState(),
       now,
     });

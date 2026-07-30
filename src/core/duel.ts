@@ -26,6 +26,7 @@ import { Rng } from './rng';
 import { businessDayKey } from './dayKey';
 import { buildTrialCombatant, fnv1a32, type TrialBuildInput } from './trial';
 import type {
+  OnCritPeriodicDamageTrigger,
   OnHitElementalDamageTrigger,
   OnLethalRecoveryTrigger,
 } from './equipmentSets';
@@ -57,6 +58,7 @@ export interface DuelSide {
   skillMultiplier: number;
   onHitTriggers?: readonly OnHitElementalDamageTrigger[];
   onLethalTriggers?: readonly OnLethalRecoveryTrigger[];
+  onCritTriggers?: readonly OnCritPeriodicDamageTrigger[];
 }
 
 export type DuelRole = 'attacker' | 'defender';
@@ -115,13 +117,20 @@ export interface DuelLogEvent {
   sequence: number;
   source: DuelRole;
   target: DuelRole;
-  kind: 'direct-damage' | 'on-hit-elemental-damage' | 'lethal-recovery';
+  kind:
+    | 'direct-damage'
+    | 'on-hit-elemental-damage'
+    | 'periodic-damage'
+    | 'lethal-recovery'
+    | 'on-crit-recovery';
   damage: number;
   healing?: number;
   hit: boolean;
   crit: boolean;
   element?: Element;
   triggerId?: string;
+  statusId?: string;
+  stacks?: number;
 }
 
 export interface DuelResult {
@@ -203,6 +212,8 @@ export function simulateDuelWithFirst(
     monsterOnHitTriggers: second.onHitTriggers,
     playerOnLethalTriggers: first.onLethalTriggers,
     monsterOnLethalTriggers: second.onLethalTriggers,
+    playerOnCritTriggers: first.onCritTriggers,
+    monsterOnCritTriggers: second.onCritTriggers,
   });
 
   const pPct = Math.max(0, p.currentHp) / p.stats.hp;
@@ -256,6 +267,21 @@ export function simulateDuelWithFirst(
         crit: false,
         element: ev.event.element,
         triggerId: ev.event.triggerId,
+      };
+    }
+    if (ev.event.kind === 'periodic-damage') {
+      return {
+        sequence: ev.sequence,
+        source,
+        target,
+        kind: ev.event.kind,
+        damage: ev.event.damage,
+        hit: true,
+        crit: false,
+        element: ev.event.element,
+        triggerId: ev.event.triggerId,
+        statusId: ev.event.statusId,
+        stacks: ev.event.stacks,
       };
     }
     return {
@@ -352,6 +378,12 @@ function duelSideDigest(side: DuelSide): string {
   const lethalTriggers = (side.onLethalTriggers ?? [])
     .map((t) => `${t.id}:${t.healRatio}:${t.activationsPerFight}`)
     .join(',');
+  const critTriggers = (side.onCritTriggers ?? [])
+    .map(
+      (t) =>
+        `${t.id}:${t.healMaxHpRatio}:${t.statusId}:${t.atkMultiplierPerTick}:${t.ticks}:${t.durationSec}:${t.maxStacks}:${t.refresh}:${t.element ?? ''}`,
+    )
+    .join(',');
   return [
     s.hp,
     s.atk,
@@ -366,6 +398,7 @@ function duelSideDigest(side: DuelSide): string {
     JSON.stringify(side.combatant.combatBonuses ?? null),
     triggers,
     lethalTriggers,
+    critTriggers,
   ].join('|');
 }
 

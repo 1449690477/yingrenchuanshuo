@@ -1,8 +1,9 @@
 import type {
   CombatTimelineEvent,
   DirectDamageSegmentEvent,
-  LethalRecoveryEvent,
   OnHitElementalDamageEvent,
+  PeriodicDamageEvent,
+  RecoveryEvent,
 } from '@/core/combat';
 import { requireTrialMotionTiming, type TrialBossMotion } from '@/data/trialVisuals';
 import type { BeatKindForImpact } from '@/data/battleMotions';
@@ -14,9 +15,9 @@ export interface TrialPresentationBeat {
   kind: BeatKindForImpact;
   /** 玩家第几次直接攻击；怪物攻击为 0。 */
   playerHitOrdinal: number;
-  direct: DirectDamageSegmentEvent;
+  direct: DirectDamageSegmentEvent | PeriodicDamageEvent;
   extras: readonly OnHitElementalDamageEvent[];
-  recoveries: readonly LethalRecoveryEvent[];
+  recoveries: readonly RecoveryEvent[];
   totalDamage: number;
   startMs: number;
   impactMs: number;
@@ -63,8 +64,11 @@ export function createTrialPlaybackPlan(
   let playerHitOrdinal = 0;
 
   const beats = grouped.map((group, index): TrialPresentationBeat => {
-    if (group.source === 'player') playerHitOrdinal++;
-    const skill = group.source === 'player' && playerHitOrdinal % 5 === 0;
+    const directAction = group.direct.kind === 'direct-damage';
+    if (group.source === 'player' && directAction) playerHitOrdinal++;
+    const skill =
+      group.direct.kind === 'periodic-damage' ||
+      (group.source === 'player' && playerHitOrdinal % 5 === 0);
     const kind: BeatKindForImpact =
       group.source === 'monster' ? 'monster-attack' : skill ? 'player-skill' : 'player-attack';
     const desiredWindup =
@@ -106,9 +110,9 @@ export function createTrialPlaybackPlan(
 interface GroupedTimelineBeat {
   source: CombatTimelineEvent['source'];
   target: CombatTimelineEvent['target'];
-  direct: DirectDamageSegmentEvent;
+  direct: DirectDamageSegmentEvent | PeriodicDamageEvent;
   extras: OnHitElementalDamageEvent[];
-  recoveries: LethalRecoveryEvent[];
+  recoveries: RecoveryEvent[];
 }
 
 function groupTimeline(timeline: readonly CombatTimelineEvent[]): GroupedTimelineBeat[] {
@@ -131,12 +135,25 @@ function groupTimeline(timeline: readonly CombatTimelineEvent[]): GroupedTimelin
       });
       continue;
     }
+    if (item.event.kind === 'periodic-damage') {
+      groups.push({
+        source: item.source,
+        target: item.target,
+        direct: item.event,
+        extras: [],
+        recoveries: [],
+      });
+      continue;
+    }
 
     const current = groups.at(-1);
     if (!current) {
       throw new Error(`[试炼演出] 追加事件 ${item.sequence} 前没有直接伤害`);
     }
-    if (item.event.kind === 'lethal-recovery') {
+    if (
+      item.event.kind === 'lethal-recovery' ||
+      item.event.kind === 'on-crit-recovery'
+    ) {
       current.recoveries.push(item.event);
       continue;
     }

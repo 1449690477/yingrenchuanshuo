@@ -14,16 +14,26 @@ import type { Rng } from './rng';
 import {
   calcConfirmedElementalDamage,
   calcDamage,
+  calcPeriodicDamage,
   expectedConfirmedElementalDamage,
   expectedDamage,
   hitChance,
 } from './formula';
 import {
+  assertOnCritPeriodicDamageTrigger,
   assertOnLethalRecoveryTrigger,
   assertOnHitElementalDamageTrigger,
+  type OnCritPeriodicDamageTrigger,
   type OnLethalRecoveryTrigger,
   type OnHitElementalDamageTrigger,
 } from './equipmentSets';
+import {
+  advancePeriodicDamage,
+  applyPeriodicDamage,
+  createPeriodicDamageState,
+  type PeriodicDamageState,
+  type PeriodicDamageTick,
+} from './combatStatus';
 import { IDLE_FREE_DAMAGE_RATIO, IDLE_SUSTAIN_HINT_EFFICIENCY } from '@/data/constants';
 
 /** 单场战斗的时间上限（秒），防止打不动时死循环 */
@@ -31,6 +41,7 @@ const MAX_FIGHT_SECONDS = 300;
 
 /** 模拟步长（秒）。0.1 秒足够精确，且 300 秒战斗只要 3000 步。 */
 const TICK = 0.1;
+const TICK_MS = 100;
 
 export interface FightOptions {
   /** 玩家平均技能倍率。默认 1.0（普攻） */
@@ -45,6 +56,10 @@ export interface FightOptions {
   playerOnLethalTriggers?: readonly OnLethalRecoveryTrigger[];
   /** 怪物受到致命伤害时可触发的同一接口。 */
   monsterOnLethalTriggers?: readonly OnLethalRecoveryTrigger[];
+  /** 玩家每个直接暴击独立触发的回复与持续伤害。 */
+  playerOnCritTriggers?: readonly OnCritPeriodicDamageTrigger[];
+  /** 怪物侧同一真实暴击接口。 */
+  monsterOnCritTriggers?: readonly OnCritPeriodicDamageTrigger[];
   /** 时间上限 */
   maxSeconds?: number;
 }
@@ -74,6 +89,26 @@ export interface LethalRecoveryEvent {
   triggerId: string;
 }
 
+export interface OnCritRecoveryEvent {
+  kind: 'on-crit-recovery';
+  damage: 0;
+  healing: number;
+  triggerId: string;
+}
+
+export interface PeriodicDamageEvent {
+  kind: 'periodic-damage';
+  damage: number;
+  hit: true;
+  crit: false;
+  element: Combatant['element'];
+  triggerId: string;
+  statusId: string;
+  stacks: number;
+}
+
+export type RecoveryEvent = LethalRecoveryEvent | OnCritRecoveryEvent;
+
 export interface DamageSegmentResolution {
   direct: DirectDamageSegmentEvent;
   /** 顺序固定为直接伤害、随后各个已触发追加段；视觉只能消费这些结算事件。 */
@@ -84,7 +119,7 @@ export interface CombatTimelineEvent {
   sequence: number;
   source: 'player' | 'monster';
   target: 'player' | 'monster';
-  event: DamageSegmentEvent | LethalRecoveryEvent;
+  event: DamageSegmentEvent | RecoveryEvent | PeriodicDamageEvent;
 }
 
 export interface SimulatedFightResult extends CombatResult {
@@ -189,19 +224,53 @@ export function simulateFight(
   const events: CombatTimelineEvent[] = [];
   const playerLethalUses = createLethalTriggerUses(opts.playerOnLethalTriggers);
   const monsterLethalUses = createLethalTriggerUses(opts.monsterOnLethalTriggers);
+  let playerPeriodicDamage = createPeriodicDamageState();
+  let monsterPeriodicDamage = createPeriodicDamageState();
+
+  for (const trigger of opts.playerOnCritTriggers ?? []) {
+    assertOnCritPeriodicDamageTrigger(trigger);
+  }
+  for (const trigger of opts.monsterOnCritTriggers ?? []) {
+    assertOnCritPeriodicDamageTrigger(trigger);
+  }
 
   const playerInterval = 1 / Math.max(0.01, player.stats.spd);
   const monsterInterval = 1 / Math.max(0.01, monster.stats.spd);
 
   while (ticks < maxTicks && player.currentHp > 0 && monster.currentHp > 0) {
     ticks++;
+    const elapsedMs = ticks * TICK_MS;
     playerCd -= TICK;
     monsterCd -= TICK;
+
+    const monsterPeriodicAdvance = applyPeriodicDamageAdvance(
+      monster,
+      monsterPeriodicDamage,
+      elapsedMs,
+      events,
+      opts.monsterOnLethalTriggers,
+      monsterLethalUses,
+    );
+    monsterPeriodicDamage = monsterPeriodicAdvance.state;
+    damageDealt += monsterPeriodicAdvance.damage;
+    if (monster.currentHp <= 0) break;
+
+    const playerPeriodicAdvance = applyPeriodicDamageAdvance(
+      player,
+      playerPeriodicDamage,
+      elapsedMs,
+      events,
+      opts.playerOnLethalTriggers,
+      playerLethalUses,
+    );
+    playerPeriodicDamage = playerPeriodicAdvance.state;
+    damageTaken += playerPeriodicAdvance.damage;
+    if (player.currentHp <= 0) break;
 
     if (playerCd <= 0) {
       playerCd += playerInterval;
       const segment = resolveDamageSegment(player, monster, pMul, rng, opts.playerOnHitTriggers);
-      damageDealt += applyDamageSegment(
+      const applied = applyDamageSegment(
         player,
         monster,
         segment,
@@ -210,13 +279,25 @@ export function simulateFight(
         opts.monsterOnLethalTriggers,
         monsterLethalUses,
       );
+      damageDealt += applied.damage;
+      if (applied.directCrit) {
+        monsterPeriodicDamage = resolveOnCritTriggers(
+          player,
+          monster,
+          opts.playerOnCritTriggers,
+          'player',
+          elapsedMs,
+          monsterPeriodicDamage,
+          events,
+        );
+      }
       if (monster.currentHp <= 0) break;
     }
 
     if (monsterCd <= 0) {
       monsterCd += monsterInterval;
       const segment = resolveDamageSegment(monster, player, mMul, rng, opts.monsterOnHitTriggers);
-      damageTaken += applyDamageSegment(
+      const applied = applyDamageSegment(
         monster,
         player,
         segment,
@@ -225,6 +306,18 @@ export function simulateFight(
         opts.playerOnLethalTriggers,
         playerLethalUses,
       );
+      damageTaken += applied.damage;
+      if (applied.directCrit) {
+        playerPeriodicDamage = resolveOnCritTriggers(
+          monster,
+          player,
+          opts.monsterOnCritTriggers,
+          'monster',
+          elapsedMs,
+          playerPeriodicDamage,
+          events,
+        );
+      }
     }
   }
 
@@ -432,7 +525,7 @@ function applyDamageSegment(
   timeline: CombatTimelineEvent[],
   defenderLethalTriggers: readonly OnLethalRecoveryTrigger[] = [],
   defenderLethalUses: Map<string, number> = new Map(),
-): number {
+): { damage: number; directCrit: boolean } {
   let total = 0;
   for (const event of resolution.events) {
     const applied =
@@ -471,7 +564,118 @@ function applyDamageSegment(
       });
     }
   }
-  return total;
+  return { damage: total, directCrit: resolution.direct.hit && resolution.direct.crit };
+}
+
+function resolveOnCritTriggers(
+  attacker: Combatant,
+  defender: Combatant,
+  triggers: readonly OnCritPeriodicDamageTrigger[] = [],
+  source: 'player' | 'monster',
+  elapsedMs: number,
+  periodicState: PeriodicDamageState,
+  timeline: CombatTimelineEvent[],
+): PeriodicDamageState {
+  let state = periodicState;
+  for (const trigger of triggers) {
+    assertOnCritPeriodicDamageTrigger(trigger);
+    const healing = Math.min(
+      Math.max(0, attacker.stats.hp - attacker.currentHp),
+      attacker.stats.hp * trigger.healMaxHpRatio,
+    );
+    attacker.currentHp += healing;
+    timeline.push({
+      sequence: timeline.length + 1,
+      source,
+      target: source,
+      event: {
+        kind: 'on-crit-recovery',
+        damage: 0,
+        healing,
+        triggerId: trigger.id,
+      },
+    });
+
+    if (defender.currentHp <= 0) continue;
+    const durationMs = trigger.durationSec * 1_000;
+    const element = trigger.element ?? attacker.element;
+    state = applyPeriodicDamage(
+      state,
+      {
+        statusId: trigger.statusId,
+        triggerId: trigger.id,
+        source,
+        element,
+        damagePerTick: calcPeriodicDamage(
+          attacker,
+          defender,
+          trigger.atkMultiplierPerTick,
+          element,
+        ),
+        stacks: 1,
+        maxStacks: trigger.maxStacks,
+        durationMs,
+        tickIntervalMs: durationMs / trigger.ticks,
+        refresh: trigger.refresh,
+      },
+      elapsedMs,
+    );
+  }
+  return state;
+}
+
+function applyPeriodicDamageAdvance(
+  defender: Combatant,
+  state: PeriodicDamageState,
+  elapsedMs: number,
+  timeline: CombatTimelineEvent[],
+  defenderLethalTriggers: readonly OnLethalRecoveryTrigger[] = [],
+  defenderLethalUses: Map<string, number> = new Map(),
+): { state: PeriodicDamageState; damage: number } {
+  const advanced = advancePeriodicDamage(state, elapsedMs);
+  let damage = 0;
+  for (const tick of advanced.ticks) {
+    if (defender.currentHp <= 0) break;
+    const applied = applyDamageOnly(
+      defender,
+      tick.damage,
+      defenderLethalTriggers,
+      defenderLethalUses,
+    );
+    damage += applied.damage;
+    pushPeriodicDamageEvent(timeline, tick, applied.damage);
+    if (applied.recovery) {
+      timeline.push({
+        sequence: timeline.length + 1,
+        source: tick.source === 'player' ? 'monster' : 'player',
+        target: tick.source === 'player' ? 'monster' : 'player',
+        event: applied.recovery,
+      });
+    }
+  }
+  return { state: advanced.state, damage };
+}
+
+function pushPeriodicDamageEvent(
+  timeline: CombatTimelineEvent[],
+  tick: PeriodicDamageTick,
+  damage: number,
+): void {
+  timeline.push({
+    sequence: timeline.length + 1,
+    source: tick.source,
+    target: tick.source === 'player' ? 'monster' : 'player',
+    event: {
+      kind: 'periodic-damage',
+      damage,
+      hit: true,
+      crit: false,
+      element: tick.element,
+      triggerId: tick.triggerId,
+      statusId: tick.statusId,
+      stacks: tick.stacks,
+    },
+  });
 }
 
 function applyDamageOnly(

@@ -385,7 +385,11 @@ function finishBeat(): void {
 }
 
 function skillForBeat(beat: TrialPresentationBeat) {
-  if (beat.kind !== 'player-skill' || skills.value.length === 0) return null;
+  if (
+    beat.kind !== 'player-skill' ||
+    beat.direct.kind === 'periodic-damage' ||
+    skills.value.length === 0
+  ) return null;
   const skillOrdinal = Math.floor(beat.playerHitOrdinal / 5) - 1;
   return skills.value[skillOrdinal % skills.value.length]!;
 }
