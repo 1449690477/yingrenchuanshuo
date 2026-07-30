@@ -899,6 +899,17 @@ export const DEFAULT_MAX_KILLS_PER_SEC = 3.0;
  */
 export const BAG_CAPACITY = 300;
 
+/**
+ * 等级软上限余量（docs/56 §2）。
+ *
+ * 玩家等级上限 = 当前可进入的最高关卡等级 + 本余量。
+ * 内容只到 Lv52 而等级无上限时，30 天实测升到 Lv118 —— 等级必须追着
+ * 内容走，不许反超。留 3 级让卡关的玩家仍能靠升级获得一点推力
+ * （胜任感来源），但不足以碾压。超限经验不作废：累积在 exp 里，
+ * 解锁新章节后由正常升级循环一次性释放。
+ */
+export const LEVEL_SOFT_CAP_MARGIN = 3;
+
 /** 体力 */
 export const STAMINA_BASE_MAX = 120;
 export const STAMINA_RECOVER_SECONDS = 300; // 5 分钟 1 点

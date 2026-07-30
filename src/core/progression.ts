@@ -20,6 +20,7 @@ import {
   CLASS_GROWTH,
   EVA_PER_LEVEL,
   EXP_BASE,
+  LEVEL_SOFT_CAP_MARGIN,
   EXP_POW,
   MONSTER_ACC_BASE,
   MONSTER_ACC_PER_LEVEL,
@@ -55,6 +56,51 @@ export function totalExpTo(level: number): number {
   let sum = 0;
   for (let l = 1; l < level; l++) sum += expToNext(l);
   return sum;
+}
+
+/**
+ * 等级软上限（docs/56 §2）：等级追内容，不许反超。
+ *
+ * @param highestReachableStageLevel 玩家当前**可进入**的最高关卡的等级
+ *   （不是已通关的 —— 卡在某关时，那一关本身就是他在打的内容）
+ */
+export function levelSoftCap(highestReachableStageLevel: number): number {
+  if (!Number.isInteger(highestReachableStageLevel) || highestReachableStageLevel < 1) {
+    throw new Error(`levelSoftCap: 关卡等级必须是正整数，收到 ${highestReachableStageLevel}`);
+  }
+  return highestReachableStageLevel + LEVEL_SOFT_CAP_MARGIN;
+}
+
+export interface LevelSettleResult {
+  level: number;
+  exp: number;
+  /** 本次结算实际升了几级 */
+  levelsGained: number;
+}
+
+/**
+ * 带软上限的升级结算。
+ *
+ * - 到达上限后停止升级，**经验原样保留在 exp 里继续累积** ——
+ *   解锁新章节使上限上移后，下一次结算会把囤积的经验一口气释放
+ * - 老存档等级可能已经高于上限（历史无上限时期升上去的）：
+ *   **原样保留，绝不回收**（docs/40 红线：不得没收已得之物），只是不再继续升
+ */
+export function settleLevelUps(level: number, exp: number, softCap: number): LevelSettleResult {
+  if (!Number.isInteger(level) || level < 1) {
+    throw new Error(`settleLevelUps: 等级必须是正整数，收到 ${level}`);
+  }
+  if (!Number.isFinite(exp) || exp < 0) {
+    throw new Error(`settleLevelUps: 经验必须是非负数，收到 ${exp}`);
+  }
+  let l = level;
+  let e = exp;
+  let guard = 0;
+  while (l < softCap && e >= expToNext(l) && guard++ < 500) {
+    e -= expToNext(l);
+    l++;
+  }
+  return { level: l, exp: e, levelsGained: l - level };
 }
 
 // ─────────────────────── 玩家属性 ───────────────────────

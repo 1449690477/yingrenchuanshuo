@@ -76,6 +76,8 @@ import {
 } from '../src/data/constants';
 import { EQUIPMENT } from '../src/data/equipment';
 import { idleCombatEfficiency, killsPerSecond } from '../src/core/idle';
+import { ALL_CHAPTERS } from '../src/data/regions';
+import { LEVEL_SOFT_CAP_MARGIN } from '../src/data/constants';
 import { timeToKill } from '../src/core/combat';
 import { estimateDuelWinChance, type DuelSide } from '../src/core/duel';
 import type { IdleContext } from '../src/core/idle';
@@ -224,7 +226,13 @@ interface DayRecord {
 /** 玩家每天实际挂机的有效秒数：8 小时离线上限 + 白天零散在线，按 14 小时估算 */
 const EFFECTIVE_SECONDS_PER_DAY = 14 * 3600;
 
-function simulateDays(cls: ClassId, days: number, levelCap = 120): DayRecord[] {
+/** 全部已开放内容里最高的关卡等级 —— 玩家能挂的图到此为止。 */
+const MAX_CONTENT_LEVEL = Math.max(...ALL_CHAPTERS.map((c) => c.levelTo));
+
+/** 内容边界下的等级软上限（docs/56 §2）。 */
+const CONTENT_SOFT_CAP = MAX_CONTENT_LEVEL + LEVEL_SOFT_CAP_MARGIN;
+
+function simulateDays(cls: ClassId, days: number, levelCap = CONTENT_SOFT_CAP): DayRecord[] {
   let level = 1;
   let exp = 0;
   const records: DayRecord[] = [];
@@ -240,8 +248,10 @@ function simulateDays(cls: ClassId, days: number, levelCap = 120): DayRecord[] {
       const chunk = Math.min(3600, remaining);
       remaining -= chunk;
 
-      // 玩家总是挂在自己等级能打的最高图（简化：等于自身等级）
-      stageLevel = Math.max(1, Math.min(level, levelCap));
+      // 玩家挂在自己等级能打的最高图，但**图到内容顶为止** ——
+      // 旧模型让怪物等级跟着玩家涨到 120，而真实内容只到 MAX_CONTENT_LEVEL，
+      // 于是模拟器测不出「等级反超内容」的脱锚（docs/56 病根一）。
+      stageLevel = Math.max(1, Math.min(level, MAX_CONTENT_LEVEL));
       const ctx = buildContext(cls, level, stageLevel);
       const kps = killsPerSecond(ctx);
       lastKps = kps;
@@ -250,7 +260,7 @@ function simulateDays(cls: ClassId, days: number, levelCap = 120): DayRecord[] {
       dayExp += gained;
       exp += gained;
 
-      // 结算升级
+      // 结算升级：软上限 = 可达内容顶 + 余量；超限经验囤在 exp 里（与 store 同规则）
       while (level < levelCap && exp >= expToNext(level)) {
         exp -= expToNext(level);
         level++;
@@ -1255,17 +1265,32 @@ function main() {
     '  checkpoints.csv / growth-30d.csv / class-balance.csv / reforge-acceptance.csv / pvp-balance.csv\n',
   );
 
-  // 健康检查
+  // 健康检查（docs/56 §8）
   const day30 = curve[curve.length - 1]!;
   console.log('【健康检查】');
-  console.log(`  30 天后等级：Lv${day30.等级}`);
-  const stalled = curve.findIndex((r, i) => i > 0 && r.等级 < 120 && r.等级 === curve[i - 1]!.等级);
-  if (stalled >= 0) {
+  console.log(`  30 天后等级：Lv${day30.等级}（软上限 Lv${CONTENT_SOFT_CAP}）`);
+
+  // G2：等级绝不允许越过内容软上限 —— 这正是 docs/56 病根一的防回归锁。
+  // 旧门禁「满级前无等级停滞」已废除：停滞（卡点）在新设计里是特性不是病，
+  // 玩家顶到软上限后靠推进关卡解锁继续升级。
+  if (day30.等级 > CONTENT_SOFT_CAP) {
     throw new Error(
-      `[成长曲线验收失败] 第 ${curve[stalled]!.天} 天满级前等级未增长（Lv${curve[stalled]!.等级}）`,
+      `[G2 失败] 30 天等级 Lv${day30.等级} 越过内容软上限 Lv${CONTENT_SOFT_CAP}（docs/56 §2）`,
     );
   }
-  console.log('  ✔ 满级前无等级停滞');
+  console.log(`  ✔ G2：30 天等级未越过内容软上限`);
+
+  // 软上限之下不允许长期停滞（到顶后停滞是设计使然，不算病）
+  const stalledBelowCap = curve.findIndex(
+    (r, i) => i > 0 && r.等级 < CONTENT_SOFT_CAP && r.等级 === curve[i - 1]!.等级,
+  );
+  if (stalledBelowCap >= 0) {
+    throw new Error(
+      `[成长曲线验收失败] 第 ${curve[stalledBelowCap]!.天} 天在软上限之下等级未增长` +
+        `（Lv${curve[stalledBelowCap]!.等级}）—— 到顶前不该有整天零增长`,
+    );
+  }
+  console.log('  ✔ 软上限之下无整天停滞');
 
   assertReforgeAcceptance(reforge, balance, offenseExtreme);
   assertPvpBalance(pvp);
