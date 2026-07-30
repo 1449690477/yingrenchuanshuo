@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import {
   CalendarDays,
   Check,
@@ -46,6 +46,13 @@ import {
 } from '@/components/imprint/imprintDisplay';
 import { IMPRINT_BATCH_ACTIVE } from '@/ui/imprintActivation';
 import { prefersCompactLayout, useFold } from '@/ui/useFold';
+import DungeonDepthPanel from '@/components/dungeon/DungeonDepthPanel.vue';
+import {
+  DEPTH_PER_TIER,
+  EQUIPMENT_DUNGEON_DEPTH_ANCHORS,
+} from '@/data/equipmentDungeonDepthRules';
+import { DUNGEON_DEPTH_UI_ACTIVE } from '@/ui/dungeonDepthActivation';
+import { dungeonDepthProgressStub, evaluateDungeonDepthStub } from '@/ui/dungeonDepthAdapter';
 
 type PlayedResult = Extract<EquipmentDungeonRunResult, { ok: true }>;
 
@@ -156,9 +163,17 @@ const currentSetProgress = computed(
     )?.equippedPieces ?? 0,
 );
 const challengeDisabled = computed(
-  () => !unlocked.value || game.equipmentDungeonRemaining <= 0 || battleResult.value !== null,
+  () =>
+    depthUiActive ||
+    !unlocked.value ||
+    game.equipmentDungeonRemaining <= 0 ||
+    battleResult.value !== null,
 );
 const lockCopy = computed(() => {
+  // 深度 UI stub 期：run 随接线批次开放（dungeonDepthAdapter.ts 第 3 条）
+  if (depthUiActive) {
+    return '深度挑战随接线批次开放';
+  }
   if (playerLevel.value < stage.value.unlockLevel) {
     return `角色达到 Lv${stage.value.unlockLevel} 后开放`;
   }
@@ -220,6 +235,63 @@ function closeImprintBench(): void {
 function onImprintIconError(event: Event): void {
   (event.target as HTMLImageElement).style.display = 'none';
 }
+
+// ─────────── 深度阶梯（docs/66 §八 第 6 步 · stub 期挂激活开关） ───────────
+
+/**
+ * 深度 UI 激活开关（src/ui/dungeonDepthActivation.ts）。
+ * false = 对玩家零可见变化；接线批次由 claude-drops 翻 true、
+ * 删 stub 并直连 game store（dungeonDepthAdapter.ts 头部有交接说明）。
+ */
+const depthUiActive = DUNGEON_DEPTH_UI_ACTIVE;
+
+/** stub：从现有 records 推导深度进度（docs/66 §五 迁移规则同口径，绝不伪造更高深度） */
+const depthProgress = computed(() =>
+  depthUiActive ? dungeonDepthProgressStub(dungeonState.value) : {},
+);
+
+/** 当前档已突破的最高深度；0 = 一层未破 */
+const clearedDepth = computed(() => depthProgress.value[selectedTierId.value] ?? 0);
+
+/** 当前档实际开放的层数（crimson 现在只开 d1，docs/66 §七） */
+const openDepths = computed(
+  () => EQUIPMENT_DUNGEON_DEPTH_ANCHORS[selectedTierId.value].openDepths,
+);
+
+const selectedDepth = ref(1);
+
+/** 对当前档逐层（1..5）求一次完整评估，全部判定都在 core 纯函数里 */
+const depthEvaluations = computed(() => {
+  if (!depthUiActive) return [];
+  return Array.from({ length: DEPTH_PER_TIER }, (_, index) =>
+    evaluateDungeonDepthStub({
+      progress: depthProgress.value,
+      tierId: selectedTierId.value,
+      depth: index + 1,
+      playerLevel: playerLevel.value,
+      attemptsRemaining: game.equipmentDungeonRemaining,
+    }),
+  );
+});
+
+// 换档（含初始化）时把选中层收回到该档「下一层可打」的位置
+watch(
+  selectedTierId,
+  (tierId) => {
+    selectedDepth.value = Math.min(
+      (depthProgress.value[tierId] ?? 0) + 1,
+      EQUIPMENT_DUNGEON_DEPTH_ANCHORS[tierId].openDepths,
+    );
+  },
+  { immediate: true },
+);
+
+// 刚突破一层后，若玩家还指着旧前沿则顺推到新一层；手动回选已破层重刷时不动
+watch(clearedDepth, (cleared, previous) => {
+  if (cleared > previous && selectedDepth.value === previous + 1) {
+    selectedDepth.value = Math.min(cleared + 1, openDepths.value);
+  }
+});
 
 function selectSlot(slot: EquipSlot): void {
   selectedSlot.value = slot;
@@ -329,9 +401,9 @@ onUnmounted(() => {
     >
       <template #peek>
         <span class="config-peek">
-          {{ SLOT_LABELS[selectedSlot] }} · {{ QUALITY_LABELS[stage.quality] }} Lv{{
-            stage.unlockLevel
-          }}
+          {{ SLOT_LABELS[selectedSlot] }} · {{ QUALITY_LABELS[stage.quality] }}
+          <template v-if="depthUiActive">深度 {{ selectedDepth }}</template>
+          <template v-else>Lv{{ stage.unlockLevel }}</template>
         </span>
       </template>
       <div class="config-body">
@@ -438,6 +510,16 @@ onUnmounted(() => {
               />
             </button>
           </div>
+          <!-- 深度阶梯：挂激活开关，stub 期对玩家零可见（docs/66 §八 第 6 步） -->
+          <DungeonDepthPanel
+            v-if="depthUiActive"
+            :tier="currentTier"
+            :evaluations="depthEvaluations"
+            :cleared-depth="clearedDepth"
+            :selected-depth="selectedDepth"
+            :reduce-motion="effectiveReduceMotion"
+            @select="selectedDepth = $event"
+          />
         </section>
       </div>
     </CollapsibleCard>
@@ -517,7 +599,7 @@ onUnmounted(() => {
             @click="challenge"
           >
             <Swords :size="16" aria-hidden="true" />
-            {{ currentRecord ? '再次挑战' : '首通挑战' }}
+            {{ depthUiActive ? '深度挑战' : currentRecord ? '再次挑战' : '首通挑战' }}
           </button>
         </div>
         <p v-if="notice" class="notice" role="status">{{ notice }}</p>
