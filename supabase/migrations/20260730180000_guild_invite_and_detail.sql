@@ -28,6 +28,9 @@ end;
 $$;
 
 alter table public.guilds alter column invite_code set not null;
+-- 先 drop 再 add：本仓迁移一律可重复执行（见 20260729210000 的 profiles_bio_len）。
+-- 少了这一句，db push 二次执行或部分失败重跑就会报 already exists 卡住。
+alter table public.guilds drop constraint if exists guilds_invite_code_format;
 alter table public.guilds add constraint guilds_invite_code_format
   check (invite_code ~ '^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{8}$');
 create unique index if not exists guilds_invite_code_idx on public.guilds (invite_code);
@@ -183,3 +186,17 @@ revoke all on function public.guild_join_by_code(text) from public;
 grant execute on function public.guild_get_detail(uuid) to authenticated;
 grant execute on function public.guild_join_by_code(text) to authenticated;
 -- invite_code 默认值生成器只由 guild_create（security definer）间接触发，不直接授权
+
+-- ─── 邀请码不随公会名片一起公开（列级权限） ───
+-- public.guilds 有一条 "guild summaries readable" 策略：for select to authenticated
+-- using (true) —— 表级放行会把**新加的列一起放出去**，也就是每个登录玩家都能
+-- 直接 select 到全服所有公会的邀请码。而本迁移的设计意图恰恰相反：
+-- guild_get_my_state（成员）给码、guild_get_detail（任何人）不给码。
+--
+-- 列级 revoke 把这条意图落到权限上。两条 RPC 都是 security definer，
+-- 以函数所有者身份执行，成员照样拿得到自己的码；客户端也从不直读这张表
+-- （src/net/guild.ts 全部走 rpc）。
+--
+-- 今天不做这一步也不会立刻出事（guild_join 本来就允许凭 id 直接加入），
+-- 但只要将来做「仅邀请制公会」，这个码就已经是公开的了 —— 那时再补要迁移历史码。
+revoke select (invite_code) on public.guilds from anon, authenticated;
