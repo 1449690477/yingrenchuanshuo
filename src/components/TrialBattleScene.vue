@@ -342,8 +342,7 @@ function resolveImpact(beat: TrialPresentationBeat, nowMs: number): void {
     if (beat.recoveries.length > 0 && props.run) {
       playerHp.value = Math.min(
         props.run.playerHpMax,
-        playerHp.value +
-          beat.recoveries.reduce((sum, recovery) => sum + recovery.healing, 0),
+        playerHp.value + beat.recoveries.reduce((sum, recovery) => sum + recovery.healing, 0),
       );
       calloutText.value = '幽影护命';
       signatureSeq.value++;
@@ -389,7 +388,8 @@ function skillForBeat(beat: TrialPresentationBeat) {
     beat.kind !== 'player-skill' ||
     beat.direct.kind === 'periodic-damage' ||
     skills.value.length === 0
-  ) return null;
+  )
+    return null;
   const skillOrdinal = Math.floor(beat.playerHitOrdinal / 5) - 1;
   return skills.value[skillOrdinal % skills.value.length]!;
 }
@@ -1612,7 +1612,8 @@ function finishPlayback(skip: boolean): void {
 .battle-readout {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  padding: 7px 7px 9px;
+  gap: 6px;
+  padding: 7px 8px 9px;
 }
 
 .battle-readout > span {
@@ -1620,13 +1621,12 @@ function finishPlayback(skip: boolean): void {
   display: grid;
   grid-template-columns: auto 1fr;
   align-items: center;
-  gap: 0 4px;
-  padding: 0 6px;
+  gap: 0 5px;
+  padding: 5px 7px;
   color: var(--text-mid);
-}
-
-.battle-readout > span + span {
-  border-left: 1px solid var(--hairline);
+  background: rgb(244 249 253 / 78%);
+  border: 1px solid var(--hairline);
+  border-radius: 9px;
 }
 
 .battle-readout svg {
@@ -1637,6 +1637,7 @@ function finishPlayback(skip: boolean): void {
 .battle-readout small {
   overflow: hidden;
   font-size: 7px;
+  letter-spacing: 0.3px;
   color: var(--text-dim);
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1644,7 +1645,8 @@ function finishPlayback(skip: boolean): void {
 
 .battle-readout strong {
   overflow: hidden;
-  font-size: 9px;
+  font-size: 11px;
+  font-weight: 800;
   color: var(--text);
   text-overflow: ellipsis;
   white-space: nowrap;

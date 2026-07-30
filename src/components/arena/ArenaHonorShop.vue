@@ -32,18 +32,20 @@ const honor = computed(() => arena.me?.honor ?? 0);
 const setPieces = computed(() =>
   arenaSetPieceCount(SLOT_ORDER.map((s) => game.save?.equipped[s] ?? null)),
 );
-const ownedCount = computed(() => {
+// 单件拥有检测：背包或穿戴中有该圣痕即标记，货架上直接给「已拥有」角标
+const ownedDefIds = computed(() => {
   const bag = game.save?.bag.equipment ?? [];
   const equipped = game.save?.equipped;
-  let count = 0;
+  const ids = new Set<string>();
   for (const entry of arena.shopEntries) {
     const defId = entry.definition.id;
     const inBag = bag.some((e) => e.defId === defId);
     const worn = equipped ? SLOT_ORDER.some((s) => equipped[s]?.defId === defId) : false;
-    if (inBag || worn) count++;
+    if (inBag || worn) ids.add(defId);
   }
-  return count;
+  return ids;
 });
+const ownedCount = computed(() => ownedDefIds.value.size);
 
 const busyEntry = ref<string | null>(null);
 
@@ -66,7 +68,6 @@ function onFragmentExchange(defId: string): void {
     busyEntry.value = null;
   }
 }
-
 </script>
 
 <template>
@@ -91,8 +92,19 @@ function onFragmentExchange(defId: string): void {
     </div>
 
     <div class="shelves">
-      <article v-for="entry in arena.shopEntries" :key="entry.id" class="shelf">
-        <img :src="assetUrl(entry.definition.icon)" :alt="entry.definition.name" class="shelf-icon" />
+      <article
+        v-for="entry in arena.shopEntries"
+        :key="entry.id"
+        class="shelf"
+        :class="{ owned: ownedDefIds.has(entry.definition.id) }"
+      >
+        <span v-if="ownedDefIds.has(entry.definition.id)" class="owned-tag">已拥有</span>
+        <span class="icon-halo" aria-hidden="true" />
+        <img
+          :src="assetUrl(entry.definition.icon)"
+          :alt="entry.definition.name"
+          class="shelf-icon"
+        />
         <div class="shelf-info">
           <strong class="shelf-name">{{ entry.definition.name }}</strong>
           <span class="shelf-slot">{{ SLOT_LABELS[entry.slot] }} · 圣痕</span>
@@ -159,7 +171,10 @@ function onFragmentExchange(defId: string): void {
   font-weight: 900;
   color: var(--q-divine);
 }
-.honor-icon { width: 18px; height: 18px; }
+.honor-icon {
+  width: 18px;
+  height: 18px;
+}
 
 .set-progress {
   display: flex;
@@ -173,20 +188,32 @@ function onFragmentExchange(defId: string): void {
   font-size: 11px;
   color: var(--text-mid);
 }
-.set-name { font-weight: 800; color: var(--q-divine); }
-.set-pips { display: inline-flex; gap: 4px; }
+.set-name {
+  font-weight: 800;
+  color: var(--q-divine);
+}
+.set-pips {
+  display: inline-flex;
+  gap: 4px;
+}
 .set-pips i {
   width: 8px;
   height: 8px;
   border-radius: 50%;
   background: var(--line-strong);
-  transition: background 0.3s, box-shadow 0.3s;
+  transition:
+    background 0.3s,
+    box-shadow 0.3s;
 }
 .set-pips i.lit {
   background: var(--q-divine);
   box-shadow: 0 0 8px rgb(232 172 31 / 60%);
 }
-.set-owned { margin-left: auto; font-weight: 700; color: var(--text-mid); }
+.set-owned {
+  margin-left: auto;
+  font-weight: 700;
+  color: var(--text-mid);
+}
 
 .shelves {
   display: grid;
@@ -195,6 +222,7 @@ function onFragmentExchange(defId: string): void {
 }
 
 .shelf {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -203,16 +231,62 @@ function onFragmentExchange(defId: string): void {
   border-radius: var(--r);
   background: var(--panel-2);
   border: 1px solid var(--line);
-  transition: transform 0.18s var(--ease-spring), box-shadow 0.18s;
+  transition:
+    transform 0.18s var(--ease-spring),
+    box-shadow 0.18s,
+    border-color 0.18s;
 }
-.shelf:active { transform: scale(0.97); }
+.shelf:active {
+  transform: scale(0.97);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .shelf:hover {
+    border-color: rgb(232 172 31 / 40%);
+    box-shadow: 0 6px 16px rgb(96 74 32 / 12%);
+    transform: translateY(-2px);
+  }
+}
+
+/* 已拥有：淡金描边 + 角标，避免重复兑换 */
+.shelf.owned {
+  border-color: rgb(232 172 31 / 38%);
+  background: linear-gradient(180deg, rgb(255 217 138 / 10%), var(--panel-2));
+}
+
+.owned-tag {
+  position: absolute;
+  z-index: 2;
+  top: 7px;
+  right: 7px;
+  padding: 2px 7px;
+  font-size: 8px;
+  font-weight: 800;
+  color: #a0720b;
+  background: linear-gradient(150deg, #fbe3a8, #f6cf6a);
+  border: 1px solid rgb(255 255 255 / 70%);
+  border-radius: 999px;
+  box-shadow: 0 2px 6px rgb(232 172 31 / 26%);
+}
+
+/* 图标底光晕：货架品的「圣光托底」 */
+.icon-halo {
+  position: absolute;
+  top: 14px;
+  width: 72px;
+  height: 46px;
+  background: radial-gradient(ellipse, rgb(255 200 96 / 30%), transparent 68%);
+  pointer-events: none;
+}
 
 .shelf-icon {
   width: 56px;
   height: 56px;
   filter: drop-shadow(0 3px 8px rgb(232 172 31 / 30%));
 }
-.shelf-info { text-align: center; }
+.shelf-info {
+  text-align: center;
+}
 .shelf-name {
   display: block;
   font-size: 12px;
@@ -220,31 +294,53 @@ function onFragmentExchange(defId: string): void {
   color: var(--text);
   line-height: 1.3;
 }
-.shelf-slot { font-size: 10px; color: var(--text-dim); }
+.shelf-slot {
+  font-size: 10px;
+  color: var(--text-dim);
+}
 
-.shelf-actions { display: flex; gap: 6px; }
+.shelf-actions {
+  display: flex;
+  gap: 6px;
+}
 .buy-btn {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  border: none;
+  border: 1px solid rgb(255 255 255 / 55%);
   border-radius: 999px;
   padding: 6px 10px;
   font-size: 12px;
   font-weight: 800;
   color: #fff;
-  background: linear-gradient(135deg, #e8ac1f, #ffc860);
-  box-shadow: 0 3px 10px rgb(232 172 31 / 35%);
+  background: linear-gradient(150deg, #d99a26, #f0c25e 70%, #f6cf6a);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 36%),
+    0 3px 10px rgb(217 154 38 / 34%);
   cursor: pointer;
-  transition: transform 0.15s var(--ease-spring), opacity 0.15s;
+  text-shadow: 0 1px 2px rgb(133 90 12 / 32%);
+  transition:
+    transform 0.15s var(--ease-spring),
+    opacity 0.15s;
 }
-.buy-btn:active:not(:disabled) { transform: scale(0.92); }
-.buy-btn:disabled { opacity: 0.38; box-shadow: none; cursor: default; }
+.buy-btn:active:not(:disabled) {
+  transform: scale(0.92);
+}
+.buy-btn:disabled {
+  opacity: 0.38;
+  box-shadow: none;
+  cursor: default;
+}
 .buy-btn.frag {
-  background: linear-gradient(135deg, #ab6fe0, #d557d9);
-  box-shadow: 0 3px 10px rgb(171 111 224 / 30%);
+  background: linear-gradient(150deg, #a365dd, #c77ee8);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 36%),
+    0 3px 10px rgb(171 111 224 / 30%);
 }
-.btn-icon { width: 13px; height: 13px; }
+.btn-icon {
+  width: 13px;
+  height: 13px;
+}
 
 .shop-foot {
   display: flex;
@@ -264,8 +360,16 @@ function onFragmentExchange(defId: string): void {
 }
 
 @media (max-width: 340px) {
-  .shelf-icon { width: 46px; height: 46px; }
-  .shelf-name { font-size: 11px; }
-  .buy-btn { padding: 5px 8px; font-size: 11px; }
+  .shelf-icon {
+    width: 46px;
+    height: 46px;
+  }
+  .shelf-name {
+    font-size: 11px;
+  }
+  .buy-btn {
+    padding: 5px 8px;
+    font-size: 11px;
+  }
 }
 </style>

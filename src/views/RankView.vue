@@ -298,307 +298,320 @@ onUnmounted(() => {
     </nav>
 
     <template v-if="viewTab === 'trial'">
-    <!-- ═══ 周常试炼英雄卡 ═══ -->
-    <section class="boss-card" :data-element="lb.boss.combatant.element">
-      <!-- 本卡专属粒子场：上升光尘 + 旋转光环，纯 CSS 零 JS 开销 -->
-      <span class="boss-aura" aria-hidden="true" />
-      <i v-for="n in 12" :key="n" class="mote" :class="`mote-${n}`" aria-hidden="true" />
+      <!-- ═══ 周常试炼英雄卡 ═══ -->
+      <section class="boss-card" :data-element="lb.boss.combatant.element">
+        <!-- 本卡专属粒子场：上升光尘 + 旋转光环，纯 CSS 零 JS 开销 -->
+        <span class="boss-aura" aria-hidden="true" />
+        <i v-for="n in 12" :key="n" class="mote" :class="`mote-${n}`" aria-hidden="true" />
 
-      <header class="boss-head">
-        <span class="boss-title"><Sparkles :size="13" aria-hidden="true" />周常试炼</span>
-        <span class="countdown-chip"
-          ><Timer :size="11" aria-hidden="true" />{{ remainingText }}</span
-        >
-      </header>
-
-      <div class="boss-body brief-body">
-        <div class="boss-copy">
-          <span class="boss-week brief-element">
-            <component :is="elementIcon" :size="12" :stroke-width="2.2" aria-hidden="true" />
-            本周 Boss · {{ elementLabel }}属性
-          </span>
-          <strong class="boss-name">{{ lb.boss.name }}</strong>
-          <em class="boss-hint">「{{ lb.boss.tilt.hint }}」</em>
-          <span class="boss-badges">
-            <b>{{ lb.bracket.name }}段</b>
-            <b>{{ classSymbol(lb.classId) }} {{ className(lb.classId) }}榜</b>
-          </span>
-        </div>
-      </div>
-    </section>
-
-    <TrialBattleScene
-      :boss="lb.boss"
-      :class-id="lb.classId"
-      :level="game.player?.level ?? 1"
-      :equipped="game.save?.equipped ?? null"
-      :player-name="game.player?.name ?? '挑战者'"
-      :run="battleRun"
-      :playback-key="playbackKey"
-      :reduce-motion="motionReduced"
-      @complete="onBattleComplete"
-    />
-
-    <!-- ═══ 我的成绩卡 ═══ -->
-    <section class="card my-score">
-      <div class="score-left">
-        <span class="score-label">本周最好成绩</span>
-        <strong class="score-value num">
-          {{ lb.myBestThisWeek ? abbr(lb.myBestThisWeek.damage) : '—' }}
-        </strong>
-        <!-- 箭头只在上升时出现；下降不显示箭头、不显示红色 -->
-        <span v-if="lb.weekOverWeekGain !== null" class="gain-badge">
-          ↑ 比上周 +{{ pct(lb.weekOverWeekGain, 0) }}
-        </span>
-        <span class="score-sub">
-          <template v-if="myStanding">
-            {{ lb.bracket.name }}·{{ className(lb.classId) }}
-            <b>{{ upperPercentText(myStanding.rank, myStanding.total) }}</b>
-          </template>
-          <template v-else-if="lb.myBestThisWeek?.submitted">已入榜，名次同步中…</template>
-          <template v-else-if="lb.myBestThisWeek">成绩已记录，上传后即可看到名次</template>
-          <template v-else>挑战一次，打出你的本周成绩</template>
-        </span>
-      </div>
-      <div class="score-actions">
-        <button class="btn btn-pink challenge-btn" :disabled="challenging" @click="onChallenge">
-          <Swords :size="14" aria-hidden="true" />
-          {{ challenging ? '试炼进行中…' : lb.myBestThisWeek ? '再次挑战' : '挑战试炼' }}
-          <i v-if="challenging" class="clash" aria-hidden="true" />
-        </button>
-        <button
-          v-if="canUpload"
-          class="btn btn-blue upload-btn"
-          :disabled="lb.submitting"
-          @click="onUpload"
-        >
-          <Upload :size="13" aria-hidden="true" />
-          {{ lb.submitting ? '上传中…' : '上传成绩' }}
-        </button>
-        <button
-          v-if="lb.status === 'ready'"
-          class="btn btn-plain profile-btn"
-          @click="openProfileEditor"
-        >
-          <Pencil :size="12" aria-hidden="true" />
-          编辑档案
-        </button>
-      </div>
-    </section>
-
-    <!-- ═══ 榜单卡 ═══ -->
-    <section class="card board">
-      <div class="seg" role="tablist" aria-label="榜单切换">
-        <span
-          class="seg-pill"
-          :style="{ '--seg-x': BOARD_TABS.findIndex((t) => t.key === boardTab) }"
-          aria-hidden="true"
-        />
-        <button
-          v-for="tab in BOARD_TABS"
-          :key="tab.key"
-          role="tab"
-          class="seg-tab"
-          :class="{ active: boardTab === tab.key }"
-          :aria-selected="boardTab === tab.key"
-          @click="boardTab = tab.key"
-        >
-          {{ tab.label }}
-        </button>
-      </div>
-
-      <!-- 联机状态横幅：静默降级，绝不阻塞 -->
-      <div v-if="lb.status === 'unconfigured'" class="net-banner">
-        <Info :size="13" aria-hidden="true" />
-        <span>当前是单机试炼模式，成绩记录在本地；联机榜开启后即可上传排名。</span>
-      </div>
-      <div v-else-if="lb.status === 'offline'" class="net-banner warn">
-        <CloudOff :size="13" aria-hidden="true" />
-        <span>网络未连接，榜单暂不可用。</span>
-        <button class="retry" @click="lb.refreshBoards(true)">
-          <RefreshCw :size="12" aria-hidden="true" />重试
-        </button>
-      </div>
-
-      <!-- 加载骨架 -->
-      <div v-if="lb.boardsLoading && boardEmpty" class="rows">
-        <div v-for="n in 5" :key="n" class="row skeleton" :style="{ '--row-delay': `${n * 60}ms` }">
-          <span class="sk sk-rank" /><span class="sk sk-name" /><span class="sk sk-damage" />
-        </div>
-      </div>
-
-      <!-- 空态：够得着的目标，从第一次挑战开始 -->
-      <div v-else-if="boardEmpty" class="empty">
-        <template v-if="boardTab === 'neighborhood'">
-          这一带还很安静 —— 上传一次成绩，就能看到你±5名的对手。
-        </template>
-        <template v-else>本周还没有人上榜，虚位以待。</template>
-      </div>
-
-      <!-- 试炼邻域 / 总榜 -->
-      <div v-else-if="boardTab !== 'power'" class="rows">
-        <div
-          v-for="(row, index) in boardTab === 'neighborhood' ? neighborhoodRows : topRows"
-          :key="row.userId"
-          class="row row-in"
-          :class="{ me: row.isMe, podium: row.rank <= 3 && boardTab === 'top' }"
-          :style="{ '--row-delay': `${Math.min(index, 14) * 45}ms` }"
-        >
-          <span class="rank-no" :data-rank="row.rank">{{ row.rank }}</span>
-          <span class="who">
-            <ProfileAvatar
-              class="row-avatar"
-              :avatar-url="row.avatarUrl"
-              :class-id="row.classId"
-              :alt="`${row.displayName}的头像`"
-            />
-            <span class="identity-copy">
-              <span class="identity-line">
-                <b>{{ row.displayName }}</b>
-                <em v-if="row.isMe">你</em>
-              </span>
-              <small>{{ row.bio || `${className(row.classId)}挑战者` }}</small>
-            </span>
-          </span>
-          <span class="damage num">{{ abbr(row.damage) }}</span>
-          <button
-            v-if="!row.isMe && lb.status === 'ready'"
-            class="report-entry"
-            :aria-label="`举报${row.displayName}的档案`"
-            title="举报档案"
-            @click.stop="openReport(row)"
+        <header class="boss-head">
+          <span class="boss-title"><Sparkles :size="13" aria-hidden="true" />周常试炼</span>
+          <span class="countdown-chip"
+            ><Timer :size="11" aria-hidden="true" />{{ remainingText }}</span
           >
-            <Flag :size="12" aria-hidden="true" />
-          </button>
-        </div>
-      </div>
+        </header>
 
-      <!-- 战力榜（次级页签：玩家期待看到，但我们不主推） -->
-      <div v-else class="rows">
-        <div
-          v-for="(row, index) in powerRows"
-          :key="row.userId"
-          class="row row-in"
-          :class="{ me: row.isMe }"
-          :style="{ '--row-delay': `${Math.min(index, 14) * 45}ms` }"
-        >
-          <span class="rank-no">{{ row.rank }}</span>
-          <span class="who">
-            <ProfileAvatar
-              class="row-avatar"
-              :avatar-url="row.avatarUrl"
-              :class-id="row.classId"
-              :alt="`${row.displayName}的头像`"
-            />
-            <span class="identity-copy">
-              <span class="identity-line">
-                <b>{{ row.displayName }}</b>
-                <em v-if="row.isMe">你</em>
-              </span>
-              <small
-                >Lv.{{ row.level }}<template v-if="row.bio"> · {{ row.bio }}</template></small
-              >
+        <div class="boss-body brief-body">
+          <!-- 元素徽章：双层旋转光环 + 浮动核心，英雄卡的视觉锚点 -->
+          <span class="emblem" aria-hidden="true">
+            <i class="emblem-ring ring-a" />
+            <i class="emblem-ring ring-b" />
+            <b class="emblem-core">
+              <component :is="elementIcon" :size="26" :stroke-width="2.1" aria-hidden="true" />
+            </b>
+          </span>
+          <div class="boss-copy">
+            <span class="boss-week brief-element">
+              <component :is="elementIcon" :size="12" :stroke-width="2.2" aria-hidden="true" />
+              本周 Boss · {{ elementLabel }}属性
             </span>
-          </span>
-          <span class="damage num">{{ abbr(row.combatPower) }}</span>
-          <button
-            v-if="!row.isMe && lb.status === 'ready'"
-            class="report-entry"
-            :aria-label="`举报${row.displayName}的档案`"
-            title="举报档案"
-            @click.stop="openReport(row)"
-          >
-            <Flag :size="12" aria-hidden="true" />
-          </button>
-        </div>
-        <p v-if="myPowerRank && !powerRows.some((r) => r.isMe)" class="my-power-note">
-          我的战力名次：第 {{ myPowerRank }} 名
-        </p>
-      </div>
-    </section>
-
-    <p class="fair-note">
-      试炼为固定种子：同一套搭配必得同一成绩，提升只来自搭配的改善。榜单奖励只含称号与外观。
-    </p>
-
-    <!-- ═══ 挑战结果揭晓 ═══ -->
-    <Transition name="modal-pop">
-      <div v-if="outcome" class="overlay" @click.self="closeOutcome">
-        <div class="result-panel" role="dialog" aria-label="试炼结果">
-          <span v-if="outcome.improved" class="burst" aria-hidden="true">
-            <i v-for="n in 8" :key="n" :class="`burst-${n}`" />
-          </span>
-          <span class="result-label">60 秒总伤害</span>
-          <strong class="result-value num">{{ abbr(displayDamage) }}</strong>
-          <span v-if="outcome.improved" class="record-badge">✦ 新纪录 ✦</span>
-          <span v-else class="result-note">
-            本周最好成绩仍是 {{ abbr(outcome.best.damage) }}，换套搭配再试试
-          </span>
-          <span v-if="!outcome.result.survived" class="result-note">
-            没能打满全程 —— 生存也是实力的一部分
-          </span>
-          <div class="result-actions">
-            <button
-              v-if="lb.status === 'ready' && (outcome.improved || !outcome.best.submitted)"
-              class="btn btn-pink"
-              :disabled="lb.submitting"
-              @click="onUpload"
-            >
-              <Upload :size="13" aria-hidden="true" />
-              {{ lb.submitting ? '上传中…' : '上传成绩' }}
-            </button>
-            <button class="btn btn-plain" @click="closeOutcome">完成</button>
+            <strong class="boss-name">{{ lb.boss.name }}</strong>
+            <em class="boss-hint">「{{ lb.boss.tilt.hint }}」</em>
+            <span class="boss-badges">
+              <b>{{ lb.bracket.name }}段</b>
+              <b>{{ classSymbol(lb.classId) }} {{ className(lb.classId) }}榜</b>
+            </span>
           </div>
-          <p v-if="lb.status !== 'ready'" class="result-note dim">
-            单机试炼模式：成绩已记录在本机，联机后可随时上传。
+        </div>
+      </section>
+
+      <TrialBattleScene
+        :boss="lb.boss"
+        :class-id="lb.classId"
+        :level="game.player?.level ?? 1"
+        :equipped="game.save?.equipped ?? null"
+        :player-name="game.player?.name ?? '挑战者'"
+        :run="battleRun"
+        :playback-key="playbackKey"
+        :reduce-motion="motionReduced"
+        @complete="onBattleComplete"
+      />
+
+      <!-- ═══ 我的成绩卡 ═══ -->
+      <section class="card my-score">
+        <div class="score-left">
+          <span class="score-label">本周最好成绩</span>
+          <strong class="score-value num">
+            {{ lb.myBestThisWeek ? abbr(lb.myBestThisWeek.damage) : '—' }}
+          </strong>
+          <!-- 箭头只在上升时出现；下降不显示箭头、不显示红色 -->
+          <span v-if="lb.weekOverWeekGain !== null" class="gain-badge">
+            ↑ 比上周 +{{ pct(lb.weekOverWeekGain, 0) }}
+          </span>
+          <span class="score-sub">
+            <template v-if="myStanding">
+              {{ lb.bracket.name }}·{{ className(lb.classId) }}
+              <b>{{ upperPercentText(myStanding.rank, myStanding.total) }}</b>
+            </template>
+            <template v-else-if="lb.myBestThisWeek?.submitted">已入榜，名次同步中…</template>
+            <template v-else-if="lb.myBestThisWeek">成绩已记录，上传后即可看到名次</template>
+            <template v-else>挑战一次，打出你的本周成绩</template>
+          </span>
+        </div>
+        <div class="score-actions">
+          <button class="btn btn-pink challenge-btn" :disabled="challenging" @click="onChallenge">
+            <Swords :size="14" aria-hidden="true" />
+            {{ challenging ? '试炼进行中…' : lb.myBestThisWeek ? '再次挑战' : '挑战试炼' }}
+            <i v-if="challenging" class="clash" aria-hidden="true" />
+          </button>
+          <button
+            v-if="canUpload"
+            class="btn btn-blue upload-btn"
+            :disabled="lb.submitting"
+            @click="onUpload"
+          >
+            <Upload :size="13" aria-hidden="true" />
+            {{ lb.submitting ? '上传中…' : '上传成绩' }}
+          </button>
+          <button
+            v-if="lb.status === 'ready'"
+            class="btn btn-plain profile-btn"
+            @click="openProfileEditor"
+          >
+            <Pencil :size="12" aria-hidden="true" />
+            编辑档案
+          </button>
+        </div>
+      </section>
+
+      <!-- ═══ 榜单卡 ═══ -->
+      <section class="card board">
+        <div class="seg" role="tablist" aria-label="榜单切换">
+          <span
+            class="seg-pill"
+            :style="{ '--seg-x': BOARD_TABS.findIndex((t) => t.key === boardTab) }"
+            aria-hidden="true"
+          />
+          <button
+            v-for="tab in BOARD_TABS"
+            :key="tab.key"
+            role="tab"
+            class="seg-tab"
+            :class="{ active: boardTab === tab.key }"
+            :aria-selected="boardTab === tab.key"
+            @click="boardTab = tab.key"
+          >
+            {{ tab.label }}
+          </button>
+        </div>
+
+        <!-- 联机状态横幅：静默降级，绝不阻塞 -->
+        <div v-if="lb.status === 'unconfigured'" class="net-banner">
+          <Info :size="13" aria-hidden="true" />
+          <span>当前是单机试炼模式，成绩记录在本地；联机榜开启后即可上传排名。</span>
+        </div>
+        <div v-else-if="lb.status === 'offline'" class="net-banner warn">
+          <CloudOff :size="13" aria-hidden="true" />
+          <span>网络未连接，榜单暂不可用。</span>
+          <button class="retry" @click="lb.refreshBoards(true)">
+            <RefreshCw :size="12" aria-hidden="true" />重试
+          </button>
+        </div>
+
+        <!-- 加载骨架 -->
+        <div v-if="lb.boardsLoading && boardEmpty" class="rows">
+          <div
+            v-for="n in 5"
+            :key="n"
+            class="row skeleton"
+            :style="{ '--row-delay': `${n * 60}ms` }"
+          >
+            <span class="sk sk-rank" /><span class="sk sk-name" /><span class="sk sk-damage" />
+          </div>
+        </div>
+
+        <!-- 空态：够得着的目标，从第一次挑战开始 -->
+        <div v-else-if="boardEmpty" class="empty">
+          <template v-if="boardTab === 'neighborhood'">
+            这一带还很安静 —— 上传一次成绩，就能看到你±5名的对手。
+          </template>
+          <template v-else>本周还没有人上榜，虚位以待。</template>
+        </div>
+
+        <!-- 试炼邻域 / 总榜 -->
+        <div v-else-if="boardTab !== 'power'" class="rows">
+          <div
+            v-for="(row, index) in boardTab === 'neighborhood' ? neighborhoodRows : topRows"
+            :key="row.userId"
+            class="row row-in"
+            :class="{ me: row.isMe, podium: row.rank <= 3 && boardTab === 'top' }"
+            :style="{ '--row-delay': `${Math.min(index, 14) * 45}ms` }"
+          >
+            <span class="rank-no" :data-rank="row.rank">{{ row.rank }}</span>
+            <span class="who">
+              <ProfileAvatar
+                class="row-avatar"
+                :avatar-url="row.avatarUrl"
+                :class-id="row.classId"
+                :alt="`${row.displayName}的头像`"
+              />
+              <span class="identity-copy">
+                <span class="identity-line">
+                  <b>{{ row.displayName }}</b>
+                  <em v-if="row.isMe">你</em>
+                </span>
+                <small>{{ row.bio || `${className(row.classId)}挑战者` }}</small>
+              </span>
+            </span>
+            <span class="damage num">{{ abbr(row.damage) }}</span>
+            <button
+              v-if="!row.isMe && lb.status === 'ready'"
+              class="report-entry"
+              :aria-label="`举报${row.displayName}的档案`"
+              title="举报档案"
+              @click.stop="openReport(row)"
+            >
+              <Flag :size="12" aria-hidden="true" />
+            </button>
+          </div>
+        </div>
+
+        <!-- 战力榜（次级页签：玩家期待看到，但我们不主推） -->
+        <div v-else class="rows">
+          <div
+            v-for="(row, index) in powerRows"
+            :key="row.userId"
+            class="row row-in"
+            :class="{ me: row.isMe }"
+            :style="{ '--row-delay': `${Math.min(index, 14) * 45}ms` }"
+          >
+            <span class="rank-no">{{ row.rank }}</span>
+            <span class="who">
+              <ProfileAvatar
+                class="row-avatar"
+                :avatar-url="row.avatarUrl"
+                :class-id="row.classId"
+                :alt="`${row.displayName}的头像`"
+              />
+              <span class="identity-copy">
+                <span class="identity-line">
+                  <b>{{ row.displayName }}</b>
+                  <em v-if="row.isMe">你</em>
+                </span>
+                <small
+                  >Lv.{{ row.level }}<template v-if="row.bio"> · {{ row.bio }}</template></small
+                >
+              </span>
+            </span>
+            <span class="damage num">{{ abbr(row.combatPower) }}</span>
+            <button
+              v-if="!row.isMe && lb.status === 'ready'"
+              class="report-entry"
+              :aria-label="`举报${row.displayName}的档案`"
+              title="举报档案"
+              @click.stop="openReport(row)"
+            >
+              <Flag :size="12" aria-hidden="true" />
+            </button>
+          </div>
+          <p v-if="myPowerRank && !powerRows.some((r) => r.isMe)" class="my-power-note">
+            我的战力名次：第 {{ myPowerRank }} 名
           </p>
         </div>
-      </div>
-    </Transition>
+      </section>
 
-    <ProfileEditor
-      v-if="profileOpen && profileClient && lb.userId"
-      :client="profileClient"
-      :user-id="lb.userId"
-      :class-id="lb.classId"
-      :fallback-name="game.player?.name ?? '无名旅人'"
-      @saved="onProfileSaved"
-      @close="profileOpen = false"
-    />
+      <p class="fair-note">
+        试炼为固定种子：同一套搭配必得同一成绩，提升只来自搭配的改善。榜单奖励只含称号与外观。
+      </p>
 
-    <Transition name="modal-pop">
-      <div v-if="reportTarget" class="overlay" @click.self="closeReport">
-        <section
-          class="result-panel report-panel"
-          role="dialog"
-          aria-modal="true"
-          :aria-label="`举报${reportTarget.displayName}的档案`"
-          @keydown.esc.stop="closeReport"
-        >
-          <Flag :size="22" aria-hidden="true" />
-          <strong>举报 {{ reportTarget.displayName }}</strong>
-          <p>仅用于不当头像、昵称或简介。举报内容不会公开，项目所有者会人工核查。</p>
-          <textarea
-            v-model="reportReason"
-            maxlength="200"
-            rows="3"
-            autofocus
-            placeholder="请简要说明问题"
-          />
-          <small>{{ reportReason.trim().length }} / 200</small>
-          <div class="result-actions">
-            <button class="btn btn-plain" :disabled="reporting" @click="closeReport">取消</button>
-            <button class="btn btn-pink" :disabled="!canReport" @click="submitReport">
-              {{ reporting ? '提交中…' : '提交举报' }}
-            </button>
+      <!-- ═══ 挑战结果揭晓 ═══ -->
+      <Transition name="modal-pop">
+        <div v-if="outcome" class="overlay" @click.self="closeOutcome">
+          <div class="result-panel" role="dialog" aria-label="试炼结果">
+            <span v-if="outcome.improved" class="burst" aria-hidden="true">
+              <i v-for="n in 8" :key="n" :class="`burst-${n}`" />
+            </span>
+            <span class="result-label">60 秒总伤害</span>
+            <strong class="result-value num">{{ abbr(displayDamage) }}</strong>
+            <span v-if="outcome.improved" class="record-badge">✦ 新纪录 ✦</span>
+            <span v-else class="result-note">
+              本周最好成绩仍是 {{ abbr(outcome.best.damage) }}，换套搭配再试试
+            </span>
+            <span v-if="!outcome.result.survived" class="result-note">
+              没能打满全程 —— 生存也是实力的一部分
+            </span>
+            <div class="result-actions">
+              <button
+                v-if="lb.status === 'ready' && (outcome.improved || !outcome.best.submitted)"
+                class="btn btn-pink"
+                :disabled="lb.submitting"
+                @click="onUpload"
+              >
+                <Upload :size="13" aria-hidden="true" />
+                {{ lb.submitting ? '上传中…' : '上传成绩' }}
+              </button>
+              <button class="btn btn-plain" @click="closeOutcome">完成</button>
+            </div>
+            <p v-if="lb.status !== 'ready'" class="result-note dim">
+              单机试炼模式：成绩已记录在本机，联机后可随时上传。
+            </p>
           </div>
-        </section>
-      </div>
-    </Transition>
+        </div>
+      </Transition>
 
-    <Transition name="toast-up">
-      <div v-if="toast" class="toast" :class="{ bad: !toast.ok }">{{ toast.text }}</div>
-    </Transition>
+      <ProfileEditor
+        v-if="profileOpen && profileClient && lb.userId"
+        :client="profileClient"
+        :user-id="lb.userId"
+        :class-id="lb.classId"
+        :fallback-name="game.player?.name ?? '无名旅人'"
+        @saved="onProfileSaved"
+        @close="profileOpen = false"
+      />
+
+      <Transition name="modal-pop">
+        <div v-if="reportTarget" class="overlay" @click.self="closeReport">
+          <section
+            class="result-panel report-panel"
+            role="dialog"
+            aria-modal="true"
+            :aria-label="`举报${reportTarget.displayName}的档案`"
+            @keydown.esc.stop="closeReport"
+          >
+            <Flag :size="22" aria-hidden="true" />
+            <strong>举报 {{ reportTarget.displayName }}</strong>
+            <p>仅用于不当头像、昵称或简介。举报内容不会公开，项目所有者会人工核查。</p>
+            <textarea
+              v-model="reportReason"
+              maxlength="200"
+              rows="3"
+              autofocus
+              placeholder="请简要说明问题"
+            />
+            <small>{{ reportReason.trim().length }} / 200</small>
+            <div class="result-actions">
+              <button class="btn btn-plain" :disabled="reporting" @click="closeReport">取消</button>
+              <button class="btn btn-pink" :disabled="!canReport" @click="submitReport">
+                {{ reporting ? '提交中…' : '提交举报' }}
+              </button>
+            </div>
+          </section>
+        </div>
+      </Transition>
+
+      <Transition name="toast-up">
+        <div v-if="toast" class="toast" :class="{ bad: !toast.ok }">{{ toast.text }}</div>
+      </Transition>
     </template>
 
     <ArenaView v-else />
@@ -919,13 +932,13 @@ onUnmounted(() => {
 }
 
 .brief-body {
-  align-items: flex-start;
-  gap: 0;
-  margin-top: 8px;
+  align-items: center;
+  gap: 16px;
+  margin-top: 10px;
 }
 
 .brief-body .boss-copy {
-  width: 100%;
+  flex: 1;
 }
 
 .brief-element {
@@ -937,11 +950,25 @@ onUnmounted(() => {
 
 /* ═══════════ 我的成绩卡 ═══════════ */
 .my-score {
+  position: relative;
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 13px 14px;
+  padding: 15px 14px 13px;
+}
+
+/* 顶部粉蓝光带：成绩卡的仪式感来源 */
+.my-score::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--pink), var(--blue) 70%, transparent);
+  opacity: 0.85;
 }
 
 .score-left {
@@ -1087,10 +1114,17 @@ onUnmounted(() => {
   font-weight: 600;
   color: var(--text-dim);
   border-radius: 10px;
-  transition: color var(--t-mid);
+  transition:
+    color var(--t-mid),
+    transform var(--t-fast) var(--ease-spring);
+}
+
+.seg-tab:active {
+  transform: scale(0.92);
 }
 
 .seg-tab.active {
+  font-weight: 800;
   color: var(--pink-deep);
 }
 
@@ -1164,21 +1198,31 @@ onUnmounted(() => {
   font-variant-numeric: tabular-nums;
 }
 
-.row.podium .rank-no[data-rank='1'] {
-  color: #e8a91f;
-}
-.row.podium .rank-no[data-rank='2'] {
-  color: #9aa8b5;
-}
-.row.podium .rank-no[data-rank='3'] {
-  color: #c98a5e;
-}
-
+/* 前三名：金银铜奖牌圆底，不再只是变色文字 */
 .row.podium .rank-no[data-rank='1'],
 .row.podium .rank-no[data-rank='2'],
 .row.podium .rank-no[data-rank='3'] {
-  font-size: 13px;
-  text-shadow: 0 1px 4px rgb(232 169 31 / 30%);
+  height: 26px;
+  font-size: 12px;
+  line-height: 26px;
+  color: #fff;
+  border-radius: 50%;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 22%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 42%),
+    0 2px 6px rgb(0 0 0 / 12%);
+}
+
+.row.podium .rank-no[data-rank='1'] {
+  background: linear-gradient(150deg, #f6cf6a, #dfa018);
+}
+
+.row.podium .rank-no[data-rank='2'] {
+  background: linear-gradient(150deg, #d7e1ea, #9aa8b5);
+}
+
+.row.podium .rank-no[data-rank='3'] {
+  background: linear-gradient(150deg, #eab18b, #c07846);
 }
 
 .who {

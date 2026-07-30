@@ -47,8 +47,7 @@ const tierBadge = computed(() => assetUrl(`assets/arena/tier-${tierInfo.value.id
 
 const className = (id: string) =>
   AFFECTION_CHARACTERS[id as keyof typeof AFFECTION_CHARACTERS]?.name ?? id;
-const classSymbol = (id: string) =>
-  CLASS_VISUALS[id as keyof typeof CLASS_VISUALS]?.symbol ?? '·';
+const classSymbol = (id: string) => CLASS_VISUALS[id as keyof typeof CLASS_VISUALS]?.symbol ?? '·';
 
 // ─────────── 候选选择 ───────────
 const selectedId = ref<string | null>(null);
@@ -114,7 +113,12 @@ onMounted(() => {
   <div class="arena">
     <!-- ═══ 英雄卡：段位 · 排名 · 荣誉 ═══ -->
     <section class="hero-card">
-      <img :src="assetUrl('assets/arena/arena-banner.webp')" alt="" class="hero-bg" aria-hidden="true" />
+      <img
+        :src="assetUrl('assets/arena/arena-banner.webp')"
+        alt=""
+        class="hero-bg"
+        aria-hidden="true"
+      />
       <span class="hero-aura" aria-hidden="true" />
       <i v-for="n in 10" :key="n" class="mote" :class="`mote-${n}`" aria-hidden="true" />
 
@@ -161,11 +165,7 @@ onMounted(() => {
     <template v-if="arena.me">
       <!-- ═══ 反击机会（有才显示，措辞中性） ═══ -->
       <section v-if="arena.revenge.length > 0" class="card revenge-strip">
-        <div
-          v-for="entry in arena.revenge"
-          :key="entry.userId"
-          class="revenge-row"
-        >
+        <div v-for="entry in arena.revenge" :key="entry.userId" class="revenge-row">
           <span class="revenge-label"><RotateCcw :size="12" aria-hidden="true" />反击机会 ×1</span>
           <span class="revenge-target">
             {{ classSymbol(entry.classId) }} {{ entry.displayName }}
@@ -190,7 +190,9 @@ onMounted(() => {
         </header>
 
         <div v-if="arena.candidates.length === 0" class="opponents-empty">
-          你已经站在最顶端了，今天没有可挑战的对手
+          <span class="empty-crown"><Trophy :size="17" aria-hidden="true" /></span>
+          <strong>你已经站在最顶端了</strong>
+          <small>今天没有可挑战的对手，守住排名，明天再见</small>
         </div>
         <div v-else class="opponent-grid" role="radiogroup" aria-label="选择挑战对手">
           <button
@@ -301,7 +303,22 @@ onMounted(() => {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  opacity: 0.5;
+  opacity: 0.34;
+}
+
+/* 左侧压暗渐变：文字区对比度保障，背景图不再抢层次 */
+.hero-card::after {
+  content: '';
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  background: linear-gradient(
+    95deg,
+    rgb(24 18 8 / 72%) 8%,
+    rgb(24 18 8 / 38%) 52%,
+    transparent 82%
+  );
+  pointer-events: none;
 }
 .hero-aura {
   position: absolute;
@@ -310,10 +327,15 @@ onMounted(() => {
   animation: aura-spin 9s linear infinite;
   pointer-events: none;
 }
-@keyframes aura-spin { to { transform: rotate(360deg); } }
+@keyframes aura-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 
 .mote {
   position: absolute;
+  z-index: 2;
   bottom: -6px;
   width: 4px;
   height: 4px;
@@ -323,21 +345,64 @@ onMounted(() => {
   animation: mote-rise 6.5s linear infinite;
   pointer-events: none;
 }
-.mote-1 { left: 10%; animation-delay: 0s; }
-.mote-2 { left: 22%; animation-delay: 1.2s; animation-duration: 7.4s; }
-.mote-3 { left: 34%; animation-delay: 2.6s; }
-.mote-4 { left: 46%; animation-delay: 0.6s; animation-duration: 8s; }
-.mote-5 { left: 55%; animation-delay: 3.4s; }
-.mote-6 { left: 64%; animation-delay: 1.8s; animation-duration: 7s; }
-.mote-7 { left: 73%; animation-delay: 4.2s; }
-.mote-8 { left: 82%; animation-delay: 0.9s; animation-duration: 8.6s; }
-.mote-9 { left: 90%; animation-delay: 2.2s; }
-.mote-10 { left: 96%; animation-delay: 3s; animation-duration: 7.8s; }
+.mote-1 {
+  left: 10%;
+  animation-delay: 0s;
+}
+.mote-2 {
+  left: 22%;
+  animation-delay: 1.2s;
+  animation-duration: 7.4s;
+}
+.mote-3 {
+  left: 34%;
+  animation-delay: 2.6s;
+}
+.mote-4 {
+  left: 46%;
+  animation-delay: 0.6s;
+  animation-duration: 8s;
+}
+.mote-5 {
+  left: 55%;
+  animation-delay: 3.4s;
+}
+.mote-6 {
+  left: 64%;
+  animation-delay: 1.8s;
+  animation-duration: 7s;
+}
+.mote-7 {
+  left: 73%;
+  animation-delay: 4.2s;
+}
+.mote-8 {
+  left: 82%;
+  animation-delay: 0.9s;
+  animation-duration: 8.6s;
+}
+.mote-9 {
+  left: 90%;
+  animation-delay: 2.2s;
+}
+.mote-10 {
+  left: 96%;
+  animation-delay: 3s;
+  animation-duration: 7.8s;
+}
 
 @keyframes mote-rise {
-  0% { transform: translateY(0) scale(0.6); opacity: 0; }
-  15% { opacity: 0.95; }
-  100% { transform: translateY(-150px) scale(1.05); opacity: 0; }
+  0% {
+    transform: translateY(0) scale(0.6);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.95;
+  }
+  100% {
+    transform: translateY(-150px) scale(1.05);
+    opacity: 0;
+  }
 }
 
 .hero-head {
@@ -365,7 +430,9 @@ onMounted(() => {
   border-radius: 999px;
   padding: 4px 10px;
 }
-.attempts-chip b { color: #ffd98a; }
+.attempts-chip b {
+  color: #ffd98a;
+}
 
 .hero-body {
   position: relative;
@@ -382,14 +449,39 @@ onMounted(() => {
   animation: badge-float 4s ease-in-out infinite;
 }
 @keyframes badge-float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-5px); }
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
 }
 
-.hero-stats { display: flex; flex-direction: column; gap: 3px; }
-.hero-tier { font-size: 12px; font-weight: 700; color: rgb(255 233 176 / 80%); }
-.hero-rank { font-size: 22px; font-weight: 900; color: #fff; line-height: 1.1; }
-.hero-rank small { font-size: 11px; font-weight: 600; color: rgb(255 255 255 / 55%); margin-left: 4px; }
+.hero-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.hero-tier {
+  font-size: 12px;
+  font-weight: 700;
+  color: rgb(255 233 176 / 80%);
+}
+.hero-rank {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  font-size: 22px;
+  font-weight: 900;
+  color: #fff;
+  line-height: 1.1;
+}
+.hero-rank small {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgb(255 255 255 / 62%);
+}
 .hero-honor {
   display: inline-flex;
   align-items: center;
@@ -398,7 +490,10 @@ onMounted(() => {
   font-weight: 900;
   color: #ffd98a;
 }
-.hero-honor img { width: 17px; height: 17px; }
+.hero-honor img {
+  width: 17px;
+  height: 17px;
+}
 .streak {
   font-size: 10px;
   font-style: normal;
@@ -422,11 +517,21 @@ onMounted(() => {
   border-radius: var(--r-sm);
   padding: 10px 12px;
 }
-.state-strip.error { color: var(--danger); border-color: rgb(255 129 137 / 40%); }
-.state-strip.loading { color: var(--text-dim); }
+.state-strip.error {
+  color: var(--danger);
+  border-color: rgb(255 129 137 / 40%);
+}
+.state-strip.loading {
+  color: var(--text-dim);
+}
 
 /* ── 反击条 ── */
-.revenge-strip { padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.revenge-strip {
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
 .revenge-row {
   display: flex;
   align-items: center;
@@ -456,7 +561,11 @@ onMounted(() => {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.revenge-target small { display: block; font-weight: 500; color: var(--text-dim); }
+.revenge-target small {
+  display: block;
+  font-weight: 500;
+  color: var(--text-dim);
+}
 .revenge-btn {
   border: none;
   border-radius: 999px;
@@ -468,12 +577,24 @@ onMounted(() => {
   cursor: pointer;
   transition: transform 0.15s var(--ease-spring);
 }
-.revenge-btn:active:not(:disabled) { transform: scale(0.9); }
-.revenge-btn:disabled { opacity: 0.4; }
+.revenge-btn:active:not(:disabled) {
+  transform: scale(0.9);
+}
+.revenge-btn:disabled {
+  opacity: 0.4;
+}
 
 /* ── 今日对手 ── */
-.opponents { display: flex; flex-direction: column; gap: 10px; }
-.opponents-head { display: flex; align-items: center; justify-content: space-between; }
+.opponents {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.opponents-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
 .opponents-title {
   display: inline-flex;
   align-items: center;
@@ -482,14 +603,46 @@ onMounted(() => {
   font-weight: 800;
   color: var(--text);
 }
-.opponents-hint { font-size: 10px; color: var(--text-dim); }
+.opponents-hint {
+  font-size: 10px;
+  color: var(--text-dim);
+}
 .opponents-empty {
-  font-size: 12px;
-  color: var(--text-mid);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 20px 10px 18px;
   text-align: center;
-  padding: 18px 10px;
-  background: var(--panel-2);
+  background:
+    radial-gradient(90% 130% at 50% -30%, rgb(255 217 138 / 22%), transparent 60%), var(--panel-2);
+  border: 1px solid rgb(232 172 31 / 26%);
   border-radius: var(--r-sm);
+}
+
+.empty-crown {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  margin-bottom: 3px;
+  color: #fff;
+  background: linear-gradient(150deg, #f6cf6a, #dfa018);
+  border-radius: 50%;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 45%),
+    0 4px 12px rgb(232 172 31 / 38%);
+}
+
+.opponents-empty strong {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.opponents-empty small {
+  font-size: 10px;
+  color: var(--text-dim);
 }
 
 .opponent-grid {
@@ -508,16 +661,66 @@ onMounted(() => {
   background: var(--panel-2);
   border: 2px solid var(--line);
   cursor: pointer;
-  transition: transform 0.18s var(--ease-spring), border-color 0.18s, box-shadow 0.18s;
+  transition:
+    transform 0.18s var(--ease-spring),
+    border-color 0.18s,
+    box-shadow 0.18s;
   animation: row-in 0.45s var(--ease-out-back) backwards;
 }
-.opponent-card:nth-child(2) { animation-delay: 0.07s; }
-.opponent-card:nth-child(3) { animation-delay: 0.14s; }
-.opponent-card:active { transform: scale(0.94); }
+.opponent-card:nth-child(2) {
+  animation-delay: 0.07s;
+}
+.opponent-card:nth-child(3) {
+  animation-delay: 0.14s;
+}
+.opponent-card:active {
+  transform: scale(0.94);
+}
 .opponent-card.selected {
   border-color: var(--q-divine);
-  box-shadow: 0 0 0 3px rgb(232 172 31 / 18%), 0 6px 18px rgb(232 172 31 / 25%);
+  box-shadow:
+    0 0 0 3px rgb(232 172 31 / 18%),
+    0 6px 18px rgb(232 172 31 / 25%);
   background: linear-gradient(180deg, rgb(255 200 96 / 12%), var(--panel-2));
+}
+
+/* 选中对勾角标：让「已锁定这位对手」一眼可辨 */
+.opponent-card.selected::after {
+  content: '✓';
+  position: absolute;
+  top: -7px;
+  right: -5px;
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 900;
+  color: #fff;
+  background: linear-gradient(150deg, #f6cf6a, #dfa018);
+  border: 2px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 2px 7px rgb(232 172 31 / 42%);
+  animation: check-pop 0.3s var(--ease-out-back) both;
+}
+
+@keyframes check-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .opponent-card:hover {
+    border-color: rgb(232 172 31 / 45%);
+    box-shadow: 0 5px 14px rgb(96 74 32 / 12%);
+    transform: translateY(-2px);
+  }
 }
 
 .opp-rank {
@@ -528,8 +731,14 @@ onMounted(() => {
   font-weight: 800;
   color: var(--text-dim);
 }
-.opponent-card.selected .opp-rank { color: var(--q-divine); }
-.opp-symbol { font-size: 26px; line-height: 1.2; margin-top: 6px; }
+.opponent-card.selected .opp-rank {
+  color: var(--q-divine);
+}
+.opp-symbol {
+  font-size: 26px;
+  line-height: 1.2;
+  margin-top: 6px;
+}
 .opp-name {
   font-size: 12px;
   font-weight: 800;
@@ -539,7 +748,10 @@ onMounted(() => {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.opp-meta { font-size: 9px; color: var(--text-dim); }
+.opp-meta {
+  font-size: 9px;
+  color: var(--text-dim);
+}
 
 .opp-rate {
   position: relative;
@@ -556,9 +768,15 @@ onMounted(() => {
   border-radius: 999px;
   transition: width 0.5s var(--ease-soft);
 }
-.opp-rate[data-tone='high'] i { background: linear-gradient(90deg, #7be3a8, #5fcf95); }
-.opp-rate[data-tone='mid'] i { background: linear-gradient(90deg, #ffd98a, #ffb454); }
-.opp-rate[data-tone='low'] i { background: linear-gradient(90deg, #ff9aa2, #ff8189); }
+.opp-rate[data-tone='high'] i {
+  background: linear-gradient(90deg, #7be3a8, #5fcf95);
+}
+.opp-rate[data-tone='mid'] i {
+  background: linear-gradient(90deg, #ffd98a, #ffb454);
+}
+.opp-rate[data-tone='low'] i {
+  background: linear-gradient(90deg, #ff9aa2, #ff8189);
+}
 .opp-rate b {
   position: relative;
   z-index: 1;
@@ -569,8 +787,16 @@ onMounted(() => {
 }
 
 /* ── 押注与挑战 ── */
-.stake-card { display: flex; flex-direction: column; gap: 12px; }
-.stake-row { display: flex; align-items: center; gap: 8px; }
+.stake-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.stake-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 .stake-label {
   display: inline-flex;
   align-items: center;
@@ -592,33 +818,76 @@ onMounted(() => {
   cursor: pointer;
   transition: all 0.18s var(--ease-spring);
 }
-.stake-pill:active { transform: scale(0.93); }
+.stake-pill:active {
+  transform: scale(0.93);
+}
 .stake-pill.active {
   color: #fff;
-  border-color: transparent;
-  background: linear-gradient(135deg, #e8ac1f, #ffc860);
-  box-shadow: 0 4px 14px rgb(232 172 31 / 35%);
+  border-color: rgb(255 255 255 / 65%);
+  background: linear-gradient(135deg, #f5799f, #ffb37a 78%, #ecc063 125%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 38%),
+    0 4px 14px rgb(245 121 159 / 34%);
+  text-shadow: 0 1px 3px rgb(173 62 104 / 35%);
 }
 
 .challenge-btn {
+  position: relative;
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  border: none;
+  border: 1px solid rgb(255 255 255 / 55%);
   border-radius: var(--r);
   padding: 14px 0;
   font-size: 16px;
   font-weight: 900;
   letter-spacing: 0.06em;
   color: #fff;
-  background: linear-gradient(135deg, #e8ac1f 0%, #ffc860 55%, #f5799f 130%);
-  box-shadow: 0 6px 20px rgb(232 172 31 / 40%);
+  background: linear-gradient(120deg, #f5799f 8%, #ff9e8a 52%, #ecc063 108%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 34%),
+    0 6px 20px rgb(245 121 159 / 36%);
   cursor: pointer;
-  transition: transform 0.16s var(--ease-spring), box-shadow 0.16s, opacity 0.16s;
+  text-shadow: 0 1px 4px rgb(173 62 104 / 38%);
+  transition:
+    transform 0.16s var(--ease-spring),
+    box-shadow 0.16s,
+    opacity 0.16s;
 }
-.challenge-btn:active:not(:disabled) { transform: scale(0.96); }
-.challenge-btn:disabled { opacity: 0.45; box-shadow: none; cursor: default; }
+
+/* 主按钮流光：待命时缓缓扫过，提示「可以点我」 */
+.challenge-btn:not(:disabled)::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 25%, rgb(255 255 255 / 42%) 50%, transparent 75%);
+  transform: translateX(-120%) skewX(-14deg);
+  animation: btn-shine 2.8s var(--ease-soft) infinite;
+  pointer-events: none;
+}
+
+@keyframes btn-shine {
+  0% {
+    transform: translateX(-120%) skewX(-14deg);
+  }
+  46% {
+    transform: translateX(120%) skewX(-14deg);
+  }
+  100% {
+    transform: translateX(120%) skewX(-14deg);
+  }
+}
+
+.challenge-btn:active:not(:disabled) {
+  transform: scale(0.96);
+}
+.challenge-btn:disabled {
+  opacity: 0.45;
+  box-shadow: none;
+  cursor: default;
+}
 
 /* ── 防线战报条 ── */
 .defense-report {
@@ -632,26 +901,67 @@ onMounted(() => {
   border-color: rgb(126 200 242 / 30%);
   animation: row-in 0.4s var(--ease-out-back);
 }
-.defense-text b { color: var(--blue-deep); font-weight: 900; }
-.defense-tier { margin-left: auto; font-size: 10px; font-weight: 800; color: var(--q-divine); }
+.defense-text b {
+  color: var(--blue-deep);
+  font-weight: 900;
+}
+.defense-tier {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--q-divine);
+}
 
 @keyframes row-in {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: none; }
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 /* ── 小屏适配（320×568 下限） ── */
 @media (max-width: 340px) {
-  .tier-badge { width: 52px; height: 52px; }
-  .hero-rank { font-size: 19px; }
-  .opp-symbol { font-size: 22px; }
-  .opp-name { font-size: 11px; }
-  .challenge-btn { font-size: 14px; padding: 12px 0; }
+  .tier-badge {
+    width: 52px;
+    height: 52px;
+  }
+  .hero-rank {
+    font-size: 19px;
+  }
+  .opp-symbol {
+    font-size: 22px;
+  }
+  .opp-name {
+    font-size: 11px;
+  }
+  .challenge-btn {
+    font-size: 14px;
+    padding: 12px 0;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .mote, .hero-aura { display: none; }
-  .tier-badge { animation: none; }
-  .opponent-card, .revenge-row, .defense-report { animation: none; }
+  .mote,
+  .hero-aura {
+    display: none;
+  }
+  .tier-badge {
+    animation: none;
+  }
+  .opponent-card,
+  .revenge-row,
+  .defense-report {
+    animation: none;
+  }
+  .challenge-btn::after {
+    display: none;
+  }
+  .opponent-card.selected::after {
+    animation: none;
+  }
 }
 </style>
