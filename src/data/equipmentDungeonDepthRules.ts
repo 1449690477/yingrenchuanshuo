@@ -1,0 +1,77 @@
+/**
+ * 装备副本「深度」的数值配置（docs/66）。
+ *
+ * 深度是替代等级门槛的**挑战轴**：进不进得去由「打不打得过」决定，
+ * 不由等级决定。深度决定三件事 —— 难度、胚子锚点等级、胚子掉率。
+ *
+ * 本文件只有数据没有逻辑（AGENTS.md 铁律 2）；计算在
+ * `src/core/equipmentDungeonDepth.ts`。
+ *
+ * ⚠ 改这里的任何数字都必须复跑 `npm run balance:equipment-dungeon`
+ * 与 docs/66 §六 的 12 项门禁 —— 尤其 G-12 的三条上界。
+ */
+
+import type { EquipmentDungeonTierId } from './equipmentDungeonGear';
+
+/** 每档的深度层数。四档统一，保证 UI 是一张规整的 4×5 网格。 */
+export const DEPTH_PER_TIER = 5;
+
+/**
+ * 深度锚点：标称等级 = baseLevel + step × (depth − 1)。
+ *
+ * `step` 按「填满到下一档」推导，不是手填的口味值：
+ *   azure  (31−16)/5 = 3
+ *   violet (56−31)/5 = 5
+ *   auric  (81−56)/5 = 5
+ *   crimson 沿用 5（下一档尚不存在，取相邻档步长）
+ *
+ * `openDepths` 是**当前内容下实际开放的层数**。crimson 只开 1 层：
+ * 内容顶 Lv78 < crimson 标称 81，三元 min 之后
+ * crimson 全五层锚点都会被压到 78 —— d2~d5 在数值上完全等价于 d1，
+ * 开了就是纯重复劳动（docs/66 §七）。
+ *
+ * **其余四层的配置刻意保留**：区域 8 抬高内容顶那天它们自动生效，
+ * 不需要改代码（照 docs/60 §2.3 竞技场装备跟随公式的做法）。
+ */
+export interface EquipmentDungeonDepthAnchor {
+  baseLevel: number;
+  step: number;
+  openDepths: number;
+}
+
+export const EQUIPMENT_DUNGEON_DEPTH_ANCHORS: Readonly<
+  Record<EquipmentDungeonTierId, EquipmentDungeonDepthAnchor>
+> = {
+  azure: { baseLevel: 16, step: 3, openDepths: DEPTH_PER_TIER },
+  violet: { baseLevel: 31, step: 5, openDepths: DEPTH_PER_TIER },
+  auric: { baseLevel: 56, step: 5, openDepths: DEPTH_PER_TIER },
+  crimson: { baseLevel: 81, step: 5, openDepths: 1 },
+};
+
+/**
+ * 难度系数：怪物按 `expectedFullGearCp(标称等级) × k(depth)` 标定。
+ *
+ * 玩家的典型养成是强化 1.6× × 词条 1.15× ≈ **1.84×**（docs/65 口径），
+ * 所以 d1~d3 是「养成到位就能过」、d4~d5 是「要真投入」。
+ *
+ * ⚠ 这组是**目标输入不是实测值**，最终由 balance:equipment-dungeon 反标定。
+ * 它取代了旧的 `TIER_ENCOUNTER_SCALE` —— 那是一张逐档手填表，
+ * 实测跨档极差 3.54×（苍蓝 2.69 / 绛紫 0.76），而且与推荐战力
+ * 各调各的、中间没有反馈回路（docs/66 §3.2）。
+ */
+export const DEPTH_DIFFICULTY_K: readonly number[] = [1.0, 1.2, 1.45, 1.75, 2.1];
+
+/**
+ * 胚子掉率：该深度**已经突破过之后**的常规掉率。
+ *
+ * 首次突破某深度必掉 1 件（保底），由 core 单独处理 ——
+ * peak-end 法则，让「往更深走」这个决策立刻有可见回报（docs/66 §4.2）。
+ *
+ * ⚠ 深度**绝不**提升烙印晶产量（docs/58 §3.2 原样保留）。
+ * 深度若加晶产，docs/58 §七「2/4/6 件到手日 ≈ D2/D4~5/D8~10」直接红，
+ * 套装会从「一到两周的流派养成线」退回「解锁日毕业」。
+ */
+export const DEPTH_BLANK_CHANCE: readonly number[] = [0.12, 0.18, 0.26, 0.36, 0.5];
+
+/** 深度只升不降（docs/40 红线：进度条不许倒退）。重置的只有每日次数。 */
+export const DEPTH_NEVER_DECREASES = true;
