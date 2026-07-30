@@ -15,6 +15,11 @@ export default tseslint.config(
       'scripts/out/**',
       // Supabase Edge Function 是 Deno 代码（Deno 全局），不在本仓 TS/浏览器规则内
       'supabase/**',
+      // 工具在仓库内建的隔离 worktree（.claude/worktrees/**）是本仓的完整副本，
+      // 不排除的话 eslint 会同时看到两个 tsconfig 根候选，
+      // 于是**每一个文件**都报 Parsing error —— 实测 813 条，
+      // 全仓 lint 直接红，而代码本身一点问题都没有。
+      '.claude/**',
     ],
   },
 
