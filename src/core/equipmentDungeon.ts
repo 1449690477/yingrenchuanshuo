@@ -16,6 +16,16 @@ import type {
   OnLethalRecoveryTrigger,
 } from './equipmentSets';
 import { makeMonster } from './progression';
+import {
+  advanceDepth,
+  blankDefinitionId,
+  clearedDepthOf,
+  depthAnchorLevel,
+  depthBlankChance,
+  depthScaledMonster,
+  isDepthOpen,
+  type EquipmentDungeonDepthProgress,
+} from './equipmentDungeonDepth';
 import { mergeLootResults } from './stageLoot';
 import { businessDayKey } from './dayKey';
 import type { EquipmentDungeonStage } from '@/data/equipmentDungeons';
@@ -33,7 +43,24 @@ export interface EquipmentDungeonState {
   /** 今天已成功领取奖励的次数。 */
   clearsToday: number;
   totalClears: number;
+  /**
+   * 通关记录，key 为 `${stageId}_d${depth}`（docs/66 §五）。
+   *
+   * 深度进 key 而不是另起一张表：秘境榜读的就是这里，
+   * 两处实现分叉过一次（docs/61 §2.2），不再制造第二个真相源。
+   */
   records: Record<string, EquipmentDungeonClearRecord>;
+  /**
+   * 各档已通过的最高深度（docs/66）。**只升不降** —— docs/40 红线。
+   *
+   * 它取代 `unlockLevel` 作为玩法门槛：等级可以挂机堆，深度必须真的打赢过。
+   */
+  depth: EquipmentDungeonDepthProgress;
+}
+
+/** 通关记录的 key：深度进 key，同档不同深度各有自己的最佳用时。 */
+export function equipmentDungeonRecordKey(stageId: string, depth: number): string {
+  return `${stageId}_d${depth}`;
 }
 
 export interface EquipmentDungeonWaveResult {
@@ -47,7 +74,18 @@ export interface EquipmentDungeonWaveResult {
   result: SimulatedFightResult;
 }
 
-export type EquipmentDungeonBlockReason = 'level-locked' | 'previous-tier-locked' | 'daily-limit';
+export type EquipmentDungeonBlockReason =
+  | 'depth-not-opened'
+  | 'previous-depth-locked'
+  | 'daily-limit'
+  /**
+   * @deprecated 深度改造后**不再产生**这两个原因，仅为迁移期保留在联合类型里。
+   *
+   * `DungeonView.vue` 还在按它们分支写文案，而那个文件在 kimi-boards 名下 ——
+   * 从联合类型里删掉会让他的文件编译失败。深度面板上线后由他删分支，我再删这两项。
+   */
+  | 'level-locked'
+  | 'previous-tier-locked';
 
 export type EquipmentDungeonChallengeResult =
   | {
@@ -78,6 +116,10 @@ export type EquipmentDungeonChallengeResult =
 
 export interface EquipmentDungeonChallengeInput {
   stage: EquipmentDungeonStage;
+  /** 挑战的深度层（1..DEPTH_PER_TIER）。取代旧的等级门槛。 */
+  depth: number;
+  /** 内容顶等级，胚子锚点的第三个约束。由调用方从 ALL_CHAPTERS 推导。 */
+  contentTopLevel: number;
   state: EquipmentDungeonState;
   pity: PityCounters;
   player: Combatant;
@@ -106,6 +148,7 @@ export function createEquipmentDungeonState(now: number): EquipmentDungeonState 
     clearsToday: 0,
     totalClears: 0,
     records: {},
+    depth: {},
   };
 }
 
@@ -118,13 +161,16 @@ export function refreshEquipmentDungeonDay(
     return {
       ...state,
       records: cloneRecords(state.records),
+      depth: { ...state.depth },
     };
   }
+  // 日切只重置次数。**深度只升不降**（docs/40 红线：进度条不许倒退）。
   return {
     ...state,
     dayKey,
     clearsToday: 0,
     records: cloneRecords(state.records),
+    depth: { ...state.depth },
   };
 }
 
@@ -136,13 +182,40 @@ export function equipmentDungeonAttemptsRemaining(
   return Math.max(0, EQUIPMENT_DUNGEON_RULES.dailyClears - current.clearsToday);
 }
 
+/**
+ * 某一层是否可以挑战 —— **不看等级，只看深度链**（docs/66 §2.1）。
+ *
+ * 删掉 `unlockLevel` 的理由：战斗本身已经是门禁，而且是个好门禁
+ * （失败不扣次数、不推进 RNG、不动保底）。等级门槛是叠在一个已经生效的
+ * 门禁上的第二道门，而它挡住的恰好是「我练强了，我想试试更深的」——
+ * 这是整个系统里唯一的正反馈。
+ */
+/**
+ * @deprecated 迁移期兼容垫片，**不要在新代码里用**。
+ *
+ * `DungeonView.vue` 目前仍是「选档位」的旧界面（深度面板在
+ * `dungeonDepthActivation` 开关后面，由 kimi-boards 负责），
+ * 而那个文件在他名下 —— 我不能改别人占用的文件，所以留这个垫片保住编译。
+ *
+ * 语义：深度 UI 未激活期间，界面表现与改造前一致（仍按等级门槛显示）。
+ * 深度面板上线后由 kimi-boards 改调 `isEquipmentDungeonDepthUnlocked`，
+ * 届时删除本函数。
+ */
 export function isEquipmentDungeonStageUnlocked(
   stage: EquipmentDungeonStage,
   state: EquipmentDungeonState,
   playerLevel: number,
 ): boolean {
-  if (playerLevel < stage.unlockLevel) return false;
-  return !stage.previousStageId || state.records[stage.previousStageId] !== undefined;
+  return playerLevel >= stage.unlockLevel && isEquipmentDungeonDepthUnlocked(stage, state, 1);
+}
+
+export function isEquipmentDungeonDepthUnlocked(
+  stage: EquipmentDungeonStage,
+  state: EquipmentDungeonState,
+  depth: number,
+): boolean {
+  if (!isDepthOpen(stage.tierId, depth)) return false;
+  return depth <= clearedDepthOf(state.depth, stage.tierId) + 1;
 }
 
 export function resolveEquipmentDungeonChallenge(
@@ -150,11 +223,12 @@ export function resolveEquipmentDungeonChallenge(
 ): EquipmentDungeonChallengeResult {
   const state = refreshEquipmentDungeonDay(input.state, input.now);
 
-  if (input.player.level < input.stage.unlockLevel) {
-    return { ok: false, reason: 'level-locked', state };
+  if (!isDepthOpen(input.stage.tierId, input.depth)) {
+    return { ok: false, reason: 'depth-not-opened', state };
   }
-  if (input.stage.previousStageId && !state.records[input.stage.previousStageId]) {
-    return { ok: false, reason: 'previous-tier-locked', state };
+  // 深度链取代等级门槛：只能挑战「已通过的最高深度 + 1」及以下。
+  if (input.depth > clearedDepthOf(state.depth, input.stage.tierId) + 1) {
+    return { ok: false, reason: 'previous-depth-locked', state };
   }
   /*
    * 首通不占每日次数。
@@ -181,7 +255,9 @@ export function resolveEquipmentDungeonChallenge(
   const waves: EquipmentDungeonWaveResult[] = [];
 
   for (const [index, encounter] of input.stage.encounters.entries()) {
-    const monster = makeMonster(encounter.monster);
+    const monster = makeMonster(
+      depthScaledMonster(encounter.monster, input.stage.tierId, input.depth),
+    );
     const playerHpBefore = player.currentHp;
     const result = simulateFight(player, monster, challengeRng, {
       playerSkillMultiplier: input.playerSkillMultiplier,
@@ -222,7 +298,8 @@ export function resolveEquipmentDungeonChallenge(
     }
   }
 
-  const previous = state.records[input.stage.id];
+  const recordKey = equipmentDungeonRecordKey(input.stage.id, input.depth);
+  const previous = state.records[recordKey];
   const firstClear = previous === undefined;
   const pity = { ...input.pity };
   const normalDrops = rollLoot(input.stage.lootTable, challengeRng, pity, input.classId);
@@ -231,14 +308,44 @@ export function resolveEquipmentDungeonChallenge(
         rollLoot(input.stage.lootTable, challengeRng, pity, input.classId),
       )
     : [];
-  const drops = mergeLootResults(normalDrops, ...firstClearDrops);
+
+  /*
+   * 深度的第二条奖励轴：胚子（docs/66 §4.2）。
+   *
+   * **首次突破该深度必掉 1 件** —— peak-end 法则，让「往更深走」这个决策
+   * 立刻有可见回报；该深度稳定后转为 DEPTH_BLANK_CHANCE 的低概率掉落。
+   *
+   * 胚子**不加烙印晶产量**：docs/58 §七 的「2/4/6 件到手日」门禁建在
+   * 每次 2~3 晶上，深度加晶产会把套装从养成线压回解锁日毕业。
+   */
+  const isFirstBreak = input.depth > clearedDepthOf(state.depth, input.stage.tierId);
+  const blankRoll = challengeRng.next();
+  const blankDrops: LootResult[] =
+    isFirstBreak || blankRoll < depthBlankChance(input.depth)
+      ? [
+          {
+            itemId: blankDefinitionId(
+              input.stage.slot,
+              depthAnchorLevel(
+                input.stage.tierId,
+                input.depth,
+                input.player.level,
+                input.contentTopLevel,
+              ),
+            ),
+            count: 1,
+          },
+        ]
+      : [];
+
+  const drops = mergeLootResults(normalDrops, ...firstClearDrops, ...(blankDrops.length ? [blankDrops] : []));
   if (drops.length === 0) {
     throw new Error(`[配置错误] 装备副本 ${input.stage.id} 胜利后没有产生任何掉落`);
   }
 
   const durationMs = durationMsOf(waves);
   const records = cloneRecords(state.records);
-  records[input.stage.id] = previous
+  records[recordKey] = previous
     ? {
         ...previous,
         clears: previous.clears + 1,
@@ -259,6 +366,8 @@ export function resolveEquipmentDungeonChallenge(
       clearsToday: state.clearsToday + 1,
       totalClears: state.totalClears + 1,
       records,
+      // 只升不降：advanceDepth 内部取 max，重复通关或打更浅的层都不会回退
+      depth: advanceDepth(state.depth, input.stage.tierId, input.depth),
     },
     pity,
     nextRngState: challengeRng.getState(),

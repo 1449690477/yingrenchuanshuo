@@ -4,7 +4,7 @@ import {
   createEquipmentDungeonState,
   equipmentDungeonAttemptsRemaining,
   equipmentDungeonDayKey,
-  isEquipmentDungeonStageUnlocked,
+  isEquipmentDungeonDepthUnlocked,
   resolveEquipmentDungeonChallenge,
   type EquipmentDungeonChallengeInput,
   type EquipmentDungeonState,
@@ -43,6 +43,8 @@ function input(
   const stage = requireEquipmentDungeonStage('equipment_weapon_azure');
   return {
     stage,
+    depth: 1,
+    contentTopLevel: 78,
     state: createEquipmentDungeonState(NOW),
     pity: {},
     player: makePlayer('测试少女', 90, stats()),
@@ -67,8 +69,9 @@ describe('装备副本业务日期与次数', () => {
       dayKey: '2026-07-27',
       clearsToday: 3,
       totalClears: 9,
+      depth: { azure: 1 },
       records: {
-        equipment_weapon_azure: {
+        equipment_weapon_azure_d1: {
           clears: 2,
           firstClearedAt: NOW - 86_400_000,
           bestDurationMs: 12_300,
@@ -83,7 +86,7 @@ describe('装备副本业务日期与次数', () => {
     // 这一关此前已通关（records 里有 firstClearedAt），属于日常重复刷取，照常扣次数
     expect(result.state.clearsToday).toBe(1);
     expect(result.state.totalClears).toBe(10);
-    expect(result.state.records.equipment_weapon_azure?.firstClearedAt).toBe(NOW - 86_400_000);
+    expect(result.state.records.equipment_weapon_azure_d1?.firstClearedAt).toBe(NOW - 86_400_000);
   });
 
   it('每天第 4 次成功领取会被拒绝', () => {
@@ -123,30 +126,43 @@ describe('装备副本业务日期与次数', () => {
 });
 
 describe('装备副本解锁与战斗事务', () => {
-  it('等级与同部位前一档必须同时满足', () => {
+  it('深度链取代等级门槛：跳级被拒，且等级完全不参与判定', () => {
     const violet = requireEquipmentDungeonStage('equipment_body_violet');
     const state = createEquipmentDungeonState(NOW);
 
-    expect(isEquipmentDungeonStageUnlocked(violet, state, 99)).toBe(false);
+    // 一层没过时只能打 d1；d2 必须先通 d1
+    expect(isEquipmentDungeonDepthUnlocked(violet, state, 1)).toBe(true);
+    expect(isEquipmentDungeonDepthUnlocked(violet, state, 2)).toBe(false);
     expect(
       resolveEquipmentDungeonChallenge(
-        input({
-          stage: violet,
-          state,
-          player: makePlayer('测试少女', 99, stats()),
-        }),
+        input({ stage: violet, depth: 2, state, player: makePlayer('测试少女', 99, stats()) }),
       ),
-    ).toMatchObject({ ok: false, reason: 'previous-tier-locked' });
+    ).toMatchObject({ ok: false, reason: 'previous-depth-locked' });
 
-    state.records.equipment_body_azure = {
-      clears: 1,
-      firstClearedAt: NOW - 1,
-      bestDurationMs: 20_000,
-    };
-    // 等级从档位定义里取，不写死 —— 档位等级会随平衡调整（见 docs/47），
-    // 写死数字的话每次重排都要跟着改一遍测试。
-    expect(isEquipmentDungeonStageUnlocked(violet, state, violet.unlockLevel - 1)).toBe(false);
-    expect(isEquipmentDungeonStageUnlocked(violet, state, violet.unlockLevel)).toBe(true);
+    // 通过 d1 之后 d2 开放
+    state.depth = { violet: 1 };
+    expect(isEquipmentDungeonDepthUnlocked(violet, state, 2)).toBe(true);
+
+    /*
+     * ★ 等级完全不参与：同一份进度下，Lv1 与 Lv99 得到相同结论。
+     *
+     * 这正是 docs/66 的目的 —— 战斗本身已经是门禁（失败不扣次数、不推 RNG、
+     * 不动保底），等级门槛是叠在它上面的第二道门，挡住的恰好是
+     * 「我练强了想试更深的」这个唯一的正反馈。
+     */
+    expect(isEquipmentDungeonDepthUnlocked(violet, state, 2)).toBe(true);
+  });
+
+  it('crimson 当前只开 d1，d2 被拒且与深度进度无关', () => {
+    const crimson = requireEquipmentDungeonStage('equipment_body_crimson');
+    const state = createEquipmentDungeonState(NOW);
+    state.depth = { crimson: 1 };
+    expect(isEquipmentDungeonDepthUnlocked(crimson, state, 2)).toBe(false);
+    expect(
+      resolveEquipmentDungeonChallenge(
+        input({ stage: crimson, depth: 2, state, player: makePlayer('测试少女', 99, stats()) }),
+      ),
+    ).toMatchObject({ ok: false, reason: 'depth-not-opened' });
   });
 
   it('失败不扣次数、不推进主 RNG、也不增长保底', () => {
@@ -181,15 +197,24 @@ describe('装备副本解锁与战斗事务', () => {
 
     expect(result.waves).toHaveLength(2);
     expect(result.waves.every((wave) => wave.result.win)).toBe(true);
-    expect(result.drops).toHaveLength(1);
-    expect(result.drops[0]?.itemId).toBe(IMPRINT_CRYSTAL_IDS.azure);
+    /*
+     * 首破必掉 1 件胚子（docs/66 §4.2），所以掉落是「晶 + 胚子」两项。
+     * 胚子是**主线装备定义**，不是副本专属装备 —— docs/58 的红线是
+     * 「副本不再产出带定义级 setId 的整装」，主线胚子不违反它。
+     */
+    expect(result.drops).toHaveLength(2);
+    const crystal = result.drops.find((drop) => drop.itemId === IMPRINT_CRYSTAL_IDS.azure);
+    const blank = result.drops.find((drop) => drop.itemId !== IMPRINT_CRYSTAL_IDS.azure);
+    expect(crystal, '必须掉该档烙印晶').toBeDefined();
+    expect(blank?.itemId, '首破必掉一件主线胚子').toMatch(/^eq_r\d+_weapon_/);
+    expect(blank?.count).toBe(1);
     // 首通额外一次 bonus roll，所以是两次掷骰的合并（各 2~3 颗）
-    expect(result.drops[0]?.count).toBeGreaterThanOrEqual(EQUIPMENT_DUNGEON_CRYSTAL_MIN * 2);
-    expect(result.drops[0]?.count).toBeLessThanOrEqual(EQUIPMENT_DUNGEON_CRYSTAL_MAX * 2);
+    expect(crystal?.count).toBeGreaterThanOrEqual(EQUIPMENT_DUNGEON_CRYSTAL_MIN * 2);
+    expect(crystal?.count).toBeLessThanOrEqual(EQUIPMENT_DUNGEON_CRYSTAL_MAX * 2);
     // 首通同样计次（2026-07-30 回滚 docs/47 §4.1）
     expect(result.state.clearsToday).toBe(1);
     expect(result.state.totalClears).toBe(1);
-    expect(result.state.records.equipment_weapon_azure).toMatchObject({
+    expect(result.state.records.equipment_weapon_azure_d1).toMatchObject({
       clears: 1,
       firstClearedAt: NOW,
       bestDurationMs: result.durationMs,
@@ -254,7 +279,7 @@ describe('装备副本解锁与战斗事务', () => {
     expect(first.ok && first.win).toBe(true);
     if (!first.ok || !first.win) return;
 
-    const previousFirstAt = first.state.records.equipment_weapon_azure!.firstClearedAt;
+    const previousFirstAt = first.state.records.equipment_weapon_azure_d1!.firstClearedAt;
     const second = resolveEquipmentDungeonChallenge(
       input({
         state: first.state,
@@ -270,9 +295,9 @@ describe('装备副本解锁与战斗事务', () => {
     const secondTotal = second.drops.reduce((sum, drop) => sum + drop.count, 0);
     expect(secondTotal).toBeGreaterThanOrEqual(EQUIPMENT_DUNGEON_CRYSTAL_MIN);
     expect(secondTotal).toBeLessThanOrEqual(EQUIPMENT_DUNGEON_CRYSTAL_MAX + 1);
-    expect(second.state.records.equipment_weapon_azure?.clears).toBe(2);
-    expect(second.state.records.equipment_weapon_azure?.firstClearedAt).toBe(previousFirstAt);
-    expect(second.state.records.equipment_weapon_azure?.bestDurationMs).toBeLessThanOrEqual(
+    expect(second.state.records.equipment_weapon_azure_d1?.clears).toBe(2);
+    expect(second.state.records.equipment_weapon_azure_d1?.firstClearedAt).toBe(previousFirstAt);
+    expect(second.state.records.equipment_weapon_azure_d1?.bestDurationMs).toBeLessThanOrEqual(
       first.durationMs,
     );
   });

@@ -192,6 +192,13 @@ import {
 } from '@/data/affectionEquipment';
 import { requireAffectionGift } from '@/data/affectionGifts';
 import { getEquipmentDungeonStage, type EquipmentDungeonStage } from '@/data/equipmentDungeons';
+import { ALL_CHAPTERS } from '@/data/regions';
+
+/**
+ * 内容顶等级 —— 胚子锚点的第三个约束（docs/66 §3.3）。
+ * 与 arenaEquipment.ts 同源：内容长上去它自动跟着长，不需要改代码。
+ */
+const DUNGEON_CONTENT_TOP_LEVEL = Math.max(...ALL_CHAPTERS.map((chapter) => chapter.levelTo));
 import { REFORGE_UNLOCK_LEVEL, requireRegionReforgeMaterials } from '@/data/reforgeRules';
 import {
   equipmentAdvancementOption as resolveEquipmentAdvancementOption,
@@ -1756,7 +1763,17 @@ export const useGameStore = defineStore('game', () => {
     if (next.dayKey !== previousDayKey) void persist();
   }
 
-  function runEquipmentDungeon(stageId: string, now = Date.now()): EquipmentDungeonRunResult {
+  /**
+   * @param depth 挑战深度（docs/66）。**刻意放在 now 之后** ——
+   *   旧调用是 `(stageId, now)`，把 depth 插到第二位会让时间戳被当成深度传进去。
+   *   深度守卫会抛错（已实测抓到），但让既有调用直接保持正确更省事。
+   *   深度面板未激活期间默认 1，与改造前的「一档一场」行为一致。
+   */
+  function runEquipmentDungeon(
+    stageId: string,
+    now = Date.now(),
+    depth = 1,
+  ): EquipmentDungeonRunResult {
     if (!save.value) return { ok: false, reason: 'no-save' };
     const stage = getEquipmentDungeonStage(stageId);
     if (!stage) return { ok: false, reason: 'unknown-stage' };
@@ -1765,6 +1782,8 @@ export const useGameStore = defineStore('game', () => {
     const previousDayKey = s.equipmentDungeon.dayKey;
     const planned = resolveEquipmentDungeonChallenge({
       stage,
+      depth,
+      contentTopLevel: DUNGEON_CONTENT_TOP_LEVEL,
       state: s.equipmentDungeon,
       pity: s.progress.pity,
       player: makePlayer(
@@ -1821,9 +1840,23 @@ export const useGameStore = defineStore('game', () => {
         materialDrops.push({ itemId: drop.itemId, count: drop.count });
         continue;
       }
-      if (definition.slot !== stage.slot || definition.quality !== stage.quality) {
+      /*
+       * 部位必须对得上（定向副本的核心承诺），但**品质不再校验档位品质** ——
+       * 深度改造后掉的是「胚子」：品质由锚点等级推导
+       * （min(标称, 玩家等级, 内容顶) 的主线典型），与档位的 quality 字段无关。
+       * 档位的 quality 从此只决定外观档、烙印晶种类与套装归属（docs/66 §3.4）。
+       *
+       * 仍然守住的是**可烙印性**：带定义级 setId 的装备会被 planImprint 拒绝，
+       * 发一批不能烙印的胚子等于违反 docs/58 红线。
+       */
+      if (definition.slot !== stage.slot) {
         throw new Error(
-          `[配置错误] ${stage.id} 掉出了错误装备 ${definition.id}（${definition.slot}/${definition.quality}）`,
+          `[配置错误] ${stage.id} 掉出了错误部位的装备 ${definition.id}（${definition.slot}）`,
+        );
+      }
+      if (definition.setId) {
+        throw new Error(
+          `[配置错误] ${stage.id} 掉出了带定义级套装的装备 ${definition.id}，无法烙印（docs/58 §2.1）`,
         );
       }
       for (let index = 0; index < drop.count; index++) {

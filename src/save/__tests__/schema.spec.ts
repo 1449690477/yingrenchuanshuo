@@ -59,6 +59,7 @@ describe('save schema', () => {
       clearsToday: 0,
       totalClears: 0,
       records: {},
+      depth: {},
     });
     expect(save.settings.haptics).toBe(true);
     expect(save.affection.characters.witch).toMatchObject({
@@ -856,11 +857,12 @@ describe('save schema', () => {
     expect(looksLikeSave(tooManyToday)).toBe(false);
 
     const mismatchedTotal = createSave('小樱', 'witch', 4, 1_800_000_000_000);
-    mismatchedTotal.equipmentDungeon.records.equipment_weapon_azure = {
+    mismatchedTotal.equipmentDungeon.records.equipment_weapon_azure_d1 = {
       clears: 2,
       firstClearedAt: 1_800_000_000_000,
       bestDurationMs: 18_200,
     };
+    mismatchedTotal.equipmentDungeon.depth = { azure: 1 };
     mismatchedTotal.equipmentDungeon.totalClears = 1;
     expect(looksLikeSave(mismatchedTotal)).toBe(false);
 
@@ -872,7 +874,7 @@ describe('save schema', () => {
     expect(looksLikeSave(todayExceedsHistory)).toBe(false);
 
     const unknownStage = createSave('小樱', 'witch', 4, 1_800_000_000_000);
-    unknownStage.equipmentDungeon.records.equipment_unknown_azure = {
+    unknownStage.equipmentDungeon.records.equipment_unknown_azure_d1 = {
       clears: 1,
       firstClearedAt: 1_800_000_000_000,
       bestDurationMs: 18_200,
@@ -880,13 +882,31 @@ describe('save schema', () => {
     unknownStage.equipmentDungeon.totalClears = 1;
     expect(looksLikeSave(unknownStage)).toBe(false);
 
-    const missingPrevious = createSave('小樱', 'witch', 4, 1_800_000_000_000);
-    missingPrevious.equipmentDungeon.records.equipment_body_violet = {
+    // 深度不能跳级：有 d2 记录却没有 d1
+    const skippedDepth = createSave('小樱', 'witch', 4, 1_800_000_000_000);
+    skippedDepth.equipmentDungeon.records.equipment_body_violet_d2 = {
       clears: 1,
       firstClearedAt: 1_800_000_000_000,
       bestDurationMs: 18_200,
     };
-    missingPrevious.equipmentDungeon.totalClears = 1;
-    expect(looksLikeSave(missingPrevious)).toBe(false);
+    skippedDepth.equipmentDungeon.totalClears = 1;
+    skippedDepth.equipmentDungeon.depth = { violet: 2 };
+    expect(looksLikeSave(skippedDepth)).toBe(false);
+
+    // depth 声明与记录最深层必须一致 —— 否则改一个就能绕过另一个
+    const depthMismatch = createSave('小樱', 'witch', 4, 1_800_000_000_000);
+    depthMismatch.equipmentDungeon.records.equipment_body_violet_d1 = {
+      clears: 1,
+      firstClearedAt: 1_800_000_000_000,
+      bestDurationMs: 18_200,
+    };
+    depthMismatch.equipmentDungeon.totalClears = 1;
+    depthMismatch.equipmentDungeon.depth = { violet: 3 };
+    expect(looksLikeSave(depthMismatch)).toBe(false);
+
+    // 声明了深度却没有任何记录，同样拒收
+    const depthWithoutRecord = createSave('小樱', 'witch', 4, 1_800_000_000_000);
+    depthWithoutRecord.equipmentDungeon.depth = { azure: 2 };
+    expect(looksLikeSave(depthWithoutRecord)).toBe(false);
   });
 });

@@ -44,6 +44,10 @@ import { ENCOUNTERS } from '@/data/encounters';
 import { FIRST_STAGE_ID } from '@/data/stages';
 import { EQUIPMENT_DUNGEON_RULES } from '@/data/equipmentDungeonRules';
 import { EQUIPMENT_DUNGEON_STAGES, EQUIPMENT_DUNGEON_STAGE_LIST } from '@/data/equipmentDungeons';
+import { EQUIPMENT_DUNGEON_TIERS } from '@/data/equipmentDungeonGear';
+import { DEPTH_PER_TIER } from '@/data/equipmentDungeonDepthRules';
+
+const EQUIPMENT_DUNGEON_TIER_IDS = new Set<string>(EQUIPMENT_DUNGEON_TIERS.map((tier) => tier.id));
 import { AFFECTION_CHARACTERS } from '@/data/affection';
 import { affectionEquipmentIdsForClass } from '@/data/affectionEquipment';
 import { AFFECTION_RULES } from '@/data/affectionRules';
@@ -52,7 +56,7 @@ import { MILESTONE_LEVELS, isMilestoneLevel } from '@/data/milestoneRules';
 import { getEquipment } from '@/data/equipment';
 
 /** 当前存档版本。加字段就 +1。 */
-export const SAVE_VERSION = 15;
+export const SAVE_VERSION = 16;
 
 export const SAVE_KEY = 'main';
 
@@ -312,9 +316,28 @@ const nonNegativeNumber = finiteNumber.nonnegative();
 const nonNegativeInteger = z.number().int().nonnegative();
 const timestamp = nonNegativeInteger;
 const equipmentDungeonStageIds = new Set(EQUIPMENT_DUNGEON_STAGE_LIST.map((stage) => stage.id));
-const equipmentDungeonStageIdSchema = z
-  .string()
-  .refine((stageId) => equipmentDungeonStageIds.has(stageId), '装备副本关卡不存在');
+/**
+ * 通关记录的 key（v16 起）：`${关卡id}_d${深度}`（docs/66 §五）。
+ *
+ * 深度进 key 而不是另起一张表 —— 秘境榜读的就是这份 records，
+ * 两处实现分叉过一次（docs/61 §2.2），不再制造第二个真相源。
+ */
+const equipmentDungeonRecordKeySchema = z.string().refine((key) => {
+  const matched = key.match(/^(.+)_d(\d+)$/);
+  if (!matched) return false;
+  const depth = Number(matched[2]);
+  return (
+    equipmentDungeonStageIds.has(matched[1]!) &&
+    Number.isInteger(depth) &&
+    depth >= 1 &&
+    depth <= DEPTH_PER_TIER
+  );
+}, '装备副本通关记录 key 非法（应为 关卡id_d深度）');
+
+const equipmentDungeonDepthSchema = z.record(
+  z.string().refine((tierId) => EQUIPMENT_DUNGEON_TIER_IDS.has(tierId), '装备副本档位不存在'),
+  z.number().int().min(1).max(DEPTH_PER_TIER),
+);
 
 const affixSchema = z
   .object({
@@ -778,8 +801,9 @@ export const saveDataSchema = z
         dayKey: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
         clearsToday: z.number().int().min(0).max(EQUIPMENT_DUNGEON_RULES.dailyClears),
         totalClears: nonNegativeInteger,
+        depth: equipmentDungeonDepthSchema,
         records: z.record(
-          equipmentDungeonStageIdSchema,
+          equipmentDungeonRecordKeySchema,
           z
             .object({
               clears: z.number().int().positive(),
@@ -979,13 +1003,56 @@ export const saveDataSchema = z
         message: '今日通关次数不能超过历史总通关次数',
       });
     }
-    for (const stageId of Object.keys(save.equipmentDungeon.records)) {
-      const previousStageId = EQUIPMENT_DUNGEON_STAGES[stageId]?.previousStageId;
-      if (previousStageId && !save.equipmentDungeon.records[previousStageId]) {
+    /*
+     * 深度链自洽（v16 起，取代旧的「档位链」，docs/66）。
+     *
+     * 两条不变量，都是防篡改守卫，不是格式检查：
+     *   1. 有第 d 层记录，就必须有同档第 1..d-1 层的记录 —— 深度只能一层层打上去
+     *   2. depth[档位] 必须等于该档记录里的最深层 —— 两处不能各说各话
+     *
+     * 第 2 条尤其重要：depth 是玩法门槛的依据，records 是榜单的依据，
+     * 若允许它们分叉，改一个就能绕过另一个（docs/61 §2.2 的分叉事故教训）。
+     */
+    const deepestByTier = new Map<string, number>();
+    const seenByTier = new Map<string, Set<number>>();
+    for (const recordKey of Object.keys(save.equipmentDungeon.records)) {
+      const matched = recordKey.match(/^(.+)_d(\d+)$/);
+      if (!matched) continue;
+      const tierId = EQUIPMENT_DUNGEON_STAGES[matched[1]!]?.tierId;
+      if (!tierId) continue;
+      const depth = Number(matched[2]);
+      deepestByTier.set(tierId, Math.max(deepestByTier.get(tierId) ?? 0, depth));
+      if (!seenByTier.has(tierId)) seenByTier.set(tierId, new Set());
+      seenByTier.get(tierId)!.add(depth);
+    }
+
+    for (const [tierId, deepest] of deepestByTier) {
+      const seen = seenByTier.get(tierId)!;
+      for (let depth = 1; depth < deepest; depth++) {
+        if (!seen.has(depth)) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['equipmentDungeon', 'records'],
+            message: `${tierId} 有第 ${deepest} 层记录却缺少第 ${depth} 层 —— 深度不能跳级`,
+          });
+        }
+      }
+      const declared = save.equipmentDungeon.depth[tierId] ?? 0;
+      if (declared !== deepest) {
         ctx.addIssue({
           code: 'custom',
-          path: ['equipmentDungeon', 'records', stageId],
-          message: `缺少前置关卡记录 ${previousStageId}`,
+          path: ['equipmentDungeon', 'depth', tierId],
+          message: `depth 声明 ${declared} 与通关记录最深层 ${deepest} 不一致`,
+        });
+      }
+    }
+
+    for (const [tierId, declared] of Object.entries(save.equipmentDungeon.depth)) {
+      if (declared > 0 && !deepestByTier.has(tierId)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['equipmentDungeon', 'depth', tierId],
+          message: `${tierId} 声明了深度 ${declared} 却没有任何通关记录`,
         });
       }
     }

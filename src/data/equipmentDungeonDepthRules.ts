@@ -63,6 +63,19 @@ export const EQUIPMENT_DUNGEON_DEPTH_ANCHORS: Readonly<
 export const DEPTH_DIFFICULTY_K: readonly number[] = [1.0, 1.2, 1.45, 1.75, 2.1];
 
 /**
+ * 深度 1 的怪物基准倍率 —— **四档共用一套**，这是取代手填表的关键。
+ *
+ * 取值来自旧 `TIER_ENCOUNTER_SCALE` 里的辉金档 `{hp: 1.5, atk: 0.85}`：
+ * 四档中只有辉金的实测战力比（0.94~1.24）与它的推荐战力基本吻合，
+ * 也就是说它的倍率是**最不错**的那一组，拿它当统一锚点最省返工。
+ *
+ * ⚠ 这两个数与 `DEPTH_DIFFICULTY_K` 一起由
+ * `npm run balance:equipment-dungeon` 反标定，不要手感微调 ——
+ * 手感微调正是造出 3.54× 跨档极差的那条路。
+ */
+export const DEPTH_ENCOUNTER_BASE = { hp: 1.5, atk: 0.85 } as const;
+
+/**
  * 胚子掉率：该深度**已经突破过之后**的常规掉率。
  *
  * 首次突破某深度必掉 1 件（保底），由 core 单独处理 ——

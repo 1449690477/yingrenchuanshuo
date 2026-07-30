@@ -10,7 +10,7 @@
  *   3. 深度只升不降（docs/40 红线：进度条不许倒退）
  */
 
-import type { EquipSlot, Quality } from './types';
+import type { EquipSlot, MonsterDef, Quality } from './types';
 import { typicalQualityAt, expectedFullGearCp } from '@/data/expectedPower';
 import { REGIONS } from '@/data/regions';
 import { EQUIPMENT } from '@/data/equipment';
@@ -24,6 +24,7 @@ import {
   DEPTH_BLANK_CHANCE,
   DEPTH_DIFFICULTY_K,
   DEPTH_PER_TIER,
+  DEPTH_ENCOUNTER_BASE,
   EQUIPMENT_DUNGEON_DEPTH_ANCHORS,
   REGION_BLANK_QUALITY_RANGE,
   type EquipmentDungeonDepthAnchor,
@@ -165,12 +166,46 @@ export function depthBlankQuality(
  * 而没有任何门禁能发现（docs/66 §3.2）。
  */
 export function depthRecommendCp(tierId: EquipmentDungeonTierId, depth: number): number {
+  return Math.round(expectedFullGearCp(depthNominalLevel(tierId, depth)) * depthDifficultyK(depth));
+}
+
+/**
+ * 把关卡的基础怪物按深度重新标定（docs/66 §3.2）。
+ *
+ * 这个函数取代了逐档手填的 `TIER_ENCOUNTER_SCALE`。原表实测跨档极差 **3.54×**
+ * （苍蓝 2.69 / 绛紫 0.76），根因不只是「手填不准」，而是
+ * **推荐战力走公式、实际难度走手填，两个旋钮之间没有反馈回路** ——
+ * 于是绛紫档长期「战力比 0.76 却 100% 全胜」而没有任何门禁能发现。
+ *
+ * 改成同源之后，`k(depth)` 是唯一旋钮：怪物强度与推荐战力都由它推导，
+ * 不可能再各自漂移。
+ *
+ * 血量按 k 全量放大、攻击只按 sqrt(k) 放大 —— docs/36 的既有结论：
+ * 抬攻击会优先杀死低生命职业（辉金魔女曾因此胜率只有 47.5%），
+ * 把压力放在血量与限时输出上，职业间差异更小。
+ */
+export function depthScaledMonster(
+  base: MonsterDef,
+  tierId: EquipmentDungeonTierId,
+  depth: number,
+): MonsterDef {
+  const k = depthDifficultyK(depth);
+  return {
+    ...base,
+    level: Math.max(1, depthNominalLevel(tierId, depth) - (base.type === 'boss' ? 0 : 2)),
+    hpMul: (base.hpMul ?? 1) * DEPTH_ENCOUNTER_BASE.hp * k,
+    atkMul: (base.atkMul ?? 1) * DEPTH_ENCOUNTER_BASE.atk * Math.sqrt(k),
+  };
+}
+
+/** 难度系数，越界抛错而不是回退默认值。 */
+export function depthDifficultyK(depth: number): number {
   assertDepth(depth);
   const k = DEPTH_DIFFICULTY_K[depth - 1];
   if (k === undefined) {
     throw new Error(`[配置错误] DEPTH_DIFFICULTY_K 缺少第 ${depth} 层（docs/66 §3.2）`);
   }
-  return Math.round(expectedFullGearCp(depthNominalLevel(tierId, depth)) * k);
+  return k;
 }
 
 /** 该层稳定后的胚子掉率；首破必掉不走这个数（docs/66 §4.2）。 */

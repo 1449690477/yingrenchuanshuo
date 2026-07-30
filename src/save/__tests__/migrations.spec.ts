@@ -415,6 +415,7 @@ describe('save migrations', () => {
       clearsToday: 0,
       totalClears: 0,
       records: {},
+      depth: {},
     });
   });
 
@@ -1208,6 +1209,49 @@ describe('save migrations', () => {
     // 通关记录本身一个都不许丢
     expect(migrated.progress.clearedStageIds).toHaveLength(90);
     expect(migrated.milestones).toEqual([]);
+  });
+
+  it('v15 → v16 旧通关记录全部映射到 d1，且不伪造更高深度', () => {
+    // 一个把苍蓝、绛紫两档都刷过的老档
+    const current = createSave('深度前旧档', 'witch', 12, 1_800_000_000_000) as unknown as Record<
+      string,
+      unknown
+    >;
+    const dungeon = current.equipmentDungeon as Record<string, unknown>;
+    dungeon.records = {
+      equipment_weapon_azure: { clears: 3, firstClearedAt: 1_799_000_000_000, bestDurationMs: 18_200 },
+      equipment_body_azure: { clears: 1, firstClearedAt: 1_799_500_000_000, bestDurationMs: 21_000 },
+      equipment_ring_violet: { clears: 2, firstClearedAt: 1_799_800_000_000, bestDurationMs: 25_000 },
+    };
+    dungeon.totalClears = 6;
+    dungeon.clearsToday = 0;
+    const raw = structuredClone(current);
+    delete (raw.equipmentDungeon as Record<string, unknown>).depth;
+    raw.version = 15;
+
+    const migrated = migrate(raw);
+
+    expect(migrated.version).toBe(SAVE_VERSION);
+    // 三条记录一条不丢，key 全部落到 _d1
+    expect(Object.keys(migrated.equipmentDungeon.records).sort()).toEqual([
+      'equipment_body_azure_d1',
+      'equipment_ring_violet_d1',
+      'equipment_weapon_azure_d1',
+    ]);
+    // 用时与首通时刻原样保留
+    expect(migrated.equipmentDungeon.records.equipment_weapon_azure_d1).toEqual({
+      clears: 3,
+      firstClearedAt: 1_799_000_000_000,
+      bestDurationMs: 18_200,
+    });
+    /*
+     * ★ 只认「他确实通过了这一档」，深度一律是 1。
+     *
+     * 不按旧记录的通关次数或档位高低去推更深的层 —— 玩家的深度是打出来的，
+     * 与 v15 不补记首通时刻同一条原则：没有证据就不能替玩家主张更多。
+     */
+    expect(migrated.equipmentDungeon.depth).toEqual({ azure: 1, violet: 1 });
+    expect(migrated.equipmentDungeon.totalClears).toBe(6);
   });
 
   it('当前版本不迁移，只做严格结构校验', () => {

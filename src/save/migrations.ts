@@ -228,6 +228,37 @@ export const migrations: Record<number, Migration> = {
       progress: { ...progress, stageFirstClearedAt: {} },
     };
   },
+  /*
+   * v16：装备副本引入「深度」，取代等级门槛（docs/66）。
+   *
+   * 两处改动，都不丢老档数据：
+   *   1. records 的 key 从 `关卡id` 变成 `关卡id_d深度` —— 旧记录一律映射到
+   *      **_d1**，因为改造前的每一场就相当于新体系的第 1 层。
+   *   2. 新增 depth：该档只要有任意部位的首通记录，就认定 depth = 1。
+   *
+   * **不伪造更高深度。** 玩家的深度是打出来的，迁移只承认「他确实通过了
+   * 这一档」这一个事实 —— 与 v15 不补记首通时刻是同一条原则：
+   * 没有证据就不能替玩家主张更多。
+   */
+  15: (save) => {
+    const dungeon = asObject(save.equipmentDungeon, 15, 'equipmentDungeon');
+    const oldRecords = asObject(dungeon.records ?? {}, 15, 'equipmentDungeon.records');
+
+    const records: Record<string, unknown> = {};
+    const depth: Record<string, number> = {};
+    for (const [stageId, record] of Object.entries(oldRecords)) {
+      records[`${stageId}_d1`] = record;
+      // 关卡 id 形如 equipment_{部位}_{档位}，档位是最后一段
+      const tierId = stageId.split('_').pop();
+      if (tierId) depth[tierId] = 1;
+    }
+
+    return {
+      ...save,
+      version: 16,
+      equipmentDungeon: { ...dungeon, records, depth },
+    };
+  },
 };
 
 function migrateV10Save(

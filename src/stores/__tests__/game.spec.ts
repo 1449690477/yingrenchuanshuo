@@ -1389,7 +1389,13 @@ describe('equipment dungeon transaction', () => {
 
     // 烙印激活批次（docs/58 §3.3）：副本只掉材料，不再产出装备实例。
     // 原断言「生成 2 件定向装备」描述的正是被取代的设计。
-    expect(result.instances).toHaveLength(0);
+    /*
+     * 首破必掉 1 件胚子（docs/66 §4.2），所以这里从「零装备」变成「一件主线胚子」。
+     * docs/58 的红线是「副本不再产出带定义级 setId 的整装」——
+     * 主线胚子没有 setId、可烙印，不违反它。
+     */
+    expect(result.instances).toHaveLength(1);
+    expect(result.instances[0]?.defId).toMatch(/^eq_r\d+_weapon_/);
 
     // 材料直接进背包（首通两轮掷骰，各 2~3 颗）
     const crystalId = IMPRINT_CRYSTAL_IDS.azure;
@@ -1401,15 +1407,16 @@ describe('equipment dungeon transaction', () => {
       clearsToday: 1,
       totalClears: 1,
     });
-    expect(game.save?.equipmentDungeon.records.equipment_weapon_azure?.clears).toBe(1);
+    expect(game.save?.equipmentDungeon.records.equipment_weapon_azure_d1?.clears).toBe(1);
+    expect(game.save?.equipmentDungeon.depth.azure).toBe(1);
     expect(game.save?.rngState).not.toBe(beforeRng);
     // 没有装备实例产出，uid 计数器不该前进
-    expect(game.save?.nextUid).toBe(beforeUid);
+    expect(game.save?.nextUid).toBe(beforeUid + 1);
     expect(game.equipmentDungeonRemaining).toBe(2);
 
     await game.persist();
     const loaded = await loadSave();
-    expect(loaded?.equipmentDungeon.records.equipment_weapon_azure?.clears).toBe(1);
+    expect(loaded?.equipmentDungeon.records.equipment_weapon_azure_d1?.clears).toBe(1);
     expect(loaded?.bag.items[crystalId]).toBe(gained);
   });
 
@@ -1436,9 +1443,14 @@ describe('equipment dungeon transaction', () => {
     const save = dungeonSave(true);
     game.loadFrom(save);
 
-    expect(game.runEquipmentDungeon('equipment_weapon_violet', now)).toEqual({
+    /*
+     * 档位链已被深度链取代（docs/66 §2.1）：绛紫档不再要求先通苍蓝，
+     * 而是要求「该档已通过的最高深度 + 1」。所以直接打绛紫 d1 是允许的，
+     * 打 d2 才会被拒 —— 等级与档位顺序都不再是门槛，**打得过就能打**。
+     */
+    expect(game.runEquipmentDungeon('equipment_weapon_violet', now, 2)).toEqual({
       ok: false,
-      reason: 'previous-tier-locked',
+      reason: 'previous-depth-locked',
     });
 
     game.save!.equipmentDungeon.clearsToday = 3;
@@ -1456,8 +1468,9 @@ describe('equipment dungeon transaction', () => {
       dayKey: '2026-07-27',
       clearsToday: 3,
       totalClears: 2,
+      depth: { azure: 1 },
       records: {
-        equipment_ring_azure: {
+        equipment_ring_azure_d1: {
           clears: 2,
           firstClearedAt: now - 86_400_000,
           bestDurationMs: 22_000,
@@ -1473,7 +1486,9 @@ describe('equipment dungeon transaction', () => {
     // 日切清零后这次首通胜利计 1 次
     expect(game.save?.equipmentDungeon.clearsToday).toBe(1);
     expect(game.save?.equipmentDungeon.totalClears).toBe(3);
-    expect(game.save?.equipmentDungeon.records.equipment_ring_azure?.clears).toBe(2);
+    expect(game.save?.equipmentDungeon.records.equipment_ring_azure_d1?.clears).toBe(2);
+    // 日切不动深度：只升不降（docs/40 红线）
+    expect(game.save?.equipmentDungeon.depth.azure).toBe(1);
     await game.persist();
   });
 
