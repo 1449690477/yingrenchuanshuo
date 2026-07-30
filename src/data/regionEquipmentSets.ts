@@ -4,6 +4,7 @@ export const REGION_CRIMSON_SET_ID = 'set_region_crimson';
 export const REGION_CRIMSON_FLAMEBURST_TRIGGER_ID = `${REGION_CRIMSON_SET_ID}:flameburst`;
 export const REGION_SHADOW_SET_ID = 'set_region_shadow';
 export const REGION_SHADOW_SURVIVAL_TRIGGER_ID = `${REGION_SHADOW_SET_ID}:survival`;
+export const REGION_BLOODMOON_SET_ID = 'set_region_bloodmoon';
 
 /**
  * 区域 5「绯焰套」的权威战斗定义。
@@ -94,7 +95,47 @@ export const REGION_EQUIPMENT_SETS: Readonly<Record<string, EquipmentSetDefiniti
       },
     ],
   },
+  [REGION_BLOODMOON_SET_ID]: {
+    id: REGION_BLOODMOON_SET_ID,
+    name: '血月套',
+    pieceSlots: [
+      'weapon',
+      'head',
+      'body',
+      'necklace',
+      'bracelet',
+      'ring',
+      'belt',
+      'shoes',
+    ],
+    bonuses: [
+      {
+        pieces: 2,
+        label: '赤月锋芒',
+        description: '攻击 +10%',
+        statPercent: { atk: 0.1 },
+      },
+      {
+        pieces: 4,
+        label: '月蚀心跳',
+        description: '暴击率 +8%',
+        statFlat: { critRate: 8 },
+      },
+      {
+        pieces: 6,
+        label: '峡谷眷顾',
+        description: '技能伤害 +18%',
+        skillMultiplierBonus: 0.18,
+      },
+      {
+        pieces: 8,
+        label: '血月的眷属',
+        description: '解锁同名称号与血月徽记外观（无战斗属性）',
+      },
+    ],
+  },
 } as const;
 
 export const REGION_CRIMSON_SET = REGION_EQUIPMENT_SETS[REGION_CRIMSON_SET_ID]!;
 export const REGION_SHADOW_SET = REGION_EQUIPMENT_SETS[REGION_SHADOW_SET_ID]!;
+export const REGION_BLOODMOON_SET = REGION_EQUIPMENT_SETS[REGION_BLOODMOON_SET_ID]!;

@@ -279,6 +279,30 @@ function buildRegion6SetAppearances(): Record<string, EquipmentAppearance> {
   return out;
 }
 
+function buildRegion7SetAppearances(): Record<string, EquipmentAppearance> {
+  const out: Record<string, EquipmentAppearance> = {};
+  for (const slot of ['body', 'head', 'weapon'] as const) {
+    const id = `r7-set-${slot}`;
+    out[id] = {
+      id,
+      slot,
+      renderMode: 'layer',
+      assets: Object.fromEntries(
+        CLASS_IDS.map((classId) => [
+          classId,
+          `assets/characters/modular/${classId}/r7-bloodmoon-${slot}.png`,
+        ]),
+      ) as Record<ClassId, string>,
+      transforms: alignedTransforms,
+    };
+  }
+  for (const slot of ['necklace', 'bracelet', 'ring', 'belt', 'shoes'] as const) {
+    const id = `r7-set-${slot}`;
+    out[id] = { id, slot, renderMode: 'slot-only' };
+  }
+  return out;
+}
+
 /**
  * R5 普通八部位与绯焰六件套的完整外观注册表。
  *
@@ -297,6 +321,13 @@ export const REGION_6_EQUIPMENT_APPEARANCES: Readonly<
 > = {
   ...buildRegionAppearances(['r6']),
   ...buildRegion6SetAppearances(),
+};
+
+export const REGION_7_EQUIPMENT_APPEARANCES: Readonly<
+  Record<string, EquipmentAppearance>
+> = {
+  ...buildRegionAppearances(['r7']),
+  ...buildRegion7SetAppearances(),
 };
 
 /**
@@ -398,6 +429,7 @@ export const EQUIPMENT_APPEARANCES: Readonly<Record<string, EquipmentAppearance>
   ),
   ...REGION_5_EQUIPMENT_APPEARANCES,
   ...REGION_6_EQUIPMENT_APPEARANCES,
+  ...REGION_7_EQUIPMENT_APPEARANCES,
 
   ...buildBoutiqueAppearances(),
   ...buildEquipmentDungeonAppearances(),

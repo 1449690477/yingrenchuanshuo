@@ -1,0 +1,1089 @@
+{
+  "version": 1,
+  "algorithm": "sha256",
+  "sourceRepository": "yingrenchuanshuo-art-source-r7",
+  "chromaRemoval": "remove_chroma_key.py --auto-key border --soft-matte --transparent-threshold 12 --opaque-threshold 220 --despill --edge-contract 1 --force",
+  "sources": {
+    "map:r7:0": {
+      "callId": "call_aCNFmZiAP6bJ41Sr3SJtPnsf",
+      "path": "scenes/r7.png",
+      "sha256": "697adc5f923e33dfbe5b10b0c6a87826471885e1414fd7950845464aec01b778"
+    },
+    "map:chapter-7-1:1": {
+      "callId": "call_Bp6i4kMDDLV23bN6ZAUhfzQi",
+      "path": "scenes/chapter-7-1.png",
+      "sha256": "846e2b670f45f2177a98614d948e2bd02c9d2af5b3abd96f9149443f97f582de"
+    },
+    "map:chapter-7-2:2": {
+      "callId": "call_JEx6GiaEuxPHZfv44AoDCbzh",
+      "path": "scenes/chapter-7-2.png",
+      "sha256": "23a3392b33f393df4310a7b8d970f34bffd0753735c11194672ed0d55a5ac121"
+    },
+    "map:chapter-7-3:3": {
+      "callId": "call_avB8zGVXv81QHwQk8DdJiClN",
+      "path": "scenes/chapter-7-3.png",
+      "sha256": "07fd700ce37065e0b555a59fdbb1d5f2c6f0e15501f41d41495d011d79b793c9"
+    },
+    "map:chapter-7-4:4": {
+      "callId": "call_wEYjL2shfBqsj3Gfb9j0urol",
+      "path": "scenes/chapter-7-4.png",
+      "sha256": "3aec809b8b4ec58772c05bf6e64f13982b08c8d28eea008f0ebf3388b7337d01"
+    },
+    "map:chapter-7-5:5": {
+      "callId": "call_LULvENDrH8bcInm8o1EC5IYk",
+      "path": "scenes/chapter-7-5.png",
+      "sha256": "4c2c897637175298d822d06d6e246fbb52c7e3bff924185408190490bae01afd"
+    },
+    "battlefield:chapter-7-1:6": {
+      "callId": "call_bahzfNWlYTrN9gmL16UTda2y",
+      "path": "scenes/battle-7-1.png",
+      "sha256": "05338b92e02ec5e23e692e77408cf7d7a19cdb4b351f0e9b780b4250638330d6"
+    },
+    "battlefield:chapter-7-2:7": {
+      "callId": "call_BNJL2gskPkY7oQulWgbFzexB",
+      "path": "scenes/battle-7-2.png",
+      "sha256": "3c94ee10ae499dfd3348116d203502eefbaf6446f958d016a0b1758abd119bcb"
+    },
+    "battlefield:chapter-7-3:8": {
+      "callId": "call_ktkDAwePSVlki9bSDNKQvWW2",
+      "path": "scenes/battle-7-3.png",
+      "sha256": "3cdb469c35e7ebbe5997b8a358efc6663126008921ad7dfe86c38da27e844cdb"
+    },
+    "battlefield:chapter-7-4:9": {
+      "callId": "call_FJ5bcmupLvecuALE8iUvVW7b",
+      "path": "scenes/battle-7-4.png",
+      "sha256": "72a6f4fb8ce08dcbcee93574d837116090f97b0686e8b1e10ab9b713796c1ded"
+    },
+    "battlefield:chapter-7-5:10": {
+      "callId": "call_JQUYfE1yYOsjVEmMV3kHgieI",
+      "path": "scenes/battle-7-5.png",
+      "sha256": "5ea36235796d4d3e04bbc5897466f8ce1ab0661d3299062a8e888fa47c109592"
+    },
+    "monster:mon_7-1_0:11": {
+      "callId": "call_QhY8NVqNZUuUdm6shtaBEqFB",
+      "path": "monsters/mon_7-1_0-chroma.png",
+      "sha256": "88d5ad0fc3bc8f084a354b8f2c7d4313bdb1bb9a044e2e563af82614109ef091"
+    },
+    "monster:mon_7-1_0:12": {
+      "callId": "call_QhY8NVqNZUuUdm6shtaBEqFB",
+      "path": "monsters/mon_7-1_0-alpha.png",
+      "sha256": "bedb5338ec01c3a382cf850c1a664e2a630221a08c495c3e79d78be6deec77d6"
+    },
+    "monster:mon_7-1_1:13": {
+      "callId": "call_j2PHTR5doW26THCO1FX4MOCT",
+      "path": "monsters/mon_7-1_1-chroma.png",
+      "sha256": "dccfb443b42180644e84f92961e2af8bb97fde5081d8e8ae55bc91029016f5f5"
+    },
+    "monster:mon_7-1_1:14": {
+      "callId": "call_j2PHTR5doW26THCO1FX4MOCT",
+      "path": "monsters/mon_7-1_1-alpha.png",
+      "sha256": "b02c570f2ad7877081e647b545d235aa2bf2bf053d5b1e6ecb8bc8d6843d2d36"
+    },
+    "monster:mon_7-1_2:15": {
+      "callId": "call_xAQaHfEWmyUguxeWafOP3C73",
+      "path": "monsters/mon_7-1_2-chroma.png",
+      "sha256": "6a806ecaed45860cb89bf80e2fc4391cffca3ed4c4bd67e50bf30fcb1edcc951"
+    },
+    "monster:mon_7-1_2:16": {
+      "callId": "call_xAQaHfEWmyUguxeWafOP3C73",
+      "path": "monsters/mon_7-1_2-alpha.png",
+      "sha256": "6b9fdde50d0fa243040541bfdd1c2bb67449347bb083948bf1b8b5ed4d187aca"
+    },
+    "monster:mon_7-1_3:17": {
+      "callId": "call_Kt3jrYN1hC1gfRG1lfXwBXxX",
+      "path": "monsters/mon_7-1_3-chroma.png",
+      "sha256": "e48b2eae9de4cc01b8780873736b4557482b347d9b0516a6802dde6cdc737213"
+    },
+    "monster:mon_7-1_3:18": {
+      "callId": "call_Kt3jrYN1hC1gfRG1lfXwBXxX",
+      "path": "monsters/mon_7-1_3-alpha.png",
+      "sha256": "1e56a94c83a31da881ccf2a68f00fb022c7beb1e4e996dacd633497891c1da9b"
+    },
+    "monster:mon_7-2_0:19": {
+      "callId": "call_T7dnZgk9anOcnHKZHu0OQoF5",
+      "path": "monsters/mon_7-2_0-chroma.png",
+      "sha256": "fb350ebffb5367cd73e047809a2285bad2bf2dee8567620babc408d198c28218"
+    },
+    "monster:mon_7-2_0:20": {
+      "callId": "call_T7dnZgk9anOcnHKZHu0OQoF5",
+      "path": "monsters/mon_7-2_0-alpha.png",
+      "sha256": "53c713af2d46dafcf5dd393fb4b1836a07d996be65a32826a22e7d5f849df88c"
+    },
+    "monster:mon_7-2_1:21": {
+      "callId": "call_BoqmL8UqA0gtAw1DFDCWlWy5",
+      "path": "monsters/mon_7-2_1-chroma.png",
+      "sha256": "b2a604373d4b0871d11a2d40ae92b582b9d535b1b9426ffaeb1db82678f9f3b6"
+    },
+    "monster:mon_7-2_1:22": {
+      "callId": "call_BoqmL8UqA0gtAw1DFDCWlWy5",
+      "path": "monsters/mon_7-2_1-alpha.png",
+      "sha256": "02781d7aeb3b0dd73833b65f97e7f03af49aef47e1d04a8e1fdcf43f41f11e92"
+    },
+    "monster:mon_7-2_2:23": {
+      "callId": "call_iwuhBafJaOl6J1wWOQRug5Fp",
+      "path": "monsters/mon_7-2_2-chroma.png",
+      "sha256": "f22c2749a9fca4337a9b4bb19ae648059a4627e0a72e7a2a9d30010ecf7cb604"
+    },
+    "monster:mon_7-2_2:24": {
+      "callId": "call_iwuhBafJaOl6J1wWOQRug5Fp",
+      "path": "monsters/mon_7-2_2-alpha.png",
+      "sha256": "b7df4beca312b1424a8815543b43bb970803469916abbcdf67aa02057ee672a9"
+    },
+    "monster:mon_7-2_3:25": {
+      "callId": "call_Bwa9G3NjuitLLsmXGPLccSmn",
+      "path": "monsters/mon_7-2_3-chroma.png",
+      "sha256": "2febf61478b2f2a46ce41232197ec9b62001c22669768b3023640b48ee1e9efd"
+    },
+    "monster:mon_7-2_3:26": {
+      "callId": "call_Bwa9G3NjuitLLsmXGPLccSmn",
+      "path": "monsters/mon_7-2_3-alpha.png",
+      "sha256": "832816b18b5cd01d1f6760b3661df9d32ef7198859ab9acdb0133c29b31f5059"
+    },
+    "monster:mon_7-2_elite:27": {
+      "callId": "call_7tJpvhS3Z5VhiNyBkFepRQmM",
+      "path": "monsters/mon_7-2_elite-chroma.png",
+      "sha256": "8ab1b17b41228bda2a5fdb82bd46c5c55c78d7e3b1b3cbb626744cf0c5ef3269"
+    },
+    "monster:mon_7-2_elite:28": {
+      "callId": "call_7tJpvhS3Z5VhiNyBkFepRQmM",
+      "path": "monsters/mon_7-2_elite-alpha.png",
+      "sha256": "fa9093a3e32eddfe8db2ee16b42ecdaa207ac064a00f8f7d0dc579fc7dfa4821"
+    },
+    "monster:mon_7-3_0:29": {
+      "callId": "call_mIUNnM8UwuTQ3lt3AddWz8h9",
+      "path": "monsters/mon_7-3_0-chroma.png",
+      "sha256": "928859bc12c00980b60c64a4515cab2a99a6b586b79ddca5a7850ec5d590540a"
+    },
+    "monster:mon_7-3_0:30": {
+      "callId": "call_mIUNnM8UwuTQ3lt3AddWz8h9",
+      "path": "monsters/mon_7-3_0-alpha.png",
+      "sha256": "fe1dc34699a5853ea2a3bd97d3842641b6a0f1245522a0c80c27060b87d96d76"
+    },
+    "monster:mon_7-3_1:31": {
+      "callId": "call_vWCrT7ghNihwiFSnHqoD03sk",
+      "path": "monsters/mon_7-3_1-chroma.png",
+      "sha256": "727baacc6355825fcd0c73b3b268cc4c1d81361c880ac2e0b982279af6a7e761"
+    },
+    "monster:mon_7-3_1:32": {
+      "callId": "call_vWCrT7ghNihwiFSnHqoD03sk",
+      "path": "monsters/mon_7-3_1-alpha.png",
+      "sha256": "9a7b25bf9bdeae03ad8d02473ab8ebac145521ee8a32de2f1730e535d10403c3"
+    },
+    "monster:mon_7-3_2:33": {
+      "callId": "call_jOte8Rz8DG7n9gkqmxrqgIo0",
+      "path": "monsters/mon_7-3_2-chroma.png",
+      "sha256": "c92616fd6815f2467d9ac161122dd0a78d1378068cef15b334081a0228ec08d1"
+    },
+    "monster:mon_7-3_2:34": {
+      "callId": "call_jOte8Rz8DG7n9gkqmxrqgIo0",
+      "path": "monsters/mon_7-3_2-alpha.png",
+      "sha256": "7cf69fd5e84d2bac0ea1ac805b27e39c4768472934308d29066625e96742e887"
+    },
+    "monster:mon_7-3_3:35": {
+      "callId": "call_IU0UPQYwq6GXj8v97Bo4gGSQ",
+      "path": "monsters/mon_7-3_3-chroma.png",
+      "sha256": "f7eba0d964654b0309014179b43e6c2fab0205553c2aa391492d621349dbfe2d"
+    },
+    "monster:mon_7-3_3:36": {
+      "callId": "call_IU0UPQYwq6GXj8v97Bo4gGSQ",
+      "path": "monsters/mon_7-3_3-alpha.png",
+      "sha256": "7fc5900bb1f888794715079dd6088c41573eb20d94636e3c6817e7c3f7fc4bd4"
+    },
+    "monster:mon_7-4_0:37": {
+      "callId": "call_3pT5F3iQ9XumHNgXdquIJLrS",
+      "path": "monsters/mon_7-4_0-chroma.png",
+      "sha256": "ee325164a2156593ae78c25149e9834e604d323c4d76e2500884bf3421020d98"
+    },
+    "monster:mon_7-4_0:38": {
+      "callId": "call_3pT5F3iQ9XumHNgXdquIJLrS",
+      "path": "monsters/mon_7-4_0-alpha.png",
+      "sha256": "24bf8d4f59779731d867e279fae27106783eb0247d9e12c94209426a2ce20f97"
+    },
+    "monster:mon_7-4_1:39": {
+      "callId": "call_TqVqsykE0wqHAFGO9BBXslZy",
+      "path": "monsters/mon_7-4_1-chroma.png",
+      "sha256": "a37d8c7c272e8080efa883477005375cfee2af997b17575d14cda492ffd8ca57"
+    },
+    "monster:mon_7-4_1:40": {
+      "callId": "call_TqVqsykE0wqHAFGO9BBXslZy",
+      "path": "monsters/mon_7-4_1-alpha.png",
+      "sha256": "3a91b797fc76aa7bf44da3d9fa5184bc10aa9131a7494ad940f52266282d9ec9"
+    },
+    "monster:mon_7-4_2:41": {
+      "callId": "call_eUikFO4sMbmRHF1UBmMEnqPW",
+      "path": "monsters/mon_7-4_2-chroma.png",
+      "sha256": "1b18a118b16f9f56c44ffba5580d0b62b4ca37cd41c4b141ef2eba942cce6d54"
+    },
+    "monster:mon_7-4_2:42": {
+      "callId": "call_eUikFO4sMbmRHF1UBmMEnqPW",
+      "path": "monsters/mon_7-4_2-alpha.png",
+      "sha256": "d5287c619227edafb27e54abde9f5d96c7e3feecf5962a3df251267a2a96b63f"
+    },
+    "monster:mon_7-4_3:43": {
+      "callId": "call_M9m0z1NGZzYLjhAfRNUOkZ7y",
+      "path": "monsters/mon_7-4_3-chroma.png",
+      "sha256": "dc91b3c291ee169a7fb46965c4fb25953a475fe1470c28703e7381946b131ad3"
+    },
+    "monster:mon_7-4_3:44": {
+      "callId": "call_M9m0z1NGZzYLjhAfRNUOkZ7y",
+      "path": "monsters/mon_7-4_3-alpha.png",
+      "sha256": "b0d533340993abaebc181e1db0faa982b8987c0f9852ca3301e6af5f6d6960ea"
+    },
+    "monster:mon_7-4_elite:45": {
+      "callId": "call_FELxTcqYXJzPjF3S0wUga0Ar",
+      "path": "monsters/mon_7-4_elite-chroma.png",
+      "sha256": "a28ef270f6b00604b67be7979bd7c23b655c9daa0f69fe5720bdf81a30919a30"
+    },
+    "monster:mon_7-4_elite:46": {
+      "callId": "call_FELxTcqYXJzPjF3S0wUga0Ar",
+      "path": "monsters/mon_7-4_elite-alpha.png",
+      "sha256": "54be5fad4f43dffad9022d2d5ff1bfc65d09fa1c5f68b9565c6610e405cf0150"
+    },
+    "monster:mon_7-5_0:47": {
+      "callId": "call_TWbrFhmoTqfeyu0WdLiAOmFr",
+      "path": "monsters/mon_7-5_0-chroma.png",
+      "sha256": "4ba59a26a5773d08e24375a66034be1aef8b3d57ecb851ed405803ac4dcc58b2"
+    },
+    "monster:mon_7-5_0:48": {
+      "callId": "call_TWbrFhmoTqfeyu0WdLiAOmFr",
+      "path": "monsters/mon_7-5_0-alpha.png",
+      "sha256": "955b9c5ec444a4aeaf27f51346b70f0419a48cc6f6f784b52a95d9ee85200284"
+    },
+    "monster:mon_7-5_1:49": {
+      "callId": "call_xUO49PBNAVgXE78wgh41qxNY",
+      "path": "monsters/mon_7-5_1-chroma.png",
+      "sha256": "7cd2454d1d26c3db7d7b602cd193b2a54cf76c68688206bd8e9e496f05098739"
+    },
+    "monster:mon_7-5_1:50": {
+      "callId": "call_xUO49PBNAVgXE78wgh41qxNY",
+      "path": "monsters/mon_7-5_1-alpha.png",
+      "sha256": "190b750d94baa0aa23629de116bacac4e6d1a3aacd3755663de23e1b94877d92"
+    },
+    "monster:mon_7-5_2:51": {
+      "callId": "call_es6bgS64IIBf0CqPHUPeofg1",
+      "path": "monsters/mon_7-5_2-chroma.png",
+      "sha256": "06222082ad74b692500cbbd78940d0468092ff05c0dee565493cef7cea39d496"
+    },
+    "monster:mon_7-5_2:52": {
+      "callId": "call_es6bgS64IIBf0CqPHUPeofg1",
+      "path": "monsters/mon_7-5_2-alpha.png",
+      "sha256": "a1b09662eed4c12e189d0401eb8e2c92632f54fe2a5589c6f9d35da46e5682a2"
+    },
+    "monster:mon_7-5_3:53": {
+      "callId": "call_m76bFqdYFHTIVW8WpxYwQ4oJ",
+      "path": "monsters/mon_7-5_3-chroma.png",
+      "sha256": "eb01ffe95368cd16347be88504ffece3521550cbd2eda240da93e654092eb8f2"
+    },
+    "monster:mon_7-5_3:54": {
+      "callId": "call_m76bFqdYFHTIVW8WpxYwQ4oJ",
+      "path": "monsters/mon_7-5_3-alpha.png",
+      "sha256": "9c3b8aafac0da38961ef7ab3a36851811b2108ba783e6346e0b88143d7a83ace"
+    },
+    "monster:mon_7-5_elite:55": {
+      "callId": "call_zXw76k1Su0oxfDGw385aUh4A",
+      "path": "monsters/mon_7-5_elite-chroma.png",
+      "sha256": "1a13613140ccf53159cb4eaec85624a14366bfcc8151498567a540dcf928eadd"
+    },
+    "monster:mon_7-5_elite:56": {
+      "callId": "call_zXw76k1Su0oxfDGw385aUh4A",
+      "path": "monsters/mon_7-5_elite-alpha.png",
+      "sha256": "d47241dfb1dfcb0b04e69feeaadf7f99f1b9f8dc187faae7d4dea671d176872f"
+    },
+    "monster:mon_7-5_boss:57": {
+      "callId": "call_DQOoaAMuEVj2WRH9NZ9qnqbo",
+      "path": "monsters/mon_7-5_boss-chroma.png",
+      "sha256": "5d34343f113b3f419784d8a60f43893cfabf6b50a88f9f7f2ca7bf971475dade"
+    },
+    "monster:mon_7-5_boss:58": {
+      "callId": "call_DQOoaAMuEVj2WRH9NZ9qnqbo",
+      "path": "monsters/mon_7-5_boss-alpha.png",
+      "sha256": "e5f5c88018e739bcfd2132d56025b583d57e8a350af19d036e884efa285feaca"
+    },
+    "item:dew_bloodmist:59": {
+      "callId": "call_fPHvYbzq9kwUG5V5MJWf1ls0",
+      "path": "items-equipment/chroma/items/dew_bloodmist.png",
+      "sha256": "e145c94c3e77d78870f582a68d9906d8bcbedf1257a63171bc789d010545e051"
+    },
+    "item:dew_bloodmist:60": {
+      "callId": "call_fPHvYbzq9kwUG5V5MJWf1ls0",
+      "path": "items-equipment/alpha/items/dew_bloodmist.png",
+      "sha256": "19d17d580b6c373560f49d0c4b08a922be9fa6e052d6792e2710cba7c0300936"
+    },
+    "item:herb_soulbreak:61": {
+      "callId": "call_FDDhB4gKJ56ZrtKtN7pgPpI7",
+      "path": "items-equipment/chroma/items/herb_soulbreak.png",
+      "sha256": "c6cae55634afb9ff85f6123a4bc4ffe81cf0d6b19d387e08a3f2ec5093982bda"
+    },
+    "item:herb_soulbreak:62": {
+      "callId": "call_FDDhB4gKJ56ZrtKtN7pgPpI7",
+      "path": "items-equipment/alpha/items/herb_soulbreak.png",
+      "sha256": "f2c01b7d7804fecc06cfd5e7f6af7a8a2383e0734315578b39bf1e1762c22f90"
+    },
+    "item:horn_demon:63": {
+      "callId": "call_0EmxLDVminZr4BWNfseUxtN6",
+      "path": "items-equipment/chroma/items/horn_demon.png",
+      "sha256": "1cb758374d7e8b8d7c20861b6df32117adfa436f5388c36227316a720e78ff71"
+    },
+    "item:horn_demon:64": {
+      "callId": "call_0EmxLDVminZr4BWNfseUxtN6",
+      "path": "items-equipment/alpha/items/horn_demon.png",
+      "sha256": "544857174fdae421136d8149becfdd0a2f7083d9d5825b4a74350548cded67d1"
+    },
+    "item:eye_bloodmoon:65": {
+      "callId": "call_bmU6JELz8iAbCuZ8Fq0zqSeb",
+      "path": "items-equipment/chroma/items/eye_bloodmoon.png",
+      "sha256": "73a4b46e61eb3671cda283d5e3a4e9a42ca0651e2ccbe655f2597c3eeffde7ea"
+    },
+    "item:eye_bloodmoon:66": {
+      "callId": "call_bmU6JELz8iAbCuZ8Fq0zqSeb",
+      "path": "items-equipment/alpha/items/eye_bloodmoon.png",
+      "sha256": "7606e322190808f0fbe3e6bed74b1f80d089d57c88e7f8b6befe280b5f01598e"
+    },
+    "item:frag_bloodmoon:67": {
+      "callId": "call_g2kgLdJHa2hOTBwQBkL5Ds5J",
+      "path": "items-equipment/chroma/items/frag_bloodmoon.png",
+      "sha256": "b0f0be708e6e71c28ca8b4f0266f49668c118c8001c30ce4dc1961e2f05b3717"
+    },
+    "item:frag_bloodmoon:68": {
+      "callId": "call_g2kgLdJHa2hOTBwQBkL5Ds5J",
+      "path": "items-equipment/alpha/items/frag_bloodmoon.png",
+      "sha256": "824f908073f14984a26a1d4bc362d4099566becbe0fb89442a9d9d4223ff7c0f"
+    },
+    "equipment:r7-weapon:69": {
+      "callId": "call_QLgKuITJlr6l6RvqUySaXhPw",
+      "path": "items-equipment/chroma/equipment/r7/weapon.png",
+      "sha256": "0d4ac7ef8d2dc9cbcf73e7193454f27904ea42dc58846a1182abf7159cd6995f"
+    },
+    "equipment:r7-weapon:70": {
+      "callId": "call_QLgKuITJlr6l6RvqUySaXhPw",
+      "path": "items-equipment/alpha/equipment/r7/weapon.png",
+      "sha256": "c240b31105d76ac3e3add8d1089eca2cf2d1c6299aff47b3c62a68aeb212ab54"
+    },
+    "equipment:r7-head:71": {
+      "callId": "call_S3zF0ibfIUkzsrsEkQVuMoFn",
+      "path": "items-equipment/chroma/equipment/r7/head.png",
+      "sha256": "602af6f7b7be6eeb6ffae28d88df90ffb2160ec8ed26ddd859edb48eaab12677"
+    },
+    "equipment:r7-head:72": {
+      "callId": "call_S3zF0ibfIUkzsrsEkQVuMoFn",
+      "path": "items-equipment/alpha/equipment/r7/head.png",
+      "sha256": "44c830b528fd63dbd8132130272f5cebde41dd72785d4156b46f96171c88d555"
+    },
+    "equipment:r7-body:73": {
+      "callId": "call_bQ1gFjjVeXCO3ONd8vADIOzU",
+      "path": "items-equipment/chroma/equipment/r7/body.png",
+      "sha256": "26eea4c8b4c7f7dee585ee930f241a0c5273a411a1516ded70f7bbf231d03a88"
+    },
+    "equipment:r7-body:74": {
+      "callId": "call_bQ1gFjjVeXCO3ONd8vADIOzU",
+      "path": "items-equipment/alpha/equipment/r7/body.png",
+      "sha256": "b0876f58cbca606be961f4eb65487c1ee63b1e1eb6d63a15ff30adbc0357d973"
+    },
+    "equipment:r7-necklace:75": {
+      "callId": "call_qKFu4PLixP2E95yri9tMlWwn",
+      "path": "items-equipment/chroma/equipment/r7/necklace.png",
+      "sha256": "3b6e2c894d74e68719e5b3122623a89d2e052c63a09555c0af0dfd0ccceb26c9"
+    },
+    "equipment:r7-necklace:76": {
+      "callId": "call_qKFu4PLixP2E95yri9tMlWwn",
+      "path": "items-equipment/alpha/equipment/r7/necklace.png",
+      "sha256": "0487c703964e347acd95d9ab9b6f6c670a22784ee4c8487efb7b56798c2edeac"
+    },
+    "equipment:r7-bracelet:77": {
+      "callId": "call_p4TYEvwRB1DWClT18a88DpDy",
+      "path": "items-equipment/chroma/equipment/r7/bracelet.png",
+      "sha256": "9c3c9ec1b027e5eb94cd275b182951624509605e64de7f69551679736121e055"
+    },
+    "equipment:r7-bracelet:78": {
+      "callId": "call_p4TYEvwRB1DWClT18a88DpDy",
+      "path": "items-equipment/alpha/equipment/r7/bracelet.png",
+      "sha256": "cab969e7f655fe97495ed8331fc6120d79de9ef4dcc22324574862bec45c5376"
+    },
+    "equipment:r7-ring:79": {
+      "callId": "call_uXPW7ADucbLj8Cl31gpznhkR",
+      "path": "items-equipment/chroma/equipment/r7/ring.png",
+      "sha256": "68243079a5f4414107c75bed0472f2dd0e0e0e0032dc405956707b188835f15d"
+    },
+    "equipment:r7-ring:80": {
+      "callId": "call_uXPW7ADucbLj8Cl31gpznhkR",
+      "path": "items-equipment/alpha/equipment/r7/ring.png",
+      "sha256": "8e9f0868b0c2abeb53aaef95dce708d5e5aea922294f7c1ada4ffc847a389436"
+    },
+    "equipment:r7-belt:81": {
+      "callId": "call_hLfUaGUSRtuGLr4K8ZP31n8Y",
+      "path": "items-equipment/chroma/equipment/r7/belt.png",
+      "sha256": "a072a3ea8361faa97915c08669e3d62ac2563637fb2baf4846c4ff9d7f03994b"
+    },
+    "equipment:r7-belt:82": {
+      "callId": "call_hLfUaGUSRtuGLr4K8ZP31n8Y",
+      "path": "items-equipment/alpha/equipment/r7/belt.png",
+      "sha256": "ebf57f92a857aa91365993c00d3dfa94046005df9313d379f9c537e2ad1cd56e"
+    },
+    "equipment:r7-shoes:83": {
+      "callId": "call_pbgoV6O9Eey5gLrWTFRsRuiE",
+      "path": "items-equipment/chroma/equipment/r7/shoes.png",
+      "sha256": "2fe50f7b125b97b4a40ac1cdc4f76d7ab4e3e8b615e0f84772219e2a63a60520"
+    },
+    "equipment:r7-shoes:84": {
+      "callId": "call_pbgoV6O9Eey5gLrWTFRsRuiE",
+      "path": "items-equipment/alpha/equipment/r7/shoes.png",
+      "sha256": "713314602b463e7415db5af723e60443553e51964a2b88e8fa50b346393c43ef"
+    },
+    "set-equipment:r7-bloodmoon-weapon:85": {
+      "callId": "call_03KiNvIropyJyPZQipBRCEQm",
+      "path": "items-equipment/chroma/equipment/r7-bloodmoon/weapon.png",
+      "sha256": "8e4f8cb993451562fa1cd20240f07496302ed2bdf60d463d7e9edb581adfea0f"
+    },
+    "set-equipment:r7-bloodmoon-weapon:86": {
+      "callId": "call_03KiNvIropyJyPZQipBRCEQm",
+      "path": "items-equipment/alpha/equipment/r7-bloodmoon/weapon.png",
+      "sha256": "96a10f816c03f8c8e9163ef4d137631e940bd34fd343abbf13dac67259a3dd83"
+    },
+    "set-equipment:r7-bloodmoon-head:87": {
+      "callId": "call_GDDTDSU52wifRuYgkukUfzvO",
+      "path": "items-equipment/chroma/equipment/r7-bloodmoon/head.png",
+      "sha256": "891336d37156c1d377994ab74576fe98f300bb43b1173d5371081cce5088e66b"
+    },
+    "set-equipment:r7-bloodmoon-head:88": {
+      "callId": "call_GDDTDSU52wifRuYgkukUfzvO",
+      "path": "items-equipment/alpha/equipment/r7-bloodmoon/head.png",
+      "sha256": "5e1777967ab927314b06f519804ad7af1747a11b2f566cfc418db295e51f262d"
+    },
+    "set-equipment:r7-bloodmoon-body:89": {
+      "callId": "call_lAUsfCFPQKU4XjzTbs1EFe4X",
+      "path": "items-equipment/chroma/equipment/r7-bloodmoon/body.png",
+      "sha256": "ea6bd66e6aab1484fff3d55ba45a9883ef5e014d20a263b476ea215904a35f82"
+    },
+    "set-equipment:r7-bloodmoon-body:90": {
+      "callId": "call_lAUsfCFPQKU4XjzTbs1EFe4X",
+      "path": "items-equipment/alpha/equipment/r7-bloodmoon/body.png",
+      "sha256": "e19ba4fed8ecd207aed5a97aa4c6b79cd8bcf6165c747051f64ebad73b56cc7e"
+    },
+    "set-equipment:r7-bloodmoon-necklace:91": {
+      "callId": "call_5HxpVFcrU52E58iHkIwL3gyv",
+      "path": "items-equipment/chroma/equipment/r7-bloodmoon/necklace.png",
+      "sha256": "8d49b3ac09db4068e38782e6cbc55dd5f875ff19825c7e857418385030e81e7e"
+    },
+    "set-equipment:r7-bloodmoon-necklace:92": {
+      "callId": "call_5HxpVFcrU52E58iHkIwL3gyv",
+      "path": "items-equipment/alpha/equipment/r7-bloodmoon/necklace.png",
+      "sha256": "f7567a2924ad21b49e087468b24849fc268a5d6e1fbe2a027e3e0d79a15626f7"
+    },
+    "set-equipment:r7-bloodmoon-bracelet:93": {
+      "callId": "call_c8HNS92Bcb9Gbak3U12UR7m2",
+      "path": "items-equipment/chroma/equipment/r7-bloodmoon/bracelet.png",
+      "sha256": "fe17d2068f60c53108b7b1d0616db497432a9947e7e179b582fe5c5b736754bc"
+    },
+    "set-equipment:r7-bloodmoon-bracelet:94": {
+      "callId": "call_c8HNS92Bcb9Gbak3U12UR7m2",
+      "path": "items-equipment/alpha/equipment/r7-bloodmoon/bracelet.png",
+      "sha256": "847fa684f0cc5be1f4964feabf91ffcabefa3bd837998a5981defc8559f424ba"
+    },
+    "set-equipment:r7-bloodmoon-ring:95": {
+      "callId": "call_mcQorPzqDD6EnPr2JQ4FKLkJ",
+      "path": "items-equipment/chroma/equipment/r7-bloodmoon/ring.png",
+      "sha256": "6bdcb34d5798fb1c12afa94a85cc64601dc8764290df540c402601ce6ff572fa"
+    },
+    "set-equipment:r7-bloodmoon-ring:96": {
+      "callId": "call_mcQorPzqDD6EnPr2JQ4FKLkJ",
+      "path": "items-equipment/alpha/equipment/r7-bloodmoon/ring.png",
+      "sha256": "055cd2f5130c6f4603ca559fb453aba16314184d7660b28a016cca82896e4fd2"
+    },
+    "set-equipment:r7-bloodmoon-belt:97": {
+      "callId": "call_vmJpa34JagK1YhxdChO2INP4",
+      "path": "items-equipment/chroma/equipment/r7-bloodmoon/belt.png",
+      "sha256": "40a9ba542ba5e3c994950e1f5eddb0d36c39105501bc476b7cafa7d10764366f"
+    },
+    "set-equipment:r7-bloodmoon-belt:98": {
+      "callId": "call_vmJpa34JagK1YhxdChO2INP4",
+      "path": "items-equipment/alpha/equipment/r7-bloodmoon/belt.png",
+      "sha256": "4c5f22f924fd1c5c40e1be07d111ae6da19d98fd4ade4f1418eea33b35a1c2a3"
+    },
+    "set-equipment:r7-bloodmoon-shoes:99": {
+      "callId": "call_tjTkqPIftsFi5eMI72xIY6Bh",
+      "path": "items-equipment/chroma/equipment/r7-bloodmoon/shoes.png",
+      "sha256": "896c3447dd47a68015d094277e0a2341e84d13b8b45ad82332879a4a367a16d3"
+    },
+    "set-equipment:r7-bloodmoon-shoes:100": {
+      "callId": "call_tjTkqPIftsFi5eMI72xIY6Bh",
+      "path": "items-equipment/alpha/equipment/r7-bloodmoon/shoes.png",
+      "sha256": "25cc263a02169927f76196fe87f83455a8070133469906e2c0000e9fd599ebd4"
+    },
+    "badge:r7-bloodmoon-badge:101": {
+      "callId": "call_Jd5ggaDgxiydH54VcsxagTAa",
+      "path": "items-equipment/chroma/equipment/r7-bloodmoon/badge.png",
+      "sha256": "6ca579abecfeba2cb274428f22e373575d1a66c0d6ec5cc31fa12bcb4b80aba0"
+    },
+    "badge:r7-bloodmoon-badge:102": {
+      "callId": "call_Jd5ggaDgxiydH54VcsxagTAa",
+      "path": "items-equipment/alpha/equipment/r7-bloodmoon/badge.png",
+      "sha256": "eec45c4ffedc725dd8fdb5472cf6ef97ca313acdf5092a28018b462fa6f49fe9"
+    },
+    "layer:swordsman-r7-body:103": {
+      "callId": "call_bWivishlEoov9j2l4GSmPwrd",
+      "path": "modular/swordsman/r7/body-chroma.png",
+      "sha256": "7bb1b89aedcfeccad1a130fe4173e213fe944d1f1e994c941080aefeb39bc0d2"
+    },
+    "layer:swordsman-r7-body:104": {
+      "callId": "call_bWivishlEoov9j2l4GSmPwrd",
+      "path": "modular/swordsman/r7/body-alpha.png",
+      "sha256": "5e486c1260046ff529a7dd4d9dd47d7591d178762b893c61af1842010fcd428d"
+    },
+    "layer:swordsman-r7-head:105": {
+      "callId": "call_i1IA8fw21pkpLn97jjg7kXSE",
+      "path": "modular/swordsman/r7/head-chroma.png",
+      "sha256": "80f248b561b1826268e8785b02001e077a64e2d1131c0844a42869b27bf90001"
+    },
+    "layer:swordsman-r7-head:106": {
+      "callId": "call_i1IA8fw21pkpLn97jjg7kXSE",
+      "path": "modular/swordsman/r7/head-alpha.png",
+      "sha256": "445bc72f66ab1d85f07b1e1cf8cc7470dd3e49850c58f5981e34ce0f12dfb5a2"
+    },
+    "layer:swordsman-r7-weapon:107": {
+      "callId": "call_fOKP2Ec1kEt0ofeJS3uqiGPP",
+      "path": "modular/swordsman/r7/weapon-chroma.png",
+      "sha256": "60c44a2ab1cb6d6c4b2429c784ada54ad81f050243fc3872405ad58f771e70af"
+    },
+    "layer:swordsman-r7-weapon:108": {
+      "callId": "call_fOKP2Ec1kEt0ofeJS3uqiGPP",
+      "path": "modular/swordsman/r7/weapon-alpha.png",
+      "sha256": "6061e03c806237ec6e4677ebe496ddcd82294d93e535410208de46bbcfe0db79"
+    },
+    "layer:witch-r7-body:109": {
+      "callId": "call_D12nJJSQ0N5xKm2B22Z7fUMS",
+      "path": "modular/witch/r7/body-chroma.png",
+      "sha256": "f2099c2b11ea9fc98286d4417c3e07fdff71c73f61ab5112022e925fccb5bb7d"
+    },
+    "layer:witch-r7-body:110": {
+      "callId": "call_D12nJJSQ0N5xKm2B22Z7fUMS",
+      "path": "modular/witch/r7/body-alpha.png",
+      "sha256": "6295f3fc5a99a4738a75b76c10db7ab9e6be8d9c462b6c2564adfa2e5cdfb434"
+    },
+    "layer:witch-r7-head:111": {
+      "callId": "call_36KwV74vfdeD55nhyvXEry4k",
+      "path": "modular/witch/r7/head-chroma.png",
+      "sha256": "a54fa611989471629c5d66a7f7c18184e82cb13e271fa0f7e5adcdf2fcba8288"
+    },
+    "layer:witch-r7-head:112": {
+      "callId": "call_36KwV74vfdeD55nhyvXEry4k",
+      "path": "modular/witch/r7/head-alpha.png",
+      "sha256": "d47cbde59393fbde26558a48bb394edbda6bd5b3bb5670229283d6b4d4080d26"
+    },
+    "layer:witch-r7-weapon:113": {
+      "callId": "call_Omh7xnnjvq5vXg6p5MbcjyAJ",
+      "path": "modular/witch/r7/weapon-chroma.png",
+      "sha256": "d23fd569decaa13372d8cb0592a300116b561a1daa1d3524afef4b9bee7d2363"
+    },
+    "layer:witch-r7-weapon:114": {
+      "callId": "call_Omh7xnnjvq5vXg6p5MbcjyAJ",
+      "path": "modular/witch/r7/weapon-alpha.png",
+      "sha256": "f42f0b9a701cdde0fa311c68dc8552d31e225dcf8d5be3942bda51ed0d6811db"
+    },
+    "layer:shaman-r7-body:115": {
+      "callId": "call_w13RXOjMz3YNTaP9ROlgvjbD",
+      "path": "modular/shaman/r7/body-chroma.png",
+      "sha256": "be2fe582dbfa32d089b18bd0cbc59ad0712c43f0f45cb52f80fde7932724f8cf"
+    },
+    "layer:shaman-r7-body:116": {
+      "callId": "call_w13RXOjMz3YNTaP9ROlgvjbD",
+      "path": "modular/shaman/r7/body-alpha.png",
+      "sha256": "7c0053959fecd2a25c2cc99e0d5f290b771dc7cb9fe898e249e724e68a928387"
+    },
+    "layer:shaman-r7-head:117": {
+      "callId": "call_GwxEHJWUPCmKahD8WjBj6RaX",
+      "path": "modular/shaman/r7/head-chroma.png",
+      "sha256": "ef004c1b4a02d710378fd5ac787f433a6715017daf0d850427b0c281f01cb5ce"
+    },
+    "layer:shaman-r7-head:118": {
+      "callId": "call_GwxEHJWUPCmKahD8WjBj6RaX",
+      "path": "modular/shaman/r7/head-alpha.png",
+      "sha256": "042867fe721c53814cc44be51def81af8b5a12dd9c79cb0783f9e8fbe3378bf6"
+    },
+    "layer:shaman-r7-weapon:119": {
+      "callId": "call_x8tI9gIR2fyBjrvWjTWzvC8D",
+      "path": "modular/shaman/r7/weapon-chroma.png",
+      "sha256": "8f0266a07b2eb60343c5a222549b9b67bcf98e17c8d7780c24829f2b8cb3f9f4"
+    },
+    "layer:shaman-r7-weapon:120": {
+      "callId": "call_x8tI9gIR2fyBjrvWjTWzvC8D",
+      "path": "modular/shaman/r7/weapon-alpha.png",
+      "sha256": "70280b5a6b98ad279c92f694266b9d895d8383eb0bfa11bfdfa9506f93441841"
+    },
+    "layer:catkin-r7-body:121": {
+      "callId": "call_eEe6vNqmeQeIQKUiLSNrdapC",
+      "path": "modular/catkin/r7/body-chroma.png",
+      "sha256": "92cce4fe13213f813d146f64d47d3ab1d7243c04b14336208d91d81838422d0b"
+    },
+    "layer:catkin-r7-body:122": {
+      "callId": "call_eEe6vNqmeQeIQKUiLSNrdapC",
+      "path": "modular/catkin/r7/body-alpha.png",
+      "sha256": "c88c9535936e78dd0e576a94d4ad39a52113fcd36a519d53f346be107c1fe80c"
+    },
+    "layer:catkin-r7-head:123": {
+      "callId": "call_gHqnks7qiYXbefisPxtGaRqC",
+      "path": "modular/catkin/r7/head-chroma.png",
+      "sha256": "bbaefe2a51dd375d1bbc0ea5d52ccf74ba98c03e3251a199b589e068b29a9248"
+    },
+    "layer:catkin-r7-head:124": {
+      "callId": "call_gHqnks7qiYXbefisPxtGaRqC",
+      "path": "modular/catkin/r7/head-alpha.png",
+      "sha256": "3185a447e9b9012781ddce55fd718d62dfd3a0d46d62332e5f4cb939087b89ba"
+    },
+    "layer:catkin-r7-weapon:125": {
+      "callId": "call_RHx1V72Zb4OqYHUqJP23wSX2",
+      "path": "modular/catkin/r7/weapon-chroma.png",
+      "sha256": "7edfce6527ff6c0cc9c0a1cb8824dd69fda805c51c92a13a568e4c4e2586c090"
+    },
+    "layer:catkin-r7-weapon:126": {
+      "callId": "call_RHx1V72Zb4OqYHUqJP23wSX2",
+      "path": "modular/catkin/r7/weapon-alpha.png",
+      "sha256": "6177cfa329b7dbbf7b06dab592a2f5c8242d31b83d3eeaccfc74c994dfae4116"
+    },
+    "set-layer:swordsman-r7-bloodmoon-body:127": {
+      "callId": "call_d60OJvO1fY0xWL32a2EoSgLE",
+      "path": "modular/swordsman/r7-bloodmoon/body-chroma.png",
+      "sha256": "4e3f9c7bed205e740ccd81b3e52f239d3afacd54169db3a9cb20a54f225041ec"
+    },
+    "set-layer:swordsman-r7-bloodmoon-body:128": {
+      "callId": "call_d60OJvO1fY0xWL32a2EoSgLE",
+      "path": "modular/swordsman/r7-bloodmoon/body-alpha.png",
+      "sha256": "0d3a80472092ed65d9763231ce0c06c9615cd44dd7b72d35ffa419a1807a807e"
+    },
+    "set-layer:swordsman-r7-bloodmoon-head:129": {
+      "callId": "call_wfe1Wt1E0H0QcdUoZsxBDquh",
+      "path": "modular/swordsman/r7-bloodmoon/head-chroma.png",
+      "sha256": "91e373768b5f7fecbd28f447f308ea3be7b6e017e59d165154cc03362d16adcc"
+    },
+    "set-layer:swordsman-r7-bloodmoon-head:130": {
+      "callId": "call_wfe1Wt1E0H0QcdUoZsxBDquh",
+      "path": "modular/swordsman/r7-bloodmoon/head-alpha.png",
+      "sha256": "23b97e07c044ee5740690cbdab54a2c8f182d083bb8611541818aafb1e0ea6db"
+    },
+    "set-layer:swordsman-r7-bloodmoon-weapon:131": {
+      "callId": "call_7HeHY2R6C6ENViMfM2iLV210",
+      "path": "modular/swordsman/r7-bloodmoon/weapon-chroma.png",
+      "sha256": "0a6d454f0003ff4044cdb129cb562844e8a50e781f35d7763e833612260146de"
+    },
+    "set-layer:swordsman-r7-bloodmoon-weapon:132": {
+      "callId": "call_7HeHY2R6C6ENViMfM2iLV210",
+      "path": "modular/swordsman/r7-bloodmoon/weapon-alpha.png",
+      "sha256": "afb127054df0d178ee1e4c381c512ed6051d3c5726181d7fa00a797d127730ec"
+    },
+    "set-layer:witch-r7-bloodmoon-body:133": {
+      "callId": "call_QrnzqiXGm4B926wgHA9L9kav",
+      "path": "modular/witch/r7-bloodmoon/body-chroma.png",
+      "sha256": "42d23b4d4ba78eb608d731859b264f4591f61e56ea7d2519587e9f6faa17ebda"
+    },
+    "set-layer:witch-r7-bloodmoon-body:134": {
+      "callId": "call_QrnzqiXGm4B926wgHA9L9kav",
+      "path": "modular/witch/r7-bloodmoon/body-alpha.png",
+      "sha256": "07aa58c2449c74bfbaac7b5d15024b848e8af09935a6e3513be688d7c94432c3"
+    },
+    "set-layer:witch-r7-bloodmoon-head:135": {
+      "callId": "call_vf5NIjLlNvBPFDI1K5HwQ5LQ",
+      "path": "modular/witch/r7-bloodmoon/head-chroma.png",
+      "sha256": "bce42e5182657ba1f8612a626349a97112c4e692942bb570776e5bc92af4982a"
+    },
+    "set-layer:witch-r7-bloodmoon-head:136": {
+      "callId": "call_vf5NIjLlNvBPFDI1K5HwQ5LQ",
+      "path": "modular/witch/r7-bloodmoon/head-alpha.png",
+      "sha256": "45bd88c7e3495d37c83d6ef4221bc8ffdac25d1dbc75f8df3deb4e4dc82a2608"
+    },
+    "set-layer:witch-r7-bloodmoon-weapon:137": {
+      "callId": "call_cqQPKdKo8hmJqEr4LdFkXH4U",
+      "path": "modular/witch/r7-bloodmoon/weapon-chroma.png",
+      "sha256": "2ce12325bc3ee6f5a1aee90360611794adfc9e95702b7f33909be9d5bf1d8fc5"
+    },
+    "set-layer:witch-r7-bloodmoon-weapon:138": {
+      "callId": "call_cqQPKdKo8hmJqEr4LdFkXH4U",
+      "path": "modular/witch/r7-bloodmoon/weapon-alpha.png",
+      "sha256": "5e56b5b1185bf05cad27c88e8788c4aeaf7edc106c8a6d772fc0ebc30310a89f"
+    },
+    "set-layer:shaman-r7-bloodmoon-body:139": {
+      "callId": "call_5nW3yEHxkhBOf55mTJDPmS2W",
+      "path": "modular/shaman/r7-bloodmoon/body-chroma.png",
+      "sha256": "eb999cfb5ecd4411c2db2b0c0c7c7b058fd91cf57f6e58283dafef3ff16a3392"
+    },
+    "set-layer:shaman-r7-bloodmoon-body:140": {
+      "callId": "call_5nW3yEHxkhBOf55mTJDPmS2W",
+      "path": "modular/shaman/r7-bloodmoon/body-alpha.png",
+      "sha256": "1b24c81381dc9b741d2a1cf3fdc5f78d945d31fe5f7735ad138edd1272e023a5"
+    },
+    "set-layer:shaman-r7-bloodmoon-head:141": {
+      "callId": "call_2K969ifL5xax3AMc2JTaAFEg",
+      "path": "modular/shaman/r7-bloodmoon/head-chroma.png",
+      "sha256": "36ad60e4f0b69a4b7b8e36666c6532f66704a7b783d1f0b17eb65d4d0c656b5e"
+    },
+    "set-layer:shaman-r7-bloodmoon-head:142": {
+      "callId": "call_2K969ifL5xax3AMc2JTaAFEg",
+      "path": "modular/shaman/r7-bloodmoon/head-alpha.png",
+      "sha256": "ac59698daf8968c4c30789e1286456767dfde9354d16978d434f40797c7a335c"
+    },
+    "set-layer:shaman-r7-bloodmoon-weapon:143": {
+      "callId": "call_av70VsenXV9giMwQXIqYr1cu",
+      "path": "modular/shaman/r7-bloodmoon/weapon-chroma.png",
+      "sha256": "37db56ed54c962ea82c767b2056dfe4ea05029fcbe0069f457e68338f0d18889"
+    },
+    "set-layer:shaman-r7-bloodmoon-weapon:144": {
+      "callId": "call_av70VsenXV9giMwQXIqYr1cu",
+      "path": "modular/shaman/r7-bloodmoon/weapon-alpha.png",
+      "sha256": "c4476bc575623757adfce69dd2888cc1037a6dba69ba04e768d7140d5fcddbd3"
+    },
+    "set-layer:catkin-r7-bloodmoon-body:145": {
+      "callId": "call_pXLLt3BTbTZW1XfO1WZ0RY0a",
+      "path": "modular/catkin/r7-bloodmoon/body-chroma.png",
+      "sha256": "9741231d3261be37a99c0d1d4b8796d6780313885f0d78b43ae5f5194b7dfec1"
+    },
+    "set-layer:catkin-r7-bloodmoon-body:146": {
+      "callId": "call_pXLLt3BTbTZW1XfO1WZ0RY0a",
+      "path": "modular/catkin/r7-bloodmoon/body-alpha.png",
+      "sha256": "389116aeff14293320ce6481bb8f6523a5118873e8d23dac8e447f600774119f"
+    },
+    "set-layer:catkin-r7-bloodmoon-head:147": {
+      "callId": "call_6Kg0Vk3DdEbPnwS9XWoAnTGb",
+      "path": "modular/catkin/r7-bloodmoon/head-chroma.png",
+      "sha256": "140ead78d6f8fd954d4abed25cda958da3e2677c063f891836ee5cd2be53d63a"
+    },
+    "set-layer:catkin-r7-bloodmoon-head:148": {
+      "callId": "call_6Kg0Vk3DdEbPnwS9XWoAnTGb",
+      "path": "modular/catkin/r7-bloodmoon/head-alpha.png",
+      "sha256": "3aff5f44e4d027c8962df17ab22ed494c95078b3856569540e004eadb7321beb"
+    },
+    "set-layer:catkin-r7-bloodmoon-weapon:149": {
+      "callId": "call_Q9FQuZ8DIdg30npk1aP7w158",
+      "path": "modular/catkin/r7-bloodmoon/weapon-chroma.png",
+      "sha256": "03bad549d63515af79c919585a2e9c794c2fc81ae85d969b8011a3aa9ee055e9"
+    },
+    "set-layer:catkin-r7-bloodmoon-weapon:150": {
+      "callId": "call_Q9FQuZ8DIdg30npk1aP7w158",
+      "path": "modular/catkin/r7-bloodmoon/weapon-alpha.png",
+      "sha256": "fadf9135b0e8f0728470cc64e036fe8dbc401069be6c686521f1631a77a25500"
+    }
+  },
+  "runtime": {
+    "map:r7": {
+      "path": "public/assets/maps/r7.webp",
+      "sha256": "72a2691c6573f0bc536b0b5bb381d49e03b9662adc27b343d33319d7d9291e59"
+    },
+    "map:chapter-7-1": {
+      "path": "public/assets/maps/chapter-7-1.webp",
+      "sha256": "9189242556f42c76d8ad84f5eec9910a7db3dc051294020dcad23640a14fa0db"
+    },
+    "map:chapter-7-2": {
+      "path": "public/assets/maps/chapter-7-2.webp",
+      "sha256": "442098611bb71e1501f741a5892fe0bfb9999ee1bdb9d354c013b00f2f9504ad"
+    },
+    "map:chapter-7-3": {
+      "path": "public/assets/maps/chapter-7-3.webp",
+      "sha256": "8ee7b06da8f65bbef80a69bfd92ca07a2f35f42317a18b4fafdf53eead2d1270"
+    },
+    "map:chapter-7-4": {
+      "path": "public/assets/maps/chapter-7-4.webp",
+      "sha256": "d464ad060d09c77a63aa5d9b5914b4eb66c70d10c3fc5655a7b99fc40e522e43"
+    },
+    "map:chapter-7-5": {
+      "path": "public/assets/maps/chapter-7-5.webp",
+      "sha256": "731d61ae89b5b03d2c8c2a3aa0793a43b31d838408de6b6423b388dea4ad47a9"
+    },
+    "battlefield:chapter-7-1": {
+      "path": "public/assets/battlefields/chapter-7-1.webp",
+      "sha256": "2f16f462c92d8e2135fc543031a7c7d7905ec720596fd301de2e0737368d5f2a"
+    },
+    "battlefield:chapter-7-2": {
+      "path": "public/assets/battlefields/chapter-7-2.webp",
+      "sha256": "1550fb8739f44acf530874776c00160d256d00c034c8b6e48ed760938560db43"
+    },
+    "battlefield:chapter-7-3": {
+      "path": "public/assets/battlefields/chapter-7-3.webp",
+      "sha256": "94076dfcb33bdaeab332f9713d4f021ed5dddf2f8a6e901dec86a1f3cf950306"
+    },
+    "battlefield:chapter-7-4": {
+      "path": "public/assets/battlefields/chapter-7-4.webp",
+      "sha256": "99756f4a1b1a2ca8a10cb3d750369a871b88e589420d471fdef643861043c675"
+    },
+    "battlefield:chapter-7-5": {
+      "path": "public/assets/battlefields/chapter-7-5.webp",
+      "sha256": "b3bdd9d08a72f42a31c8d99ffeda7e7ef0c6242daf7e26df56fa58261c55a917"
+    },
+    "monster:mon_7-1_0": {
+      "path": "public/assets/monsters/r7/mon_7-1_0.webp",
+      "sha256": "7f5d61131cc79e64eca0cceb9bca504c673ab7d8dce62c563f42403b37d8f0fa"
+    },
+    "monster:mon_7-1_1": {
+      "path": "public/assets/monsters/r7/mon_7-1_1.webp",
+      "sha256": "728d45cee0b54324d3c394fc82567a4048cbd789a53e7fd4e5c167719b0ebf06"
+    },
+    "monster:mon_7-1_2": {
+      "path": "public/assets/monsters/r7/mon_7-1_2.webp",
+      "sha256": "d729178dafc9b33bb1b6c4fc9f8308034e0e68d69c4d5a5f5e2850e7e7ab3b86"
+    },
+    "monster:mon_7-1_3": {
+      "path": "public/assets/monsters/r7/mon_7-1_3.webp",
+      "sha256": "000716ba9d4f1bc114c716e344d2c2129ae27754e1b3f9c9b2c59df79673f3c5"
+    },
+    "monster:mon_7-2_0": {
+      "path": "public/assets/monsters/r7/mon_7-2_0.webp",
+      "sha256": "cf310cc51b1aaa7895c070bf1dd7e7ab6fa8f2b02dfdd99c34cc14de8f0cc083"
+    },
+    "monster:mon_7-2_1": {
+      "path": "public/assets/monsters/r7/mon_7-2_1.webp",
+      "sha256": "6d06157c1a6c5e8af9793cbd0aedb83552d955238c2bbaf6643a1091dae1c190"
+    },
+    "monster:mon_7-2_2": {
+      "path": "public/assets/monsters/r7/mon_7-2_2.webp",
+      "sha256": "df61ca8bc909c0069e9dfd132c257a1cf38b312cb11162fcd053b04bc41761f9"
+    },
+    "monster:mon_7-2_3": {
+      "path": "public/assets/monsters/r7/mon_7-2_3.webp",
+      "sha256": "f572e59f0dd14680b9bfd84e82775a609c86b66c9d8319658aee54ae7553db45"
+    },
+    "monster:mon_7-2_elite": {
+      "path": "public/assets/monsters/r7/mon_7-2_elite.webp",
+      "sha256": "37ccafdd63e92d1ac5e391f0a39224fee2c20bd43416ea534018dd2ffff01eb9"
+    },
+    "monster:mon_7-3_0": {
+      "path": "public/assets/monsters/r7/mon_7-3_0.webp",
+      "sha256": "f7a50f17841972e93ca6c96f1c50663f06778af8cd00eb6c339469d6b41099ab"
+    },
+    "monster:mon_7-3_1": {
+      "path": "public/assets/monsters/r7/mon_7-3_1.webp",
+      "sha256": "e6a93f9491680c2d7b09257c64eaa4eb4d20337fd47eb52a8f4ff674c73c73a9"
+    },
+    "monster:mon_7-3_2": {
+      "path": "public/assets/monsters/r7/mon_7-3_2.webp",
+      "sha256": "4cbdc378746efa45464f1a6eb326ea81d4f65fd2f25268e886fb4f1fa2e73384"
+    },
+    "monster:mon_7-3_3": {
+      "path": "public/assets/monsters/r7/mon_7-3_3.webp",
+      "sha256": "cd7df71a8aecd9eb366cd0652f9f5aaa9f4b2d7c4b33d742adcf31be6e6c10e3"
+    },
+    "monster:mon_7-4_0": {
+      "path": "public/assets/monsters/r7/mon_7-4_0.webp",
+      "sha256": "5e58d6a37238a47dd40134f00aa6320cf2b21e021140b18ae4f99493c0029260"
+    },
+    "monster:mon_7-4_1": {
+      "path": "public/assets/monsters/r7/mon_7-4_1.webp",
+      "sha256": "5af444a4ea9a63f0bd60fcddc49b04a8f64cdcd903aba623dffa6120ad8e91d6"
+    },
+    "monster:mon_7-4_2": {
+      "path": "public/assets/monsters/r7/mon_7-4_2.webp",
+      "sha256": "1d15f1e6cf2f290470eb6de14f49c6bff4f6d2a2672894ecb2378a66960691a7"
+    },
+    "monster:mon_7-4_3": {
+      "path": "public/assets/monsters/r7/mon_7-4_3.webp",
+      "sha256": "d4b70774118e102b2cd2d841c911c0029f04822282f6b3d130f015187f595d16"
+    },
+    "monster:mon_7-4_elite": {
+      "path": "public/assets/monsters/r7/mon_7-4_elite.webp",
+      "sha256": "ddbba96bb9fc8abd32b5fe34479e6b953d3880301272a4a09e825485d6aef45e"
+    },
+    "monster:mon_7-5_0": {
+      "path": "public/assets/monsters/r7/mon_7-5_0.webp",
+      "sha256": "2a7a3580686b7d291f4bd15bcce72ecd9866d5b62a10d65d41f011a0bb804489"
+    },
+    "monster:mon_7-5_1": {
+      "path": "public/assets/monsters/r7/mon_7-5_1.webp",
+      "sha256": "75b2534b28a054a75fc46b45b7134d5048151e200526584382d1f2a2c77efd0d"
+    },
+    "monster:mon_7-5_2": {
+      "path": "public/assets/monsters/r7/mon_7-5_2.webp",
+      "sha256": "c9f9846f7253e67579bdf698a1c0d6af23a39719c382bd605896ab4082a89631"
+    },
+    "monster:mon_7-5_3": {
+      "path": "public/assets/monsters/r7/mon_7-5_3.webp",
+      "sha256": "e97ea9a6d48105d4293f0a61f42c6a1a908b914fe6be5395693cbc8527e2e297"
+    },
+    "monster:mon_7-5_elite": {
+      "path": "public/assets/monsters/r7/mon_7-5_elite.webp",
+      "sha256": "a5cbd535b4e11c4be0cf5605ba2b2b04aa4ce05478a4b35185d125109552e982"
+    },
+    "monster:mon_7-5_boss": {
+      "path": "public/assets/monsters/r7/mon_7-5_boss.webp",
+      "sha256": "5d8b38df5e0be5eec904124517c3e7c375af832e41ca188aa4474e188dcdb485"
+    },
+    "item:dew_bloodmist": {
+      "path": "public/assets/items/dew_bloodmist.png",
+      "sha256": "c76b7179c90afc576de72a81627683d306a080da01b0cc67089dd1193c42884a"
+    },
+    "item:herb_soulbreak": {
+      "path": "public/assets/items/herb_soulbreak.png",
+      "sha256": "55bb5e21c852eb5c64f4480bc2294cad9efefe7995e05917d5b726f0e2adf278"
+    },
+    "item:horn_demon": {
+      "path": "public/assets/items/horn_demon.png",
+      "sha256": "f7bcf213da3df879ad9e6018b5815bb5558a6be76b93c1fca362f66fd92c71da"
+    },
+    "item:eye_bloodmoon": {
+      "path": "public/assets/items/eye_bloodmoon.png",
+      "sha256": "bab66d6ef4409e79015c538542f184d8623ecacfe9915ca3213606009ae4eef5"
+    },
+    "item:frag_bloodmoon": {
+      "path": "public/assets/items/frag_bloodmoon.png",
+      "sha256": "90d85bd54d78ef8ff70156e3d17f19b627438a3876b973265bff42cbd484bdfd"
+    },
+    "equipment:r7-weapon": {
+      "path": "public/assets/equipment/r7/weapon.png",
+      "sha256": "a0679991d9afc42bc0f3c6f6aaa342fdb9ae7219a57a24421fb673aa92a89f08"
+    },
+    "equipment:r7-head": {
+      "path": "public/assets/equipment/r7/head.png",
+      "sha256": "49f6d501d89507a2358ec4ccd8d4780ccf96d4ad310d4fa932513063c6800c0b"
+    },
+    "equipment:r7-body": {
+      "path": "public/assets/equipment/r7/body.png",
+      "sha256": "28523ed0273babd3fb130e4ecf3d81580556be1029808ee6000e89a5639dcef9"
+    },
+    "equipment:r7-necklace": {
+      "path": "public/assets/equipment/r7/necklace.png",
+      "sha256": "0e8101d3465fb8e1c51808858b43586a3391db979dd2587ef1d1c7f36515ddb9"
+    },
+    "equipment:r7-bracelet": {
+      "path": "public/assets/equipment/r7/bracelet.png",
+      "sha256": "9ade1707e93be7ad001158d0776072b89022c3cc6f4c0644cca8a82a93afa814"
+    },
+    "equipment:r7-ring": {
+      "path": "public/assets/equipment/r7/ring.png",
+      "sha256": "19ce88469202e12d5928a936a83f9ed2d3d2a61a182591022360576c6cc99f5b"
+    },
+    "equipment:r7-belt": {
+      "path": "public/assets/equipment/r7/belt.png",
+      "sha256": "b2b76070ade0e9a22c42c5ed57dab6be13e69552b4b6fde77069e63211620a34"
+    },
+    "equipment:r7-shoes": {
+      "path": "public/assets/equipment/r7/shoes.png",
+      "sha256": "8a63dae27f99a3ff9c7d407adc3fdcdbc117f5eb4acfa6c99cca306050195704"
+    },
+    "set-equipment:r7-bloodmoon-weapon": {
+      "path": "public/assets/equipment/sets/r7-bloodmoon/weapon.png",
+      "sha256": "c5916599f10ec3db6ba713c27e7a3a58a0f06e457f782e71e0ed5f55c677864a"
+    },
+    "set-equipment:r7-bloodmoon-head": {
+      "path": "public/assets/equipment/sets/r7-bloodmoon/head.png",
+      "sha256": "4495b95a1318e2c71b8a45ac74c51fd6b41f47d8252e9efff25ebc5f891eeae3"
+    },
+    "set-equipment:r7-bloodmoon-body": {
+      "path": "public/assets/equipment/sets/r7-bloodmoon/body.png",
+      "sha256": "5b730295cd4c7a17029b9d912a10b015bf9b7ea7050e84ca3bb64078c1c4ed70"
+    },
+    "set-equipment:r7-bloodmoon-necklace": {
+      "path": "public/assets/equipment/sets/r7-bloodmoon/necklace.png",
+      "sha256": "a3060c2546b7b9f0c6dc2c16a30e4a524739bef67a604852db68b5fcb98264fa"
+    },
+    "set-equipment:r7-bloodmoon-bracelet": {
+      "path": "public/assets/equipment/sets/r7-bloodmoon/bracelet.png",
+      "sha256": "b73b60927792b66d379ee1d586a6fb70bdd01f3a7f443b47ffade4cb76627203"
+    },
+    "set-equipment:r7-bloodmoon-ring": {
+      "path": "public/assets/equipment/sets/r7-bloodmoon/ring.png",
+      "sha256": "f87127a7f17391cd9e5c27e6c1a746825d64e1652e306df260ff73ab48cf3b16"
+    },
+    "set-equipment:r7-bloodmoon-belt": {
+      "path": "public/assets/equipment/sets/r7-bloodmoon/belt.png",
+      "sha256": "07fbfcbb58d046fe1a45459151d236393e7617ebeee3c1f4a51cddd6b983e3f6"
+    },
+    "set-equipment:r7-bloodmoon-shoes": {
+      "path": "public/assets/equipment/sets/r7-bloodmoon/shoes.png",
+      "sha256": "c2c07124f85b618c4f51913e165314de9a009755f352df02eb0debd6583ca3fe"
+    },
+    "badge:r7-bloodmoon-badge": {
+      "path": "public/assets/equipment/sets/r7-bloodmoon/badge.png",
+      "sha256": "6c836f72369b38f8fe9a877d690b96232dbeef3abd0833523c5f80806fdb97eb"
+    },
+    "layer:swordsman-r7-body": {
+      "path": "public/assets/characters/modular/swordsman/r7-body.png",
+      "sha256": "c95a10c059fdef9221c2c2f13898540ad5d1061e1069d93fc21985418e98427d"
+    },
+    "layer:swordsman-r7-head": {
+      "path": "public/assets/characters/modular/swordsman/r7-head.png",
+      "sha256": "ac7e6d2d8f0e27bc74b3098bdf2106c829eed7610f6326277aa089bb27a7eede"
+    },
+    "layer:swordsman-r7-weapon": {
+      "path": "public/assets/characters/modular/swordsman/r7-weapon.png",
+      "sha256": "33c415b27a8103ef8fe20e8f58b4413a67a1d2b65b5a4763f2ccb37a749c37de"
+    },
+    "layer:witch-r7-body": {
+      "path": "public/assets/characters/modular/witch/r7-body.png",
+      "sha256": "4fddf6f36583bc1246181e5e5c80df747abf135111fd4ff1d1319558c3f8cc5e"
+    },
+    "layer:witch-r7-head": {
+      "path": "public/assets/characters/modular/witch/r7-head.png",
+      "sha256": "ece11838210f9cb8a2e36c8da0743c40f53617383f6a82750e4e15a2f4a886e7"
+    },
+    "layer:witch-r7-weapon": {
+      "path": "public/assets/characters/modular/witch/r7-weapon.png",
+      "sha256": "8fd2913f283cdb98df3a6ae1a08c1a448eca6e5f44727d17cce9c46c76afc956"
+    },
+    "layer:shaman-r7-body": {
+      "path": "public/assets/characters/modular/shaman/r7-body.png",
+      "sha256": "24b14f0dea5f7115533cc1c5f203763cc2365524c85601e5973b91bcf17bdaba"
+    },
+    "layer:shaman-r7-head": {
+      "path": "public/assets/characters/modular/shaman/r7-head.png",
+      "sha256": "a5ca7ab91408dfa888cc1e5648002f16fdf251a614952635f7e9feb0f387644e"
+    },
+    "layer:shaman-r7-weapon": {
+      "path": "public/assets/characters/modular/shaman/r7-weapon.png",
+      "sha256": "376cdf935ae5d19686ee614ab19297ebdce12ce62287e592d37dc3de6155eca3"
+    },
+    "layer:catkin-r7-body": {
+      "path": "public/assets/characters/modular/catkin/r7-body.png",
+      "sha256": "533c949f44cc82ee00d26ddbd8b453e8a7aea94effc2ef38b4b468f06113f6c4"
+    },
+    "layer:catkin-r7-head": {
+      "path": "public/assets/characters/modular/catkin/r7-head.png",
+      "sha256": "92ae08a96cf0d7a283fd577ba2ce388d49d385556e6cd79f671eaf100f6d3f8b"
+    },
+    "layer:catkin-r7-weapon": {
+      "path": "public/assets/characters/modular/catkin/r7-weapon.png",
+      "sha256": "fa26317657c77fd3b82f4b29fc368c626f75cecc8d63bc5713a3d7fa6dd064fc"
+    },
+    "set-layer:swordsman-r7-bloodmoon-body": {
+      "path": "public/assets/characters/modular/swordsman/r7-bloodmoon-body.png",
+      "sha256": "de594894ab963c6020dcca07ee3ef4707cb132b0b4ae1e26df7bbdfeaa34f24c"
+    },
+    "set-layer:swordsman-r7-bloodmoon-head": {
+      "path": "public/assets/characters/modular/swordsman/r7-bloodmoon-head.png",
+      "sha256": "2ff428fcc86aad23dddf4f6358a986412077c590f88ae198b45fb76920d251a8"
+    },
+    "set-layer:swordsman-r7-bloodmoon-weapon": {
+      "path": "public/assets/characters/modular/swordsman/r7-bloodmoon-weapon.png",
+      "sha256": "6755cc69365e4c6261be65ce8b9262bbdf7d1b7a074d90197bc60f386176d582"
+    },
+    "set-layer:witch-r7-bloodmoon-body": {
+      "path": "public/assets/characters/modular/witch/r7-bloodmoon-body.png",
+      "sha256": "286d6479e45ebec6116974e9fd8d6d1da802d227f88e73822645f2b70d0d7908"
+    },
+    "set-layer:witch-r7-bloodmoon-head": {
+      "path": "public/assets/characters/modular/witch/r7-bloodmoon-head.png",
+      "sha256": "03c375b25870a19750b341e8c36d47cb14c8e295feb09897127c2b9b8dfed779"
+    },
+    "set-layer:witch-r7-bloodmoon-weapon": {
+      "path": "public/assets/characters/modular/witch/r7-bloodmoon-weapon.png",
+      "sha256": "afa3fed04f47acc63de296738cdc85665984532c288a30776410c81f73a061c4"
+    },
+    "set-layer:shaman-r7-bloodmoon-body": {
+      "path": "public/assets/characters/modular/shaman/r7-bloodmoon-body.png",
+      "sha256": "f1b876f6c83e8c779dc3dfe47f3b788d84d7c81140281f643b7bf1004c8e634b"
+    },
+    "set-layer:shaman-r7-bloodmoon-head": {
+      "path": "public/assets/characters/modular/shaman/r7-bloodmoon-head.png",
+      "sha256": "d3da337de1e10b05019f66eb62f46f9b6ed08405ba1e23663a44cf0234740939"
+    },
+    "set-layer:shaman-r7-bloodmoon-weapon": {
+      "path": "public/assets/characters/modular/shaman/r7-bloodmoon-weapon.png",
+      "sha256": "bcfe8b4dfdefdfe21f1df2a791f9463c32a23b190988a80eefa5df52dea061ff"
+    },
+    "set-layer:catkin-r7-bloodmoon-body": {
+      "path": "public/assets/characters/modular/catkin/r7-bloodmoon-body.png",
+      "sha256": "7c2153816b3916e3617d500c724369daddafd52ec64419cd29c0939cd86d0920"
+    },
+    "set-layer:catkin-r7-bloodmoon-head": {
+      "path": "public/assets/characters/modular/catkin/r7-bloodmoon-head.png",
+      "sha256": "90de2deaf64e14436d89f7a29658d2323d7de27f0dafe3bb882fc0e7d05cb12a"
+    },
+    "set-layer:catkin-r7-bloodmoon-weapon": {
+      "path": "public/assets/characters/modular/catkin/r7-bloodmoon-weapon.png",
+      "sha256": "0f530ece9255a469d213c970467d6bdca0bcb211afe7aaf95800cc440654804a"
+    }
+  }
+}

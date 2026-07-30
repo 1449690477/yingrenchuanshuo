@@ -7,6 +7,8 @@ import {
   createRegion5SetCacheRule,
   createRegion6RuntimeCacheRule,
   createRegion6SetCacheRule,
+  createRegion7RuntimeCacheRule,
+  createRegion7SetCacheRule,
 } from './pwa-region-cache';
 
 // GitHub Pages 部署在 https://1449690477.github.io/yingrenchuanshuo/
@@ -52,13 +54,14 @@ export default defineConfig({
           'assets/monsters/equipment-dungeon/**',
           'assets/equipment/dungeon/**',
           'assets/encounters/**',
-          'assets/maps/r{3,4,5,6}.webp',
-          'assets/maps/chapter-{3,4,5,6}-*.webp',
-          'assets/battlefields/chapter-{3,4,5,6}-*.webp',
-          'assets/monsters/{r3,r4,r5,r6}/**',
-          'assets/equipment/{r3,r4,r5,r6}/**',
+          'assets/maps/r{3,4,5,6,7}.webp',
+          'assets/maps/chapter-{3,4,5,6,7}-*.webp',
+          'assets/battlefields/chapter-{3,4,5,6,7}-*.webp',
+          'assets/monsters/{r3,r4,r5,r6,r7}/**',
+          'assets/equipment/{r3,r4,r5,r6,r7}/**',
           'assets/equipment/sets/r5-crimson/**',
           'assets/equipment/sets/r6-shadow/**',
+          'assets/equipment/sets/r7-bloodmoon/**',
         ],
         runtimeCaching: [
           // 必须排在通用 modular 路由之前，否则 Workbox 首个命中会把 R5
@@ -67,6 +70,8 @@ export default defineConfig({
           createRegion5SetCacheRule(),
           createRegion6RuntimeCacheRule(),
           createRegion6SetCacheRule(),
+          createRegion7RuntimeCacheRule(),
+          createRegion7SetCacheRule(),
           {
             urlPattern: ({ url }) =>
               /\/assets\/maps\/(?:r[34]|chapter-[34]-\d)\.webp$/.test(url.pathname) ||

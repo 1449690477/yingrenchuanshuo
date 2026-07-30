@@ -26,6 +26,8 @@ const REGION_WEAPON_APPEARANCES = [
   'r5-set-weapon',
   'r6-weapon',
   'r6-set-weapon',
+  'r7-weapon',
+  'r7-set-weapon',
 ] as const;
 
 const HAND_ANCHORS: Readonly<
@@ -144,6 +146,8 @@ describe('装备职业表现与手部对位', () => {
             'r5-set-weapon',
             'r6-weapon',
             'r6-set-weapon',
+            'r7-weapon',
+            'r7-set-weapon',
           ].includes(appearanceId)
         ) {
           expect(

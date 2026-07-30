@@ -36,6 +36,9 @@
     "assets:region6": "node scripts/build-region6-assets.mjs && node scripts/build-region6-appearance-contact.mjs && node scripts/build-equipment-weapon-icons.mjs && node scripts/validate-region6-assets.mjs && node scripts/validate-equipment-weapon-icons.mjs",
     "assets:region6:check": "node scripts/validate-region6-assets.mjs",
     "assets:region6:source-check": "node scripts/validate-region6-assets.mjs --with-sources",
+    "assets:region7": "node scripts/build-region7-assets.mjs && node scripts/build-region7-appearance-contact.mjs && node scripts/build-equipment-weapon-icons.mjs && node scripts/validate-region7-assets.mjs && node scripts/validate-equipment-weapon-icons.mjs",
+    "assets:region7:check": "node scripts/validate-region7-assets.mjs",
+    "assets:region7:source-check": "node scripts/validate-region7-assets.mjs --with-sources",
     "assets:affection": "node scripts/build-affection-round2-assets.mjs && node scripts/build-affection-round3-assets.mjs && node scripts/build-affection-round3-gifts.mjs && node scripts/validate-affection-assets.mjs",
     "assets:affection:check": "node scripts/validate-affection-assets.mjs",
     "assets:encounters:check": "node scripts/validate-encounter-assets.mjs",
@@ -46,10 +49,11 @@
     "qa:region5-save": "tsx scripts/create-region5-qa-save.mts",
     "balance:equipment-dungeon": "tsx scripts/equipment-dungeon-balance.mts",
     "typecheck": "vue-tsc --noEmit",
-    "verify": "npm run lint && npm run typecheck && npm run test && npm run sim && npm run balance:equipment-dungeon && npm run assets:encounters:check && npm run assets:affection:check && npm run assets:reforge:check && npm run assets:arena:check && npm run assets:trial:check && npm run assets:region34:check && npm run assets:region5:check && npm run assets:region6:check && npm run assets:weapon-icons:check",
-    "sim": "tsx scripts/simulate.ts && tsx scripts/region5-economy.mts && tsx scripts/region6-economy.mts",
+    "verify": "npm run lint && npm run typecheck && npm run test && npm run sim && npm run balance:equipment-dungeon && npm run assets:encounters:check && npm run assets:affection:check && npm run assets:reforge:check && npm run assets:arena:check && npm run assets:trial:check && npm run assets:region34:check && npm run assets:region5:check && npm run assets:region6:check && npm run assets:region7:check && npm run assets:weapon-icons:check",
+    "sim": "tsx scripts/simulate.ts && tsx scripts/region5-economy.mts && tsx scripts/region6-economy.mts && tsx scripts/region7-economy.mts",
     "sim:r5": "tsx scripts/region5-economy.mts",
     "sim:r6": "tsx scripts/region6-economy.mts",
+    "sim:r7": "tsx scripts/region7-economy.mts",
     "edge:build": "tsx scripts/build-edge-function.mts"
   },
   "repository": {

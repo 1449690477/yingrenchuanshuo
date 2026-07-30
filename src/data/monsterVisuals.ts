@@ -5,6 +5,7 @@ import {
   REGION_6_MONSTER_MOTIONS,
   REGION_6_STATUE_MONSTER_IDS,
 } from './region6';
+import { REGION_7_MONSTER_MOTIONS } from './region7';
 
 export interface MonsterVisual {
   asset: string;
@@ -65,6 +66,17 @@ export const REGION_6_MONSTER_VISUALS: Readonly<Record<string, MonsterVisual>> =
     ]),
   );
 
+export const REGION_7_MONSTER_VISUALS: Readonly<Record<string, MonsterVisual>> =
+  Object.fromEntries(
+    Object.entries(REGION_7_MONSTER_MOTIONS).map(([id, motion]) => [
+      id,
+      {
+        asset: `assets/monsters/r7/${id}.webp`,
+        motion,
+      },
+    ]),
+  );
+
 /**
  * 已完成制作和校验的怪物素材注册表。
  * 未进入本表的怪物会直接报配置错误，禁止用文字占位掩盖资源漏接。
@@ -75,6 +87,7 @@ export const MONSTER_VISUALS: Readonly<Record<string, MonsterVisual>> = {
   ...REGION_34_MONSTER_VISUALS,
   ...REGION_5_MONSTER_VISUALS,
   ...REGION_6_MONSTER_VISUALS,
+  ...REGION_7_MONSTER_VISUALS,
   'mon_1-1_0': { asset: 'assets/monsters/r1/mon_1-1_0.webp', motion: 'flutter' },
   'mon_1-1_1': { asset: 'assets/monsters/r1/mon_1-1_1.webp', motion: 'hopper' },
   'mon_1-1_2': { asset: 'assets/monsters/r1/mon_1-1_2.webp', motion: 'flutter' },

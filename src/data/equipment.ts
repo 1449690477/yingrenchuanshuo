@@ -45,6 +45,16 @@ import {
   REGION_6_SET_WEAPON_NAMES,
   region6SetEquipmentId,
 } from './region6';
+import {
+  REGION_7_EQUIPMENT_THEME,
+  REGION_7_SET_ID,
+  REGION_7_SET_LEVEL,
+  REGION_7_SET_NAMES,
+  REGION_7_SET_QUALITY,
+  REGION_7_SET_SLOTS,
+  REGION_7_SET_WEAPON_NAMES,
+  region7SetEquipmentId,
+} from './region7';
 import { BOUTIQUE_WEAPON_ELEMENTS, REGION_WEAPON_ELEMENTS } from './weaponElements';
 
 /** 每个区域一套命名主题：8 个槽位各一个词根 */
@@ -165,6 +175,17 @@ const THEMES: NamingTheme[] = [
     ) as Record<EquipSlot, string>,
     names: REGION_6_EQUIPMENT_THEME.names,
     weaponNames: REGION_6_EQUIPMENT_THEME.weaponNames,
+  },
+  {
+    regionId: REGION_7_EQUIPMENT_THEME.regionId,
+    level: REGION_7_EQUIPMENT_THEME.level,
+    weaponElement: REGION_WEAPON_ELEMENTS.r7,
+    qualities: [...REGION_7_EQUIPMENT_THEME.qualities],
+    icons: Object.fromEntries(
+      SLOT_ORDER.map((slot) => [slot, `assets/equipment/r7/${slot}.png`]),
+    ) as Record<EquipSlot, string>,
+    names: REGION_7_EQUIPMENT_THEME.names,
+    weaponNames: REGION_7_EQUIPMENT_THEME.weaponNames,
   },
 ];
 
@@ -298,6 +319,31 @@ function buildEquipment(): Record<string, EquipmentDef> {
             classPresentations: weaponClassPresentations(
               'r6-set-weapon',
               REGION_6_SET_WEAPON_NAMES,
+            ),
+          }
+        : { ...common, slot };
+  }
+
+  for (const slot of REGION_7_SET_SLOTS) {
+    const id = region7SetEquipmentId(slot);
+    const common = {
+      id,
+      name: REGION_7_SET_NAMES[slot],
+      quality: REGION_7_SET_QUALITY,
+      level: REGION_7_SET_LEVEL,
+      setId: REGION_7_SET_ID,
+      icon: `assets/equipment/sets/r7-bloodmoon/${slot}.png`,
+      appearanceId: `r7-set-${slot}`,
+    } as const;
+    out[id] =
+      slot === 'weapon'
+        ? {
+            ...common,
+            slot,
+            element: REGION_WEAPON_ELEMENTS.r7,
+            classPresentations: weaponClassPresentations(
+              'r7-set-weapon',
+              REGION_7_SET_WEAPON_NAMES,
             ),
           }
         : { ...common, slot };

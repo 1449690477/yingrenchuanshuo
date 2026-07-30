@@ -297,6 +297,47 @@ describe('绯焰套通用碎片自选重铸面板', () => {
     expect(document.body.textContent).toContain('回复 30% 最大生命');
   });
 
+  it('血月八槽复用同一接口，八件只展示静态称号徽记而不承诺战斗效果', async () => {
+    app?.unmount();
+    app = null;
+    inventory.bag.items = { frag_bloodmoon: 55 };
+    inventory.bag.equipment = [];
+    for (const slot of Object.keys(inventory.equipped) as EquipSlot[]) {
+      inventory.equipped[slot] = null;
+    }
+    app = createApp({
+      render: () =>
+        h(CrimsonForgePanel, {
+          recipeId: 'craft_set_bloodmoon',
+          onCrafted,
+        }),
+    });
+    app.mount(host!);
+    await flushUi();
+
+    expect(document.body.textContent).toContain('血月峡谷 · 套装图鉴');
+    expect(document.body.textContent).toContain('血月重铸台');
+    expect(document.body.textContent).toContain('55/55');
+    await openForge();
+
+    expect(document.querySelector('.forge-sheet.is-bloodmoon')).not.toBeNull();
+    expect(document.querySelectorAll('.slot-choice')).toHaveLength(8);
+    expect(document.body.textContent).toContain('血雾魔女');
+    expect(document.body.textContent).toContain('血月恶魔·莉莉姆');
+    expect(document.body.textContent).toContain('攻击 +10%');
+    expect(document.body.textContent).toContain('暴击率 +8%');
+    expect(document.body.textContent).toContain('技能伤害 +18%');
+    expect(document.body.textContent).toContain('血月的眷属');
+    expect(document.body.textContent).toContain('称号与血月徽记不提供战斗属性');
+    expect(document.body.textContent).not.toContain('暴击时回复');
+    expect(document.body.textContent).not.toContain('流血');
+    expect(
+      document.querySelector<HTMLImageElement>(
+        'img[src="/assets/equipment/sets/r7-bloodmoon/badge.png"]',
+      ),
+    ).not.toBeNull();
+  });
+
   it('保持竖屏安全区、极窄屏布局、减弱动效和成熟焦点陷阱门禁', async () => {
     const source = await Promise.all([import('node:fs/promises'), import('node:path')]).then(
       ([{ readFile }, { resolve }]) =>

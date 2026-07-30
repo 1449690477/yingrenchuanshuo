@@ -73,6 +73,7 @@ import {
   ENHANCE_MAX,
   ENHANCE_PER_LEVEL,
   ENHANCE_TOTAL_GAIN_CAP_PERMILLE,
+  STAGE_PACING_FACTORS,
 } from '../src/data/constants';
 import { EQUIPMENT } from '../src/data/equipment';
 import { idleCombatEfficiency, killsPerSecond } from '../src/core/idle';
@@ -1314,7 +1315,10 @@ function main() {
   const checkpoints = checkpointTable();
 
   console.log('\n【30 天成长曲线 · 剑姬】每天有效挂机 14 小时\n');
-  const curve = simulateDays('swordsman', 30);
+  // 30 天快照继续服务既有长期门禁；R7 另观察到 D60，用真实逐日曲线
+  // 记录耗尽日并覆盖新区域的全部卡点。
+  const horizonCurve = simulateDays('swordsman', 60);
+  const curve = horizonCurve.slice(0, 30);
   console.table(
     curve.filter((r) => r.天 === 1 || r.天 % 5 === 0).map((r) => ({ ...r, 当日经验: r.当日经验 })),
   );
@@ -1332,6 +1336,11 @@ function main() {
     toCsv(curve as unknown as Record<string, unknown>[]),
     'utf8',
   );
+  writeFileSync(
+    resolve(OUT_DIR, 'growth-r7-horizon.csv'),
+    toCsv(horizonCurve as unknown as Record<string, unknown>[]),
+    'utf8',
+  );
   writeFileSync(resolve(OUT_DIR, 'class-balance.csv'), toCsv(balance.rows), 'utf8');
   writeFileSync(
     resolve(OUT_DIR, 'reforge-acceptance.csv'),
@@ -1346,22 +1355,23 @@ function main() {
 
   console.log(`\n✔ CSV 已输出到 ${OUT_DIR}`);
   console.log(
-    '  checkpoints.csv / growth-30d.csv / class-balance.csv / reforge-acceptance.csv / pvp-balance.csv\n',
+    '  checkpoints.csv / growth-30d.csv / growth-r7-horizon.csv / class-balance.csv / reforge-acceptance.csv / pvp-balance.csv\n',
   );
 
   // 健康检查（docs/56 §8）
   const stageAtIndex = (i: number) =>
     STAGES[ORDERED_STAGE_IDS[Math.min(Math.max(i, 0), ORDERED_STAGE_IDS.length - 1)]!]!;
   const day30 = curve[curve.length - 1]!;
+  const horizonEnd = horizonCurve[horizonCurve.length - 1]!;
   console.log('【健康检查】');
   console.log(`  30 天后等级：Lv${day30.等级}（软上限 Lv${CONTENT_SOFT_CAP}）`);
 
   // G2：等级绝不允许越过内容软上限 —— 这正是 docs/56 病根一的防回归锁。
   // 旧门禁「满级前无等级停滞」已废除：停滞（卡点）在新设计里是特性不是病，
   // 玩家顶到软上限后靠推进关卡解锁继续升级。
-  if (day30.等级 > CONTENT_SOFT_CAP) {
+  if (horizonEnd.等级 > CONTENT_SOFT_CAP) {
     throw new Error(
-      `[G2 失败] 30 天等级 Lv${day30.等级} 越过内容软上限 Lv${CONTENT_SOFT_CAP}（docs/56 §2）`,
+      `[G2 失败] 60 天等级 Lv${horizonEnd.等级} 越过内容软上限 Lv${CONTENT_SOFT_CAP}（docs/56 §2）`,
     );
   }
   console.log(`  ✔ G2：30 天等级未越过内容软上限`);
@@ -1370,18 +1380,23 @@ function main() {
   // 当前实测内容 2~3 天被推完 —— 在关卡耗时重排前把这些设为硬门禁只会常红。
   const d1 = curve[0]!;
   console.log(`  ◇ G1 诊断：D1 等级 Lv${d1.等级}、关卡 ${d1.挂机关卡}/${ORDERED_STAGE_IDS.length}`);
-  const lastStageDay = curve.find((r) => r.挂机关卡 >= ORDERED_STAGE_IDS.length)?.天 ?? '>30';
+  const lastStageDay =
+    horizonCurve.find((r) => r.挂机关卡 >= ORDERED_STAGE_IDS.length)?.天 ?? '>60';
   console.log(`  ◇ 内容耗尽日：D${lastStageDay}（目标 ≥ D25，靠击杀目标重排实现）`);
 
   // 停滞只有在「没顶在局部软上限」时才是病（经验断供）；
   // 顶着上限磨关卡是节奏设计本身 —— 那些天正是 G4 要数的卡点。
-  const starved = curve.findIndex(
-    (r, i) => i > 0 && !r.顶上限 && r.等级 < CONTENT_SOFT_CAP && r.等级 === curve[i - 1]!.等级,
+  const starved = horizonCurve.findIndex(
+    (r, i) =>
+      i > 0 &&
+      !r.顶上限 &&
+      r.等级 < CONTENT_SOFT_CAP &&
+      r.等级 === horizonCurve[i - 1]!.等级,
   );
   if (starved >= 0) {
     throw new Error(
-      `[成长曲线验收失败] 第 ${curve[starved]!.天} 天未顶上限却整天零升级` +
-        `（Lv${curve[starved]!.等级}）—— 经验供给断档`,
+      `[成长曲线验收失败] 第 ${horizonCurve[starved]!.天} 天未顶上限却整天零升级` +
+        `（Lv${horizonCurve[starved]!.等级}）—— 经验供给断档`,
     );
   }
   console.log('  ✔ 无经验断档（未顶上限的天必有升级）');
@@ -1397,16 +1412,36 @@ function main() {
   console.log(`  ✔ G1：D1 等级 Lv${d1r.等级} ≤ 24、关卡 ${d1r.挂机关卡} ≤ 60`);
 
   // 内容耗尽日：全部关卡至少要撑过 25 天
-  const exhaustedDay = curve.find((r) => r.挂机关卡 >= ORDERED_STAGE_IDS.length)?.天;
+  const exhaustedDay = horizonCurve.find((r) => r.挂机关卡 >= ORDERED_STAGE_IDS.length)?.天;
   if (exhaustedDay !== undefined && exhaustedDay < 25) {
     throw new Error(`[耗尽日失败] 内容 D${exhaustedDay} 被推完（目标 ≥ D25）`);
   }
-  console.log(`  ✔ 内容耗尽日：${exhaustedDay === undefined ? '>30' : 'D' + exhaustedDay}（≥ D25）`);
+  console.log(`  ✔ 内容耗尽日：${exhaustedDay === undefined ? '>60' : 'D' + exhaustedDay}（≥ D25）`);
+
+  // docs/59 修订口径：R7 必须保持区域系数单调递增，并落在 400～500。
+  // 耗尽日只作为逐日模拟的观测值，不再重复那个与单调性矛盾的 D40～42 假目标。
+  if (ORDERED_STAGE_IDS.length === 210) {
+    const r6Pacing = STAGE_PACING_FACTORS[6];
+    const r7Pacing = STAGE_PACING_FACTORS[7];
+    if (r6Pacing === undefined || r7Pacing === undefined) {
+      throw new Error('[R7 节奏失败] R6 / R7 节奏系数未登记');
+    }
+    if (r7Pacing <= r6Pacing || r7Pacing < 400 || r7Pacing > 500) {
+      throw new Error(
+        `[R7 节奏失败] 系数 R6=${r6Pacing}、R7=${r7Pacing}（要求 R7 > R6 且位于 400～500）`,
+      );
+    }
+    console.log(
+      `  ✔ R7 节奏：系数 ${r6Pacing}→${r7Pacing} 单调递增；210 关于 ${
+        exhaustedDay === undefined ? '>D60' : `D${exhaustedDay}`
+      } 耗尽`,
+    );
+  }
 
   // G3：逐日「实际战力 ÷ 当前关卡推荐」必须贴着推荐线走
   let g3Min = Number.POSITIVE_INFINITY;
   let g3Max = 0;
-  for (const r of curve) {
+  for (const r of horizonCurve) {
     const rec = stageAtIndex(r.挂机关卡 - 1).recommendCP;
     if (rec <= 0) continue;
     const ratio = r.战力 / rec;
@@ -1430,10 +1465,10 @@ function main() {
   // G5：单关不许卡超过 3 整天（卡太久 = 劝退）
   let g5Max = 1;
   let streak = 1;
-  for (let i = 1; i < curve.length; i++) {
+  for (let i = 1; i < horizonCurve.length; i++) {
     if (
-      curve[i]!.挂机关卡 === curve[i - 1]!.挂机关卡 &&
-      curve[i]!.挂机关卡 < ORDERED_STAGE_IDS.length
+      horizonCurve[i]!.挂机关卡 === horizonCurve[i - 1]!.挂机关卡 &&
+      horizonCurve[i]!.挂机关卡 < ORDERED_STAGE_IDS.length
     ) {
       streak++;
       g5Max = Math.max(g5Max, streak);

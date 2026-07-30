@@ -23,6 +23,11 @@ import { requireItem } from '@/data/items';
 import { requireMonster } from '@/data/monsters';
 import { REGION_5_FRAGMENT_LOOT_SOURCES } from '@/data/region5Loot';
 import { REGION_6_FRAGMENT_LOOT_SOURCES } from '@/data/region6Loot';
+import {
+  REGION_7_COMPLETION_BADGE,
+  REGION_7_COMPLETION_TITLE,
+} from '@/data/region7';
+import { REGION_7_FRAGMENT_LOOT_SOURCES } from '@/data/region7Loot';
 import { useInventoryStore } from '@/stores/inventory';
 import { usePlayerStore } from '@/stores/player';
 import type { EquipmentSetCraftingActionResult } from '@/stores/game';
@@ -36,7 +41,7 @@ const emit = defineEmits<{
 
 const props = withDefaults(
   defineProps<{
-    recipeId?: 'craft_set_crimson' | 'craft_set_shadow';
+    recipeId?: 'craft_set_crimson' | 'craft_set_shadow' | 'craft_set_bloodmoon';
   }>(),
   {
     recipeId: 'craft_set_crimson',
@@ -50,8 +55,9 @@ const targetSlots = Object.keys(recipe.targetDefIds) as EquipSlot[];
 const inventory = useInventoryStore();
 const player = usePlayerStore();
 const isShadow = recipe.id === 'craft_set_shadow';
-const themeIcon = isShadow ? MoonStar : Flame;
-const regionName = isShadow ? '幽影祀塔' : '熔岩神殿';
+const isBloodmoon = recipe.id === 'craft_set_bloodmoon';
+const themeIcon = isShadow || isBloodmoon ? MoonStar : Flame;
+const regionName = isBloodmoon ? '血月峡谷' : isShadow ? '幽影祀塔' : '熔岩神殿';
 const setDisplayName = setDefinition.name.replace(/套$/, '');
 const forgeTitle = `${setDisplayName}重铸`;
 const entryTitleId = `${recipe.id}-entry-title`;
@@ -120,9 +126,13 @@ const equippedSetCount = computed(
 
 const sourceNames = [
   ...new Set(
-    (isShadow ? REGION_6_FRAGMENT_LOOT_SOURCES : REGION_5_FRAGMENT_LOOT_SOURCES).map(
-      (source) => requireMonster(source.monsterId).name,
-    ),
+    (
+      isBloodmoon
+        ? REGION_7_FRAGMENT_LOOT_SOURCES
+        : isShadow
+          ? REGION_6_FRAGMENT_LOOT_SOURCES
+          : REGION_5_FRAGMENT_LOOT_SOURCES
+    ).map((source) => requireMonster(source.monsterId).name),
   ),
 ];
 
@@ -273,7 +283,7 @@ onBeforeUnmount(() => {
 <template>
   <section
     class="forge-entry"
-    :class="{ 'is-shadow': isShadow }"
+    :class="{ 'is-shadow': isShadow, 'is-bloodmoon': isBloodmoon }"
     :aria-labelledby="entryTitleId"
   >
     <i class="entry-glow entry-glow-one" aria-hidden="true" />
@@ -304,7 +314,11 @@ onBeforeUnmount(() => {
         <section
           ref="sheetRef"
           class="forge-sheet"
-          :class="{ 'is-success': lastCraftedSlot, 'is-shadow': isShadow }"
+          :class="{
+            'is-success': lastCraftedSlot,
+            'is-shadow': isShadow,
+            'is-bloodmoon': isBloodmoon,
+          }"
           role="dialog"
           aria-modal="true"
           :aria-labelledby="dialogTitleId"
@@ -459,6 +473,19 @@ onBeforeUnmount(() => {
                 </span>
                 <Sparkles :size="14" aria-hidden="true" />
               </article>
+              <figure v-if="isBloodmoon" class="bloodmoon-title-preview">
+                <img
+                  :src="`/${REGION_7_COMPLETION_BADGE}`"
+                  alt=""
+                  width="64"
+                  height="64"
+                />
+                <figcaption>
+                  <small>集齐 8 件后静态展示</small>
+                  <strong>{{ REGION_7_COMPLETION_TITLE }}</strong>
+                  <span>称号与血月徽记不提供战斗属性</span>
+                </figcaption>
+              </figure>
             </section>
           </div>
 
@@ -536,11 +563,50 @@ onBeforeUnmount(() => {
   box-shadow: 0 7px 16px rgb(96 72 165 / 24%);
 }
 
+.forge-entry.is-bloodmoon {
+  background:
+    radial-gradient(circle at 9% 18%, rgb(255 255 255 / 92%), transparent 34%),
+    radial-gradient(circle at 91% 86%, rgb(245 104 133 / 22%), transparent 40%),
+    linear-gradient(122deg, rgb(255 243 247 / 91%), rgb(250 235 242 / 89%) 56%, rgb(233 242 255 / 88%));
+  border-color: rgb(174 63 94 / 42%);
+}
+
+.forge-entry.is-bloodmoon .entry-sigil {
+  background:
+    radial-gradient(circle at 35% 22%, rgb(255 255 255 / 42%), transparent 27%),
+    linear-gradient(145deg, #6e1834, #b93256 58%, #ef7691);
+  box-shadow: 0 7px 17px rgb(116 27 55 / 28%);
+}
+
 .forge-sheet.is-shadow {
   background:
     radial-gradient(circle at 84% 3%, rgb(146 208 255 / 17%), transparent 31%),
     radial-gradient(circle at 3% 32%, rgb(176 137 239 / 16%), transparent 29%),
     linear-gradient(160deg, rgb(252 250 255 / 97%), rgb(244 241 255 / 96%) 52%, rgb(237 249 255 / 96%));
+}
+
+.forge-sheet.is-bloodmoon {
+  background:
+    radial-gradient(circle at 84% 2%, rgb(220 72 111 / 17%), transparent 31%),
+    radial-gradient(circle at 4% 32%, rgb(110 37 72 / 13%), transparent 30%),
+    linear-gradient(160deg, rgb(255 252 253 / 97%), rgb(251 239 245 / 96%) 54%, rgb(238 246 255 / 96%));
+}
+
+.forge-sheet.is-bloodmoon .head-emblem,
+.forge-sheet.is-bloodmoon .confirm-button {
+  background:
+    radial-gradient(circle at 30% 0, rgb(255 255 255 / 28%), transparent 35%),
+    linear-gradient(135deg, #771b3a, #b83158 58%, #e66b89);
+  box-shadow:
+    0 9px 18px rgb(106 28 56 / 24%),
+    inset 0 1px 0 rgb(255 255 255 / 36%);
+}
+
+.forge-sheet.is-bloodmoon .slot-choice.selected {
+  border-color: rgb(174 55 91 / 61%);
+  box-shadow:
+    0 0 0 3px rgb(195 63 102 / 10%),
+    0 8px 16px rgb(114 32 61 / 12%);
 }
 
 .forge-sheet.is-shadow .head-emblem,
@@ -1184,6 +1250,48 @@ onBeforeUnmount(() => {
 .set-bonus-list article.active > svg {
   color: #f07b96;
   opacity: 1;
+}
+
+.bloodmoon-title-preview {
+  min-height: 82px;
+  margin: 4px 0 0;
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background:
+    radial-gradient(circle at 18% 50%, rgb(239 93 127 / 15%), transparent 38%),
+    linear-gradient(120deg, rgb(255 255 255 / 80%), rgb(255 235 242 / 72%));
+  border: 1px solid rgb(189 70 102 / 23%);
+  border-radius: 17px;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 86%);
+}
+
+.bloodmoon-title-preview img {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+  filter: drop-shadow(0 6px 9px rgb(91 24 48 / 18%));
+}
+
+.bloodmoon-title-preview figcaption {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.bloodmoon-title-preview small,
+.bloodmoon-title-preview span {
+  font-size: 9px;
+  line-height: 1.4;
+  color: var(--text-dim);
+}
+
+.bloodmoon-title-preview strong {
+  font-family: var(--font-display);
+  font-size: 14px;
+  color: #812845;
 }
 
 .forge-actions {

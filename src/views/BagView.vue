@@ -522,10 +522,11 @@ onUnmounted(() => {
               <small>定向套装 · 缺件与来源</small>
               <strong id="set-atlas-title">套装图鉴</strong>
             </span>
-            <em>2 套</em>
+          <em>3 套</em>
           </header>
           <CrimsonForgePanel recipe-id="craft_set_crimson" @crafted="onCrimsonCrafted" />
           <CrimsonForgePanel recipe-id="craft_set_shadow" @crafted="onCrimsonCrafted" />
+          <CrimsonForgePanel recipe-id="craft_set_bloodmoon" @crafted="onCrimsonCrafted" />
         </section>
         <p v-if="bagItems.length === 0" class="empty">
           <PackageOpen class="empty-icon" :size="27" :stroke-width="1.8" aria-hidden="true" />

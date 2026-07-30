@@ -60,6 +60,12 @@ export const EQUIPMENT_ADVANCEMENT_ROUTES: readonly EquipmentAdvancementRoute[] 
     fineItemId: 'wisp_shadow',
     rareItemId: 'stone_void',
   },
+  {
+    sourceRegionId: 'r6',
+    targetRegionId: 'r7',
+    fineItemId: 'horn_demon',
+    rareItemId: 'eye_bloodmoon',
+  },
 ];
 
 interface RegionalEquipmentIdentity {

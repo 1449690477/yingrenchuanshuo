@@ -36,6 +36,7 @@ export const REGION_REFORGE_MATERIALS: Readonly<Record<string, RegionReforgeMate
   r4: { commonIds: ['dust_bone', 'herb_moonlit'], fineId: 'rubbing_epitaph' },
   r5: { commonIds: ['slag_lava', 'shard_scorched'], fineId: 'ember_ritual' },
   r6: { commonIds: ['dust_statue', 'scroll_faded'], fineId: 'wisp_shadow' },
+  r7: { commonIds: ['dew_bloodmist', 'herb_soulbreak'], fineId: 'horn_demon' },
 };
 
 export function requireRegionReforgeMaterials(regionId: string): RegionReforgeMaterials {

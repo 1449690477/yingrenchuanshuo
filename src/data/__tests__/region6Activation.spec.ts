@@ -11,7 +11,7 @@ import { STAGES } from '../stages';
 
 describe('R6 原子激活', () => {
   it('区域、五章、三十关与二十四只怪物同时进入运行时', () => {
-    expect(REGIONS.at(-1)).toBe(REGION_6);
+    expect(REGIONS.find((region) => region.id === 'r6')).toBe(REGION_6);
     expect(Object.values(STAGES).filter((stage) => stage.chapterId.startsWith('6-'))).toHaveLength(
       30,
     );

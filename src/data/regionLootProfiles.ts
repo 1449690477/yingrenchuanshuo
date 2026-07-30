@@ -68,9 +68,27 @@ export const REGION_6_LOOT_PROFILE: RegionLootProfile = {
   },
 };
 
+/**
+ * R7 进入传说时代：普通怪提供史诗基线，精英开始出现传说峰值，
+ * 最终 BOSS 继续使用 R6 的最高档权重与品质组保底参数。
+ */
+export const REGION_7_LOOT_PROFILE: RegionLootProfile = {
+  qualityWeights: {
+    normal: { epic: 0.7 },
+    elite: { epic: 8, legendary: 0.12 },
+    boss: { epic: 12, legendary: 0.15 },
+  },
+  bossQualityPity: {
+    quality: 'legendary',
+    groupId: 'r7-legendary',
+    pityCount: 210,
+  },
+};
+
 export const REGION_LOOT_PROFILES: Readonly<Record<string, RegionLootProfile>> = {
   r5: REGION_5_LOOT_PROFILE,
   r6: REGION_6_LOOT_PROFILE,
+  r7: REGION_7_LOOT_PROFILE,
 };
 
 export function regionLootProfile(regionId: string): RegionLootProfile {

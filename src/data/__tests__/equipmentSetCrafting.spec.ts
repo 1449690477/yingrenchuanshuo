@@ -241,6 +241,7 @@ describe('套装通用碎片配方注册器', () => {
     expect(Object.keys(EQUIPMENT_SET_CRAFTING_RECIPES)).toEqual([
       'craft_set_crimson',
       'craft_set_shadow',
+      'craft_set_bloodmoon',
     ]);
     expect(getEquipmentSetCraftingRecipe('craft_set_shadow')).toEqual({
       id: 'craft_set_shadow',
@@ -256,6 +257,22 @@ describe('套装通用碎片配方注册器', () => {
         ring: 'eq_set_region_shadow_ring',
         belt: 'eq_set_region_shadow_belt',
         shoes: 'eq_set_region_shadow_shoes',
+      },
+    });
+    expect(getEquipmentSetCraftingRecipe('craft_set_bloodmoon')).toEqual({
+      id: 'craft_set_bloodmoon',
+      setId: 'set_region_bloodmoon',
+      fragmentItemId: 'frag_bloodmoon',
+      fragmentCount: 55,
+      targetDefIds: {
+        weapon: 'eq_set_region_bloodmoon_weapon',
+        head: 'eq_set_region_bloodmoon_head',
+        body: 'eq_set_region_bloodmoon_body',
+        necklace: 'eq_set_region_bloodmoon_necklace',
+        bracelet: 'eq_set_region_bloodmoon_bracelet',
+        ring: 'eq_set_region_bloodmoon_ring',
+        belt: 'eq_set_region_bloodmoon_belt',
+        shoes: 'eq_set_region_bloodmoon_shoes',
       },
     });
     expect(requireEquipmentSetCraftingRecipe('craft_set_crimson')).toBe(production);

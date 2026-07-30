@@ -15,6 +15,8 @@ export const REGION_WEAPON_ELEMENTS = {
   r5: 'fire',
   // 幽影祀塔以雷属性怪为主，R6 冰武器提供下一段明确的克制来源。
   r6: 'ice',
+  // 血月峡谷以炎属性怪为主，R7 雷武器闭合炎 → 冰 → 雷 → 炎教学环。
+  r7: 'thunder',
 } as const satisfies Readonly<Record<string, Element>>;
 
 /**

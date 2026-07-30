@@ -20,6 +20,16 @@ import {
   REGION_6_SET_CACHE_NAME,
   REGION_6_SET_RUNTIME_ASSET_COUNT,
   REGION_6_SET_URL_PATTERN,
+  createRegion7RuntimeCacheRule,
+  createRegion7SetCacheRule,
+  isRegion7RuntimeAssetPath,
+  REGION_7_RUNTIME_CACHE_MAX_ENTRIES,
+  REGION_7_RUNTIME_CACHE_NAME,
+  REGION_7_RUNTIME_HEAVY_ASSET_COUNT,
+  REGION_7_SET_CACHE_MAX_ENTRIES,
+  REGION_7_SET_CACHE_NAME,
+  REGION_7_SET_RUNTIME_ASSET_COUNT,
+  REGION_7_SET_URL_PATTERN,
 } from '../../../pwa-region-cache';
 
 describe('区域 5 PWA 分区缓存', () => {
@@ -118,6 +128,46 @@ describe('区域 6 PWA 分区缓存', () => {
     expect(REGION_6_SET_CACHE_MAX_ENTRIES).toBe(24);
     const rule = createRegion6SetCacheRule();
     expect(rule.options.cacheName).toBe(REGION_6_SET_CACHE_NAME);
+    expect(rule.options.expiration).toEqual({ maxEntries: 24 });
+  });
+});
+
+describe('区域 7 PWA 分区缓存', () => {
+  it.each([
+    '/yingrenchuanshuo/assets/maps/r7.webp',
+    '/yingrenchuanshuo/assets/maps/chapter-7-1.webp',
+    '/yingrenchuanshuo/assets/battlefields/chapter-7-5.webp',
+    '/yingrenchuanshuo/assets/monsters/r7/mon_7-5_boss.webp',
+    '/yingrenchuanshuo/assets/equipment/r7/weapon.png',
+    '/yingrenchuanshuo/assets/characters/modular/catkin/r7-body.png',
+    '/yingrenchuanshuo/assets/characters/modular/witch/r7-weapon.png',
+  ])('R7 重资产进入独立缓存：%s', (pathname) => {
+    expect(isRegion7RuntimeAssetPath(pathname)).toBe(true);
+  });
+
+  it('55 项基础资产使用独立 SWR/64 缓存', () => {
+    expect(REGION_7_RUNTIME_HEAVY_ASSET_COUNT).toBe(55);
+    expect(REGION_7_RUNTIME_CACHE_MAX_ENTRIES).toBe(64);
+    const rule = createRegion7RuntimeCacheRule();
+    expect(rule.options.cacheName).toBe(REGION_7_RUNTIME_CACHE_NAME);
+    expect(rule.options.expiration).toEqual({ maxEntries: 64 });
+  });
+
+  it.each([
+    '/yingrenchuanshuo/assets/equipment/sets/r7-bloodmoon/weapon.png',
+    '/yingrenchuanshuo/assets/equipment/sets/r7-bloodmoon/badge.png',
+    '/yingrenchuanshuo/assets/characters/modular/catkin/r7-bloodmoon-body.png',
+    '/yingrenchuanshuo/assets/characters/modular/shaman/r7-bloodmoon-weapon.png',
+  ])('血月套重资产进入独立套装缓存：%s', (pathname) => {
+    expect(REGION_7_SET_URL_PATTERN.test(pathname)).toBe(true);
+    expect(isRegion7RuntimeAssetPath(pathname)).toBe(false);
+  });
+
+  it('21 项血月套资产使用独立 SWR/24 缓存', () => {
+    expect(REGION_7_SET_RUNTIME_ASSET_COUNT).toBe(21);
+    expect(REGION_7_SET_CACHE_MAX_ENTRIES).toBe(24);
+    const rule = createRegion7SetCacheRule();
+    expect(rule.options.cacheName).toBe(REGION_7_SET_CACHE_NAME);
     expect(rule.options.expiration).toEqual({ maxEntries: 24 });
   });
 });

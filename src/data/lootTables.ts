@@ -24,6 +24,7 @@ import {
 import { regionLootProfile } from './regionLootProfiles';
 import { region5FragmentLootForTable } from './region5Loot';
 import { region6FragmentLootForTable } from './region6Loot';
+import { region7FragmentLootForTable } from './region7Loot';
 
 const REFORGE_DROP = {
   temper: 'sand_crystal',
@@ -124,6 +125,8 @@ function buildTable(spec: ChapterSpec, type: MonsterType): LootTable {
   if (region5Fragment) entries.push(region5Fragment);
   const region6Fragment = region6FragmentLootForTable(id);
   if (region6Fragment) entries.push(region6Fragment);
+  const region7Fragment = region7FragmentLootForTable(id);
+  if (region7Fragment) entries.push(region7Fragment);
 
   // ── 装备 ──
   let pityGroups: LootTable['pityGroups'];

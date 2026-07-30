@@ -6,6 +6,7 @@
 import { REGION_34_MATERIALS } from './region34';
 import { REGION_5_MATERIALS, type Region5MaterialSpec } from './region5';
 import { REGION_6_MATERIALS, type Region6MaterialSpec } from './region6';
+import { REGION_7_MATERIALS, type Region7MaterialSpec } from './region7';
 
 export type ItemKind = 'material' | 'consumable' | 'currency' | 'fragment';
 
@@ -41,7 +42,9 @@ function mat(
   };
 }
 
-function regionSetItem(spec: Region5MaterialSpec | Region6MaterialSpec): ItemDef {
+function regionSetItem(
+  spec: Region5MaterialSpec | Region6MaterialSpec | Region7MaterialSpec,
+): ItemDef {
   return {
     id: spec.id,
     name: spec.name,
@@ -157,6 +160,11 @@ export const ITEMS: Record<string, ItemDef> = {
   // ── 区域 6：幽影祀塔 ──
   ...Object.fromEntries(
     REGION_6_MATERIALS.map((spec) => [spec.id, regionSetItem(spec)]),
+  ),
+
+  // ── 区域 7：血月峡谷 ──
+  ...Object.fromEntries(
+    REGION_7_MATERIALS.map((spec) => [spec.id, regionSetItem(spec)]),
   ),
 
   // ── 竞技场（docs/53 §二/§四）──

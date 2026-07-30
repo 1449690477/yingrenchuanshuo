@@ -948,6 +948,7 @@ export const STAGE_PACING_FACTORS: Readonly<Record<number, number>> = {
   4: 110,
   5: 200,
   6: 340,
+  7: 440,
 };
 
 /**

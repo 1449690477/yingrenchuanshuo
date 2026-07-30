@@ -2,6 +2,7 @@ import type { LootEntry, LootResult, MonsterType } from '@/core/types';
 import { ENHANCE_MATERIAL_IDS } from './constants';
 import { REGION_5_ENHANCE_PROGRESSION } from './region5EnhanceProgression';
 import { REGION_6_ENHANCE_PROGRESSION } from './region6EnhanceProgression';
+import { REGION_7_ENHANCE_PROGRESSION } from './region7EnhanceProgression';
 
 const MATERIAL = {
   ...ENHANCE_MATERIAL_IDS,
@@ -336,6 +337,7 @@ export const ENHANCE_PROGRESSION: Record<string, ChapterEnhanceProgression> = {
   ),
   ...REGION_5_ENHANCE_PROGRESSION,
   ...REGION_6_ENHANCE_PROGRESSION,
+  ...REGION_7_ENHANCE_PROGRESSION,
 };
 
 

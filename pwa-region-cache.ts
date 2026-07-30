@@ -28,12 +28,27 @@ export const REGION_6_SET_CACHE_NAME = 'region-set-r6-v1';
 export const REGION_6_SET_URL_PATTERN =
   /\/assets\/(?:equipment\/sets\/r6-shadow\/.+|characters\/modular\/(?:swordsman|witch|shaman|catkin)\/r6-shadow-(?:body|head|weapon)\.png)$/;
 
+export const REGION_7_RUNTIME_HEAVY_ASSET_COUNT = 55;
+export const REGION_7_RUNTIME_CACHE_MAX_ENTRIES = 64;
+export const REGION_7_RUNTIME_CACHE_NAME = 'region-content-r7-v1';
+export const REGION_7_RUNTIME_URL_PATTERN =
+  /\/assets\/(?:maps\/(?:r7|chapter-7-\d+)\.webp|battlefields\/chapter-7-\d+\.webp|(?:monsters|equipment)\/r7\/.+|characters\/modular\/(?:swordsman|witch|shaman|catkin)\/r7-(?:body|head|weapon)\.png)$/;
+export const REGION_7_SET_RUNTIME_ASSET_COUNT = 21;
+export const REGION_7_SET_CACHE_MAX_ENTRIES = 24;
+export const REGION_7_SET_CACHE_NAME = 'region-set-r7-v1';
+export const REGION_7_SET_URL_PATTERN =
+  /\/assets\/(?:equipment\/sets\/r7-bloodmoon\/.+|characters\/modular\/(?:swordsman|witch|shaman|catkin)\/r7-bloodmoon-(?:body|head|weapon)\.png)$/;
+
 export function isRegion5RuntimeAssetPath(pathname: string): boolean {
   return REGION_5_RUNTIME_URL_PATTERN.test(pathname);
 }
 
 export function isRegion6RuntimeAssetPath(pathname: string): boolean {
   return REGION_6_RUNTIME_URL_PATTERN.test(pathname);
+}
+
+export function isRegion7RuntimeAssetPath(pathname: string): boolean {
+  return REGION_7_RUNTIME_URL_PATTERN.test(pathname);
 }
 
 export function createRegion5RuntimeCacheRule() {
@@ -106,6 +121,40 @@ export function createRegion6SetCacheRule() {
       cacheName: REGION_6_SET_CACHE_NAME,
       cacheableResponse: { statuses: [0, 200] },
       expiration: { maxEntries: REGION_6_SET_CACHE_MAX_ENTRIES },
+    },
+  };
+}
+
+export function createRegion7RuntimeCacheRule() {
+  if (REGION_7_RUNTIME_HEAVY_ASSET_COUNT > REGION_7_RUNTIME_CACHE_MAX_ENTRIES) {
+    throw new Error(
+      `[PWA 配置错误] R7 重资产 ${REGION_7_RUNTIME_HEAVY_ASSET_COUNT} 项超过缓存上限 ${REGION_7_RUNTIME_CACHE_MAX_ENTRIES}`,
+    );
+  }
+  return {
+    urlPattern: REGION_7_RUNTIME_URL_PATTERN,
+    handler: 'StaleWhileRevalidate' as const,
+    options: {
+      cacheName: REGION_7_RUNTIME_CACHE_NAME,
+      cacheableResponse: { statuses: [0, 200] },
+      expiration: { maxEntries: REGION_7_RUNTIME_CACHE_MAX_ENTRIES },
+    },
+  };
+}
+
+export function createRegion7SetCacheRule() {
+  if (REGION_7_SET_RUNTIME_ASSET_COUNT > REGION_7_SET_CACHE_MAX_ENTRIES) {
+    throw new Error(
+      `[PWA 配置错误] R7 套装重资产 ${REGION_7_SET_RUNTIME_ASSET_COUNT} 项超过缓存上限 ${REGION_7_SET_CACHE_MAX_ENTRIES}`,
+    );
+  }
+  return {
+    urlPattern: REGION_7_SET_URL_PATTERN,
+    handler: 'StaleWhileRevalidate' as const,
+    options: {
+      cacheName: REGION_7_SET_CACHE_NAME,
+      cacheableResponse: { statuses: [0, 200] },
+      expiration: { maxEntries: REGION_7_SET_CACHE_MAX_ENTRIES },
     },
   };
 }

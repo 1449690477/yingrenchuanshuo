@@ -3,6 +3,8 @@ import { EQUIPMENT_DUNGEON_SETS } from '../equipmentDungeonSets';
 import { EQUIPMENT_SETS, getEquipmentSet, requireEquipmentSet } from '../equipmentSets';
 import {
   REGION_CRIMSON_FLAMEBURST_TRIGGER_ID,
+  REGION_BLOODMOON_SET,
+  REGION_BLOODMOON_SET_ID,
   REGION_CRIMSON_SET,
   REGION_CRIMSON_SET_ID,
   REGION_SHADOW_SET,
@@ -19,6 +21,7 @@ describe('通用装备套装注册表', () => {
       'set_dungeon_crimson',
       REGION_CRIMSON_SET_ID,
       REGION_SHADOW_SET_ID,
+      REGION_BLOODMOON_SET_ID,
       ARENA_SET_ID,
     ]);
     for (const [id, definition] of Object.entries(EQUIPMENT_DUNGEON_SETS)) {
@@ -26,7 +29,25 @@ describe('通用装备套装注册表', () => {
     }
     expect(getEquipmentSet(REGION_CRIMSON_SET_ID)).toBe(REGION_CRIMSON_SET);
     expect(getEquipmentSet(REGION_SHADOW_SET_ID)).toBe(REGION_SHADOW_SET);
+    expect(getEquipmentSet(REGION_BLOODMOON_SET_ID)).toBe(REGION_BLOODMOON_SET);
     expect(getEquipmentSet(ARENA_SET_ID)).toBe(ARENA_EQUIPMENT_SET);
+  });
+
+  it('血月八件只展示静态称号徽记，不注册任何战斗字段', () => {
+    expect(REGION_BLOODMOON_SET.bonuses).toEqual([
+      expect.objectContaining({ pieces: 2, statPercent: { atk: 0.1 } }),
+      expect.objectContaining({ pieces: 4, statFlat: { critRate: 8 } }),
+      expect.objectContaining({ pieces: 6, skillMultiplierBonus: 0.18 }),
+      {
+        pieces: 8,
+        label: '血月的眷属',
+        description: '解锁同名称号与血月徽记外观（无战斗属性）',
+      },
+    ]);
+    expect(REGION_BLOODMOON_SET.bonuses[3]).not.toHaveProperty('statPercent');
+    expect(REGION_BLOODMOON_SET.bonuses[3]).not.toHaveProperty('statFlat');
+    expect(REGION_BLOODMOON_SET.bonuses[3]).not.toHaveProperty('skillMultiplierBonus');
+    expect(REGION_BLOODMOON_SET.bonuses[3]).not.toHaveProperty('onCritTriggers');
   });
 
   it('锁住现有四套的全部结算数值', () => {
