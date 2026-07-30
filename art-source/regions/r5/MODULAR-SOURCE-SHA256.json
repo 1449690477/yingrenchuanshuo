@@ -175,14 +175,15 @@
       "alphaPath": "modular/witch/r5/weapon-alpha.png",
       "alphaSha256": "8448530b6d43d0dbc020d856ecac5193ed01ee80ea8e12c639c66171718d14a2",
       "runtimePath": "public/assets/characters/modular/witch/r5-weapon.png",
-      "runtimeSha256": "ebf7b19478bbdf0cd5c47565bacad85dcec5f455802a2b69e2bee387bef498cc",
+      "runtimeSha256": "dd9c5196c5bd364892b798ae080ee2d439e723753965ae0b8f9393b16d28a281",
       "alignment": {
-        "x": 105,
+        "x": 145,
         "y": 115,
         "width": 160,
         "height": 245,
         "flip": true
-      }
+      },
+      "alignmentReview": "2026-07-30 手位适配复核：平移武器层对准重建后底模拳位"
     },
     "witch:r5-crimson:body": {
       "callId": "exec-05d6bbde-e700-4dea-8658-0d2ce9a1413d",
@@ -285,13 +286,14 @@
       "alphaPath": "modular/shaman/r5/weapon-alpha.png",
       "alphaSha256": "bd159a160f68527c336564043fef5705d11411f7f755b07b86c22e90f3011eca",
       "runtimePath": "public/assets/characters/modular/shaman/r5-weapon.png",
-      "runtimeSha256": "e2ae8c303bc0a2ef79a68a20317c85249c29c09906bd87dff49fdbb533b66b0e",
+      "runtimeSha256": "34243da102c88484991959226b38dafbc23f940098be864c122c314e90899a7d",
       "alignment": {
         "x": 300,
-        "y": 185,
+        "y": 255,
         "width": 170,
         "height": 150
-      }
+      },
+      "alignmentReview": "2026-07-30 手位适配复核：平移武器层对准重建后底模拳位"
     },
     "shaman:r5-crimson:body": {
       "callId": "exec-54e5eeaa-d83a-4b5d-a27a-d1876b12e360",
@@ -339,13 +341,14 @@
       "alphaPath": "modular/shaman/r5-crimson/weapon-alpha.png",
       "alphaSha256": "d5caf2391e497debec5f2acb9ca6cea6b72a75b9f578ae72ea707656e4a5435f",
       "runtimePath": "public/assets/characters/modular/shaman/r5-crimson-weapon.png",
-      "runtimeSha256": "0b9d54acedf95d0d8aaa60a775951658b166f0c8b6cf885a53586c7256757951",
+      "runtimeSha256": "333a1130dc594da03b3b659adcfe1998c7af5e0284557f8b29c3b7581a208e24",
       "alignment": {
         "x": 190,
-        "y": 195,
+        "y": 220,
         "width": 180,
         "height": 160
-      }
+      },
+      "alignmentReview": "2026-07-30 手位适配复核：平移武器层对准重建后底模拳位"
     },
     "catkin:r5:body": {
       "callId": "exec-d7eb0660-d238-48c5-b623-4ddc5b5d1dac",

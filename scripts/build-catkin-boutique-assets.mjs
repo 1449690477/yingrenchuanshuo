@@ -21,6 +21,23 @@ const shoePlacements = {
   },
 };
 
+// 双爪落点按现行底模拳位（左拳 195,435 / 右拳 500,310）逐主题校准：
+// 旧常量 (125,364)/(424,257) 对准重建前底模，爪套悬在拳头左上方、手指外露。
+const weaponPlacements = {
+  'berry-cream': {
+    left: { x: 160, y: 387 },
+    right: { x: 459, y: 280 },
+  },
+  'moon-sugar': {
+    left: { x: 163, y: 386 },
+    right: { x: 462, y: 279 },
+  },
+  'rose-night': {
+    left: { x: 167, y: 385 },
+    right: { x: 466, y: 278 },
+  },
+};
+
 async function transparentCanvas(width, height) {
   return sharp({
     create: {
@@ -159,12 +176,13 @@ for (const theme of themes) {
     weaponHalf(source, 'right', 138),
   ]);
 
+  const weaponPlacement = weaponPlacements[theme];
   await (
     await transparentCanvas(640, 960)
   )
     .composite([
-      { input: leftWeapon, left: 125, top: 364 },
-      { input: rightWeapon, left: 424, top: 257 },
+      { input: leftWeapon, left: weaponPlacement.left.x, top: weaponPlacement.left.y },
+      { input: rightWeapon, left: weaponPlacement.right.x, top: weaponPlacement.right.y },
     ])
     .png({ compressionLevel: 9, palette: true, quality: 92 })
     .toFile(resolve(characterDir, 'catkin-weapon.png'));

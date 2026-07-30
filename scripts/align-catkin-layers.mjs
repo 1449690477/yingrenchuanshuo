@@ -79,11 +79,14 @@ await Promise.all([
 await writePlaced('r1-head.png', [{ width: 180, left: 230, top: -4 }]);
 await writePlaced('r2-head.png', [{ width: 172, left: 300, top: 2 }]);
 
+// 双爪必须包住拳位：旧常量 (125,364)/(424,257) 对准的是重建前底模的手，
+// 现行底模左手拳心 (195,435)、右手 (500,310)，平移 (+40,+22) 后爪套完整包住拳头。
 await writePlaced('r1-weapon.png', [
-  { input: await halfWeapon('left', 132), left: 125, top: 364 },
-  { input: await halfWeapon('right', 138), left: 424, top: 257 },
+  { input: await halfWeapon('left', 132), left: 165, top: 386 },
+  { input: await halfWeapon('right', 138), left: 464, top: 279 },
 ]);
 
+// 糖杖握柄下移 45px，让左手拳真正握住杖身而不是悬空在杖尾上方。
 await writePlaced('r2-weapon.png', [
-  { width: 224, left: 45, top: 168, flip: true },
+  { width: 224, left: 45, top: 213, flip: true },
 ]);

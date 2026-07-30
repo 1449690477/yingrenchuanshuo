@@ -114,7 +114,8 @@ export const REGION5_MODULAR_BUILD_ASSETS = [
     'r5',
     'weapon',
     'exec-1f80fb87-bc3c-458e-a0ce-3c2094b109de',
-    { x: 105, y: 115, width: 160, height: 245, flip: true },
+    // 2026-07 手位适配复核：法杖右移 40px 对准女巫左拳（265,368）。
+    { x: 145, y: 115, width: 160, height: 245, flip: true },
   ),
   asset(
     'witch',
@@ -157,7 +158,8 @@ export const REGION5_MODULAR_BUILD_ASSETS = [
     'r5',
     'weapon',
     'exec-564e71d5-56fc-49f4-97b1-2e2f2fd88c0b',
-    { x: 300, y: 185, width: 170, height: 150 },
+    // 2026-07 手位适配复核：法铃下移 70px 对准萨满左拳（312,360）。
+    { x: 300, y: 255, width: 170, height: 150 },
   ),
   asset(
     'shaman',
@@ -178,7 +180,8 @@ export const REGION5_MODULAR_BUILD_ASSETS = [
     'r5-crimson',
     'weapon',
     'exec-07a478d0-f1a5-4fbf-b15e-1855ab65fc39',
-    { x: 190, y: 195, width: 180, height: 160 },
+    // 2026-07 手位适配复核：绯焰法铃下移 25px 对准萨满左拳（312,360）。
+    { x: 190, y: 220, width: 180, height: 160 },
   ),
 
   asset(
