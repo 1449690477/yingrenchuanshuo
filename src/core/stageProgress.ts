@@ -2,6 +2,8 @@ import {
   CHAPTER_GATE_CP_RATIO,
   GATE_LEGACY_LEVEL_MARGIN,
   REGION_GATE_CP_RATIO,
+  STAGE_CHALLENGE_STAMINA_COST,
+  STAMINA_RECOVER_SECONDS,
 } from '@/data/constants';
 import { ALL_CHAPTERS } from '@/data/regions';
 import { stagesOfChapter } from '@/data/stages';
@@ -61,6 +63,51 @@ export function evaluateChapterGate(
     currentCp,
     gapCp: Math.max(0, requiredCp - currentCp),
     reason: 'cp',
+  };
+}
+
+// ─────────────────────── 挑战体力（docs/56 §5） ───────────────────────
+
+export interface ChallengeCost {
+  ok: boolean;
+  /** 本次挑战消耗；已通关关卡恒为 0 */
+  cost: number;
+  stamina: number;
+  staminaMax: number;
+  /** 不足时距下一点恢复的秒数；充足时为 0 */
+  nextPointInSeconds: number;
+  reason: 'ok' | 'stamina';
+}
+
+/**
+ * 挑战某关的体力核算（docs/57 §1.2 对 kimi 的契约）。
+ *
+ * 只有「进入未通关关卡」收费；挂机已通关关卡、离线收益不碰体力。
+ * 这里只算不扣 —— 扣减由 store 在 selectStage 的原子提交里做。
+ */
+export function evaluateChallengeCost(
+  stageId: string,
+  clearedStageIds: readonly string[],
+  stamina: number,
+  staminaMax: number,
+  staminaRecoverAt: number,
+  now: number,
+): ChallengeCost {
+  const cleared = clearedStageIds.includes(stageId);
+  const cost = cleared ? 0 : STAGE_CHALLENGE_STAMINA_COST;
+  if (stamina >= cost) {
+    return { ok: true, cost, stamina, staminaMax, nextPointInSeconds: 0, reason: 'ok' };
+  }
+  // 距下一点恢复：恢复计时基准 + 周期 − 现在
+  const elapsedMs = Math.max(0, now - staminaRecoverAt);
+  const remainMs = STAMINA_RECOVER_SECONDS * 1000 - (elapsedMs % (STAMINA_RECOVER_SECONDS * 1000));
+  return {
+    ok: false,
+    cost,
+    stamina,
+    staminaMax,
+    nextPointInSeconds: Math.ceil(remainMs / 1000),
+    reason: 'stamina',
   };
 }
 

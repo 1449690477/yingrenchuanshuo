@@ -120,7 +120,13 @@ import {
 } from '@/core/encounters';
 import { rollLoot } from '@/core/loot';
 import { assessShopOffer, type ShopBlockReason } from '@/core/shop';
-import { advanceStageKillProgress } from '@/core/stageProgress';
+import {
+  advanceStageKillProgress,
+  evaluateChapterGate,
+  evaluateChallengeCost,
+  type ChapterGate,
+  type ChallengeCost,
+} from '@/core/stageProgress';
 import { countStageMonsterKills, mergeLootResults } from '@/core/stageLoot';
 import { advanceBattleVisualCursor, battleMonsterIdAt } from '@/core/battleVisual';
 import {
@@ -151,6 +157,10 @@ import {
   BAG_CAPACITY,
   SLOT_ORDER,
 } from '@/data/constants';
+import {
+  DEFEAT_EFFICIENCY_FLOOR,
+  DEFEAT_LOW_EFFICIENCY_SECONDS,
+} from '@/data/constants';
 import { getEquipment, requireEquipment } from '@/data/equipment';
 import { requireMonster } from '@/data/monsters';
 import { requireLootTable } from '@/data/lootTables';
@@ -168,6 +178,7 @@ import {
   nextStageId,
   totalMonsterCount,
   stageClearTarget,
+  stagesOfChapter,
 } from '@/data/stages';
 import { requireChapter, requireRegionOfChapter } from '@/data/regions';
 import { requireShopOffer } from '@/data/shop';
@@ -701,6 +712,23 @@ export const useGameStore = defineStore('game', () => {
     }
     return best;
   });
+
+  /**
+   * 战败战报（docs/56 §4；docs/57 §1.3 契约）。
+   * 非 null 时 UI 弹层；连续战败只保留最新一份，不叠多层。
+   */
+  const defeatReport = ref<{
+    fromStageName: string;
+    toStageName: string;
+    monsterName: string;
+    efficiency: number;
+  } | null>(null);
+  /** 低效率累计秒数（内存态，不进存档）—— 换关或效率恢复即清零 */
+  let lowEfficiencySeconds = 0;
+
+  function dismissDefeatReport(): void {
+    defeatReport.value = null;
+  }
 
   /** 等级软上限状态（docs/56 §2；接口契约见 docs/57 §1.3，kimi 的经验条 UI 依赖它）。 */
   const levelCapInfo = computed(() => {
@@ -1243,6 +1271,7 @@ export const useGameStore = defineStore('game', () => {
         pity: save.value.progress.pity,
       });
       idleCarrySec = acc.carrySec;
+      trackDefeat(idleCombatEfficiency(ctx), dt);
       battleProgress.value = Math.min(0.99, idleCarrySec * killsPerSecond(ctx));
       const y = acc.yield;
       if (y.kills > 0) {
@@ -1498,14 +1527,90 @@ export const useGameStore = defineStore('game', () => {
     return prev ? cleared.includes(prev) : false;
   }
 
+  /**
+   * 组合门槛 + 体力，一次拿到 UI 要展示的一切（docs/57 §1.3 契约）。
+   * 章节门槛只在「目标关是其章节首关且未通关」时生效 ——
+   * 已经进了章的人不会被追溯性拦在自己站着的地方。
+   */
+  function evaluateStageEntry(stageId: string): { gate: ChapterGate; cost: ChallengeCost } {
+    const stage = STAGES[stageId];
+    if (!stage || !save.value) {
+      throw new Error(`[关卡错误] 无法评估不存在的关卡：${stageId}`);
+    }
+    const cleared = save.value.progress.clearedStageIds;
+    const isChapterEntry =
+      !cleared.includes(stageId) && stagesOfChapter(stage.chapterId)[0]?.id === stageId;
+    const gate: ChapterGate = isChapterEntry
+      ? evaluateChapterGate(cp.value, save.value.player.level, stage.chapterId)
+      : { ok: true, requiredCp: 0, currentCp: cp.value, gapCp: 0, reason: 'ok' };
+    const cost = evaluateChallengeCost(
+      stageId,
+      cleared,
+      save.value.player.stamina,
+      staminaMax.value,
+      save.value.player.staminaRecoverAt,
+      Date.now(),
+    );
+    return { gate, cost };
+  }
+
   function selectStage(stageId: string): boolean {
     if (!save.value || !STAGES[stageId]) return false;
     if (!isStageUnlocked(stageId)) return false;
+
+    // 门槛与体力执法（docs/56 §3.3/§5）。自动切关同样走这里 ——
+    // 被拦时留在原关继续产出，绝不能把玩家丢进打不进的关。
+    const entry = evaluateStageEntry(stageId);
+    if (!entry.gate.ok || !entry.cost.ok) return false;
+    if (entry.cost.cost > 0) {
+      save.value.player.stamina -= entry.cost.cost;
+    }
+
     save.value.progress.currentStageId = stageId;
     idleCarrySec = 0;
+    lowEfficiencySeconds = 0;
     resetBattleVisualState();
     void persist();
     return true;
+  }
+
+  /**
+   * 战败检测（docs/56 §4）：未通关关卡上效率持续低于下限 → 退回上一关。
+   * 只退一关、不扣任何资产；退回目标必然已通关，farm 照常。
+   */
+  function trackDefeat(efficiency: number, dt: number): void {
+    if (!save.value) return;
+    const stage = currentStage.value;
+    if (save.value.progress.clearedStageIds.includes(stage.id)) {
+      lowEfficiencySeconds = 0;
+      return;
+    }
+    if (efficiency >= DEFEAT_EFFICIENCY_FLOOR) {
+      lowEfficiencySeconds = 0;
+      return;
+    }
+    lowEfficiencySeconds += dt;
+    if (lowEfficiencySeconds < DEFEAT_LOW_EFFICIENCY_SECONDS) return;
+
+    const prevId = prevStageOf(stage.id);
+    if (!prevId) {
+      // 第一关没有退路；效率软衰减本身就是保护，不再触发战败
+      lowEfficiencySeconds = 0;
+      return;
+    }
+    const monsterId = stage.waves[0]?.monsters[0]?.id;
+    const report = {
+      fromStageName: stage.name,
+      toStageName: STAGES[prevId]!.name,
+      monsterName: monsterId ? requireMonster(monsterId).name : '强敌',
+      efficiency: Math.round(efficiency * 100) / 100,
+    };
+    save.value.progress.currentStageId = prevId;
+    idleCarrySec = 0;
+    lowEfficiencySeconds = 0;
+    resetBattleVisualState();
+    defeatReport.value = report;
+    void persist();
   }
 
   /** 首通结算完整落袋后自动进入下一关；最后一关没有后继，保持原地。 */
@@ -2820,6 +2925,9 @@ export const useGameStore = defineStore('game', () => {
     cp,
     cpRatio,
     levelCapInfo,
+    evaluateStageEntry,
+    defeatReport,
+    dismissDefeatReport,
     battleEfficiency,
     canIdle,
     currentStage,

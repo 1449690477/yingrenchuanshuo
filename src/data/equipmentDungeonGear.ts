@@ -21,6 +21,12 @@ export interface EquipmentDungeonTier {
   quality: Extract<Quality, 'rare' | 'epic' | 'legendary' | 'mythic'>;
   level: number;
   unlockLevel: number;
+  /**
+   * 随后续区域开放（docs/56 §6）。当前内容顶 + 等级软上限根本够不到
+   * 该档解锁等级，挂着具体门槛数字是虚假承诺；UI 显示「区域 7 开放后
+   * 解锁」。不下调等级 —— 下调会让 mythic 提前两个版本出现打乱品质阶梯。
+   */
+  comingSoon?: boolean;
   color: string;
   glow: string;
   setId: string;
@@ -75,6 +81,7 @@ export const EQUIPMENT_DUNGEON_TIERS: readonly EquipmentDungeonTier[] = [
     quality: 'mythic',
     level: 81,
     unlockLevel: 81,
+    comingSoon: true,
     color: '#ff4f72',
     glow: '#ffd1dc',
     setId: 'set_dungeon_crimson',

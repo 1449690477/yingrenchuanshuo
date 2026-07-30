@@ -961,6 +961,25 @@ export const REGION_GATE_CP_RATIO = 0.85;
  */
 export const GATE_LEGACY_LEVEL_MARGIN = 10;
 
+/**
+ * 挑战未通关关卡的体力消耗（docs/56 §5）。
+ *
+ * 唯一的主消耗端：挂机已通关关卡、离线收益、装备副本一律 0。
+ * 每日自然恢复 288 点 ÷ 6 = 最多 48 次推进 —— 正常游玩永远够用，
+ * 它是保险丝不是付费墙，只拦「一天肝穿三个区域」的极端行为。
+ */
+export const STAGE_CHALLENGE_STAMINA_COST = 6;
+
+/**
+ * 战败判定（docs/56 §4）：效率低于下限并持续一段时间 → 退回上一关。
+ *
+ * 不用「连续 N 场」而用累计秒数：挂机结算是分片的，没有逐场粒度；
+ * 45 秒 ≈ 3~8 场战斗，效果等价且实现诚实。
+ * 战败不扣任何资产（docs/40 红线），退回后在上一关照常产出。
+ */
+export const DEFEAT_EFFICIENCY_FLOOR = 0.5;
+export const DEFEAT_LOW_EFFICIENCY_SECONDS = 45;
+
 /** 体力 */
 export const STAMINA_BASE_MAX = 120;
 export const STAMINA_RECOVER_SECONDS = 300; // 5 分钟 1 点

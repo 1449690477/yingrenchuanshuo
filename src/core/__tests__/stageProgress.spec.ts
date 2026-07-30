@@ -1,11 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { advanceStageKillProgress, evaluateChapterGate } from '../stageProgress';
+import {
+  advanceStageKillProgress,
+  evaluateChapterGate,
+  evaluateChallengeCost,
+} from '../stageProgress';
 import { ALL_CHAPTERS } from '@/data/regions';
 import { stagesOfChapter } from '@/data/stages';
 import {
   CHAPTER_GATE_CP_RATIO,
   GATE_LEGACY_LEVEL_MARGIN,
   REGION_GATE_CP_RATIO,
+  STAGE_CHALLENGE_STAMINA_COST,
+  STAMINA_RECOVER_SECONDS,
 } from '@/data/constants';
 
 describe('关卡击杀进度', () => {
@@ -131,5 +137,29 @@ describe('通关循环数 clearCycles（docs/56 §8 节奏重排）', () => {
     expect(() => advanceStageKillProgress(30, 1, 10, 3, false, true)).toThrow('越界');
     // 旧目标 10 会炸的值在 3 轮制下合法
     expect(advanceStageKillProgress(15, 1, 10, 3, false, false).clearedNow).toBe(false);
+  });
+});
+
+describe('挑战体力核算（docs/56 §5）', () => {
+  const NOW = 1_700_000_000_000;
+
+  it('已通关关卡零消耗——挂机是本体，收体力费等于赶人', () => {
+    const r = evaluateChallengeCost('s1', ['s1'], 0, 120, NOW, NOW);
+    expect(r.ok).toBe(true);
+    expect(r.cost).toBe(0);
+  });
+
+  it('未通关关卡收固定费，体力足够即放行', () => {
+    const r = evaluateChallengeCost('s2', ['s1'], 120, 120, NOW, NOW);
+    expect(r.ok).toBe(true);
+    expect(r.cost).toBe(STAGE_CHALLENGE_STAMINA_COST);
+  });
+
+  it('体力不足给出精确的下一点倒计时', () => {
+    const halfWay = NOW - (STAMINA_RECOVER_SECONDS / 2) * 1000;
+    const r = evaluateChallengeCost('s2', [], 0, 120, halfWay, NOW);
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe('stamina');
+    expect(r.nextPointInSeconds).toBe(STAMINA_RECOVER_SECONDS / 2);
   });
 });
