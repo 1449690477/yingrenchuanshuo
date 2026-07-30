@@ -11,6 +11,7 @@
  * 与 docs/66 §六 的 12 项门禁 —— 尤其 G-12 的三条上界。
  */
 
+import type { Quality } from '@/core/types';
 import type { EquipmentDungeonTierId } from './equipmentDungeonGear';
 
 /** 每档的深度层数。四档统一，保证 UI 是一张规整的 4×5 网格。 */
@@ -75,3 +76,36 @@ export const DEPTH_BLANK_CHANCE: readonly number[] = [0.12, 0.18, 0.26, 0.36, 0.
 
 /** 深度只升不降（docs/40 红线：进度条不许倒退）。重置的只有每日次数。 */
 export const DEPTH_NEVER_DECREASES = true;
+
+/**
+ * 各区域**实际存在**的装备品质区间（docs/66 §3.5）。
+ *
+ * 胚子取自玩家当前区域的主线装备定义，所以品质必须夹进该区实有的集合 ——
+ * 不能直接用 `typicalQualityAt(锚点)`，因为**公式对，但定义集合有洞**：
+ *
+ *   r2（Lv10-20）实有 [fine, rare, epic]，
+ *   而 Lv10~14 的 typicalQualityAt 返回 common —— 五个等级取不到定义，
+ *   直接空指针崩在结算上，而且崩的正是刚接触副本的新手。
+ *
+ * 这个洞是「按公式推导 + 没人验证覆盖面」的典型产物，
+ * 因此本表**必须显式登记、缺表抛错、不许回退默认值**，
+ * 并由 `equipmentDungeonDepth.spec.ts` 逐区逐级扫覆盖面：
+ * 将来任何区域少一档品质都会当场红。
+ *
+ * ⚠ 夹取不会造成超模：区域装备本来就是玩家在该区刷主线能掉到的东西，
+ * 所以无论夹到哪一档，胚子都是玩家本来就能获得的（docs/66 G-2）。
+ */
+export interface RegionQualityRange {
+  lowest: Quality;
+  highest: Quality;
+}
+
+export const REGION_BLANK_QUALITY_RANGE: Readonly<Record<string, RegionQualityRange>> = {
+  r1: { lowest: 'common', highest: 'rare' },
+  r2: { lowest: 'fine', highest: 'epic' },
+  r3: { lowest: 'fine', highest: 'epic' },
+  r4: { lowest: 'fine', highest: 'epic' },
+  r5: { lowest: 'rare', highest: 'legendary' },
+  r6: { lowest: 'rare', highest: 'legendary' },
+  r7: { lowest: 'epic', highest: 'legendary' },
+};

@@ -10,14 +10,22 @@
  *   3. 深度只升不降（docs/40 红线：进度条不许倒退）
  */
 
-import type { Quality } from './types';
+import type { EquipSlot, Quality } from './types';
 import { typicalQualityAt, expectedFullGearCp } from '@/data/expectedPower';
+import { REGIONS } from '@/data/regions';
+import { EQUIPMENT } from '@/data/equipment';
+import { itemBaseValue } from './equipment';
+
+/** 只认区域主线装备 `eq_r{n}_{部位}_{品质}`，不碰珍品/好感/竞技/副本旧装。 */
+const REGIONAL_BLANK_ID = /^eq_r\d+_[a-z]+_[a-z]+$/;
 import type { EquipmentDungeonTierId } from '@/data/equipmentDungeonGear';
+import { QUALITY_ORDER } from '@/data/constants';
 import {
   DEPTH_BLANK_CHANCE,
   DEPTH_DIFFICULTY_K,
   DEPTH_PER_TIER,
   EQUIPMENT_DUNGEON_DEPTH_ANCHORS,
+  REGION_BLANK_QUALITY_RANGE,
   type EquipmentDungeonDepthAnchor,
 } from '@/data/equipmentDungeonDepthRules';
 
@@ -108,7 +116,28 @@ export function depthAnchorLevel(
       `[参数错误] 玩家等级与内容顶必须为正：playerLevel=${playerLevel} contentTop=${contentTopLevel}`,
     );
   }
-  return Math.min(depthNominalLevel(tierId, depth), playerLevel, contentTopLevel);
+  return Math.max(
+    Math.min(depthNominalLevel(tierId, depth), playerLevel, contentTopLevel),
+    dungeonMinAnchorLevel(),
+  );
+}
+
+/**
+ * 锚点下界 = 最低档的档位等级（当前 azure 的 16）。
+ *
+ * 为什么需要：玩家等级低于副本入口时根本进不来，`min` 却会算出一个
+ * 比任何主线装备都低的锚点 —— Lv1 的主线典型基准值是 0.6，
+ * 而现存最弱的区域装备（r1 common Lv2）是 1.53，**比它高**，
+ * 于是「取不超模的最强定义」找不到任何候选。
+ *
+ * 在源头补下界比让守卫抛错更对：那个状态在玩法上不可达，
+ * 补下界让函数变成全域有定义的，而守卫仍然留着 ——
+ * 将来若有人把区域装备的最低等级改高，它照样会炸出来。
+ */
+export function dungeonMinAnchorLevel(): number {
+  const levels = Object.values(EQUIPMENT_DUNGEON_DEPTH_ANCHORS).map((a) => a.baseLevel);
+  if (levels.length === 0) throw new Error('[配置错误] 深度锚点表为空');
+  return Math.min(...levels);
 }
 
 /**
@@ -152,6 +181,103 @@ export function depthBlankChance(depth: number): number {
     throw new Error(`[配置错误] DEPTH_BLANK_CHANCE 缺少第 ${depth} 层（docs/66 §4.2）`);
   }
   return chance;
+}
+
+/**
+ * ★ 胚子品质 = clamp(typicalQualityAt(锚点), 该区最低品质, 该区最高品质)。
+ *
+ * 为什么必须夹：胚子取自**玩家当前区域的主线装备定义**（docs/66 §3.5 方案 A），
+ * 而公式算出的品质该区**不一定存在**。实测缺口：
+ * r2（Lv10-20）实有 [fine, rare, epic]，但 Lv10~14 的 typicalQualityAt 返回
+ * common —— 五个等级取不到定义，直接空指针崩在结算上。
+ *
+ * 为什么夹了也不超模：区域装备本来就是玩家在该区刷主线能掉到的东西，
+ * 所以无论夹到哪一档，胚子都是玩家**本来就能获得**的（docs/66 G-2）。
+ * 这条保证是结构性的，不需要任何数值比较。
+ */
+export function blankQualityInRegion(regionId: string, anchorLevel: number): Quality {
+  const range = REGION_BLANK_QUALITY_RANGE[regionId];
+  if (!range) {
+    throw new Error(
+      `[配置错误] 区域 ${regionId} 未登记可用装备品质区间 ` +
+        `—— 新区域上线必须在 REGION_BLANK_QUALITY_RANGE 里登记（docs/66 §3.5）`,
+    );
+  }
+  const wanted = QUALITY_ORDER.indexOf(typicalQualityAt(anchorLevel));
+  const lowest = QUALITY_ORDER.indexOf(range.lowest);
+  const highest = QUALITY_ORDER.indexOf(range.highest);
+  if (lowest < 0 || highest < 0 || lowest > highest) {
+    throw new Error(`[配置错误] 区域 ${regionId} 的品质区间非法：${range.lowest}~${range.highest}`);
+  }
+  return QUALITY_ORDER[Math.min(Math.max(wanted, lowest), highest)]!;
+}
+
+/**
+ * 锚点等级落在哪个区域。
+ *
+ * 区域边界是重叠的（r1 是 Lv1-10、r2 是 Lv10-20，Lv10 两边都算），
+ * 取「levelFrom ≤ 锚点」中最靠后的那个 —— 单调、确定，
+ * 边界等级归属更高的区域（Lv10 → r2），与玩家在边界时实际在打的内容一致。
+ */
+export function regionIdForLevel(level: number): string {
+  let picked: string | undefined;
+  for (const region of REGIONS) {
+    if (region.levelFrom <= level) picked = region.id;
+  }
+  if (!picked) {
+    // 低于第一个区域的起点：归第一个区域，新号 Lv1 会走到这里
+    picked = REGIONS[0]?.id;
+  }
+  if (!picked) throw new Error('[配置错误] REGIONS 为空，无法定位胚子所属区域');
+  return picked;
+}
+
+/**
+ * ★ 胚子的装备定义（docs/66 §3.5 方案 A）。
+ *
+ * 胚子是**主线装备定义**，玩家刷主线本来就能掉到 —— 所以「副本产出不超过
+ * 同期主线最强」是结构性的，不靠数值调参。
+ *
+ * ## 为什么按「基准值上界」选，而不是按「锚点所在区域」选
+ *
+ * 因为**区域装备的等级坐落在该区上沿**：r5 覆盖 Lv40-52，装备却是 48/50/52。
+ * 「取锚点所在区域」于是必然给出高于锚点的装备，实测系统性超模：
+ *
+ *   Lv10 → r2 fine(Lv16) = **2.83×**（最严重）
+ *   Lv40~49 → r5 epic(Lv50) = 1.03~1.35×
+ *   Lv65~74 → r7 legendary(Lv75) = 1.02~1.21×
+ *
+ * 改判据：在**所有**区域的同部位定义里，取基准值不超过
+ * 「锚点等级的主线典型基准值」的那一件中最强的。
+ * 这样上界是**按真实定义算的**，不是按公式自证的 ——
+ * 初版判据（取锚点所在区域）之所以没被 G-2 拦住，正是因为当时的 G-2
+ * 拿公式和同一个公式比，从没看过真实定义，和 G-1 是同一个错。
+ *
+ * 副本给的额外价值是三样，都不击穿曲线：**定向部位**（选门户即选部位）、
+ * **品质随深度往上走**、**胚子档与词条方差**（docs/66 §4.3 的显影对象）。
+ */
+export function blankDefinitionId(slot: EquipSlot, anchorLevel: number): string {
+  const ceiling = itemBaseValue(anchorLevel, typicalQualityAt(anchorLevel));
+  let best: { id: string; value: number } | undefined;
+
+  for (const definition of Object.values(EQUIPMENT)) {
+    if (definition.slot !== slot) continue;
+    if (!REGIONAL_BLANK_ID.test(definition.id)) continue;
+    // 带定义级 setId 的不能烙印（planImprint 的 def-set-conflict 分支），
+    // 发一批不能烙印的胚子会直接违反 docs/58 红线
+    if (definition.setId) continue;
+    const value = itemBaseValue(definition.level, definition.quality);
+    if (value > ceiling + 1e-9) continue;
+    if (!best || value > best.value) best = { id: definition.id, value };
+  }
+
+  if (!best) {
+    throw new Error(
+      `[配置错误] 部位 ${slot} 在锚点 Lv${anchorLevel} 找不到任何不超模的主线胚子定义 ` +
+        `—— 最低品质的区域装备也高于该等级的主线典型（docs/66 §3.5）`,
+    );
+  }
+  return best.id;
 }
 
 /** 玩家在该档已通过的最高深度；没打过是 0。 */

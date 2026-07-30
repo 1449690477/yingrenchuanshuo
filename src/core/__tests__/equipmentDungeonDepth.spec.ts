@@ -1,22 +1,30 @@
 import { describe, expect, it } from 'vitest';
 import {
   advanceDepth,
+  blankDefinitionId,
+  blankQualityInRegion,
   clearedDepthOf,
   depthAnchorLevel,
   depthBlankQuality,
   depthNominalLevel,
   depthRecommendCp,
+  dungeonMinAnchorLevel,
   evaluateDungeonDepth,
   isDepthOpen,
   isDepthUnlocked,
   requireDepthAnchor,
   type EquipmentDungeonDepthProgress,
 } from '../equipmentDungeonDepth';
-import { EQUIPMENT_DUNGEON_DEPTH_ANCHORS, DEPTH_PER_TIER } from '@/data/equipmentDungeonDepthRules';
+import {
+  EQUIPMENT_DUNGEON_DEPTH_ANCHORS,
+  DEPTH_PER_TIER,
+  REGION_BLANK_QUALITY_RANGE,
+} from '@/data/equipmentDungeonDepthRules';
 import { EQUIPMENT_DUNGEON_TIERS } from '@/data/equipmentDungeonGear';
 import { typicalQualityAt } from '@/data/expectedPower';
-import { ALL_CHAPTERS } from '@/data/regions';
-import { ITEM_BASE, ITEM_POW, ITEM_SCALE, QUALITY_MUL } from '@/data/constants';
+import { ALL_CHAPTERS, REGIONS } from '@/data/regions';
+import { EQUIPMENT, equipIdsOfRegion } from '@/data/equipment';
+import { ITEM_BASE, ITEM_POW, ITEM_SCALE, QUALITY_MUL, QUALITY_ORDER } from '@/data/constants';
 import type { Quality } from '../types';
 
 /** 当前内容顶，与 arenaEquipment.ts 同源口径 */
@@ -26,6 +34,16 @@ const CONTENT_TOP = Math.max(...ALL_CHAPTERS.map((chapter) => chapter.levelTo));
 function baseValue(level: number, quality: Quality): number {
   return ITEM_BASE * Math.pow(level, ITEM_POW) * QUALITY_MUL[quality] * ITEM_SCALE;
 }
+
+/**
+ * 断言范围的下界 = 副本入口等级。
+ *
+ * 低于它的玩家**进不了副本**，`min` 却仍会算出一个比任何主线装备都低的
+ * 锚点（Lv1 的主线典型基准值 0.6 < 现存最弱装备 1.53）。
+ * 拿不可达状态去断言只会得到一条永远红的门禁 —— 而一条永远红的门禁
+ * 比没有门禁更糟，它会训练所有人忽略红灯。
+ */
+const ENTRY = dungeonMinAnchorLevel();
 
 /** 玩家在该等级**实际能拿到**的主线最强 —— 注意封顶在内容顶 */
 function mainlineBest(playerLevel: number): number {
@@ -104,7 +122,7 @@ describe('G-2 · 副本胚子永远不超过同期主线最强', () => {
   it('任何档位 × 任何深度 × 任何等级，比值都不超过 1.00', () => {
     for (const tier of EQUIPMENT_DUNGEON_TIERS) {
       for (let depth = 1; depth <= DEPTH_PER_TIER; depth++) {
-        for (let level = 1; level <= CONTENT_TOP + 3; level++) {
+        for (let level = ENTRY; level <= CONTENT_TOP + 3; level++) {
           const anchor = depthAnchorLevel(tier.id, depth, level, CONTENT_TOP);
           const blank = baseValue(anchor, typicalQualityAt(anchor));
           const ratio = blank / mainlineBest(level);
@@ -127,6 +145,64 @@ describe('G-2 · 副本胚子永远不超过同期主线最强', () => {
   });
 });
 
+/**
+ * docs/66 §3.5：胚子取自玩家当前区域的主线装备定义，
+ * 所以品质必须夹进该区**实有**的集合。
+ *
+ * 这组测试的存在理由是一个真实缺口：r2（Lv10-20）实有 [fine, rare, epic]，
+ * 而 Lv10~14 的 typicalQualityAt 返回 common —— 五个等级取不到定义会崩。
+ * **公式是对的，有洞的是定义集合**，所以必须逐区逐级扫覆盖面。
+ */
+describe('区域品质集合守卫（r2 缺口）', () => {
+  const RE = /^eq_(r\d+)_ring_([a-z]+)$/;
+
+  it('登记表与实际装备定义完全一致 —— 少一档品质就红', () => {
+    const actual = new Map<string, Set<string>>();
+    for (const definition of Object.values(EQUIPMENT)) {
+      const matched = definition.id.match(RE);
+      if (!matched) continue;
+      const regionId = matched[1]!;
+      if (!actual.has(regionId)) actual.set(regionId, new Set());
+      actual.get(regionId)!.add(definition.quality);
+    }
+
+    for (const [regionId, qualities] of actual) {
+      const range = REGION_BLANK_QUALITY_RANGE[regionId];
+      expect(range, `区域 ${regionId} 未登记品质区间`).toBeDefined();
+      const ordered = [...qualities].sort(
+        (a, b) => QUALITY_ORDER.indexOf(a as Quality) - QUALITY_ORDER.indexOf(b as Quality),
+      );
+      expect(range!.lowest, `${regionId} 最低品质`).toBe(ordered[0]);
+      expect(range!.highest, `${regionId} 最高品质`).toBe(ordered[ordered.length - 1]);
+    }
+  });
+
+  it('每个区域的每一级都能取到真实存在的定义 —— 这条直接钉死 r2 缺口', () => {
+    for (const region of REGIONS) {
+      for (let level = region.levelFrom; level <= region.levelTo; level++) {
+        const quality = blankQualityInRegion(region.id, level);
+        expect(
+          EQUIPMENT[`eq_${region.id}_ring_${quality}`],
+          `${region.id} Lv${level} 夹取到 ${quality}，但该区没有这个品质的装备`,
+        ).toBeDefined();
+      }
+    }
+  });
+
+  it('r2 的 Lv10~14 本该要 common，夹取后落到该区最低的 fine', () => {
+    expect(typicalQualityAt(12)).toBe('common');
+    expect(blankQualityInRegion('r2', 12)).toBe('fine');
+  });
+
+  it('夹取不会超过该区最高品质', () => {
+    expect(blankQualityInRegion('r7', 78)).toBe('legendary');
+  });
+
+  it('未登记的区域直接抛错，不回退默认值', () => {
+    expect(() => blankQualityInRegion('r99', 30)).toThrow(/未登记可用装备品质区间/);
+  });
+});
+
 describe('胚子品质取「典型」而不是「最好的可能」', () => {
   it('品质由锚点等级推导，不由档位的 quality 字段决定', () => {
     // crimson 档标着 mythic，但当前内容顶只到 78 → typicalQualityAt(78) = legendary
@@ -134,6 +210,79 @@ describe('胚子品质取「典型」而不是「最好的可能」', () => {
       typicalQualityAt(CONTENT_TOP),
     );
     expect(depthBlankQuality('crimson', 1, CONTENT_TOP + 3, CONTENT_TOP)).not.toBe('mythic');
+  });
+});
+
+/**
+ * docs/66 G-2（收紧后的措辞）：
+ * **胚子必须是玩家在当前区域刷主线就能掉到的定义。**
+ *
+ * 比「必须是当前区域的定义」更强 —— 后者只约束来源表，前者约束**可获得性**：
+ * 将来若有人往区域表里塞一件「区域内但不掉落」的活动装或任务奖励，
+ * 只约束来源表会放过它。门禁要能挡住我们还没想到的加法。
+ */
+describe('G-2 · 胚子必须是玩家刷主线就能掉到的定义', () => {
+  it('任何档 × 任何深度 × 任何等级，胚子定义都真实存在且可烙印', () => {
+    for (const tier of EQUIPMENT_DUNGEON_TIERS) {
+      for (let depth = 1; depth <= DEPTH_PER_TIER; depth++) {
+        for (let level = ENTRY; level <= CONTENT_TOP + 3; level++) {
+          for (const slot of ['weapon', 'ring', 'shoes'] as const) {
+            const anchor = depthAnchorLevel(tier.id, depth, level, CONTENT_TOP);
+            const definition = EQUIPMENT[blankDefinitionId(slot, anchor)];
+            expect(
+              definition,
+              `${tier.id} d${depth} @Lv${level} ${slot} 的胚子定义不存在`,
+            ).toBeDefined();
+            // 带定义级 setId 的装备不可烙印（planImprint 的 def-set-conflict 分支），
+            // 发一批不能烙印的胚子会直接违反 docs/58 红线
+            expect(definition!.setId, `${definition!.id} 带定义级 setId，不可烙印`).toBeUndefined();
+          }
+        }
+      }
+    }
+  });
+
+  it('胚子定义确实在某个区域的可掉落集合里 —— 不是「注册了但刷不到」的装备', () => {
+    const droppable = new Set(REGIONS.flatMap((region) => equipIdsOfRegion(region.id)));
+    for (let level = ENTRY; level <= CONTENT_TOP + 3; level++) {
+      for (const slot of ['weapon', 'ring', 'shoes'] as const) {
+        const id = blankDefinitionId(slot, level);
+        expect(droppable.has(id), `${id} 不在任何区域的可掉落集合里`).toBe(true);
+      }
+    }
+  });
+
+  /**
+   * ★ 这条是真正的强度守卫，**必须拿真实定义的等级与品质算**。
+   *
+   * 初版写成「bv(锚点, typicalQualityAt(锚点)) ÷ 同一个式子」，恒等于 1、
+   * 永远不会红 —— 于是「取锚点所在区域」那版实现里 Lv10 拿到 r2 的 Lv16 装备
+   * （**2.83×**）它一声不吭。和 G-1 自证断言是同一个错，在下一层又犯了一遍。
+   */
+  it('胚子的真实基准值永不超过玩家同期主线典型', () => {
+    for (let level = ENTRY; level <= CONTENT_TOP + 3; level++) {
+      for (const slot of ['weapon', 'ring', 'shoes'] as const) {
+        const definition = EQUIPMENT[blankDefinitionId(slot, level)]!;
+        const actual = baseValue(definition.level, definition.quality);
+        const era = baseValue(
+          Math.min(level, CONTENT_TOP),
+          typicalQualityAt(Math.min(level, CONTENT_TOP)),
+        );
+        expect(
+          actual / era,
+          `Lv${level} ${slot} 拿到 ${definition.id}（Lv${definition.level} ${definition.quality}）= ${(actual / era).toFixed(2)}×`,
+        ).toBeLessThanOrEqual(1 + 1e-9);
+      }
+    }
+  });
+
+  it('深度越深、品质在本区阶梯上越高（等级足够时）', () => {
+    // Lv78 满级玩家：azure d1（标称 16）应当明显差于 auric d5（标称 76）
+    const shallow = depthAnchorLevel('azure', 1, 78, CONTENT_TOP);
+    const deep = depthAnchorLevel('auric', 5, 78, CONTENT_TOP);
+    expect(QUALITY_ORDER.indexOf(EQUIPMENT[blankDefinitionId('ring', deep)]!.quality)).toBeGreaterThan(
+      QUALITY_ORDER.indexOf(EQUIPMENT[blankDefinitionId('ring', shallow)]!.quality),
+    );
   });
 });
 
