@@ -41,8 +41,10 @@ import { getSupabaseClient } from '@/net/supabase';
 import { reportProfile, type PlayerProfile } from '@/net/profile';
 import ProfileAvatar from '@/components/ProfileAvatar.vue';
 import ProfileEditor from '@/components/ProfileEditor.vue';
+import PlayerPeekSheet from '@/components/PlayerPeekSheet.vue';
 import TrialBattleScene from '@/components/TrialBattleScene.vue';
 import ArenaView from '@/views/ArenaView.vue';
+import type { PowerBoardRow, TrialBoardRow } from '@/net/leaderboard';
 
 // ─────────── 视图切换：周常试炼榜 | 竞技场（docs/54 §十） ───────────
 const VIEW_TABS = [
@@ -261,6 +263,58 @@ const boardEmpty = computed(() => {
   return powerRows.value.length === 0;
 });
 
+// ─────────── 玩家详情弹层：点榜单行看一个人 ───────────
+interface PeekTarget {
+  userId: string;
+  displayName: string;
+  bio: string | null;
+  avatarUrl: string | null;
+  classId: ClassId;
+  rank: number;
+  isMe: boolean;
+  podium: boolean;
+  total?: number;
+  damage?: number;
+  level?: number;
+  combatPower?: number;
+}
+
+const peekTarget = ref<PeekTarget | null>(null);
+
+function openPeek(row: TrialBoardRow | PowerBoardRow, podium: boolean): void {
+  peekTarget.value = {
+    userId: row.userId,
+    displayName: row.displayName,
+    bio: row.bio,
+    avatarUrl: row.avatarUrl,
+    classId: row.classId,
+    rank: row.rank,
+    isMe: row.isMe,
+    podium,
+    total: 'total' in row ? row.total : undefined,
+    damage: 'damage' in row ? row.damage : undefined,
+    level: 'level' in row ? row.level : undefined,
+    combatPower: 'combatPower' in row ? row.combatPower : undefined,
+  };
+}
+
+function closePeek(): void {
+  peekTarget.value = null;
+}
+
+/** 弹层里的举报：先收弹层再开举报窗，避免两层遮罩叠加 */
+function onPeekReport(): void {
+  const target = peekTarget.value;
+  if (!target) return;
+  closePeek();
+  openReport({ userId: target.userId, displayName: target.displayName });
+}
+
+async function onPeekEditProfile(): Promise<void> {
+  closePeek();
+  await openProfileEditor();
+}
+
 // ─────────── 生命周期 ───────────
 onMounted(() => {
   // 静默拉取；失败全部收进 store.status，不打断页面
@@ -453,9 +507,15 @@ onUnmounted(() => {
           <div
             v-for="(row, index) in boardTab === 'neighborhood' ? neighborhoodRows : topRows"
             :key="row.userId"
-            class="row row-in"
+            class="row row-in peekable"
             :class="{ me: row.isMe, podium: row.rank <= 3 && boardTab === 'top' }"
             :style="{ '--row-delay': `${Math.min(index, 14) * 45}ms` }"
+            role="button"
+            tabindex="0"
+            :aria-label="`查看${row.displayName}的玩家详情`"
+            @click="openPeek(row, boardTab === 'top' && row.rank <= 3)"
+            @keydown.enter.prevent="openPeek(row, boardTab === 'top' && row.rank <= 3)"
+            @keydown.space.prevent="openPeek(row, boardTab === 'top' && row.rank <= 3)"
           >
             <span class="rank-no" :data-rank="row.rank">{{ row.rank }}</span>
             <span class="who">
@@ -491,9 +551,15 @@ onUnmounted(() => {
           <div
             v-for="(row, index) in powerRows"
             :key="row.userId"
-            class="row row-in"
-            :class="{ me: row.isMe }"
+            class="row row-in peekable"
+            :class="{ me: row.isMe, podium: row.rank <= 3 }"
             :style="{ '--row-delay': `${Math.min(index, 14) * 45}ms` }"
+            role="button"
+            tabindex="0"
+            :aria-label="`查看${row.displayName}的玩家详情`"
+            @click="openPeek(row, row.rank <= 3)"
+            @keydown.enter.prevent="openPeek(row, row.rank <= 3)"
+            @keydown.space.prevent="openPeek(row, row.rank <= 3)"
           >
             <span class="rank-no">{{ row.rank }}</span>
             <span class="who">
@@ -529,6 +595,16 @@ onUnmounted(() => {
           </p>
         </div>
       </section>
+
+      <!-- 玩家详情弹层：点榜单行看一个人（自己的卡带编辑档案，别人的卡带举报） -->
+      <PlayerPeekSheet
+        v-if="peekTarget"
+        v-bind="peekTarget"
+        :can-report="!peekTarget.isMe && lb.status === 'ready'"
+        @close="closePeek"
+        @report="onPeekReport"
+        @edit-profile="onPeekEditProfile"
+      />
 
       <p class="fair-note">
         试炼为固定种子：同一套搭配必得同一成绩，提升只来自搭配的改善。榜单奖励只含称号与外观。
@@ -1182,10 +1258,70 @@ onUnmounted(() => {
   background: var(--panel-2);
 }
 
+/* 可点行：点开玩家详情弹层 */
+.row.peekable {
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  transition:
+    transform var(--t-fast) var(--ease-spring),
+    box-shadow var(--t-mid) ease;
+}
+
+.row.peekable:active {
+  transform: scale(0.985);
+}
+
+.row.peekable:focus-visible {
+  outline: 2px solid var(--pink);
+  outline-offset: 1px;
+}
+
+/* 桌面 hover 扫光：一道柔光从左滑过，提示「这行能点」 */
+.row.peekable::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 30%, rgb(255 255 255 / 55%) 50%, transparent 70%);
+  opacity: 0;
+  transform: translateX(-100%);
+  pointer-events: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .row.peekable:hover {
+    box-shadow: 0 4px 12px rgb(112 145 174 / 14%);
+  }
+
+  .row.peekable:hover::after {
+    opacity: 1;
+    transform: translateX(100%);
+    transition: transform 0.55s var(--ease-soft);
+  }
+}
+
+/* 前三名行：淡金底纹与奖牌呼应（奖牌圆底区分金银铜） */
+.row.podium {
+  background: linear-gradient(90deg, rgb(255 217 138 / 16%), var(--panel-2) 62%);
+  border: 1px solid rgb(232 172 31 / 22%);
+}
+
 .row.me {
   background: linear-gradient(90deg, var(--pink-soft), #fff 70%);
   border: 1px solid #ffd3e4;
   box-shadow: 0 2px 8px rgb(245 121 159 / 14%);
+  animation: me-breathe 3.2s ease-in-out infinite;
+}
+
+/* me 行呼吸：淡淡的粉色光晕起伏，「我在这里」 */
+@keyframes me-breathe {
+  0%,
+  100% {
+    box-shadow: 0 2px 8px rgb(245 121 159 / 14%);
+  }
+  50% {
+    box-shadow: 0 2px 14px rgb(245 121 159 / 30%);
+  }
 }
 
 .rank-no {
@@ -1603,11 +1739,15 @@ onUnmounted(() => {
   .emblem-core,
   .clash,
   .sk,
-  .burst i {
+  .burst i,
+  .row.me {
     animation: none;
   }
   .mote {
     opacity: 0.25;
+  }
+  .row.peekable::after {
+    display: none;
   }
 }
 </style>
