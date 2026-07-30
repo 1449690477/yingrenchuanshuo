@@ -145,3 +145,26 @@ describe('烙印计划', () => {
     expect(noGold).toMatchObject({ ok: false, reason: 'gold' });
   });
 });
+
+describe('部位归属守卫（防 resolver 抛错崩在装备栏）', () => {
+  it('目标套装不含该部位时拒绝，而不是放行等 resolver 崩', () => {
+    const plan = planImprint(
+      def({ slot: 'ring' }),
+      inst(),
+      SET,
+      true,
+      richWallet(),
+      false,
+      ['weapon', 'head'], // 该套只覆盖两个部位
+    );
+    expect(plan).toMatchObject({ ok: false, reason: 'slot-not-in-set' });
+  });
+
+  it('部位在套装内正常放行', () => {
+    const plan = planImprint(def({ slot: 'ring' }), inst(), SET, true, richWallet(), false, [
+      'ring',
+      'belt',
+    ]);
+    expect(plan.ok).toBe(true);
+  });
+});
