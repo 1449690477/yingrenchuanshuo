@@ -17,7 +17,7 @@ const input = {
 };
 const seasonId = 's1';
 const weekIndex = 30;
-// 同 build-edge-function.mts：分段 id 会随内容曲线重划，不许硬编码。
+// 分段 id 随赛季重划轮换，绝不硬编码——从源实现按等级现算。
 const bracketId = trialSource.trialBracketFor(input.level).id;
 const generatedBuild = generated.buildTrialCombatant(input);
 const sourceBuild = trialSource.buildTrialCombatant(input);

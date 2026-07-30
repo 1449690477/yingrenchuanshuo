@@ -23,6 +23,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FUNCTIONS = [
   'submit-trial',
   'submit-milestone',
+  'submit-affection',
   'arena-snapshot',
   'arena-candidates',
   'arena-challenge',
@@ -67,8 +68,8 @@ const equipped = [null, null, null, null, null, null, null, null];
 const input = { name: '自检', classId: 'swordsman', level: 45, equipped };
 const seasonId = 's1';
 const weekIndex = 30;
-// 分段 id 会随内容曲线重划（f3bb0a9：4 段→5 段、id 全换新），
-// 所以绝不硬编码 —— 从源实现按等级现算，与线上函数同口径。
+// 分段 id 会随赛季轮换重划（docs/61 §3.2：4 段→5 段、id 全换新），
+// 绝不硬编码 —— 从源实现按等级现算，与线上函数行为同口径。
 const bracketId = trialSource.trialBracketFor(input.level).id;
 
 const trialFromGenerated = trialGenerated.runTrial(
@@ -203,5 +204,40 @@ if (milestoneGenerated.MILESTONE_LEVELS.join() !== milestoneRules.MILESTONE_LEVE
 console.log(
   `✓ 里程碑确定性自检通过：档位 [${milestoneRules.MILESTONE_LEVELS.join(', ')}] 与下界判定两边一致`,
 );
+
+// ── 确定性自检 4：羁绊榜合理性下界（docs/63 §三 · P2）──
+//
+// 与里程碑同构：这个榜同样没有服务端复算可言，下界公式是唯一防线。
+// 常量全部从好感数据推导（幕数上限 / 单次上限 / 单幕点数），
+// 数据批次更新后打包产物必须跟上 —— 逐点比对打包产物与源实现。
+const affectionGenerated = await import(
+  pathToFileURL(path.join(root, 'supabase/functions/submit-affection/_core.ts')).href
+);
+const affectionSource = await import('../src/core/affectionBoard.ts');
+
+const affectionProbes: { claim: { points: number; totalInteractions: number; storyCount: number }; accountAgeMs: number }[] = [
+  // 30 天满勤满幕的理论极限（真实玩家上限）
+  { claim: { points: 4 * 30 * 18 + 12 * 60, totalInteractions: 120, storyCount: 12 }, accountAgeMs: 30 * 86_400_000 },
+  // 新号顶格（作弊声明）
+  { claim: { points: 99_999, totalInteractions: 10_000, storyCount: 12 }, accountAgeMs: 86_400_000 },
+  // 虚报互动次数（日上限防线）
+  { claim: { points: 10_000, totalInteractions: 360, storyCount: 0 }, accountAgeMs: 10 * 86_400_000 },
+  // 首日新手
+  { claim: { points: 40, totalInteractions: 4, storyCount: 0 }, accountAgeMs: 0 },
+  // 边界上下各一点
+  { claim: { points: 99_999, totalInteractions: 5_555, storyCount: 15 }, accountAgeMs: 365 * 86_400_000 },
+];
+for (const probe of affectionProbes) {
+  const fromGenerated = affectionGenerated.isPlausibleAffectionClaim(probe.claim, probe.accountAgeMs);
+  const fromSource = affectionSource.isPlausibleAffectionClaim(probe.claim, probe.accountAgeMs);
+  if (fromGenerated !== fromSource) {
+    console.error(
+      `✗ 羁绊自检失败：${JSON.stringify(probe)} —— ` +
+        `打包产物=${String(fromGenerated)}，源实现=${String(fromSource)}`,
+    );
+    process.exit(1);
+  }
+}
+console.log('✓ 羁绊榜确定性自检通过：下界判定打包产物与 src/core 逐点一致');
 
 await import('./guild-edge-self-check.mts');

@@ -46,11 +46,13 @@ import ProfileEditor from '@/components/ProfileEditor.vue';
 import PlayerPeekSheet from '@/components/PlayerPeekSheet.vue';
 import TrialBattleScene from '@/components/TrialBattleScene.vue';
 import ArenaView from '@/views/ArenaView.vue';
+import AffectionBoardView from '@/components/AffectionBoardView.vue';
 import type { PowerBoardRow, TrialBoardRow } from '@/net/leaderboard';
 
-// ─────────── 视图切换：周常试炼榜 | 竞技场（docs/54 §十） ───────────
+// ─────────── 视图切换：周常试炼榜 | 羁绊榜 | 竞技场（docs/54 §十 + docs/63 §三） ───────────
 const VIEW_TABS = [
   { key: 'trial', label: '试炼榜' },
+  { key: 'affection', label: '羁绊榜' },
   { key: 'arena', label: '竞技场' },
 ] as const;
 const viewTab = ref<(typeof VIEW_TABS)[number]['key']>('trial');
@@ -366,7 +368,7 @@ onUnmounted(() => {
 
 <template>
   <div class="rank scroll-y">
-    <!-- ═══ 视图切换：试炼榜 | 竞技场 ═══ -->
+    <!-- ═══ 视图切换：试炼榜 | 羁绊榜 | 竞技场 ═══ -->
     <nav class="seg view-seg" role="tablist" aria-label="排行榜与竞技场切换">
       <span
         class="seg-pill"
@@ -816,6 +818,7 @@ onUnmounted(() => {
       </Transition>
     </template>
 
+    <AffectionBoardView v-else-if="viewTab === 'affection'" />
     <ArenaView v-else />
   </div>
 </template>
@@ -1284,9 +1287,9 @@ onUnmounted(() => {
   border-radius: 12px;
 }
 
-/* 视图级切换（试炼榜 | 竞技场）只有两档，胶囊宽度与榜单三档分开 */
+/* 视图级切换（试炼榜 | 羁绊榜 | 竞技场）三档，与榜单内三档同一宽度 */
 .view-seg .seg-pill {
-  width: 50%;
+  width: calc(100% / 3);
 }
 .view-seg .seg-tab {
   font-size: 12px;

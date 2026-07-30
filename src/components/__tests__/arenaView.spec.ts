@@ -14,6 +14,7 @@ const view = () => readFile(resolve('src/views/ArenaView.vue'), 'utf8');
 const rank = () => readFile(resolve('src/views/RankView.vue'), 'utf8');
 const scene = () => readFile(resolve('src/components/arena/ArenaBattleScene.vue'), 'utf8');
 const shop = () => readFile(resolve('src/components/arena/ArenaHonorShop.vue'), 'utf8');
+const affection = () => readFile(resolve('src/components/AffectionBoardView.vue'), 'utf8');
 
 describe('ArenaView 结构（docs/54 §十 草图）', () => {
   /** 只断言模板区：脚本头部注释在解释红线时自然会引用红线原文 */
@@ -62,13 +63,44 @@ describe('ArenaView 结构（docs/54 §十 草图）', () => {
 });
 
 describe('入口：RankView 顶部视图切换', () => {
-  it('试炼榜 | 竞技场两档切换，胶囊宽度 50%（与榜单三档区分）', async () => {
+  it('试炼榜 | 羁绊榜 | 竞技场三档切换，胶囊三等分', async () => {
     const source = await rank();
     expect(source).toContain("'试炼榜'");
+    expect(source).toContain("'羁绊榜'");
     expect(source).toContain("'竞技场'");
     expect(source).toContain('ArenaView');
+    expect(source).toContain('AffectionBoardView');
     expect(source).toContain('.view-seg .seg-pill');
-    expect(source).toContain('width: 50%');
+    expect(source).toContain('width: calc(100% / 3)');
+  });
+});
+
+describe('AffectionBoardView 羁绊榜（docs/63 §三 红线）', () => {
+  it('弱化名次：无奖牌无皇冠无点击查看他人，名次只是找到自己的锚点', async () => {
+    /** 只断言模板区：脚本头部注释在解释红线时自然会引用红线原文 */
+    const tpl = (await affection()).split('</script>')[1] ?? '';
+    expect(tpl).toContain('rank-no soft');
+    expect(tpl).not.toContain('podium');
+    expect(tpl).not.toContain('皇冠');
+    // 行不可点：不提供「查看他人」入口（谁陪伴了谁是私事）
+    expect(tpl).not.toContain('openPeek');
+    expect(tpl).not.toContain('report-entry');
+  });
+
+  it('榜上只有心意之和：不渲染任何单角色字段', async () => {
+    const source = await affection();
+    // 网络行类型只有 affectionTotal，不得出现角色级字段
+    expect(source).not.toContain('characters[');
+    expect(source).toContain('affectionTotal');
+    // 隐私说明必须在 UI 上明说
+    expect(source).toContain('是彼此的秘密');
+  });
+
+  it('小屏适配与减弱动效都落实', async () => {
+    const source = await affection();
+    expect(source).toContain('@media (max-width: 340px)');
+    expect(source).toContain('prefers-reduced-motion');
+    expect(source).toContain('motionReduced');
   });
 });
 
