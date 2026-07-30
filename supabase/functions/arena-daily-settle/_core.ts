@@ -1085,6 +1085,7 @@ var EQUIPMENT_DUNGEON_TIERS = [
     quality: "mythic",
     level: 81,
     unlockLevel: 81,
+    comingSoon: true,
     color: "#ff4f72",
     glow: "#ffd1dc",
     setId: "set_dungeon_crimson",

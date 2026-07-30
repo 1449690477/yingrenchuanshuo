@@ -17,6 +17,7 @@ import {
   instanceStats,
   itemBaseValue,
   isRolledAffixValue,
+  isVerifiablePersistedAffixValue,
   pickProfessionAffixSpec,
   rollAffixForKey,
   rollAffixes,
@@ -669,6 +670,23 @@ describe('随机词条', () => {
     expect(isRolledAffixValue('hp', level, 3, range.max)).toBe(true);
     expect(isRolledAffixValue('hp', level, 3, range.min - 0.1)).toBe(false);
     expect(isRolledAffixValue('hp', level, 3, range.min + 0.01)).toBe(false);
+  });
+
+  it('联机硬校验精确兼容 v9 正式生成并迁移的历史值，仍拒绝超模伪造值', () => {
+    // eq_r1_weapon_rare 为 Lv6。v9 的 atk 上界是
+    // round(0.8 × 6^1.3, 1) = 8.2，反推为旧 T5 后按 1.64/1.54
+    // 正式迁移得到 8.7；它不在当前 T5 的 ±3% 新掉落区间内。
+    expect(isRolledAffixValue('atk', 6, 5, 8.7)).toBe(false);
+    expect(isVerifiablePersistedAffixValue('atk', 6, 5, 8.7)).toBe(true);
+
+    // v9 低端值同样按冻结区间证明，不靠笼统放宽。
+    expect(isRolledAffixValue('atk', 6, 1, 4.1)).toBe(false);
+    expect(isVerifiablePersistedAffixValue('atk', 6, 1, 4.1)).toBe(true);
+
+    expect(isVerifiablePersistedAffixValue('atk', 6, 5, 8_700)).toBe(false);
+    expect(isVerifiablePersistedAffixValue('atk', 6, 5, 8.75)).toBe(false);
+    // v9 没有职业词条；职业词条不能借历史兼容绕开当前公式。
+    expect(isVerifiablePersistedAffixValue('swd_heavy', 6, 5, 8.7)).toBe(false);
   });
 
   it('元素词条按真实来源等级解锁，直接生成只会绑定当级可用元素', () => {

@@ -96,6 +96,35 @@ if (trialFromGenerated.damage !== trialFromSource.damage) {
 }
 console.log(`✓ 试炼确定性自检通过：打包产物与 src/core 成绩一致（${trialFromSource.damage}）`);
 
+const legacyV9Instance = {
+  uid: 'edge-selfcheck-v9',
+  defId: 'eq_r1_weapon_rare',
+  enhance: 0,
+  baseRollPermille: 1000,
+  enhanceGainPermille: Array<number>(15).fill(0),
+  enhanceLuck: {},
+  affixes: [{ key: 'atk', value: 8.7, tier: 5 }],
+  reforgeResonance: 0,
+  locked: false,
+};
+const legacyIssueFromGenerated = trialGenerated.trialEquipmentSnapshotIssue(
+  legacyV9Instance,
+  'swordsman',
+  6,
+);
+const legacyIssueFromSource = trialSource.trialEquipmentSnapshotIssue(
+  legacyV9Instance,
+  'swordsman',
+  6,
+);
+if (legacyIssueFromGenerated !== null || legacyIssueFromSource !== null) {
+  console.error(
+    `✗ 历史词条自检失败：打包产物=${String(legacyIssueFromGenerated)}，源实现=${String(legacyIssueFromSource)}`,
+  );
+  process.exit(1);
+}
+console.log('✓ 历史词条自检通过：v9 正式生成并迁移的装备可进入服务端复算');
+
 // ── 确定性自检 2：竞技场对决（docs/52 §5.3 的地基）──
 const duelGenerated = await import(
   pathToFileURL(path.join(root, 'supabase/functions/arena-challenge/_core.ts')).href
@@ -118,14 +147,16 @@ const duelFromSource = duelSource.simulateDuel(
   new duelGenerated.Rng(seed),
 );
 
-const duelKey = (r: { winner: string; attackerDamage: number; defenderDamage: number; log: readonly unknown[] }) =>
-  `${r.winner}|${r.attackerDamage}|${r.defenderDamage}|${r.log.length}`;
+const duelKey = (r: {
+  winner: string;
+  attackerDamage: number;
+  defenderDamage: number;
+  log: readonly unknown[];
+}) => `${r.winner}|${r.attackerDamage}|${r.defenderDamage}|${r.log.length}`;
 if (duelKey(duelFromGenerated) !== duelKey(duelFromSource)) {
   console.error(
     `✗ 对决自检失败：打包产物 ${duelKey(duelFromGenerated)} ≠ 源实现 ${duelKey(duelFromSource)}`,
   );
   process.exit(1);
 }
-console.log(
-  `✓ 对决确定性自检通过：打包产物与 src/core 胜负一致（${duelKey(duelFromSource)}）`,
-);
+console.log(`✓ 对决确定性自检通过：打包产物与 src/core 胜负一致（${duelKey(duelFromSource)}）`);

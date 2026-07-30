@@ -8,6 +8,7 @@ import BottomTabs from '@/components/BottomTabs.vue';
 import OfflineModal from '@/components/OfflineModal.vue';
 import DefeatReport from '@/components/DefeatReport.vue';
 import SakuraField from '@/components/SakuraField.vue';
+import PwaUpdatePrompt from '@/components/PwaUpdatePrompt.vue';
 
 import CreateView from '@/views/CreateView.vue';
 import IdleView from '@/views/IdleView.vue';
@@ -106,6 +107,7 @@ onUnmounted(() => {
       <!-- 战败战报：全局单值弹层，与离线结算同级（docs/57 K3） -->
       <DefeatReport />
     </template>
+    <PwaUpdatePrompt />
   </div>
 </template>
 

@@ -38,6 +38,7 @@ import {
   ITEM_BASE,
   ITEM_POW,
   ITEM_SCALE,
+  LEGACY_V10_AFFIX_TIER_MULTIPLIERS,
   PROFESSION_AFFIX_POOLS,
   QUALITY_AFFIX_COUNT,
   QUALITY_MUL,
@@ -428,6 +429,200 @@ export function isRolledAffixValue(
     value >= range.min - Number.EPSILON &&
     value <= range.max + Number.EPSILON
   );
+}
+
+/**
+ * 判断一条已落袋词条是否能由正式版本的生成与迁移链证明。
+ *
+ * 当前新掉落使用“基准中点 × 品阶 × ±3%”；但 v9 使用 min~max 连续区间，
+ * v9→v10 按冻结系数反推品阶并保值，v10→v11 又把 T5 从 1.54 重标到 1.64。
+ * 因此服务端不能只认当前新掉落区间，否则会把真实老存档判成作弊。
+ *
+ * 这里接受的集合严格是：
+ *   1. 当前公式可以生成的值；或
+ *   2. v9 旧公式可以生成、且按正式迁移/同调步骤能得到的值。
+ *
+ * 不接受任意“历史有限数”，也不使用经验战力兜底；超出两套可证明集合的值
+ * 仍会被排行榜与竞技场硬拒绝。
+ */
+export function isVerifiablePersistedAffixValue(
+  key: AffixKey,
+  level: number,
+  tier: AffixTier,
+  value: number,
+): boolean {
+  if (isRolledAffixValue(key, level, tier, value)) return true;
+  if (!Number.isFinite(value)) return false;
+
+  // v9 只有通用 AFFIX_POOL；职业词条从 v10 才出现，不能借历史兼容扩大它们。
+  const spec = AFFIX_POOL.find((entry) => entry.key === key);
+  if (!spec) return false;
+
+  const precision = 10 ** spec.decimals;
+  const scaled = value * precision;
+  if (Math.abs(scaled - Math.round(scaled)) > 1e-8) return false;
+
+  for (let origin = 1; origin <= tier; origin++) {
+    const originTier = origin as AffixTier;
+    const legacyRange = legacyV9RangeForInferredTier(spec, level, originTier);
+    if (!legacyRange) continue;
+
+    const currentPath = migrateLegacyV9Range(legacyRange, spec, originTier, tier, 'current');
+    if (value >= currentPath.min - Number.EPSILON && value <= currentPath.max + Number.EPSILON) {
+      return true;
+    }
+
+    // 玩家可能在 v10 时已经同调，再进入 v11；T5 的两次四舍五入与
+    // “先迁移、后同调”可能差最后一个精度单位，必须把两条正式时序都验入。
+    const v10Path = migrateLegacyV9Range(legacyRange, spec, originTier, tier, 'v10');
+    if (value >= v10Path.min - Number.EPSILON && value <= v10Path.max + Number.EPSILON) {
+      return true;
+    }
+  }
+  return false;
+}
+
+interface LegacyAffixValueRange {
+  min: number;
+  max: number;
+}
+
+/**
+ * v9 连续区间中，会被 v9→v10 的“最近系数”规则反推为指定品阶的离散值段。
+ * 边界复用迁移时的严格小于比较：两档正中点归较低品阶。
+ */
+function legacyV9RangeForInferredTier(
+  spec: AffixPoolEntry,
+  level: number,
+  tier: AffixTier,
+): LegacyAffixValueRange | null {
+  if (!Number.isInteger(level) || level < 1) return null;
+  const levelScale = spec.scalesWithLevel ? Math.pow(level, 1.3) : 1;
+  const baseline = ((spec.min + spec.max) / 2) * levelScale;
+  if (!Number.isFinite(baseline) || baseline <= 0) return null;
+
+  const precision = 10 ** spec.decimals;
+  const oldMinUnit = Math.round(spec.min * levelScale * precision);
+  const oldMaxUnit = Math.round(spec.max * levelScale * precision);
+  const tiers = [1, 2, 3, 4, 5] as const satisfies readonly AffixTier[];
+  const tierIndex = tiers.indexOf(tier);
+  if (tierIndex < 0) return null;
+
+  const currentMultiplier = LEGACY_V10_AFFIX_TIER_MULTIPLIERS[tier];
+  const previousTier = tiers[tierIndex - 1];
+  const nextTier = tiers[tierIndex + 1];
+
+  let minUnit = oldMinUnit;
+  if (previousTier !== undefined) {
+    const boundary =
+      baseline * ((LEGACY_V10_AFFIX_TIER_MULTIPLIERS[previousTier] + currentMultiplier) / 2);
+    minUnit = Math.max(oldMinUnit, Math.floor(boundary * precision) - 1);
+  }
+  while (minUnit <= oldMaxUnit && inferLegacyV10AffixTier(minUnit / precision, baseline) !== tier) {
+    minUnit++;
+  }
+  while (
+    minUnit > oldMinUnit &&
+    inferLegacyV10AffixTier((minUnit - 1) / precision, baseline) === tier
+  ) {
+    minUnit--;
+  }
+
+  let maxUnit = oldMaxUnit;
+  if (nextTier !== undefined) {
+    const boundary =
+      baseline * ((currentMultiplier + LEGACY_V10_AFFIX_TIER_MULTIPLIERS[nextTier]) / 2);
+    maxUnit = Math.min(oldMaxUnit, Math.floor(boundary * precision) + 1);
+  }
+  while (maxUnit >= oldMinUnit && inferLegacyV10AffixTier(maxUnit / precision, baseline) !== tier) {
+    maxUnit--;
+  }
+  while (
+    maxUnit < oldMaxUnit &&
+    inferLegacyV10AffixTier((maxUnit + 1) / precision, baseline) === tier
+  ) {
+    maxUnit++;
+  }
+
+  if (minUnit > maxUnit) return null;
+  return { min: minUnit / precision, max: maxUnit / precision };
+}
+
+function inferLegacyV10AffixTier(value: number, baseline: number): AffixTier {
+  const ratio = value / baseline;
+  const tiers = [1, 2, 3, 4, 5] as const satisfies readonly AffixTier[];
+  let nearest: AffixTier = tiers[0];
+  let nearestDistance = Math.abs(ratio - LEGACY_V10_AFFIX_TIER_MULTIPLIERS[nearest]);
+  for (const tier of tiers.slice(1)) {
+    const distance = Math.abs(ratio - LEGACY_V10_AFFIX_TIER_MULTIPLIERS[tier]);
+    if (distance < nearestDistance) {
+      nearest = tier;
+      nearestDistance = distance;
+    }
+  }
+  return nearest;
+}
+
+function migrateLegacyV9Range(
+  range: LegacyAffixValueRange,
+  spec: AffixPoolEntry,
+  originTier: AffixTier,
+  targetTier: AffixTier,
+  timing: 'current' | 'v10',
+): LegacyAffixValueRange {
+  return {
+    min: migrateLegacyV9Value(range.min, spec, originTier, targetTier, timing),
+    max: migrateLegacyV9Value(range.max, spec, originTier, targetTier, timing),
+  };
+}
+
+function migrateLegacyV9Value(
+  initial: number,
+  spec: AffixPoolEntry,
+  originTier: AffixTier,
+  targetTier: AffixTier,
+  timing: 'current' | 'v10',
+): number {
+  const precision = 10 ** spec.decimals;
+  const round = (candidate: number) => Math.round(candidate * precision) / precision;
+  const tiers = [1, 2, 3, 4, 5] as const satisfies readonly AffixTier[];
+  let value = initial;
+
+  if (timing === 'v10') {
+    for (let index = tiers.indexOf(originTier); index < tiers.indexOf(targetTier); index++) {
+      const currentTier = tiers[index]!;
+      const nextTier = tiers[index + 1]!;
+      value = round(
+        value *
+          (LEGACY_V10_AFFIX_TIER_MULTIPLIERS[nextTier] /
+            LEGACY_V10_AFFIX_TIER_MULTIPLIERS[currentTier]),
+      );
+    }
+    if (targetTier === 5) {
+      const currentT5 = requireAffixTierMultiplier(5);
+      value = round(value * (currentT5 / LEGACY_V10_AFFIX_TIER_MULTIPLIERS[5]));
+    }
+    return value;
+  }
+
+  // 先迁移到 v11：只有原本已经是 T5 的值会立刻做 1.54→1.64 重标。
+  if (originTier === 5) {
+    value = round(value * (requireAffixTierMultiplier(5) / LEGACY_V10_AFFIX_TIER_MULTIPLIERS[5]));
+  }
+  for (let index = tiers.indexOf(originTier); index < tiers.indexOf(targetTier); index++) {
+    const currentTier = tiers[index]!;
+    const nextTier = tiers[index + 1]!;
+    value = round(
+      value * (requireAffixTierMultiplier(nextTier) / requireAffixTierMultiplier(currentTier)),
+    );
+  }
+  return value;
+}
+
+function requireAffixTierMultiplier(tier: AffixTier): number {
+  const config = AFFIX_TIERS.find((entry) => entry.tier === tier);
+  if (!config) throw new Error(`[配置错误] 未配置词条品阶 T${tier}`);
+  return config.multiplier;
 }
 
 /** 按指定类型生成一条随机词条；洗练可直接复用，避免复制品阶与数值公式。 */

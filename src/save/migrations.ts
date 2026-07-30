@@ -27,6 +27,7 @@ import {
   SLOT_ORDER,
   isAffixGenerationActive,
   isAffixSettlementActive,
+  LEGACY_V10_AFFIX_TIER_MULTIPLIERS,
   PROFESSION_AFFIX_POOLS,
 } from '@/data/constants';
 import { affixValueRange, professionForAffix } from '@/core/equipment';
@@ -709,7 +710,7 @@ function isV10RolledAffixValue(
     (baselineRule?.oldBaseline ?? (spec.min + spec.max) / 2) *
     (spec.scalesWithLevel ? Math.pow(equipmentLevel, 1.3) : 1);
   const precision = 10 ** spec.decimals;
-  const multiplier = V10_AFFIX_TIER_MULTIPLIERS[tier];
+  const multiplier = LEGACY_V10_AFFIX_TIER_MULTIPLIERS[tier];
   const min =
     Math.round(baseline * multiplier * (1 - AFFIX_VALUE_VARIANCE) * precision) / precision;
   const max =
@@ -796,10 +797,7 @@ function migrateV10EquipmentInstance(
   return normalizeV11AffixSlots(migrated, definition.level, definition.quality, classId, path);
 }
 
-function rebaseV10Affix(
-  value: unknown,
-  path: string,
-): Record<string, unknown> {
+function rebaseV10Affix(value: unknown, path: string): Record<string, unknown> {
   const affix = asObject(value, 10, path);
   const key = affix.key;
   const baselineRule =
@@ -850,14 +848,6 @@ function projectV10RandomCandidateToV11(
   };
 }
 
-const V10_AFFIX_TIER_MULTIPLIERS: Readonly<Record<AffixTier, number>> = {
-  1: 0.62,
-  2: 0.76,
-  3: 0.88,
-  4: 1.1,
-  5: 1.54,
-};
-
 function assertValidV10ResonatePending(
   originalAffixes: unknown[],
   pending: Record<string, unknown>,
@@ -893,8 +883,8 @@ function assertValidV10ResonatePending(
     throw new MigrationError(10, `${path}.pendingAffixChange 不是合法的 v10 同调候选`);
   }
 
-  const currentMultiplier = V10_AFFIX_TIER_MULTIPLIERS[target.tier as AffixTier];
-  const nextMultiplier = V10_AFFIX_TIER_MULTIPLIERS[candidate.tier as AffixTier];
+  const currentMultiplier = LEGACY_V10_AFFIX_TIER_MULTIPLIERS[target.tier as AffixTier];
+  const nextMultiplier = LEGACY_V10_AFFIX_TIER_MULTIPLIERS[candidate.tier as AffixTier];
   const expected = roundV11AffixValue(
     target.value * (nextMultiplier / currentMultiplier),
     target.key,
@@ -1482,7 +1472,7 @@ function inferLegacyAffixTier(
   const ratio = value / baseline;
   const v10Tiers = ([1, 2, 3, 4, 5] as const).map((tier) => ({
     tier,
-    multiplier: V10_AFFIX_TIER_MULTIPLIERS[tier],
+    multiplier: LEGACY_V10_AFFIX_TIER_MULTIPLIERS[tier],
   }));
   const firstTier = v10Tiers[0]!;
 

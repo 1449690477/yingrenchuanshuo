@@ -317,12 +317,29 @@ describe('榜单展示辅助', () => {
         index === 0 ? { ...affix, value: affix.value * 1000 + 1 } : affix,
       ),
     };
-    expect(trialEquipmentSnapshotIssue(forged, 'swordsman', definition.level)).toBe(
-      'affix-value',
-    );
+    expect(trialEquipmentSnapshotIssue(forged, 'swordsman', definition.level)).toBe('affix-value');
     expect(trialEquipmentSnapshotIssue(instance, 'swordsman', definition.level - 1)).toBe(
       'equipment-level',
     );
+  });
+
+  it('v9 正式生成并迁移的老装备可参与试炼与竞技场', () => {
+    const definition = EQUIPMENT.eq_r1_weapon_rare;
+    if (!definition) throw new Error('缺少区域 1 稀有武器');
+    const instance = createInstance(definition, new Rng(9), 'trial-v9-legacy', 'swordsman');
+    const migratedLegacy = {
+      ...instance,
+      affixes: [{ key: 'atk' as const, value: 8.7, tier: 5 as const }],
+    };
+
+    expect(trialEquipmentSnapshotIssue(migratedLegacy, 'swordsman', definition.level)).toBeNull();
+    expect(
+      trialEquipmentSnapshotIssue(
+        { ...migratedLegacy, affixes: [{ key: 'atk', value: 8_700, tier: 5 }] },
+        'swordsman',
+        definition.level,
+      ),
+    ).toBe('affix-value');
   });
 });
 

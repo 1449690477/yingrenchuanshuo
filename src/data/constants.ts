@@ -298,6 +298,22 @@ export const AFFIX_TIERS: readonly AffixTierConfig[] = [
   { tier: 5, name: '极品', weight: 4, multiplier: 1.64 },
 ];
 
+/**
+ * 发布版 v10 的冻结品阶系数。
+ *
+ * v9 装备使用旧连续区间生成词条，v9→v10 会按这组系数反推品阶，
+ * v10→v11 再把 T5 从 1.54 重标到当前 1.64。它既是存档迁移契约，
+ * 也是联机硬校验证明“历史值确实能由正式版本产生”的依据；不得随当前
+ * 平衡参数一起改动。
+ */
+export const LEGACY_V10_AFFIX_TIER_MULTIPLIERS: Readonly<Record<AffixTier, number>> = {
+  1: 0.62,
+  2: 0.76,
+  3: 0.88,
+  4: 1.1,
+  5: 1.54,
+};
+
 /** 品阶确定后仅保留 ±3% 微浮动，让品阶而不是小数点承担辨识度。 */
 export const AFFIX_VALUE_VARIANCE = 0.03;
 

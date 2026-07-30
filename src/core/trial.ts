@@ -32,7 +32,7 @@ import {
 } from './progression';
 import {
   addCombatBonuses,
-  isRolledAffixValue,
+  isVerifiablePersistedAffixValue,
   totalEquipCombatBonuses,
   totalEquipStats,
   weaponElementOf,
@@ -254,10 +254,7 @@ export interface TrialBuild {
 }
 
 export type TrialEquipmentSnapshotIssue =
-  | 'unknown-equipment'
-  | 'equipment-level'
-  | 'equipment-class'
-  | 'affix-value';
+  'unknown-equipment' | 'equipment-level' | 'equipment-class' | 'affix-value';
 
 /**
  * 服务端对单件试炼装备做可证明的合法性检查。
@@ -278,7 +275,7 @@ export function trialEquipmentSnapshotIssue(
   if (definition.classId && definition.classId !== classId) return 'equipment-class';
 
   for (const affix of instance.affixes) {
-    if (!isRolledAffixValue(affix.key, definition.level, affix.tier, affix.value)) {
+    if (!isVerifiablePersistedAffixValue(affix.key, definition.level, affix.tier, affix.value)) {
       return 'affix-value';
     }
   }

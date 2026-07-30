@@ -16,7 +16,10 @@ export default defineConfig({
   plugins: [
     vue(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // 让新 Service Worker 先等待，由应用内提示明确触发切换与整页刷新。
+      // autoUpdate 会让新 SW 立即清掉旧缓存，但旧页面仍可能继续运行已经删除的
+      // 入口 JS，随后在动态加载联机模块时形成「旧壳 + 新缓存」的半更新状态。
+      registerType: 'prompt',
       includeAssets: ['favicon-32.png', 'icons/apple-touch-icon.png'],
       manifest: {
         name: '樱刃传说',
