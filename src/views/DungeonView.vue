@@ -21,7 +21,7 @@ import {
   type EquipmentDungeonClearRecord,
 } from '@/core/equipmentDungeon';
 import { abbr } from '@/core/format';
-import { CLASS_INFO, QUALITY_LABELS, SLOT_LABELS } from '@/data/constants';
+import { CLASS_INFO, EQUIPMENT_BASE_ROLL_TIERS, QUALITY_LABELS, SLOT_LABELS } from '@/data/constants';
 import { requireEquipment } from '@/data/equipment';
 import { equipmentDisplayPresentation } from '@/data/equipmentPresentation';
 import {
@@ -293,6 +293,26 @@ watch(clearedDepth, (cleared, previous) => {
   }
 });
 
+/**
+ * 留痕（docs/66 §4.3）：当前持有的奇迹胚子数，从背包与身上推导 ——
+ * 持有口径（分解不追责），阈值从掉率表推导，绝不手写数字。
+ * 0 时面板整行不渲染（「0」是一种嘲讽，不给）。
+ */
+const MIRACLE_ROLL_MIN = EQUIPMENT_BASE_ROLL_TIERS.find(
+  (tier) => tier.id === 'miracle',
+)!.min;
+const miracleBlankCount = computed(() => {
+  const save = game.save;
+  if (!save) return 0;
+  const inBag = save.bag.equipment.filter(
+    (instance) => instance.baseRollPermille >= MIRACLE_ROLL_MIN,
+  ).length;
+  const equippedCount = Object.values(save.equipped).filter(
+    (instance) => instance !== null && instance.baseRollPermille >= MIRACLE_ROLL_MIN,
+  ).length;
+  return inBag + equippedCount;
+});
+
 function selectSlot(slot: EquipSlot): void {
   selectedSlot.value = slot;
   notice.value = '';
@@ -518,6 +538,7 @@ onUnmounted(() => {
             :cleared-depth="clearedDepth"
             :selected-depth="selectedDepth"
             :reduce-motion="effectiveReduceMotion"
+            :miracle-count="miracleBlankCount"
             @select="selectedDepth = $event"
           />
         </section>

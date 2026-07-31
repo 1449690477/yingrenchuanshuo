@@ -11,8 +11,12 @@
  *   daily-limit    今日奖励已领完 —— 3 次/天限的是奖励不是尝试（§4.4 承重）
  *
  * 红线（docs/66 §4.3 / G-9）：本组件只做正向峰，**绝不做负向提示**
- * （红线原话与反例见 docs/66 §4.3 与 docs/40 损失厌恶条款）；奇迹显影（掉落卡演出）属后续批次，
- * 等掉落形状冻结后接，不在本组件范围内。
+ * （红线原话与反例见 docs/66 §4.3 与 docs/40 损失厌恶条款）。
+ *
+ * 留痕（docs/66 §4.3 第二半句）：miracleCount > 0 时页脚上方显示
+ * 「当前持有奇迹胚子 ×N」—— 持有口径（看的是此刻背包与身上，分解不
+ * 追责，与套装图鉴 fba1fa0 同一条措辞纪律）；N=0 整行不渲染，
+ * 「0」本身是一种嘲讽，不给。
  */
 import { computed } from 'vue';
 import { Check, Hourglass, LockKeyhole, Sparkles, Swords } from '@lucide/vue';
@@ -41,6 +45,8 @@ const props = defineProps<{
   clearedDepth: number;
   selectedDepth: number;
   reduceMotion: boolean;
+  /** 留痕：当前持有的奇迹胚子数（背包+身上推导）；0 时留痕行整行不渲染 */
+  miracleCount?: number;
 }>();
 
 const emit = defineEmits<{
@@ -167,6 +173,12 @@ function pick(node: DepthNode): void {
         </button>
       </li>
     </ol>
+
+    <p v-if="(miracleCount ?? 0) > 0" class="depth-miracle">
+      <Sparkles :size="9" aria-hidden="true" />
+      当前持有奇迹胚子 ×{{ miracleCount }}
+      <small>看的是背包与身上的持有数</small>
+    </p>
 
     <footer class="depth-foot">
       失败不扣次数、不推保底 —— 冲深度是免费的；每日 3 次限的是奖励，不是尝试。
@@ -440,6 +452,24 @@ function pick(node: DepthNode): void {
   line-height: 1.5;
   color: var(--text-dim);
   text-align: center;
+}
+
+/* 留痕行：持有口径的奇迹胚子计数（N>0 才渲染），与页脚同一低调层级 */
+.depth-miracle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin-top: 7px;
+  font-size: 8.5px;
+  font-weight: 700;
+  color: #b16513;
+}
+
+.depth-miracle small {
+  font-size: 7px;
+  font-weight: 500;
+  color: var(--text-dim);
 }
 
 /* 减弱动效：停掉所有动画，粒子在模板层就不渲染 */
