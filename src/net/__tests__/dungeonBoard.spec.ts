@@ -106,6 +106,27 @@ describe('submitDungeonRecord', () => {
     await expect(submitDungeonRecord(client, submission)).rejects.toThrow('尚未开放');
   });
 
+  it('被拒时把 clearedDepth 一起抛出来 —— UI 才能说「先补交第 N 层」', async () => {
+    // docs/64 §四 承诺了这条提示；只抛文案的话层号就丢了。
+    // 正常路径走不到（存档不变量保证阶梯不缺层），但「交到一半断网」会。
+    const { client } = invokeStub(() => ({
+      data: { error: '还没有上一层的记录，请先按顺序上报较浅的层', clearedDepth: 2 },
+      error: null,
+    }));
+
+    await expect(submitDungeonRecord(client, submission)).rejects.toMatchObject({
+      name: 'DungeonSubmitError',
+      clearedDepth: 2,
+    });
+  });
+
+  it('服务端没给 clearedDepth 时不瞎猜，留 undefined', async () => {
+    const { client } = invokeStub(() => ({ data: { error: '这座秘境尚未开放，或者不存在' }, error: null }));
+    await expect(submitDungeonRecord(client, submission)).rejects.toMatchObject({
+      clearedDepth: undefined,
+    });
+  });
+
   it('网络失败翻译成人话', async () => {
     const { client } = invokeStub(() => ({ data: null, error: new Error('Failed to fetch') }));
 

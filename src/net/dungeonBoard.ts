@@ -11,6 +11,23 @@ import type { ClassId } from '@/core/types';
 import { friendlyMessage, NetRequestError } from './supabase';
 import { fetchPublicProfileIdentities } from './leaderboard';
 
+/**
+ * 上报被服务端拒绝时抛出，附带「你这一档已经到第几层」。
+ *
+ * 与 net/guild.ts 给 NetRequestError 挂 missingFunction 标记同一条路子：
+ * 异常除了给玩家看的话，还要带上 UI 能据以行动的那个数。
+ */
+export class DungeonSubmitError extends NetRequestError {
+  /** 服务端记录的该档已达最高层；undefined 表示服务端没给（老版本函数） */
+  readonly clearedDepth: number | undefined;
+
+  constructor(message: string, clearedDepth?: number) {
+    super(message);
+    this.name = 'DungeonSubmitError';
+    this.clearedDepth = clearedDepth;
+  }
+}
+
 export interface DungeonSubmission {
   dungeonId: string;
   bestDurationMs: number;
@@ -71,8 +88,15 @@ export async function submitDungeonRecord(
   });
   if (error) throw new NetRequestError(friendlyMessage(error.message, '秘境成绩上报失败'));
 
-  const body = data as Partial<DungeonSubmitResult> & { error?: string };
-  if (body?.error) throw new NetRequestError(body.error);
+  const body = data as Partial<DungeonSubmitResult> & { error?: string; clearedDepth?: number };
+  if (body?.error) {
+    // 带上服务端告诉我们的「你这一档已经到第几层」。
+    // docs/64 §四 承诺 UI 能提示「先补交第 N 层」，而只抛文案的话那个 N
+    // 就丢了 —— 契约写了、代码给不出，是 @claude-boards 收口时查出来的。
+    // 正常路径不会走到这里（存档不变量保证阶梯不缺层），
+    // 但「阶梯交到一半断网」是真实会发生的事，那时玩家需要知道从哪补。
+    throw new DungeonSubmitError(body.error, body.clearedDepth);
+  }
   return {
     bestDurationMs: Number(body?.bestDurationMs ?? submission.bestDurationMs),
     firstClearedAt: Number(body?.firstClearedAt ?? submission.firstClearedAt),
