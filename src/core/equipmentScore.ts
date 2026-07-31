@@ -8,8 +8,11 @@ import type { ClassId, EquipmentDef, EquipmentInstance, Stats } from './types';
  * 装备评分公式版本。
  *
  * 评分只会进入可重建的派生索引；以后调整公式时提升这里，不能借此提升 SAVE_VERSION。
+ *
+ * v2（docs/73 批 3）：combatPower 从固定线性加权改为乘法投影（真实 DPS/EHP 几何平均），
+ * 评分随之变成「真实边际战力」——同一件装备对低基础职业的相对提升更大，属预期语义。
  */
-export const EQUIPMENT_SCORE_VERSION = 1;
+export const EQUIPMENT_SCORE_VERSION = 2;
 
 /** 已发生的强化投入与 +0 装备底子的两套稳定评分。 */
 export interface EquipmentScores {
@@ -32,8 +35,8 @@ function scoreStats(def: EquipmentDef, classId: ClassId, itemStats: Stats): numb
 
   return Math.max(
     0,
-    combatPower(applyClassMods(classId, combined)) -
-      combatPower(applyClassMods(classId, reference)),
+    combatPower(applyClassMods(classId, combined), def.level) -
+      combatPower(applyClassMods(classId, reference), def.level),
   );
 }
 

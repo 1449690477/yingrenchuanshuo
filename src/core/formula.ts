@@ -7,6 +7,7 @@
 
 import type { Combatant, CombatBonuses, DamageResult, Element, Stats } from './types';
 import type { Rng } from './rng';
+import { makeMonster } from './progression';
 import {
   CRIT_BASE,
   DAMAGE_VARIANCE_MAX,
@@ -21,7 +22,6 @@ import {
   HIT_MIN,
   K_DEF,
   MIN_DAMAGE_RATIO,
-  CP_WEIGHTS,
 } from '@/data/constants';
 
 export function clamp(v: number, min: number, max: number): number {
@@ -207,21 +207,68 @@ export function calcPeriodicDamage(
 /**
  * 战力。这只是给玩家看的单一数字指标，用来判断能不能打过某关。
  * 它不参与任何战斗计算。
+ *
+ * docs/73 批 3（P0-4）重定价：旧版是固定线性权重求和
+ * （atk×2 + def×3 + hp×0.15 + acc×1 + eva×1.2 + critRate×250/100 + critDmg×80/100，
+ * 再整体乘攻速），而暴击/暴伤的真实价值 ∝ 攻击 × (0.5 + 暴伤/100)，
+ * 随等级与装备一起膨胀 —— 固定价让面板对暴击的定价错约 40 倍
+ * （docs/73 A2，N2 门禁实测跨度最大 3310×）。
+ * 批 3 按「乘法形」重定价：crit/spd 权重从玩家自身属性派生（小督小项），
+ * 战力 = 玩家打同级参考怪的单次期望输出（含攻速）× 扛同级参考怪的攻击次数
+ * 期望（EHP）的几何平均。由此每个属性的面板相对导数恒等于真实 DPS/EHP
+ * 相对导数（N2 门禁目标 ≤ 1.20×，实测 ≤ 1.02×），且对非典型构建同样成立
+ * —— 构建耦合而不是等级耦合。
+ *
+ * level 用于推导同级参考怪（命中/减伤参照）。同级怪属性是确定函数
+ * （progression.makeMonster），无运行时随机与外部依赖；服务端复算与
+ * 客户端走同一份 core，天然一致。
  */
-export function combatPower(stats: Stats): number {
-  const base =
-    stats.atk * CP_WEIGHTS.atk +
-    stats.def * CP_WEIGHTS.def +
-    stats.hp * CP_WEIGHTS.hp +
-    stats.acc * CP_WEIGHTS.acc +
-    stats.eva * CP_WEIGHTS.eva +
-    (stats.critRate / 100) * CP_WEIGHTS.critRate +
-    (stats.critDmg / 100) * CP_WEIGHTS.critDmg;
+export function combatPowerValue(stats: Stats, level: number): number {
+  if (!Number.isInteger(level) || level < 1) {
+    throw new Error(`combatPower: 等级必须 >= 1 的整数，收到 ${level}`);
+  }
+  const m = makeMonster({
+    id: 'ref',
+    name: 'ref',
+    level,
+    type: 'normal',
+    element: 'none',
+    lootTableId: 'ref',
+    sprite: '',
+  }).stats;
 
-  // 攻速是 DPS 的乘数，不是加数 —— 见 ADR-009。
-  // 旧版用 (spd - 1) × 1500 作为加项，导致攻速 0.9 的魔女
-  // 在 Lv1 被扣掉 150 战力（总战力才 200 出头），直接打不了第一关。
-  return Math.round(base * stats.spd);
+  const critAvgP = 1 + clamp(stats.critRate / 100, 0, 1) * (critMultiplier(stats.critDmg) - 1);
+  const critAvgM = 1 + clamp(m.critRate / 100, 0, 1) * (critMultiplier(m.critDmg) - 1);
+  const avgVariance = (DAMAGE_VARIANCE_MIN + DAMAGE_VARIANCE_MAX) / 2;
+
+  // 输出侧：打同级参考怪的单次期望伤害 × 攻速（与 expectedDamage 同构）。
+  const dps =
+    stats.spd *
+    hitChance(stats.acc, m.eva) *
+    avgVariance *
+    stats.atk *
+    (1 - damageReduction(m.def, level)) *
+    critAvgP;
+
+  // 生存侧：扛同级参考怪的攻击次数期望（EHP = hp ÷ 怪物单次期望伤害）。
+  const perHit =
+    hitChance(m.acc, stats.eva) *
+    avgVariance *
+    m.atk *
+    (1 - damageReduction(stats.def, level)) *
+    critAvgM;
+  // 没有生命就没有战力：hp<=0 时 EHP 无意义，直接归 0（避免 sqrt(dps*Infinity) 的 NaN 路径）。
+  // 真实玩家经 baseStatsFor 必有 hp>0；这只覆盖探针与构造数据。
+  if (stats.hp <= 0) return 0;
+  const ehp = perHit > 0 ? stats.hp / perHit : Number.POSITIVE_INFINITY;
+
+  const value = Math.sqrt(dps * ehp);
+  return Number.isFinite(value) ? value : 0;
+}
+
+/** 取整后的战力展示值。排序与门禁请用 combatPowerValue（取整会抹掉小步长导数）。 */
+export function combatPower(stats: Stats, level: number): number {
+  return Math.round(combatPowerValue(stats, level));
 }
 
 /** 空属性，用于累加 */

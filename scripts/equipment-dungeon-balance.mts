@@ -141,7 +141,7 @@ function playerFor(
   );
   return {
     combatant: makePlayer(classId, atLevel, stats),
-    cp: combatPower(stats),
+    cp: combatPower(stats, atLevel),
     skillMultiplier: averageSkillMultiplier(atLevel) + setResolution.skillMultiplierBonus,
   };
 }

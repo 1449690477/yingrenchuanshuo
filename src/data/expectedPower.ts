@@ -93,7 +93,7 @@ export function expectedGearStatsFromDefinitions(level: number): Stats {
  * 正好留作副本门槛之下的那段余量（见 docs/47 规则二）。
  */
 export function expectedFullGearCp(level: number, classId: ClassId = 'swordsman'): number {
-  return combatPower(addStats(baseStatsFor(classId, level), expectedGearStatsFromDefinitions(level)));
+  return combatPower(addStats(baseStatsFor(classId, level), expectedGearStatsFromDefinitions(level)), level);
 }
 
 /**
@@ -136,6 +136,6 @@ export function expectedBuildCp(level: number, classId: ClassId = 'swordsman'): 
     critDmg: gear.critDmg,
     spd: gear.spd,
   };
-  const cp = combatPower(addStats(baseStatsFor(classId, level), enhanced));
+  const cp = combatPower(addStats(baseStatsFor(classId, level), enhanced), level);
   return cp * TYPICAL_AFFIX_CP_MUL;
 }

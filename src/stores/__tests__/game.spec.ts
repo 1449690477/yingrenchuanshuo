@@ -1134,7 +1134,9 @@ function enhancedInstance(
 ): EquipmentInstance {
   return {
     uid: 'e1',
-    defId: 'eq_r1_weapon_common',
+    // docs/73 批 3 乘法投影：Lv20 强化 Lv2 白装只涨 0.23 真实战力（取整后 +0），
+    // 用例改用同等级区域掉落（r2 epic Lv20），强化 +5 真实增量 ≈7.5 才看得见。
+    defId: 'eq_r2_weapon_epic',
     enhance,
     baseRollPermille: 1000,
     enhanceGainPermille: Array.from({ length: ENHANCE_MAX }, (_, index) =>
@@ -1201,7 +1203,7 @@ describe('enhancement transaction', () => {
 
   it('一键全身按固定槽位逐轮均衡强化，不让第一件先吃光材料', async () => {
     const weapon = enhancedInstance(0, { uid: 'weapon' });
-    const head = enhancedInstance(0, { uid: 'head', defId: 'eq_r1_head_common' });
+    const head = enhancedInstance(0, { uid: 'head', defId: 'eq_r2_head_epic' });
     const save = forgeSave(weapon, 92);
     save.bag.equipment = [];
     save.equipped.weapon = weapon;

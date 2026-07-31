@@ -48,11 +48,13 @@ describe('公开档案补读', () => {
 
 describe('服务端档案同步', () => {
   it('上传试炼成绩不会覆盖已有玩家昵称', () => {
-    expect(submitTrialSource).toContain('const profileProgress = {');
+    // 5d6a358 反作弊改造后 profileProgress 变为 verified ? {...} : null 三元，
+    // 更新同步断言以匹配新源码形态（display_name 仍只出现在首次建档的 upsert 里）。
+    expect(submitTrialSource).toContain('const profileProgress = verified');
     expect(submitTrialSource).toContain("{ onConflict: 'id', ignoreDuplicates: true }");
     expect(submitTrialSource).toContain('.update(profileProgress)');
     const progressBlock = submitTrialSource.match(
-      /const profileProgress = \{([\s\S]*?)\n[ \t]{4}\};/,
+      /const profileProgress = verified\n[ \t]*\? \{([\s\S]*?)\n[ \t]*\}\s*: null;/,
     );
     expect(progressBlock?.[1]).not.toContain('display_name');
   });

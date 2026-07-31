@@ -55,20 +55,12 @@ export const IDLE_FREE_DAMAGE_RATIO = 0.25;
 export const IDLE_SUSTAIN_HINT_EFFICIENCY = 0.3;
 
 /**
- * 战力权重。
- *
- * 注意这里**没有 spd** —— 攻速在 combatPower 里作为整体乘数处理，
- * 不是加权项。原因见 ADR-009。
+ * 战力公式（docs/73 批 3 P0-4）：已从「固定线性权重求和」重定价为
+ * 「真实 DPS × 真实 EHP 的几何平均投影」（combatPowerValue，见 core/formula.ts）。
+ * 旧 CP_WEIGHTS（atk2/def3/hp0.15/acc1/eva1.2/critRate250/critDmg80）因固定价
+ * 对暴击错价约 40 倍而废弃删除 —— 历史见 ADR-009（攻速仍作为整体乘数）与
+ * docs/73 §二 A2/A5。
  */
-export const CP_WEIGHTS: Omit<Record<keyof Stats, number>, 'spd'> = {
-  atk: 2.0,
-  def: 3.0,
-  hp: 0.15,
-  acc: 1.0,
-  eva: 1.2,
-  critRate: 250,
-  critDmg: 80,
-};
 
 // ─────────────────────── 成长曲线 ───────────────────────
 

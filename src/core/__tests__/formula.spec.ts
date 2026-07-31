@@ -7,6 +7,7 @@ import {
   clamp,
   combatBonusDamageMultiplier,
   combatPower,
+  combatPowerValue,
   critMultiplier,
   damageReduction,
   effectiveElementMultiplier,
@@ -395,22 +396,43 @@ describe('expectedDamage', () => {
 });
 
 describe('combatPower', () => {
-  it('全零属性战力为 0 附近（spd 以 1.0 为基准）', () => {
-    expect(combatPower({ ...zeroStats(), spd: 1.0 })).toBe(0);
+  it('全零属性战力为 0', () => {
+    expect(combatPower({ ...zeroStats(), spd: 1.0 }, 50)).toBe(0);
   });
 
-  it('属性提升则战力提升', () => {
+  it('属性提升则战力提升（未取整口径，取整会抹掉小步长）', () => {
     const base = stats();
-    expect(combatPower({ ...base, atk: base.atk + 100 })).toBeGreaterThan(combatPower(base));
-    expect(combatPower({ ...base, def: base.def + 100 })).toBeGreaterThan(combatPower(base));
-    expect(combatPower({ ...base, hp: base.hp + 1000 })).toBeGreaterThan(combatPower(base));
+    const level = 50;
+    expect(combatPowerValue({ ...base, atk: base.atk + 100 }, level)).toBeGreaterThan(
+      combatPowerValue(base, level),
+    );
+    expect(combatPowerValue({ ...base, def: base.def + 100 }, level)).toBeGreaterThan(
+      combatPowerValue(base, level),
+    );
+    expect(combatPowerValue({ ...base, hp: base.hp + 1000 }, level)).toBeGreaterThan(
+      combatPowerValue(base, level),
+    );
   });
 
-  it('防御的战力权重高于攻击（每点）', () => {
-    const base = stats();
-    const withAtk = combatPower({ ...base, atk: base.atk + 100 });
-    const withDef = combatPower({ ...base, def: base.def + 100 });
-    expect(withDef).toBeGreaterThan(withAtk);
+  it('暴击的边际战力随攻击放大（乘法形定价，docs/73 批 3）', () => {
+    const level = 50;
+    const build = (atk: number, critRate: number) =>
+      combatPowerValue({ ...zeroStats(), spd: 1, hp: 1000, atk, critRate }, level);
+    const low = build(100, 10);
+    const lowBase = build(100, 0);
+    const high = build(10_000, 10);
+    const highBase = build(10_000, 0);
+    expect(high - highBase).toBeGreaterThan(low - lowBase);
+  });
+
+  it('无生命值则战力为 0（EHP 无意义，不产生 NaN/Infinity 路径）', () => {
+    expect(combatPowerValue({ ...stats(), hp: 0 }, 50)).toBe(0);
+    expect(combatPower({ ...stats(), hp: 0 }, 50)).toBe(0);
+  });
+
+  it('非法等级抛错', () => {
+    expect(() => combatPower(zeroStats(), 0)).toThrow();
+    expect(() => combatPower(zeroStats(), 1.5)).toThrow();
   });
 });
 

@@ -55,7 +55,7 @@ function stageLevel(spec: ChapterSpec, idx: number): number {
 const RECOMMEND_BUILD_RATIO = 0.85;
 
 function estimateRecommendCP(level: number): number {
-  const bare = combatPower(baseStatsFor('swordsman', level));
+  const bare = combatPower(baseStatsFor('swordsman', level), level);
 
   // Lv1~5 特判维持「低于裸属性」：新号一件装备都没有，
   // 若按满配口径出推荐值，第一关就会显示「战力不足」（真出过这个 bug）。
