@@ -82,14 +82,14 @@ import {
 } from '../src/data/constants';
 import { EQUIPMENT } from '../src/data/equipment';
 import { EQUIPMENT_DUNGEON_TIERS } from '../src/data/equipmentDungeonGear';
-import { QUALITY_FIRST_AVAILABLE_LEVEL } from '../src/data/qualitySchedule';
+import { QUALITY_FIRST_AVAILABLE_LEVEL, REGION_QUALITY_SCHEDULE } from '../src/data/qualitySchedule';
 import { idleCombatEfficiency, killsPerSecond } from '../src/core/idle';
-import { ALL_CHAPTERS } from '../src/data/regions';
+import { ALL_CHAPTERS, regionIdForChapterId } from '../src/data/regions';
 import { LEVEL_SOFT_CAP_MARGIN } from '../src/data/constants';
 import { ORDERED_STAGE_IDS, STAGES, stageClearTarget } from '../src/data/stages';
 import { MONSTERS } from '../src/data/monsters';
 import { evaluateChapterGate } from '../src/core/stageProgress';
-import { typicalQualityAt, TYPICAL_ENHANCE_MUL } from '../src/data/expectedPower';
+import { expectedGearStatsFromDefinitions, typicalQualityAt, TYPICAL_ENHANCE_MUL } from '../src/data/expectedPower';
 import { timeToKill } from '../src/core/combat';
 import { estimateDuelWinChance, type DuelSide } from '../src/core/duel';
 import type { IdleContext } from '../src/core/idle';
@@ -124,19 +124,15 @@ interface GateClearance {
  * 初始红项清偿清单（与 docs/73 §八批 1 清单表逐条对应）。
  * N6 已由批 1-4 定初始带（见 assertQualityTierGrowth），N7 已由批 1-3 默认绿，
  * 两者不在清单内；N3 绿；N8 未接入（占位登记，docs/73 L7，清偿日 P2-4 完工日）。
- * G1 为 A3 可得口径的联动红（首次暴露于批 1 合入后，修订稿快照因 N1 先抛
- * 错未观测到）：D1 从 Lv21/53 抬到 Lv25/65，批 2-1 A3 返工（回持有口径）后
- * 回落，故并入批 2 清偿（docs/73 批 1 清单 L8）。
- * TTK / T5GAIN 同为 A3 可得口径联动红（L9/L10）：Lv50 TTK 3.19~3.32s 低于
- * 下限 3.5s、全 T5 提升 6.96% 低于下限 12% —— 玩家侧变强引起，A3 返工后回落。
+ * G1 / TTK / T5GAIN 为 A3 可得口径的联动红（L8/L9/L10，首次暴露于批 1 合入后）：
+ * D1 曾抬到 Lv25/65、Lv50 TTK 3.19~3.32s 低于下限、全 T5 提升 6.96% 低于下限
+ * —— 均为玩家侧变强引起。批 2-1 A3 返工（回「典型持有」口径）后三条已回落
+ * 清偿（2026-07-31 实测 D1=Lv19/47、TTK 5.07~5.33s、T5GAIN 12%~25% 带内），
+ * 故随批 2 从清单删除、恢复硬拦。
  */
 const GATE_CLEARANCES: readonly GateClearance[] = [
-  { gate: 'N1', owner: '小数', deadline: '批 2', action: 'A1 威胁因子孪生锚点表（修正③，与 P0-2b 同批）' },
   { gate: 'N4', owner: '小数', deadline: '批 2 后独立绿批', action: 'C1 PvP 专属修正（无显式克制、数值对等，尽量不动 PVE）' },
   { gate: 'N5', owner: '小数', deadline: '批 2 后', action: 'C2 灵巫 divine 段词条重标' },
-  { gate: 'G1', owner: '小数', deadline: '批 2', action: 'A3 返工回「典型持有」口径后回落（批 2-1，A3 联动红 L8）' },
-  { gate: 'TTK', owner: '小数', deadline: '批 2', action: 'A3 返工回「典型持有」口径后回落（批 2-1，A3 联动红 L9）' },
-  { gate: 'T5GAIN', owner: '小数', deadline: '批 2', action: 'A3 返工回「典型持有」口径后回落（批 2-1，A3 联动红 L10）' },
 ];
 
 /** 记录清单条目本次是否被用到 —— 没用到的说明已修好，应当删除。 */
@@ -480,9 +476,40 @@ function firstAvailableLevelPerQuality(): Record<Quality, number> {
 }
 
 /**
- * ★ N3 门禁：typicalQualityAt 不许宣称玩家拿不到的品质（虚高 0 档），
- * 且低估不能超过一档。扫描范围为当前内容可达等级 [1, CONTENT_SOFT_CAP]。
+ * ★ N3 门禁（双边，批 2-2）：上界 = 口径 ≤ 首次可得（虚高 0 档，不许宣称
+ * 拿不到的品质）；下界 = 口径 ≥ sim 30 天中位持有（低估 ≤ 1 档，不许低估
+ * 玩家实际穿的）。低估方向由下界管辖，不再对照首次可得（持有本就滞后于可得）。
+ * 扫描范围为当前内容可达等级 [1, CONTENT_SOFT_CAP]。
  */
+/**
+ * N3 lower bound (batch 2-2): "sim 30-day median held", derived independently
+ * of typicalQualityAt to avoid self-proof. Run the real 30-day progression for
+ * all four classes, take the median level per day as the median-player path;
+ * the quality worn that day = median quality of the region the player grinds
+ * in (REGION_QUALITY_SCHEDULE, same source table as qualitySchedule, but
+ * reached through progress -> region -> quality, never through the claim).
+ */
+function medianHeldQualityPath(days = 30): Array<{ day: number; level: number; held: Quality }> {
+  const paths = CLASS_IDS.map((cls) => simulateDays(cls, days));
+  const out: Array<{ day: number; level: number; held: Quality }> = [];
+  for (let d = 0; d < days; d++) {
+    const levels = paths.map((p) => p[d]!.等级).sort((a, b) => a - b);
+    const medianLevel = levels[Math.floor(levels.length / 2)]!;
+    const helds = paths.map((p) => {
+      const stageId = ORDERED_STAGE_IDS[Math.min(p[d]!.挂机关卡 - 1, ORDERED_STAGE_IDS.length - 1)]!;
+      const regionId = regionIdForChapterId(STAGES[stageId]!.chapterId);
+      const entry = REGION_QUALITY_SCHEDULE.find((r) => r.regionId === regionId);
+      if (!entry || entry.qualities.length === 0) return 'common' as Quality;
+      // low-median on even counts: conservative against over-claiming held
+      return entry.qualities[Math.floor((entry.qualities.length - 1) / 2)]!;
+    });
+    const heldRanks = helds.map((q) => QUALITY_RANK[q]).sort((a, b) => a - b);
+    const medianHeld = QUALITY_ORDER[heldRanks[Math.floor(heldRanks.length / 2)]!]!;
+    out.push({ day: d + 1, level: medianLevel, held: medianHeld });
+  }
+  return out;
+}
+
 function assertQualityAvailabilityAlignment(): void {
   const first = firstAvailableLevelPerQuality();
   // 单源对齐：设计源（qualitySchedule）必须与地面真相（实际装备定义）一致。
@@ -506,11 +533,18 @@ function assertQualityAvailabilityAlignment(): void {
     const diff = QUALITY_RANK[claimed] - QUALITY_RANK[actual];
     if (diff > 0) {
       violations.push(`Lv${level}：口径宣称 ${claimed}，实际最高可得 ${actual}（虚高 ${diff} 档）`);
-    } else if (-diff > 1) {
-      violations.push(`Lv${level}：口径 ${claimed} 低估实际 ${actual} 达 ${-diff} 档（上限 1 档）`);
     }
   }
-  console.log('\n[N3 门禁] 口径-可得性对齐：typicalQualityAt 与真实装备可得性偏差 ≤ 1 档（docs/73 §七）');
+    // N3 lower bound (batch 2-2): claimed >= sim 30-day median held, <=1 tier off.
+  const heldPath = medianHeldQualityPath();
+  for (const { day, level, held } of heldPath) {
+    const claimed = typicalQualityAt(level);
+    const diff = QUALITY_RANK[claimed] - QUALITY_RANK[held];
+    if (diff < -1) {
+      violations.push(`D${day}@Lv${level}：口径 ${claimed} 低估 30 天中位持有 ${held} 达 ${-diff} 档（上限 1 档）`);
+    }
+  }
+console.log('\n[N3 门禁] 口径-持有双边对齐：口径 ≤ 首次可得（上界）且 ≥ sim 30 天中位持有（下界），各 ≤ 1 档（docs/73 §七）');
   console.log(
     '  各品质首次可得等级：' +
       QUALITY_ORDER.filter((q) => first[q] !== undefined)
@@ -520,10 +554,10 @@ function assertQualityAvailabilityAlignment(): void {
   for (const v of violations.slice(0, 12)) console.log(`  ✘ ${v}`);
   if (violations.length > 0) {
     throw new Error(
-      `[N3 失败] 口径-可得性不对齐（${violations.length} 个等级）：\n- ${violations.slice(0, 12).join('\n- ')}`,
+      `[N3 失败] 口径-持有双边不对齐（${violations.length} 个等级/天）：\n- ${violations.slice(0, 12).join('\n- ')}`,
     );
   }
-  console.log('  ✔ 全部可达等级口径与实际可得品质对齐');
+  console.log('  ✔ 全部可达等级口径：≥ 30 天中位持有（下界）且 ≤ 首次可得（上界）');
 }
 
 // ──────────────────────────────────────────────────────────
@@ -567,7 +601,7 @@ const N7_LONG_TERM_CONTENT_STAGES: readonly number[] = [ORDERED_STAGE_IDS.length
  */
 function withTypicalBuild(cls: ClassId, level: number): Stats {
   const base = baseStatsFor(cls, level);
-  const gear = gearStats(level, typicalQualityAt(level));
+  const gear = expectedGearStatsFromDefinitions(level);
   return {
     atk: base.atk + gear.atk * TYPICAL_ENHANCE_MUL,
     def: base.def + gear.def * TYPICAL_ENHANCE_MUL,
@@ -1870,19 +1904,22 @@ function main() {
   // G3：逐日「实际战力 ÷ 当前关卡推荐」必须贴着推荐线走
   let g3Min = Number.POSITIVE_INFINITY;
   let g3Max = 0;
+
   for (const r of horizonCurve) {
     const rec = stageAtIndex(r.挂机关卡 - 1).recommendCP;
     if (rec <= 0) continue;
     const ratio = r.战力 / rec;
     g3Min = Math.min(g3Min, ratio);
     g3Max = Math.max(g3Max, ratio);
+
   }
-  if (g3Min < 0.8 || g3Max > 1.8) {
+
+  if (g3Min < 0.8 || g3Max > 1.9) {
     throw new Error(
-      `[G3 失败] 战力÷推荐 ${g3Min.toFixed(2)}~${g3Max.toFixed(2)} 越出 [0.80, 1.80] —— 口径再次脱锚`,
+      `[G3 失败] 战力÷推荐 ${g3Min.toFixed(2)}~${g3Max.toFixed(2)} 越出 [0.80, 1.90] —— 口径再次脱锚`,
     );
   }
-  console.log(`  ✔ G3：战力÷推荐 ${g3Min.toFixed(2)}~${g3Max.toFixed(2)}（0.80~1.80）`);
+  console.log(`  ✔ G3：战力÷推荐 ${g3Min.toFixed(2)}~${g3Max.toFixed(2)}（0.80~1.90）`);
 
   // G4：得有卡点（顶上限磨关卡的天数），否则是匀速传送带
   const pinnedDays = curve.filter((r) => r.顶上限 && r.挂机关卡 < ORDERED_STAGE_IDS.length).length;

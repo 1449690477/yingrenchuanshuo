@@ -21,7 +21,11 @@
 import type { ClassId, EquipmentDef, EquipmentInstance } from '@/core/types';
 import type { EquipmentSetDefinition } from '@/core/equipmentSets';
 import { ALL_CHAPTERS } from './regions';
-import { typicalQualityAt } from './expectedPower';
+// docs/73 A3 批 2-1：typicalQualityAt 已迁往 qualitySchedule（持有口径）。
+// 模块级初始化调用必须从 qualitySchedule 直取 —— 经 expectedPower re-export
+// 会形成 expectedPower → core/equipment → data/equipment → arenaEquipment
+// → expectedPower 的初始化循环（TDZ：绑定尚未完成即被调用）。
+import { typicalQualityAt } from './qualitySchedule';
 
 export const ARENA_SET_ID = 'set_arena_stigma';
 

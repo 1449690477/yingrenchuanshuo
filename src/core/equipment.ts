@@ -12,6 +12,7 @@ import type {
   Element,
   EquipmentDef,
   EquipmentInstance,
+  EquipSlot,
   FixedAffix,
   ForgeStage,
   Quality,
@@ -20,6 +21,8 @@ import type {
 import type { Rng } from './rng';
 import { addStats, zeroStats } from './formula';
 import { shouldAutoLock } from './bag';
+import { EQUIPMENT } from '@/data/equipment';
+import { typicalQualityAt } from '@/data/qualitySchedule';
 import {
   AFFIX_POOL,
   AFFIX_TIERS,
@@ -87,6 +90,46 @@ export function itemBaseValue(level: number, quality: Quality): number {
     throw new Error(`itemBaseValue: 等级必须是正整数，收到 ${level}`);
   }
   return ITEM_BASE * Math.pow(level, ITEM_POW) * QUALITY_MUL[quality] * ITEM_SCALE;
+}
+
+/** 只认区域主线装备 `eq_r{n}_{部位}_{品质}`，不碰珍品/好感/竞技/副本旧装。 */
+export const REGIONAL_BLANK_ID = /^eq_r\d+_[a-z]+_[a-z]+$/;
+
+/**
+ * ★ 选装计算（docs/73 A3 / 批 2-1，修正②）。
+ *
+ * 从真实装备定义表选出「锚点等级的主线典型基准值」下最强的一件 ——
+ * 主线推荐战力（expectedPower）与副本胚子（blankDefinitionId）共用
+ * 同一选择函数族：**推荐战力与实际难度来自同一条链，量化误差自动吸收**
+ * （docs/71 §六.3 小尺先例；docs/66 §3.2 的教训是公式自证）。
+ *
+ * 约束（与旧 blankDefinitionId 完全一致，逐条有真实反例）：
+ *   - 等级不得超过锚点：高等级低品质换算会绕过「掉落等级由地点决定」
+ *     （violet d4 曾选中 r6 rare(Lv58)，docs/66 §3.5）；
+ *   - 带定义级 setId 的不能选：不可烙印 = 违反 docs/58 红线；
+ *   - 基准值不得超过锚点典型基准值（取不超模的最强定义）。
+ */
+export function selectStrongestDefinition(slot: EquipSlot, anchorLevel: number): string {
+  const ceiling = itemBaseValue(anchorLevel, typicalQualityAt(anchorLevel));
+  let best: { id: string; value: number } | undefined;
+
+  for (const definition of Object.values(EQUIPMENT)) {
+    if (definition.slot !== slot) continue;
+    if (!REGIONAL_BLANK_ID.test(definition.id)) continue;
+    if (definition.setId) continue;
+    if (definition.level > anchorLevel) continue;
+    const value = itemBaseValue(definition.level, definition.quality);
+    if (value > ceiling + 1e-9) continue;
+    if (!best || value > best.value) best = { id: definition.id, value };
+  }
+
+  if (!best) {
+    throw new Error(
+      `[配置错误] 部位 ${slot} 在锚点 Lv${anchorLevel} 找不到任何不超模的主线胚子定义 ` +
+        `—— 最低品质的区域装备也高于该等级的主线典型（docs/66 §3.5）`,
+    );
+  }
+  return best.id;
 }
 
 /**

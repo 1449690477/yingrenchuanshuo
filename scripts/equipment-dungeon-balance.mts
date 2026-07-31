@@ -204,38 +204,38 @@ interface KnownResidual {
 const KNOWN_RESIDUALS: readonly KnownResidual[] = [
   {
     tier: 'auric',
-    depth: 4,
-    classId: 'shaman',
-    metric: 'winRate',
-    reason:
-      '赤金系统性偏易一层的残差（claude 16:06 定稿说明）。刻意不调数压下去——' +
-      '那会变成给单档手填补偿。根因判断为主线威胁轴漂移在 Lv56~76 段的残留，' +
-      '应在下版本「标尺与地基专线」修 monsterAtk 威胁因子时一起消失。' +
-      '★ 那天若仍未消失，才说明副本自身另有形状问题，届时必须单独立项。',
-    owner: '小数',
-    deadline: '批 2（A1 威胁因子修平后若仍在则单独立项）',
-  },
-  {
-    tier: 'auric',
     depth: 5,
     classId: 'shaman',
     metric: 'duration',
     reason:
-      '同上一条同源：赤金偏易 ⇒ 灵巫在 d5 还能磨赢，于是胜局均时被拉到 75s。' +
-      '它是「赢得太久」而不是「打不完」——超时会让整层归零，而这里仍有 25.8% 胜率，' +
-      '说明是拖不是卡。与上一条同一个修复触发器。',
+      'd5 挣扎层的磨局（docs/66 §八「已知残留」）：入场模型胜率 1.1%，能赢的都是' +
+      '极限磨局（83.0s，90s 硬上限内）。67.5s 是「预留 25% 给职业与运气方差」的中位' +
+      '目标，磨赢型职业（灵巫）的赢局均值天然超它；胜率带已约束「该不该赢」，' +
+      '这里只反映「赢的局拖多久」。随 C2 灵巫词条重标（批 2 后独立绿批）复核。',
     owner: '小数',
-    deadline: '批 2（A1 威胁因子修平后若仍在则单独立项）',
+    deadline: '批 2 后（C2 灵巫词条重标时复核；若届时无赢局或均时回落则自动失效）',
   },
-  // docs/73 L5：A3 可得口径联动红（P0-2b 证据留档）——typicalQualityAt 改为
-  // 「真实首次可得」后，violet/auric 档位入口的入场模型装备品质升一档、战力抬
-  // 约 1.6×，而深度怪物标定按旧玩家模型，于是 d4/d5 被击穿成全职业 100%。
-  // 清偿动作 = 批 2-1 A3 返工（回「典型持有」口径）+ 批 2-4 P0-2b 反标定
-  // （从「三走一试一挣」带反解 DEPTH_ENCOUNTER_BASE / DEPTH_ATK_TARGET）。
-  { tier: 'violet', depth: 4, classId: '*', metric: 'winRate', owner: '小数', deadline: '批 2', reason: 'A3 可得口径联动（docs/73 L5）：d4 全职业 100% 击穿对抗层带，P0-2b 反标定清偿' },
-  { tier: 'violet', depth: 5, classId: '*', metric: 'winRate', owner: '小数', deadline: '批 2', reason: 'A3 可得口径联动（docs/73 L5）：d5 全职业 100% 击穿挣扎层带，P0-2b 反标定清偿' },
-  { tier: 'auric', depth: 4, classId: '*', metric: 'winRate', owner: '小数', deadline: '批 2', reason: 'A3 可得口径联动（docs/73 L5）：d4 全职业 100% 击穿对抗层带，P0-2b 反标定清偿' },
-  { tier: 'auric', depth: 5, classId: '*', metric: 'winRate', owner: '小数', deadline: '批 2', reason: 'A3 可得口径联动（docs/73 L5）：d5 全职业 100% 击穿挣扎层带，P0-2b 反标定清偿' },
+  {
+    tier: 'auric',
+    depth: 4,
+    classId: 'shaman',
+    metric: 'duration',
+    reason:
+      '同 auric d5 shaman：灵巫磨赢机制在 d4 对抗层的体现，赢局均时 69.6s（90s 硬上限内）。' +
+      '与 auric d5 shaman 同一修复触发器（C2 灵巫词条重标）。',
+    owner: '小数',
+    deadline: '批 2 后（C2 灵巫词条重标时复核）',
+  },
+  // 批 2-4 P0-2b 反标定定稿：DEPTH_ENCOUNTER_BASE={hp:1.42, atk:1.15}、
+  // DEPTH_ATK_TARGET[3]=1.24（d4 档）。胜率带全部绿；d4/d5 的「赢局磨时」是
+  // 挣扎层/对抗层的设计内形态（d5 入场模型胜率 0~12%，能赢的局都是极限磨局），
+  // 在授权旋钮（base2 两轴 + DEPTH_ATK_TARGET 曲线）内无法同时约束胜率与均时，
+  // 故按 docs/66 契约具名登记，到期复检不自动转硬失败。
+  { tier: 'violet', depth: 5, classId: 'swordsman', metric: 'duration', owner: '小数', deadline: '下次深度反标定（新内容开放或 P0 复标）', reason: 'd5 挣扎层磨局：入场模型胜率 0.8%，赢局均时 73.2s（90s 硬上限内）' },
+  { tier: 'violet', depth: 5, classId: 'witch', metric: 'duration', owner: '小数', deadline: '下次深度反标定（新内容开放或 P0 复标）', reason: 'd5 挣扎层磨局：入场模型胜率 11.8%，赢局均时 79.7s（90s 硬上限内）' },
+  { tier: 'violet', depth: 5, classId: 'shaman', metric: 'duration', owner: '小数', deadline: '下次深度反标定（新内容开放或 P0 复标）', reason: 'd5 挣扎层磨局：入场模型胜率 1.9%，赢局均时 73.5s（90s 硬上限内）' },
+  { tier: 'auric', depth: 5, classId: 'witch', metric: 'duration', owner: '小数', deadline: '下次深度反标定（新内容开放或 P0 复标）', reason: 'd5 挣扎层磨局：入场模型胜率 0.3%，赢局均时 68.6s（90s 硬上限内）' },
+  { tier: 'auric', depth: 5, classId: 'catkin', metric: 'duration', owner: '小数', deadline: '下次深度反标定（新内容开放或 P0 复标）', reason: 'd5 挣扎层磨局：入场模型胜率 0.5%，赢局均时 73.0s（90s 硬上限内）' },
 ];
 
 function residualOf(

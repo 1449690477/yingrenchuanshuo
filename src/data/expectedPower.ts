@@ -18,33 +18,23 @@
 import type { ClassId, EquipSlot, Quality, Stats } from '@/core/types';
 import { baseStatsFor } from '@/core/progression';
 import { addStats, combatPower } from '@/core/formula';
+import { baseEquipStats, REGIONAL_BLANK_ID, selectStrongestDefinition } from '@/core/equipment';
+import { EQUIPMENT } from './equipment';
 import {
   ITEM_BASE,
   ITEM_POW,
   ITEM_SCALE,
   QUALITY_MUL,
   QUALITY_PCT_SCALE,
-  QUALITY_ORDER,
+  SLOT_ORDER,
   SLOT_PCT_WEIGHTS,
   SLOT_WEIGHTS,
 } from './constants';
-import { QUALITY_FIRST_AVAILABLE_LEVEL } from './qualitySchedule';
 
-/**
- * 该等级的主线典型装备品质。
- *
- * 阈值由 `QUALITY_FIRST_AVAILABLE_LEVEL` 推导（docs/73 A3）：每个品质的
- * 「宣称等级」= 该品质实际首次可得的等级，禁止手填。改动装备节奏只改
- * equipment.ts 一处，这里自动跟随。
- */
-export function typicalQualityAt(level: number): Quality {
-  let result: Quality = 'common';
-  for (const q of QUALITY_ORDER) {
-    const firstLevel = QUALITY_FIRST_AVAILABLE_LEVEL[q];
-    if (firstLevel !== undefined && firstLevel <= level) result = q;
-  }
-  return result;
-}
+// docs/73 A3 批 2-1（修正②）：typicalQualityAt 迁往 qualitySchedule（持有口径），
+// 此处 re-export 保持既有调用方（simulate/trial/guildExpedition/arenaEquipment/
+// depth-crosscheck 等）的 import 路径不变。
+export { typicalQualityAt } from './qualitySchedule';
 
 function zeroStats(): Stats {
   return { atk: 0, def: 0, hp: 0, acc: 0, eva: 0, critRate: 0, critDmg: 0, spd: 0 };
@@ -70,14 +60,40 @@ export function expectedGearStats(level: number, quality: Quality): Stats {
 }
 
 /**
+ * 穿齐 8 件真实主线装备定义的属性总和（不含强化与词条）。
+ *
+ * ★ docs/73 A3 批 2-1（修正②）：放弃「L^1.35 × QUALITY_MUL」解析式，
+ * 改为从真实装备定义表**选装计算**（selectStrongestDefinition 公共纯函数）。
+ * 主线推荐战力与副本胚子选择走同一条链，量化误差自动吸收（docs/71 §六.3）。
+ */
+export function expectedGearStatsFromDefinitions(level: number): Stats {
+  // 锚点下界 = 最低的区域主线装备等级（当前 r1 common Lv2）：
+  // Lv1 的任何典型基准值都低于现存全部装备，选装会找不到候选
+  // （与 equipmentDungeonDepth.dungeonMinAnchorLevel 同族，防全域无定义）。
+  let floor = Number.POSITIVE_INFINITY;
+  for (const def of Object.values(EQUIPMENT)) {
+    if (!REGIONAL_BLANK_ID.test(def.id)) continue;
+    if (def.level < floor) floor = def.level;
+  }
+  const anchor = Math.max(level, floor);
+  const out = zeroStats();
+  for (const slot of SLOT_ORDER) {
+    const def = EQUIPMENT[selectStrongestDefinition(slot, anchor)];
+    if (!def) throw new Error(`[配置错误] 选装定义缺失：${slot}@Lv${anchor}`);
+    const s = baseEquipStats(def);
+    for (const key of Object.keys(s) as (keyof Stats)[]) out[key] += s[key];
+  }
+  return out;
+}
+
+/**
  * 该等级玩家「穿齐主线典型品质装备」时的战力。
  *
  * 不含强化与词条 —— 那两块是玩家自己的投入，
  * 正好留作副本门槛之下的那段余量（见 docs/47 规则二）。
  */
 export function expectedFullGearCp(level: number, classId: ClassId = 'swordsman'): number {
-  const quality = typicalQualityAt(level);
-  return combatPower(addStats(baseStatsFor(classId, level), expectedGearStats(level, quality)));
+  return combatPower(addStats(baseStatsFor(classId, level), expectedGearStatsFromDefinitions(level)));
 }
 
 /**
@@ -109,8 +125,7 @@ export const TYPICAL_AFFIX_CP_MUL = 1.15;
  * 结构必须与 instanceStats 的真实结算一致，否则口径又会裂开。
  */
 export function expectedBuildCp(level: number, classId: ClassId = 'swordsman'): number {
-  const quality = typicalQualityAt(level);
-  const gear = expectedGearStats(level, quality);
+  const gear = expectedGearStatsFromDefinitions(level);
   const enhanced: Stats = {
     atk: gear.atk * TYPICAL_ENHANCE_MUL,
     def: gear.def * TYPICAL_ENHANCE_MUL,
