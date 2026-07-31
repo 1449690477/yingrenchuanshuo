@@ -230,7 +230,8 @@ onUnmounted(() => {
   margin-top: 4px;
   border-radius: 3px;
   background: var(--panel-3);
-  overflow: hidden;
+  /* 区域顶点角标会向上浮出 8px；这里裁剪会把文字切成截图里的半截。 */
+  overflow: visible;
 }
 
 .expbar-fill {
@@ -287,6 +288,7 @@ onUnmounted(() => {
   position: absolute;
   right: 0;
   top: -8px;
+  z-index: 1;
   padding: 1px 6px;
   font-size: 7px;
   font-weight: 800;
