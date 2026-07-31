@@ -5,6 +5,7 @@ import {
   EXTREME_OVERAGE,
   PUBLISH_MIN_OVERAGE,
   describeCheatEvidence,
+  describeInputFault,
   judgeCheatEvidence,
 } from '../cheatEvidence';
 
@@ -194,5 +195,70 @@ describe('封神榜文案', () => {
     for (const label of Object.values(CHEAT_FIELD_LABELS)) {
       expect(label).toMatch(/[一-龥]/);
     }
+  });
+});
+
+describe('作弊证据分级 · 我方判据故障与「玩家清白」必须可区分', () => {
+  // 这一组守的是 2026-07-31 的真实教训：
+  // 「被判定为不可信」与「压根没被判过」在库里长得一模一样，
+  // 于是恰恰在我方尺子算坏了的时候，用来发现它的仪器是瞎的。
+  it('玩家清白时 inputFault 为空 —— 清白就该安静', () => {
+    const v = input({ claimedValue: 99, boundValue: 100 });
+    expect(v.isProven).toBe(false);
+    expect(v.inputFault).toBeNull();
+  });
+
+  it('报值为负：判为我方故障而非玩家清白，且仍然不落库不公示', () => {
+    const v = input({ claimedValue: -5, boundValue: 100 });
+    expect(v.inputFault).toBe('claimed-negative');
+    expect(v.isProven).toBe(false);
+    expect(v.shouldPublish).toBe(false);
+  });
+
+  it('界限 ≤ 0：上界函数自身失效，同样报我方故障', () => {
+    expect(input({ claimedValue: 1, boundValue: 0 }).inputFault).toBe('bound-non-positive');
+    expect(input({ claimedValue: 1, boundValue: -1 }).inputFault).toBe('bound-non-positive');
+  });
+
+  it('非有限数按来源分开报，便于日志直接指出坏的是哪一侧', () => {
+    expect(input({ claimedValue: Number.NaN }).inputFault).toBe('claimed-not-finite');
+    expect(input({ claimedValue: Number.POSITIVE_INFINITY }).inputFault).toBe('claimed-not-finite');
+    expect(input({ boundValue: Number.NaN }).inputFault).toBe('bound-not-finite');
+  });
+
+  it('★ 任何带 inputFault 的判定都绝不可公示 —— 坏尺子不许用来量玩家', () => {
+    const faults = [
+      { claimedValue: Number.NaN, boundValue: 100 },
+      { claimedValue: 100, boundValue: Number.NaN },
+      { claimedValue: -1, boundValue: 100 },
+      { claimedValue: 100, boundValue: 0 },
+    ];
+    for (const f of faults) {
+      // priorEvidenceCount 拉高、倍率拉到极端也不能把它推上榜
+      const v = input({ ...f, priorEvidenceCount: 99 });
+      expect(v.inputFault).not.toBeNull();
+      expect(v.shouldPublish).toBe(false);
+      expect(v.isProven).toBe(false);
+    }
+  });
+
+  it('构成证据的各支 inputFault 恒为空 —— 别把正常判定误报成我方故障', () => {
+    expect(input({ claimedValue: 300, boundValue: 100 }).inputFault).toBeNull();
+    expect(input({ claimedValue: 1e6, boundValue: 100 }).inputFault).toBeNull();
+    expect(input({ claimField: 'equipment_affix', claimedValue: 1e6 }).inputFault).toBeNull();
+  });
+
+  it('故障日志以「判据异常」开头，读日志的人第一眼就知道不是抓到了谁', () => {
+    const line = describeInputFault({
+      fault: 'claimed-negative',
+      claimField: 'combat_power',
+      claimedValue: -12,
+      boundValue: 100,
+    });
+    expect(line.startsWith('判据异常')).toBe(true);
+    expect(line).toContain('我方故障');
+    expect(line).toContain('战力');
+    expect(line).toContain('-12');
+    expect(line).not.toContain('作弊');
   });
 });

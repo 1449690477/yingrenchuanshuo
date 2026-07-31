@@ -104,6 +104,58 @@ export const VERSION_SKEW_IMMUNE: Readonly<Record<CheatClaimField, boolean>> = {
  */
 export type CheatBoundKind = 'upper' | 'lower';
 
+/**
+ * ★ 判据本身不可用的原因 —— **这是我方故障，不是对玩家的判断**。
+ *
+ * ## 为什么要把它和「证据不足」分开
+ *
+ * 判定入口拿到非有限数、负数报值或非正界限时，唯一正确的处置是**不判**：
+ * 这类输入构不成「超出物理上界」的证明，硬判只会公示无辜的人。
+ * 但「不判」这个动作，此前和「玩家是清白的」返回了完全一样的东西 ——
+ * 两者都是 isProven=false，都不落库、不告警、无遥测。
+ *
+ * **于是恰恰在我方尺子算坏了的时候，用来发现这件事的仪器是瞎的。**
+ * 真实教训：2026-07-31 排查一条被静默隐藏两天的合法成绩时发现，
+ * 「被判定为不可信」与「压根没被判过」在库里长得一模一样，没有任何理由可查。
+ *
+ * 分开之后：玩家清白仍然安静（本该如此），**我方尺子坏了则必须吵**。
+ * 调用方约定：`inputFault` 非空时**记日志/告警，但仍然不写证据表、不公示** ——
+ * 尺子坏了要修的是尺子，不是拿坏尺子去量玩家。
+ */
+export type CheatInputFault =
+  | 'claimed-not-finite'
+  | 'bound-not-finite'
+  /** 报值为负。物理量为负说明算它的那个公式坏了，不是玩家改的。 */
+  | 'claimed-negative'
+  /** 界限 ≤ 0。上界函数返回 0 或负数即其自身失效，此时任何比较都无意义。 */
+  | 'bound-non-positive';
+
+/** 我方判据故障的可读描述，供 Edge Function 打日志用，措辞统一在 core。 */
+const INPUT_FAULT_LABELS: Readonly<Record<CheatInputFault, string>> = {
+  'claimed-not-finite': '上报值不是有限数',
+  'bound-not-finite': '判定界限不是有限数',
+  'claimed-negative': '上报值为负——算它的公式已失效',
+  'bound-non-positive': '判定界限 ≤ 0——上界函数自身已失效',
+};
+
+/**
+ * 把一次判据故障写成一句可直接进日志的话。
+ *
+ * 措辞刻意以「判据异常」开头而非「作弊」—— 读日志的人第一眼就该知道
+ * 这是我们自己的问题，不是抓到了谁。
+ */
+export function describeInputFault(input: {
+  fault: CheatInputFault;
+  claimField: CheatClaimField;
+  claimedValue: number;
+  boundValue: number;
+}): string {
+  return (
+    `判据异常（我方故障，未对玩家做任何判定）：${CHEAT_FIELD_LABELS[input.claimField]}` +
+    ` 上报=${input.claimedValue} 界限=${input.boundValue} —— ${INPUT_FAULT_LABELS[input.fault]}`
+  );
+}
+
 export interface CheatEvidenceInput {
   source: CheatEvidenceSource;
   claimField: CheatClaimField;
@@ -132,6 +184,14 @@ export interface CheatEvidenceVerdict {
     | 'below-margin'
     | 'awaiting-second-evidence'
     | 'version-skew-sensitive';
+  /**
+   * ★ 非空 = **我方判据故障**，与玩家无关。
+   *
+   * 此时 isProven 恒为 false（不落库、不公示），但调用方**应当告警** ——
+   * 这是「我们的尺子坏了」，不是「这个玩家看起来是清白的」。
+   * 两者此前不可区分，见 CheatInputFault 的说明。
+   */
+  inputFault: CheatInputFault | null;
 }
 
 /**
@@ -174,12 +234,23 @@ export function judgeCheatEvidence(input: CheatEvidenceInput): CheatEvidenceVerd
     overageRatio: 0,
     shouldPublish: false,
     holdReason: 'none',
+    inputFault: null,
   };
+  /**
+   * 判据不可用时的返回：一律不判（与 notProven 同为 isProven=false），
+   * 但带上 inputFault 让调用方能告警 —— 这一支是**我方故障**，不是玩家清白。
+   */
+  const faulted = (fault: CheatInputFault): CheatEvidenceVerdict => ({
+    ...notProven,
+    inputFault: fault,
+  });
 
-  // 非有限数、负数、零界限都无法构成「超出物理上界」的证明。
-  // 这类输入本身可能只是客户端 bug 或旧版本，宁可不判。
-  if (!Number.isFinite(claimedValue) || !Number.isFinite(boundValue)) return notProven;
-  if (claimedValue < 0 || boundValue <= 0) return notProven;
+  // 非有限数、负数、零界限都无法构成「超出物理上界」的证明 —— 一律不判。
+  // 但它们各自意味着我方链路上有东西坏了，必须能被区分出来告警。
+  if (!Number.isFinite(claimedValue)) return faulted('claimed-not-finite');
+  if (!Number.isFinite(boundValue)) return faulted('bound-not-finite');
+  if (claimedValue < 0) return faulted('claimed-negative');
+  if (boundValue <= 0) return faulted('bound-non-positive');
 
   let overageRatio: number;
   if (boundKind === 'upper') {
@@ -192,31 +263,25 @@ export function judgeCheatEvidence(input: CheatEvidenceInput): CheatEvidenceVerd
     overageRatio = claimedValue <= 0 ? EXTREME_OVERAGE : boundValue / claimedValue;
   }
 
-  // 闸门零：版本漂移敏感的判据一律不自动公开，只记录进人工复核队列。
-  // 它排在最前面 —— 后面的倍率闸门对这类判据本来就不成立。
-  if (!VERSION_SKEW_IMMUNE[input.claimField]) {
-    return {
-      isProven: true,
-      overageRatio,
-      shouldPublish: false,
-      holdReason: 'version-skew-sensitive',
-    };
-  }
-  if (overageRatio < PUBLISH_MIN_OVERAGE) {
-    return { isProven: true, overageRatio, shouldPublish: false, holdReason: 'below-margin' };
-  }
-  if (overageRatio >= EXTREME_OVERAGE) {
-    return { isProven: true, overageRatio, shouldPublish: true, holdReason: 'none' };
-  }
-  if (priorEvidenceCount + 1 >= REPEAT_EVIDENCE_THRESHOLD) {
-    return { isProven: true, overageRatio, shouldPublish: true, holdReason: 'none' };
-  }
-  return {
+  // 走到这里判据一定是可用的，故以下各支 inputFault 恒为 null。
+  const proven = (
+    shouldPublish: boolean,
+    holdReason: CheatEvidenceVerdict['holdReason'],
+  ): CheatEvidenceVerdict => ({
     isProven: true,
     overageRatio,
-    shouldPublish: false,
-    holdReason: 'awaiting-second-evidence',
-  };
+    shouldPublish,
+    holdReason,
+    inputFault: null,
+  });
+
+  // 闸门零：版本漂移敏感的判据一律不自动公开，只记录进人工复核队列。
+  // 它排在最前面 —— 后面的倍率闸门对这类判据本来就不成立。
+  if (!VERSION_SKEW_IMMUNE[input.claimField]) return proven(false, 'version-skew-sensitive');
+  if (overageRatio < PUBLISH_MIN_OVERAGE) return proven(false, 'below-margin');
+  if (overageRatio >= EXTREME_OVERAGE) return proven(true, 'none');
+  if (priorEvidenceCount + 1 >= REPEAT_EVIDENCE_THRESHOLD) return proven(true, 'none');
+  return proven(false, 'awaiting-second-evidence');
 }
 
 /**
