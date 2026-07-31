@@ -129,6 +129,8 @@ describe('ArenaBattleScene 战报回放（§5.4 红线）', () => {
     ]) {
       expect(source).toContain(token);
     }
+    // 逐击只切动作和合成层位移，不能每拍销毁并重建两张大立绘。
+    expect(source).not.toContain(':key="`${role}-${playedCount}`"');
   });
 
   it('终结横幅荣誉文案中性：负值写「防线告破」不写羞辱性措辞', async () => {

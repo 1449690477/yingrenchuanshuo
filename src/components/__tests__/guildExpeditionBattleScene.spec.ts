@@ -32,5 +32,7 @@ describe('公会团本战斗表现', () => {
     expect(scene).toContain('damage-float');
     expect(scene).toContain('远征归来');
     expect(scene).toContain('虽败仍有贡献');
+    // 纸娃娃包含多层装备图片，逐击只能切动作，不能整棵重建。
+    expect(scene).not.toContain(':key="`hero-${actionKey}`"');
   });
 });

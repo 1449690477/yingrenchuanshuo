@@ -280,7 +280,6 @@ onUnmounted(stop);
       <div class="hero-unit" :class="{ struck: currentSource === 'boss' }">
         <span class="unit-shadow" aria-hidden="true" />
         <CharacterAppearance
-          :key="`hero-${actionKey}`"
           :class-id="classId"
           :level="level"
           :equipped="equipped"

@@ -182,7 +182,6 @@ onUnmounted(stop);
           >
             <span class="fighter-art">
               <ClassArtwork
-                :key="`${role}-${playedCount}`"
                 :class-id="sideClassId(role)"
                 variant="battle"
                 :action="sideActing(role) ? 'cast' : 'idle'"
