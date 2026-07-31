@@ -12,6 +12,7 @@ import {
 import type { EquipmentInstance, Stats } from '@/core/types';
 import { useInventoryStore } from '@/stores/inventory';
 import { usePlayerStore } from '@/stores/player';
+import { useStageStore } from '@/stores/stage';
 import { requireEquipment } from '@/data/equipment';
 import { equipmentDisplayPresentation } from '@/data/equipmentPresentation';
 import { requireEquipmentSet } from '@/data/equipmentSets';
@@ -30,6 +31,7 @@ import {
 } from '@/ui/affixPresentation';
 import EquipmentIcon from '@/components/EquipmentIcon.vue';
 import EquipmentSetStatus from '@/components/EquipmentSetStatus.vue';
+import ElementMatchupGuide from '@/components/ElementMatchupGuide.vue';
 
 const props = withDefaults(
   defineProps<{
@@ -47,6 +49,7 @@ const emit = defineEmits<{
 
 const inventory = useInventoryStore();
 const player = usePlayerStore();
+const stage = useStageStore();
 const activeClassId = computed(() => {
   const classId = player.player?.classId;
   if (!classId) throw new Error('[装备详情错误] 存档未载入，无法解析装备职业外观');
@@ -226,6 +229,15 @@ function doDecompose() {
       </header>
 
       <div class="body scroll-y">
+        <ElementMatchupGuide
+          v-if="def.slot === 'weapon'"
+          class="weapon-matchup-guide"
+          :attacker-element="def.element"
+          :defender-element="stage.current.element"
+          context="weapon"
+          compact
+        />
+
         <div class="score-grid">
           <div class="cp-row">
             <span>当前评分<small>包含已发生强化</small></span>
@@ -247,9 +259,7 @@ function doDecompose() {
             <span class="num">{{ signed(compare.baseDelta) }}</span>
           </div>
           <p v-if="showCultivateHint" class="cultivate-hint">
-            当前穿戴含 +{{
-              compare.wornEnhance
-            }}
+            当前穿戴含 +{{ compare.wornEnhance }}
             强化投入；这件装备底子更好，但直接换上会暂时降低战力，建议先锁定并培养。
           </p>
         </section>

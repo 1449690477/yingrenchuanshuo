@@ -33,6 +33,7 @@ import EquipDetail from '@/components/EquipDetail.vue';
 import ItemPeekSheet from '@/components/ItemPeekSheet.vue';
 import EquipmentAdvancementPanel from '@/components/EquipmentAdvancementPanel.vue';
 import ReforgeStudio from '@/components/reforge/ReforgeStudio.vue';
+import ElementMatchupGuide from '@/components/ElementMatchupGuide.vue';
 import type { EquipmentInstance } from '@/core/types';
 import type { ItemDef } from '@/data/items';
 
@@ -333,6 +334,13 @@ function openLootEntry(entry: { itemId: string; isEquipment: boolean; count: num
         <b class="num">{{ abbr(player.cp) }} / {{ abbr(stage.current.recommendCP) }}</b>
       </span>
     </div>
+
+    <ElementMatchupGuide
+      class="idle-element-guide"
+      :attacker-element="player.playerCombatElement"
+      :defender-element="stage.current.element"
+      context="battle"
+    />
 
     <section class="battle">
       <!-- 挂机窗口外框：状态灯 + 标题 + 进度发丝条 + 统计条，只做容器装饰，不动 BattleScene 内部 -->

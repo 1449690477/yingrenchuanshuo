@@ -11,10 +11,7 @@ import { describe, expect, it } from 'vitest';
  * UI 一律读 store 暴露面，不自行复算战力或门槛（docs/57 §四）。
  */
 
-const stageSelectSource = readFileSync(
-  new URL('../StageSelect.vue', import.meta.url),
-  'utf8',
-);
+const stageSelectSource = readFileSync(new URL('../StageSelect.vue', import.meta.url), 'utf8');
 const idleViewSource = readFileSync(new URL('../../views/IdleView.vue', import.meta.url), 'utf8');
 const topBarSource = readFileSync(new URL('../TopBar.vue', import.meta.url), 'utf8');
 const dungeonViewSource = readFileSync(
@@ -152,5 +149,22 @@ describe('K7 · 红线自检（docs/40 §三）', () => {
       expect(source).not.toContain('看广告');
       expect(source).not.toContain('无法进入');
     }
+  });
+});
+
+describe('M5-7 · 属性克制教学', () => {
+  it('关卡选择与挂机窗口都消费统一属性关系组件', () => {
+    expect(stageSelectSource).toContain('ElementMatchupGuide');
+    expect(stageSelectSource).toContain(':defender-element="c.element"');
+    expect(stageSelectSource).toContain('player.playerCombatElement');
+    expect(idleViewSource).toContain('ElementMatchupGuide');
+    expect(idleViewSource).toContain(':defender-element="stage.current.element"');
+    expect(idleViewSource).toContain(':attacker-element="player.playerCombatElement"');
+  });
+
+  it('有属性章节在折叠标题上也明确展示关卡属性', () => {
+    expect(stageSelectSource).toContain("c.element !== 'none'");
+    expect(stageSelectSource).toContain('ELEMENT_LABELS[c.element]');
+    expect(stageSelectSource).toContain('属性');
   });
 });

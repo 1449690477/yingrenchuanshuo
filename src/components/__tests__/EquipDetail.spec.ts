@@ -31,12 +31,22 @@ const playerStore = vi.hoisted(() => ({
   },
 }));
 
+const stageStore = vi.hoisted(() => ({
+  current: {
+    element: 'ice' as const,
+  },
+}));
+
 vi.mock('@/stores/inventory', () => ({
   useInventoryStore: () => inventory,
 }));
 
 vi.mock('@/stores/player', () => ({
   usePlayerStore: () => playerStore,
+}));
+
+vi.mock('@/stores/stage', () => ({
+  useStageStore: () => stageStore,
 }));
 
 function instance(defId: string): EquipmentInstance {
@@ -84,6 +94,18 @@ describe('装备详情的武器元素来源', () => {
   it('非武器不渲染武器元素标签', async () => {
     const html = await render('eq_r2_ring_fine');
     expect(html).not.toContain('属性武器');
+    expect(html).not.toContain('对当前关卡');
+  });
+
+  it('武器详情按当前关卡展示换装后的真实克制关系', async () => {
+    const fireWeapon = await render('eq_r2_weapon_fine');
+    expect(fireWeapon).toContain('对当前关卡');
+    expect(fireWeapon).toContain('克制 +25%');
+    expect(fireWeapon).toContain('×1.25');
+
+    const neutralWeapon = await render('eq_r1_weapon_common');
+    expect(neutralWeapon).toContain('中性 ×1.00');
+    expect(neutralWeapon).toContain('换炎武器');
   });
 
   it('分别展示包含强化的当前评分与统一按 +0 计算的装备底子', async () => {

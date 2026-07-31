@@ -40,6 +40,10 @@ const game = vi.hoisted(() => ({
   currentStage: { chapterId: '1-5' },
 }));
 
+const stage = vi.hoisted(() => ({
+  current: { element: 'none' as const },
+}));
+
 vi.mock('@/stores/inventory', () => ({
   useInventoryStore: () => inventory,
 }));
@@ -48,6 +52,9 @@ vi.mock('@/stores/player', () => ({
 }));
 vi.mock('@/stores/game', () => ({
   useGameStore: () => game,
+}));
+vi.mock('@/stores/stage', () => ({
+  useStageStore: () => stage,
 }));
 
 const definitions = Object.values(EQUIPMENT);

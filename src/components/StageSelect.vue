@@ -12,7 +12,9 @@ import { stagesOfChapter } from '@/data/stages';
 import { requireItem, type ItemDef } from '@/data/items';
 import { STAMINA_RECOVER_SECONDS } from '@/data/constants';
 import { useNowTick } from '@/ui/useNowTick';
+import { ELEMENT_LABELS } from '@/ui/elementMatchupPresentation';
 import SystemArtwork from '@/components/SystemArtwork.vue';
+import ElementMatchupGuide from '@/components/ElementMatchupGuide.vue';
 
 const emit = defineEmits<{ close: [] }>();
 const player = usePlayerStore();
@@ -166,6 +168,9 @@ function staminaBlocked(stageId: string): boolean {
                   <span class="chapter-shade" />
                   <span class="c-name">{{ c.id }} {{ c.name }}</span>
                   <span class="c-right">
+                    <span v-if="c.element !== 'none'" class="c-element" :class="`el-${c.element}`">
+                      {{ ELEMENT_LABELS[c.element] }}属性
+                    </span>
                     <span v-if="gates.get(c.id)" class="c-gate">
                       <LockKeyhole :size="9" :stroke-width="2.4" aria-hidden="true" />
                       还差 {{ abbr(gates.get(c.id)!.gapCp) }} 战力
@@ -176,6 +181,14 @@ function staminaBlocked(stageId: string): boolean {
 
                 <Transition name="fold">
                   <div v-if="openChapter === c.id" :id="`stage-chapter-${c.id}`">
+                    <ElementMatchupGuide
+                      v-if="c.element !== 'none'"
+                      class="chapter-element-guide"
+                      :attacker-element="player.playerCombatElement"
+                      :defender-element="c.element"
+                      context="chapter"
+                      compact
+                    />
                     <!-- K1 锁定卡：指路牌不是墙——说清差多少、去哪补（docs/57） -->
                     <section
                       v-if="gates.get(c.id)"
@@ -202,64 +215,64 @@ function staminaBlocked(stageId: string): boolean {
                       </button>
                     </section>
                     <div v-else class="stages">
-                    <section class="chapter-loot" aria-label="本章区域材料">
-                      <span class="loot-title">本章掉落</span>
-                      <div class="loot-chips">
-                        <span
-                          v-for="material in chapterMaterials(c.materials)"
-                          :key="material.id"
-                          class="loot-chip"
-                          :class="`tier-${material.tier}`"
-                        >
-                          <img :src="assetUrl(material.icon)" alt="" aria-hidden="true" />
-                          <span class="loot-copy">
-                            <b>{{ material.name }}</b>
-                            <small>{{ materialSourceLabel(material.tier) }}</small>
+                      <section class="chapter-loot" aria-label="本章区域材料">
+                        <span class="loot-title">本章掉落</span>
+                        <div class="loot-chips">
+                          <span
+                            v-for="material in chapterMaterials(c.materials)"
+                            :key="material.id"
+                            class="loot-chip"
+                            :class="`tier-${material.tier}`"
+                          >
+                            <img :src="assetUrl(material.icon)" alt="" aria-hidden="true" />
+                            <span class="loot-copy">
+                              <b>{{ material.name }}</b>
+                              <small>{{ materialSourceLabel(material.tier) }}</small>
+                            </span>
                           </span>
+                        </div>
+                      </section>
+                      <button
+                        v-for="s in stagesOfChapter(c.id)"
+                        :key="s.id"
+                        class="stage"
+                        :class="{
+                          on: s.id === stage.current.id,
+                          locked: !stage.isUnlocked(s.id),
+                          blocked: staminaBlocked(s.id),
+                          boss: !!s.bossId,
+                        }"
+                        :disabled="!stage.isUnlocked(s.id) || staminaBlocked(s.id)"
+                        :aria-current="s.id === stage.current.id ? 'true' : undefined"
+                        @click="pick(s.id)"
+                      >
+                        <span class="s-name">
+                          {{ s.name }}
+                          <span v-if="s.bossId" class="s-boss">BOSS</span>
                         </span>
-                      </div>
-                    </section>
-                    <button
-                      v-for="s in stagesOfChapter(c.id)"
-                      :key="s.id"
-                      class="stage"
-                      :class="{
-                        on: s.id === stage.current.id,
-                        locked: !stage.isUnlocked(s.id),
-                        blocked: staminaBlocked(s.id),
-                        boss: !!s.bossId,
-                      }"
-                      :disabled="!stage.isUnlocked(s.id) || staminaBlocked(s.id)"
-                      :aria-current="s.id === stage.current.id ? 'true' : undefined"
-                      @click="pick(s.id)"
-                    >
-                      <span class="s-name">
-                        {{ s.name }}
-                        <span v-if="s.bossId" class="s-boss">BOSS</span>
-                      </span>
-                      <span class="s-meta">
-                        <span v-if="!stage.isUnlocked(s.id)" class="s-lock">
-                          <LockKeyhole :size="10" :stroke-width="2.2" aria-hidden="true" />
-                          未解锁
+                        <span class="s-meta">
+                          <span v-if="!stage.isUnlocked(s.id)" class="s-lock">
+                            <LockKeyhole :size="10" :stroke-width="2.2" aria-hidden="true" />
+                            未解锁
+                          </span>
+                          <template v-else>
+                            <span class="s-cp num" :class="{ low: player.cp < s.recommendCP }">
+                              战力 {{ abbr(s.recommendCP) }}
+                            </span>
+                            <!-- K2：未通关才显示体力；已通关恒 0 不显示（docs/57） -->
+                            <span v-if="staminaBlocked(s.id)" class="s-cost insufficient">
+                              <Zap :size="9" :stroke-width="2.4" aria-hidden="true" />
+                              {{ costOf(s.id).stamina }}/{{ costOf(s.id).cost }} ·
+                              {{ minutesToChallenge(costOf(s.id)) }} 分钟后可挑战
+                            </span>
+                            <span v-else-if="costOf(s.id).cost > 0" class="s-cost">
+                              挑战
+                              <Zap :size="9" :stroke-width="2.4" aria-hidden="true" />
+                              {{ costOf(s.id).cost }}
+                            </span>
+                          </template>
                         </span>
-                        <template v-else>
-                          <span class="s-cp num" :class="{ low: player.cp < s.recommendCP }">
-                            战力 {{ abbr(s.recommendCP) }}
-                          </span>
-                          <!-- K2：未通关才显示体力；已通关恒 0 不显示（docs/57） -->
-                          <span v-if="staminaBlocked(s.id)" class="s-cost insufficient">
-                            <Zap :size="9" :stroke-width="2.4" aria-hidden="true" />
-                            {{ costOf(s.id).stamina }}/{{ costOf(s.id).cost }} ·
-                            {{ minutesToChallenge(costOf(s.id)) }} 分钟后可挑战
-                          </span>
-                          <span v-else-if="costOf(s.id).cost > 0" class="s-cost">
-                            挑战
-                            <Zap :size="9" :stroke-width="2.4" aria-hidden="true" />
-                            {{ costOf(s.id).cost }}
-                          </span>
-                        </template>
-                      </span>
-                    </button>
+                      </button>
                     </div>
                   </div>
                 </Transition>
@@ -479,6 +492,32 @@ function staminaBlocked(stageId: string): boolean {
   gap: 3px;
 }
 
+.c-element {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  color: #fff;
+  font-size: 8px;
+  font-weight: 800;
+  line-height: 1.15;
+  border: 1px solid rgb(255 255 255 / 42%);
+  border-radius: 999px;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 28%);
+  backdrop-filter: blur(5px) saturate(1.25);
+}
+
+.c-element.el-fire {
+  background: rgb(226 83 118 / 72%);
+}
+
+.c-element.el-ice {
+  background: rgb(83 151 210 / 72%);
+}
+
+.c-element.el-thunder {
+  background: rgb(127 99 205 / 74%);
+}
+
 /* K1 章节门槛徽章：提醒「还差多少」，不做成一堵墙 */
 .c-gate {
   display: inline-flex;
@@ -584,14 +623,16 @@ function staminaBlocked(stageId: string): boolean {
   padding: 6px 0 4px 6px;
 }
 
+.chapter-element-guide {
+  margin: 6px 0 4px 6px;
+}
+
 .chapter-loot {
   grid-column: 1 / -1;
   padding: 8px;
   border: 1px solid rgb(153 201 229 / 42%);
   border-radius: var(--r-sm);
-  background:
-    linear-gradient(135deg, rgb(255 242 248 / 92%), rgb(234 247 255 / 88%)),
-    var(--panel);
+  background: linear-gradient(135deg, rgb(255 242 248 / 92%), rgb(234 247 255 / 88%)), var(--panel);
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 88%);
 }
 
