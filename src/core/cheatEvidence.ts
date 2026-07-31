@@ -169,6 +169,21 @@ export interface CheatEvidenceInput {
    * 由调用方从证据表查得 —— 本模块不碰 IO。
    */
   priorEvidenceCount: number;
+  /**
+   * ★ 本次判定所用的那个界限，此刻是否可信。默认 true。
+   *
+   * ## 为什么这个开关必须存在
+   *
+   * 上界不是凭空来的，它由玩家档案里的等级算出。而档案由客户端提交、
+   * 可能**陈旧**（同步每会话只跑一次，且失败被静默吞掉）。档案偏旧 →
+   * 上界偏低 → **正常玩家看起来像越界**。方向是恒定的：陈旧只会冤枉人，
+   * 不会放过人（作弊者只会把等级往高了报，往低报反而更容易被抓）。
+   *
+   * 所以调用方在拿不准界限新鲜度时传 false：证据照记（便于人工复核），
+   * **但绝不自动公示**。公开点名一旦误伤不可撤回，这个不对称决定了
+   * 拿不准时只能选择不点名。
+   */
+  boundTrustworthy?: boolean;
 }
 
 export interface CheatEvidenceVerdict {
@@ -183,7 +198,9 @@ export interface CheatEvidenceVerdict {
     | 'none'
     | 'below-margin'
     | 'awaiting-second-evidence'
-    | 'version-skew-sensitive';
+    | 'version-skew-sensitive'
+    /** 界限所依据的档案可能陈旧，方向上只会冤枉人 —— 记录但不点名。 */
+    | 'bound-not-trustworthy';
   /**
    * ★ 非空 = **我方判据故障**，与玩家无关。
    *
@@ -278,6 +295,9 @@ export function judgeCheatEvidence(input: CheatEvidenceInput): CheatEvidenceVerd
   // 闸门零：版本漂移敏感的判据一律不自动公开，只记录进人工复核队列。
   // 它排在最前面 —— 后面的倍率闸门对这类判据本来就不成立。
   if (!VERSION_SKEW_IMMUNE[input.claimField]) return proven(false, 'version-skew-sensitive');
+  // 闸门零之二：界限本身不新鲜时同样不点名。倍率再高也不行 ——
+  // 界限偏低正是把倍率抬高的原因，用它去证明「倍率高所以是作弊」是循环论证。
+  if (input.boundTrustworthy === false) return proven(false, 'bound-not-trustworthy');
   if (overageRatio < PUBLISH_MIN_OVERAGE) return proven(false, 'below-margin');
   if (overageRatio >= EXTREME_OVERAGE) return proven(true, 'none');
   if (priorEvidenceCount + 1 >= REPEAT_EVIDENCE_THRESHOLD) return proven(true, 'none');

@@ -72,6 +72,28 @@ function json(body: unknown, status = 200): Response {
  * 分级判定全在 core 的 judgeCheatEvidence，这里只负责 IO，
  * 且**写证据永远不能影响判定本身** —— 落库失败最多丢一条遥测。
  */
+/**
+ * 档案新鲜到可以拿它的等级当「点名依据」吗？
+ *
+ * 判据的上界由 profiles.level 算出，而档案同步与成绩提交是两次独立请求 ——
+ * 中间玩家可能已经升了级。档案越旧、上界越低，**正常玩家越像作弊**。
+ * 所以只有档案是刚刚同步过的，才允许据此自动公开点名；否则只记录待复核。
+ *
+ * 窗口取 10 分钟：提交成绩前客户端会先同步档案，正常路径下两者相隔数秒；
+ * 10 分钟足够覆盖网络重试与时钟偏差，又远短于「玩家能升一整段」的时间。
+ * 取不到时间戳一律当作不新鲜 —— 拿不准时选择不点名。
+ */
+const PROFILE_FRESH_WINDOW_MS = 10 * 60 * 1000;
+
+function profileIsFresh(updatedAt: unknown): boolean {
+  if (typeof updatedAt !== 'string') return false;
+  const t = Date.parse(updatedAt);
+  if (!Number.isFinite(t)) return false;
+  const age = Date.now() - t;
+  // 未来时间戳同样可疑（时钟偏差或写入异常），一并当作不新鲜。
+  return age >= 0 && age <= PROFILE_FRESH_WINDOW_MS;
+}
+
 async function recordCheatEvidence(
   admin: ReturnType<typeof createClient>,
   userId: string,
@@ -188,7 +210,7 @@ Deno.serve(async (req: Request) => {
     const admin = createClient(supabaseUrl, serviceKey);
     const { data: authoritative } = await admin
       .from('profiles')
-      .select('level, class_id')
+      .select('level, class_id, updated_at')
       .eq('id', user.id)
       .maybeSingle();
 
@@ -207,6 +229,9 @@ Deno.serve(async (req: Request) => {
           boundValue: trialBracketDamageCeiling(authLevel, sub.classId, serverWeek),
           boundKind: 'upper',
           priorEvidenceCount: 0,
+          // ★ 档案陈旧时只记录、不点名。档案里的等级偏旧 → 上界偏低 →
+          // 正常玩家看起来像越界，而倍率越高越像铁证 —— 那正是循环论证。
+          boundTrustworthy: profileIsFresh(authoritative.updated_at),
         });
       }
     }

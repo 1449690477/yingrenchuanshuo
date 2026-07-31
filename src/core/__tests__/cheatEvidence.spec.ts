@@ -262,3 +262,32 @@ describe('作弊证据分级 · 我方判据故障与「玩家清白」必须可
     expect(line).not.toContain('作弊');
   });
 });
+
+describe('作弊证据分级 · 闸门零之二：界限不新鲜就不点名', () => {
+  // 上界由玩家档案里的等级算出，而档案可能陈旧（同步与提交是两次独立请求）。
+  // 档案越旧 → 上界越低 → 正常玩家越像作弊，且倍率越高越像铁证 ——
+  // 用它证明「倍率高所以是作弊」是循环论证。
+  it('界限不可信时即便超到极端也只记录不公示', () => {
+    const v = input({ claimedValue: 1e9, boundValue: 100, boundTrustworthy: false });
+    expect(v.isProven).toBe(true);
+    expect(v.shouldPublish).toBe(false);
+    expect(v.holdReason).toBe('bound-not-trustworthy');
+  });
+
+  it('界限不可信时，历史证据再多也不能凑够公示条件', () => {
+    const v = input({ claimedValue: 300, boundValue: 100, priorEvidenceCount: 99, boundTrustworthy: false });
+    expect(v.shouldPublish).toBe(false);
+  });
+
+  it('不传该字段时维持原行为 —— 默认可信，不改动既有五条上报路径', () => {
+    const v = input({ claimedValue: 1e9, boundValue: 100 });
+    expect(v.shouldPublish).toBe(true);
+    expect(v.holdReason).toBe('none');
+  });
+
+  it('显式传 true 与不传等价', () => {
+    const a = input({ claimedValue: 1e9, boundValue: 100, boundTrustworthy: true });
+    const b = input({ claimedValue: 1e9, boundValue: 100 });
+    expect(a).toEqual(b);
+  });
+});
