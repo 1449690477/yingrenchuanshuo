@@ -210,18 +210,18 @@ Deno.serve(async (req: Request) => {
     }
 
     // ── 5. 写入（service role；成绩表对客户端无写权限）──
+    const profileProgress = {
+      class_id: sub.classId,
+      level: sub.level,
+      combat_power: build.combatPower,
+      updated_at: new Date().toISOString(),
+    };
     // ★ 判为不可信时**绝不把自报进度写进档案** —— 档案是下一次判定的尺子，
     //   让伪造值写进去等于亲手把尺子弄弯（2026-07-30 那次绕过的关键一环：
     //   伪造的 Lv81 先写进 profiles，后续判定便再也无从比对）。
-    const profileProgress = verified
-      ? {
-          class_id: sub.classId,
-          level: sub.level,
-          combat_power: build.combatPower,
-          updated_at: new Date().toISOString(),
-        }
-      : null;
-    if (profileProgress) {
+    //   成绩本身照常入库（verified=false，移出展示但保留待审）。
+    const shouldWriteProfile = verified;
+    if (shouldWriteProfile) {
       const { error: createProfileError } = await admin.from('profiles').upsert(
         {
           id: user.id,
@@ -234,7 +234,7 @@ Deno.serve(async (req: Request) => {
       if (createProfileError) return json({ error: '档案初始化失败' }, 500);
     }
 
-    if (profileProgress) {
+    if (shouldWriteProfile) {
       const { error: updateProfileError } = await admin
         .from('profiles')
         .update(profileProgress)
