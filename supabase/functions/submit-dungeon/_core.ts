@@ -8,14 +8,43 @@ var DUNGEON_FIRST_CLEAR_EPOCH_MS = Date.UTC(2026, 0, 1);
 var DUNGEON_CLOCK_SKEW_TOLERANCE_MS = 5 * 6e4;
 
 // src/data/constants.ts
-var CP_WEIGHTS = {
-  atk: 2,
-  def: 3,
-  hp: 0.15,
-  acc: 1,
-  eva: 1.2,
-  critRate: 250,
-  critDmg: 80
+var K_DEF = 50;
+var HIT_BASE = 0.75;
+var HIT_DIVISOR = 800;
+var HIT_MIN = 0.55;
+var HIT_MAX = 1;
+var CRIT_BASE = 1.5;
+var DAMAGE_VARIANCE_MIN = 0.92;
+var DAMAGE_VARIANCE_MAX = 1.08;
+var MONSTER_HP_BASE = 60;
+var MONSTER_HP_POW = 1.45;
+var MONSTER_ATK_BASE = 4.9;
+var MONSTER_ATK_POW = 1.35;
+var MONSTER_DEF_BASE = 4;
+var MONSTER_DEF_POW = 1.3;
+var MONSTER_ACC_BASE = 80;
+var MONSTER_ACC_PER_LEVEL = 1.2;
+var MONSTER_EVA_PER_LEVEL = 0.6;
+var MONSTER_BASE_CRIT_DMG = 50;
+var MONSTER_TYPE_MUL = {
+  normal: { hp: 1, atk: 1, exp: 1 },
+  elite: { hp: 6, atk: 1.8, exp: 5 },
+  boss: { hp: 40, atk: 3, exp: 30 }
+};
+var MONSTER_DEF_TYPE_MUL = {
+  normal: 1,
+  elite: 1.4,
+  boss: 2
+};
+var MONSTER_CRIT_RATE = {
+  normal: 2,
+  elite: 5,
+  boss: 10
+};
+var MONSTER_SPEED = {
+  normal: 1,
+  elite: 1,
+  boss: 1.2
 };
 var CLASS_BASE_STATS = {
   swordsman: { atk: 12, def: 8, hp: 200, acc: 85, eva: 5, critRate: 5, critDmg: 50, spd: 1 },
@@ -134,11 +163,143 @@ function baseStatsFor(classId, level) {
     spd: base.spd
   };
 }
+var EXPECTED_GEAR_ANCHORS = [
+  [1, 1],
+  [8, 1],
+  [20, 1.5],
+  [32, 2.3],
+  [52, 3.6],
+  // 史诗档要持有到 64 级再爬向传说：52→77 直接插值会在 Lv60 附近鼓出一个
+  // 6.7 秒的包，那一段玩家其实还穿着史诗，怪物血量不该提前按传说算。
+  [62, 3.6],
+  // Lv65 是玩家换上传说装的临界点，战力一次性跳一档；
+  // 血量必须在同一级跟着抬，否则那一级会掉到 3.2 秒（低于 3.5 秒下限）。
+  [65, 4.9],
+  [77, 5.8],
+  [100, 9.2],
+  [120, 15]
+];
+var THREAT_ANCHORS = [
+  [1, 0.4],
+  [15, 0.4],
+  [25, 0.49],
+  [35, 0.76],
+  [45, 0.8],
+  [55, 0.8],
+  [60, 0.78],
+  [65, 1.25],
+  [75, 1.18],
+  [85, 1.12],
+  [90, 1.52],
+  [100, 1.4],
+  [105, 1.42],
+  [110, 2.18],
+  [115, 2.07],
+  [120, 1.96]
+];
+function expectedThreatFactor(level) {
+  const lv = Math.max(1, level);
+  let mul = THREAT_ANCHORS[THREAT_ANCHORS.length - 1][1];
+  for (let i = 0; i < THREAT_ANCHORS.length - 1; i++) {
+    const [l0, q0] = THREAT_ANCHORS[i];
+    const [l1, q1] = THREAT_ANCHORS[i + 1];
+    if (lv <= l1) {
+      const t = l1 === l0 ? 0 : (lv - l0) / (l1 - l0);
+      mul = q0 + (q1 - q0) * t;
+      break;
+    }
+  }
+  return mul;
+}
+function expectedGearFactor(level) {
+  const lv = Math.max(1, level);
+  let qualityMul = EXPECTED_GEAR_ANCHORS[EXPECTED_GEAR_ANCHORS.length - 1][1];
+  for (let i = 0; i < EXPECTED_GEAR_ANCHORS.length - 1; i++) {
+    const [l0, q0] = EXPECTED_GEAR_ANCHORS[i];
+    const [l1, q1] = EXPECTED_GEAR_ANCHORS[i + 1];
+    if (lv <= l1) {
+      const t = l1 === l0 ? 0 : (lv - l0) / (l1 - l0);
+      qualityMul = q0 + (q1 - q0) * t;
+      break;
+    }
+  }
+  return qualityMul * (0.33 + lv / 600);
+}
+function monsterHp(level, type = "normal", mul = 1) {
+  return Math.round(
+    MONSTER_HP_BASE * Math.pow(level, MONSTER_HP_POW) * expectedGearFactor(level) * MONSTER_TYPE_MUL[type].hp * mul
+  );
+}
+function monsterAtk(level, type = "normal", mul = 1) {
+  return Math.round(
+    MONSTER_ATK_BASE * Math.pow(level, MONSTER_ATK_POW) * expectedThreatFactor(level) * MONSTER_TYPE_MUL[type].atk * mul
+  );
+}
+function monsterDef(level, type = "normal") {
+  return Math.round(
+    MONSTER_DEF_BASE * Math.pow(level, MONSTER_DEF_POW) * MONSTER_DEF_TYPE_MUL[type]
+  );
+}
+function makeMonster(def) {
+  const hp = monsterHp(def.level, def.type, def.hpMul ?? 1);
+  return {
+    name: def.name,
+    level: def.level,
+    element: def.element,
+    currentHp: hp,
+    stats: {
+      atk: monsterAtk(def.level, def.type, def.atkMul ?? 1),
+      def: monsterDef(def.level, def.type),
+      hp,
+      acc: Math.round(MONSTER_ACC_BASE + def.level * MONSTER_ACC_PER_LEVEL),
+      eva: Math.round(def.level * MONSTER_EVA_PER_LEVEL),
+      critRate: MONSTER_CRIT_RATE[def.type],
+      critDmg: MONSTER_BASE_CRIT_DMG,
+      spd: MONSTER_SPEED[def.type]
+    }
+  };
+}
 
 // src/core/formula.ts
-function combatPower(stats) {
-  const base = stats.atk * CP_WEIGHTS.atk + stats.def * CP_WEIGHTS.def + stats.hp * CP_WEIGHTS.hp + stats.acc * CP_WEIGHTS.acc + stats.eva * CP_WEIGHTS.eva + stats.critRate / 100 * CP_WEIGHTS.critRate + stats.critDmg / 100 * CP_WEIGHTS.critDmg;
-  return Math.round(base * stats.spd);
+function clamp(v, min, max) {
+  return v < min ? min : v > max ? max : v;
+}
+function damageReduction(def, attackerLevel) {
+  const denom = def + K_DEF * Math.max(1, attackerLevel);
+  if (denom <= 0) return 0;
+  return def / denom;
+}
+function hitChance(acc, eva) {
+  return clamp(HIT_BASE + (acc - eva) / HIT_DIVISOR, HIT_MIN, HIT_MAX);
+}
+function critMultiplier(critDmg) {
+  return CRIT_BASE + critDmg / 100;
+}
+function combatPowerValue(stats, level) {
+  if (!Number.isInteger(level) || level < 1) {
+    throw new Error(`combatPower: \u7B49\u7EA7\u5FC5\u987B >= 1 \u7684\u6574\u6570\uFF0C\u6536\u5230 ${level}`);
+  }
+  const m = makeMonster({
+    id: "ref",
+    name: "ref",
+    level,
+    type: "normal",
+    element: "none",
+    lootTableId: "ref",
+    sprite: ""
+  }).stats;
+  const critAvgP = 1 + clamp(stats.critRate / 100, 0, 1) * (critMultiplier(stats.critDmg) - 1);
+  const critAvgM = 1 + clamp(m.critRate / 100, 0, 1) * (critMultiplier(m.critDmg) - 1);
+  const avgVariance = (DAMAGE_VARIANCE_MIN + DAMAGE_VARIANCE_MAX) / 2;
+  const dps = stats.spd * hitChance(stats.acc, m.eva) * avgVariance * stats.atk * (1 - damageReduction(m.def, level)) * critAvgP;
+  const perHit = hitChance(m.acc, stats.eva) * avgVariance * m.atk * (1 - damageReduction(stats.def, level)) * critAvgM;
+  if (stats.hp <= 0) return 0;
+  const ehp = perHit > 0 ? stats.hp / perHit : Number.POSITIVE_INFINITY;
+  const value = Math.sqrt(dps * ehp);
+  return Number.isFinite(value) ? value : 0;
+}
+function combatPower(stats, level) {
+  return Math.round(combatPowerValue(stats, level));
 }
 function zeroStats() {
   return { atk: 0, def: 0, hp: 0, acc: 0, eva: 0, critRate: 0, critDmg: 0, spd: 0 };
@@ -2502,7 +2663,7 @@ function expectedGearStatsFromDefinitions(level) {
   return out;
 }
 function expectedFullGearCp(level, classId = "swordsman") {
-  return combatPower(addStats(baseStatsFor(classId, level), expectedGearStatsFromDefinitions(level)));
+  return combatPower(addStats(baseStatsFor(classId, level), expectedGearStatsFromDefinitions(level)), level);
 }
 
 // src/data/imprintRules.ts
