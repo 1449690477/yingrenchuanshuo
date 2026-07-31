@@ -23,6 +23,13 @@
 
 import { createRequire } from 'node:module';
 
+/*
+ * page.evaluate 的回调是**在浏览器里**执行的，document / indexedDB 只在那边存在；
+ * 而 eslint 按 node 环境检查本文件，会把它们判成未定义。
+ * 用 globals 注释显式声明，而不是关掉 no-undef —— 关规则会连同真正的笔误一起放过。
+ */
+/* global document, indexedDB */
+
 const require = createRequire(import.meta.url);
 
 const PLAYWRIGHT_PATHS = [
