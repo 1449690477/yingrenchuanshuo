@@ -24,6 +24,7 @@ import { AFFECTION_EQUIPMENT_LIST } from './affectionEquipment';
 import { ARENA_EQUIPMENT_LIST } from './arenaEquipment';
 import { BOUTIQUE_THEME_LIST, boutiqueAppearanceId, boutiqueEquipmentId } from './boutique';
 import { EQUIPMENT_DUNGEON_GEAR_LIST } from './equipmentDungeonGear';
+import { QUALITY_LEVEL_OFFSET, regionQualityLevel, regionQualities } from './qualitySchedule';
 import { REGION_34_EQUIPMENT_THEMES } from './region34';
 import {
   REGION_5_EQUIPMENT_THEME,
@@ -77,9 +78,9 @@ const THEMES: NamingTheme[] = [
   {
     regionId: 'r1',
     // 白装 Lv2 即可穿，和 docs/14 的「Lv2 解锁装备穿戴」一致。
-    level: 4,
+    level: regionQualityLevel('r1'),
     weaponElement: REGION_WEAPON_ELEMENTS.r1,
-    qualities: ['common', 'fine', 'rare'],
+    qualities: [...regionQualities('r1')],
     icons: {
       weapon: 'assets/equipment/r1/weapon.png',
       head: 'assets/equipment/r1/head.png',
@@ -109,9 +110,9 @@ const THEMES: NamingTheme[] = [
   },
   {
     regionId: 'r2',
-    level: 16,
+    level: regionQualityLevel('r2'),
     weaponElement: REGION_WEAPON_ELEMENTS.r2,
-    qualities: ['fine', 'rare', 'epic'],
+    qualities: [...regionQualities('r2')],
     icons: {
       weapon: 'assets/equipment/r2/weapon.png',
       head: 'assets/equipment/r2/head.png',
@@ -145,9 +146,9 @@ const THEMES: NamingTheme[] = [
   // 提前放开会让后面的区域没有东西可给（见 docs/44 品质开放节奏）。
   ...REGION_34_EQUIPMENT_THEMES.map((theme) => ({
     regionId: theme.regionId,
-    level: theme.regionId === 'r3' ? 26 : 36,
+    level: regionQualityLevel(theme.regionId),
     weaponElement: REGION_WEAPON_ELEMENTS[theme.regionId],
-    qualities: ['fine', 'rare', 'epic'] as Quality[],
+    qualities: [...regionQualities(theme.regionId)],
     icons: Object.fromEntries(
       SLOT_ORDER.map((slot) => [slot, `assets/equipment/${theme.regionId}/${slot}.png`]),
     ) as Record<EquipSlot, string>,
@@ -199,18 +200,6 @@ const QUALITY_PREFIX: Record<Quality, string> = {
   mythic: '神话·',
   prismatic: '心虹·',
   divine: '圣痕·',
-};
-
-/** 不同品质的等级偏移：高品质装备需求等级略高 */
-const QUALITY_LEVEL_OFFSET: Record<Quality, number> = {
-  common: -2,
-  fine: 0,
-  rare: 2,
-  epic: 4,
-  legendary: 6,
-  mythic: 8,
-  prismatic: 9,
-  divine: 10,
 };
 
 function weaponClassPresentations(

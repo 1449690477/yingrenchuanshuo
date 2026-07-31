@@ -34,6 +34,16 @@ var EVA_PER_LEVEL = 0.8;
 var ITEM_BASE = 6;
 var ITEM_POW = 1.35;
 var ITEM_SCALE = 0.1;
+var QUALITY_ORDER = [
+  "common",
+  "fine",
+  "rare",
+  "epic",
+  "legendary",
+  "mythic",
+  "prismatic",
+  "divine"
+];
 var QUALITY_RANK = {
   common: 0,
   fine: 1,
@@ -151,38 +161,6 @@ function addStats(a, b) {
     critDmg: a.critDmg + (b.critDmg ?? 0),
     spd: a.spd + (b.spd ?? 0)
   };
-}
-
-// src/data/expectedPower.ts
-function typicalQualityAt(level) {
-  if (level < 15) return "common";
-  if (level < 25) return "fine";
-  if (level < 40) return "rare";
-  if (level < 65) return "epic";
-  if (level < 90) return "legendary";
-  if (level < 110) return "mythic";
-  return "divine";
-}
-function zeroStats() {
-  return { atk: 0, def: 0, hp: 0, acc: 0, eva: 0, critRate: 0, critDmg: 0, spd: 0 };
-}
-function expectedGearStats(level, quality) {
-  const baseValue = ITEM_BASE * Math.pow(level, ITEM_POW) * QUALITY_MUL[quality] * ITEM_SCALE;
-  const pctScale = QUALITY_PCT_SCALE[quality];
-  const out = zeroStats();
-  for (const slot of Object.keys(SLOT_WEIGHTS)) {
-    for (const [key, weight] of Object.entries(SLOT_WEIGHTS[slot])) {
-      out[key] += baseValue * weight;
-    }
-    for (const [key, weight] of Object.entries(SLOT_PCT_WEIGHTS[slot])) {
-      out[key] += pctScale * weight;
-    }
-  }
-  return out;
-}
-function expectedFullGearCp(level, classId = "swordsman") {
-  const quality = typicalQualityAt(level);
-  return combatPower(addStats(baseStatsFor(classId, level), expectedGearStats(level, quality)));
 }
 
 // src/core/types.ts
@@ -529,6 +507,478 @@ function buildEquipmentDungeonGear() {
 }
 var EQUIPMENT_DUNGEON_GEAR = buildEquipmentDungeonGear();
 var EQUIPMENT_DUNGEON_GEAR_LIST = Object.values(EQUIPMENT_DUNGEON_GEAR);
+
+// src/data/region5.ts
+var REGION_5 = {
+  id: "r5",
+  index: 5,
+  name: "\u7194\u5CA9\u795E\u6BBF",
+  subtitle: "\u8D64\u91D1\u706B\u7EB9\u7167\u4EAE\u4E0D\u7184\u7684\u8A93\u7EA6",
+  levelFrom: 40,
+  levelTo: 52,
+  theme: ["#f27a70", "#ffe5bd"],
+  mapAsset: "assets/maps/r5.webp",
+  chapters: [
+    {
+      id: "5-1",
+      name: "\u7126\u571F\u5916\u73AF",
+      levelFrom: 40,
+      levelTo: 42,
+      element: "fire",
+      normals: ["\u7070\u70EC\u56E2\u5B50", "\u7194\u58F3\u8725\u7075", "\u706B\u661F\u98DE\u86FE", "\u7126\u5CA9\u7532\u866B"],
+      materials: ["slag_lava", "shard_scorched"],
+      tutorial: "\u708E\u5C5E\u6027\u602A\u7269\u767B\u573A\u3002\u653B\u51FB\u5143\u7D20\u4ECD\u53EA\u7531\u6B66\u5668\u51B3\u5B9A\uFF0C\u6362\u88C5\u524D\u53EF\u5148\u67E5\u770B\u6B66\u5668\u8BE6\u60C5\u3002",
+      mapAsset: "assets/maps/chapter-5-1.webp",
+      battleAsset: "assets/battlefields/chapter-5-1.webp"
+    },
+    {
+      id: "5-2",
+      name: "\u7194\u5CA9\u6865",
+      levelFrom: 42,
+      levelTo: 45,
+      element: "fire",
+      normals: ["\u5CA9\u6D46\u53F2\u83B1\u59C6", "\u706B\u7FBD\u8760\u7075", "\u7EA2\u6676\u5B88\u536B", "\u94FE\u6865\u706B\u94C3"],
+      elite: "\u7194\u5CA9\u536B\u5A18",
+      materials: ["slag_lava", "shard_scorched", "ember_ritual"],
+      mapAsset: "assets/maps/chapter-5-2.webp",
+      battleAsset: "assets/battlefields/chapter-5-2.webp"
+    },
+    {
+      id: "5-3",
+      name: "\u795E\u6BBF\u524D\u5EAD",
+      levelFrom: 45,
+      levelTo: 47,
+      element: "fire",
+      normals: ["\u7948\u706B\u706F\u7075", "\u8D64\u7EB9\u77F3\u50CF", "\u9999\u7070\u72D0\u7075", "\u91D1\u7130\u7532\u5175"],
+      materials: ["slag_lava", "shard_scorched"],
+      mapAsset: "assets/maps/chapter-5-3.webp",
+      battleAsset: "assets/battlefields/chapter-5-3.webp"
+    },
+    {
+      id: "5-4",
+      name: "\u796D\u706B\u5927\u5385",
+      levelFrom: 47,
+      levelTo: 50,
+      element: "fire",
+      normals: ["\u706B\u7EB1\u4F8D\u4ECE", "\u796D\u76D8\u7CBE\u7075", "\u70DB\u51A0\u706B\u7075", "\u8D64\u7EF8\u821E\u7075"],
+      elite: "\u8D64\u7EA2\u795E\u5B98",
+      materials: ["slag_lava", "shard_scorched", "ember_ritual"],
+      mapAsset: "assets/maps/chapter-5-4.webp",
+      battleAsset: "assets/battlefields/chapter-5-4.webp"
+    },
+    {
+      id: "5-5",
+      name: "\u7194\u5FC3\u5723\u6240",
+      levelFrom: 50,
+      levelTo: 52,
+      element: "fire",
+      normals: ["\u7194\u5FC3\u5B88\u536B", "\u7130\u7FBD\u5723\u7075", "\u91D1\u77B3\u706B\u86C7", "\u8A93\u706B\u4F8D\u5973"],
+      elite: "\u7194\u5FC3\u5723\u4F8D",
+      boss: "\u708E\u795E\u5B98\u957F\xB7\u7EF4\u65AF\u5854",
+      materials: ["slag_lava", "shard_scorched", "ember_ritual", "core_moltenheart"],
+      mapAsset: "assets/maps/chapter-5-5.webp",
+      battleAsset: "assets/battlefields/chapter-5-5.webp"
+    }
+  ]
+};
+var REGION_5_EQUIPMENT_THEME = {
+  regionId: "r5",
+  themeName: "\u7EEF\u91D1\u706B\u7EB9\u7CFB",
+  level: 46,
+  qualities: ["rare", "epic", "legendary"],
+  visualKeywords: ["\u8D64\u7EA2", "\u938F\u91D1", "\u706B\u7EB9", "\u900F\u660E\u7194\u6676"],
+  names: {
+    weapon: "\u7EEF\u91D1\u8A93\u5203",
+    head: "\u706B\u7EB9\u796D\u51A0",
+    body: "\u8D64\u7130\u796D\u793C\u88D9",
+    necklace: "\u4F59\u70EC\u5FC3\u5760",
+    bracelet: "\u7194\u7EB9\u62A4\u8155",
+    ring: "\u8A93\u706B\u91D1\u6212",
+    belt: "\u8D64\u91D1\u7EF6\u5E26",
+    shoes: "\u7130\u6B65\u77ED\u9774"
+  },
+  weaponNames: {
+    swordsman: "\u7EEF\u91D1\u8A93\u5203",
+    witch: "\u7194\u6676\u7130\u5FC3\u6756",
+    shaman: "\u8D64\u7FBD\u796D\u706B\u6247",
+    catkin: "\u7EEF\u7130\u88C2\u6676\u722A"
+  }
+};
+var REGION_5_SET_ID = "set_region_crimson";
+var REGION_5_SET_LEVEL = 50;
+var REGION_5_SET_QUALITY = "legendary";
+var REGION_5_SET_SLOTS = [
+  "weapon",
+  "head",
+  "body",
+  "necklace",
+  "ring",
+  "bracelet"
+];
+var REGION_5_SET_NAMES = {
+  weapon: "\u7EF4\u65AF\u5854\u8A93\u7130\u5203",
+  head: "\u7EEF\u7130\u5723\u51A0",
+  body: "\u7EEF\u7130\u8A93\u7EA6\u793C\u88C5",
+  necklace: "\u7194\u5FC3\u8A93\u5760",
+  ring: "\u4E0D\u706D\u7130\u6212",
+  bracelet: "\u8D64\u91D1\u7130\u62A4"
+};
+var REGION_5_SET_WEAPON_NAMES = {
+  swordsman: "\u7EF4\u65AF\u5854\u8A93\u7130\u5203",
+  witch: "\u7EF4\u65AF\u5854\u7130\u5FC3\u6756",
+  shaman: "\u7EF4\u65AF\u5854\u71CE\u5929\u6247",
+  catkin: "\u7EF4\u65AF\u5854\u7130\u7FBD\u722A"
+};
+function region5SetEquipmentId(slot) {
+  return `eq_set_region_crimson_${slot}`;
+}
+
+// src/data/region6.ts
+var REGION_6 = {
+  id: "r6",
+  index: 6,
+  name: "\u5E7D\u5F71\u7940\u5854",
+  subtitle: "\u7D2B\u9ED1\u77F3\u9636\u901A\u5411\u65E0\u58F0\u7684\u865A\u7A7A\u796D\u575B",
+  levelFrom: 52,
+  levelTo: 65,
+  theme: ["#6f5aa8", "#c4a9ef"],
+  mapAsset: "assets/maps/r6.webp",
+  chapters: [
+    {
+      id: "6-1",
+      name: "\u7940\u5854\u4E00\u5C42\xB7\u77F3\u50CF\u56DE\u5ECA",
+      levelFrom: 52,
+      levelTo: 55,
+      element: "thunder",
+      normals: ["\u7720\u77F3\u56E2\u5B50", "\u523B\u7EB9\u77F3\u5076", "\u9EEF\u5149\u6D6E\u96D5\u7075", "\u7940\u5854\u77F3\u7FFC\u517D"],
+      materials: ["dust_statue", "scroll_faded"],
+      tutorial: "\u77F3\u50CF\u602A\u4F1A\u5728\u7B2C\u4E00\u6B21\u53D7\u51FB\u65F6\u82CF\u9192\uFF1B\u5B83\u53EA\u6539\u53D8\u5165\u573A\u6F14\u51FA\uFF0C\u4E0D\u4F1A\u5077\u88AD\u9020\u6210\u989D\u5916\u4F24\u5BB3\u3002",
+      mapAsset: "assets/maps/chapter-6-1.webp",
+      battleAsset: "assets/battlefields/chapter-6-1.webp"
+    },
+    {
+      id: "6-2",
+      name: "\u7940\u5854\u4E09\u5C42\xB7\u796D\u7940\u95F4",
+      levelFrom: 55,
+      levelTo: 58,
+      element: "thunder",
+      normals: ["\u7ECF\u5377\u7EB8\u7075", "\u5E7D\u706F\u4F8D\u4ECE", "\u7977\u949F\u8760\u7075", "\u9ED1\u7EB1\u796D\u5076"],
+      elite: "\u5E7D\u5F71\u796D\u53F8",
+      materials: ["dust_statue", "scroll_faded", "wisp_shadow"],
+      mapAsset: "assets/maps/chapter-6-2.webp",
+      battleAsset: "assets/battlefields/chapter-6-2.webp"
+    },
+    {
+      id: "6-3",
+      name: "\u7940\u5854\u4E94\u5C42\xB7\u85CF\u7ECF\u9601",
+      levelFrom: 58,
+      levelTo: 60,
+      element: "thunder",
+      normals: ["\u58A8\u9875\u4E66\u7075", "\u6B8B\u70DB\u7ECF\u4F7F", "\u9501\u94FE\u5377\u8F74\u602A", "\u9759\u9ED8\u5B88\u4E66\u4EBA"],
+      materials: ["dust_statue", "scroll_faded"],
+      mapAsset: "assets/maps/chapter-6-3.webp",
+      battleAsset: "assets/battlefields/chapter-6-3.webp"
+    },
+    {
+      id: "6-4",
+      name: "\u7940\u5854\u4E03\u5C42\xB7\u7981\u5FCC\u4E4B\u95F4",
+      levelFrom: 60,
+      levelTo: 63,
+      element: "thunder",
+      normals: ["\u5F71\u7EB9\u4F8D\u5973", "\u7981\u4E66\u5492\u7075", "\u865A\u50CF\u5DE1\u793C\u8005", "\u7D2B\u6676\u795E\u9F9B\u7075"],
+      elite: "\u5E7D\u5F71\u6559\u4E3B\u5019\u8865",
+      materials: ["dust_statue", "scroll_faded", "wisp_shadow"],
+      mapAsset: "assets/maps/chapter-6-4.webp",
+      battleAsset: "assets/battlefields/chapter-6-4.webp"
+    },
+    {
+      id: "6-5",
+      name: "\u5854\u9876\xB7\u865A\u7A7A\u796D\u575B",
+      levelFrom: 63,
+      levelTo: 65,
+      element: "thunder",
+      normals: ["\u5854\u9876\u5B88\u671B\u8005", "\u865A\u7A7A\u661F\u706F", "\u7940\u5F71\u86C7\u7075", "\u8BFA\u74E6\u8FD1\u4F8D"],
+      elite: "\u5854\u9876\u53F8\u796D",
+      boss: "\u5E7D\u5F71\u6559\u4E3B\xB7\u8BFA\u74E6",
+      materials: ["dust_statue", "scroll_faded", "wisp_shadow", "stone_void"],
+      mapAsset: "assets/maps/chapter-6-5.webp",
+      battleAsset: "assets/battlefields/chapter-6-5.webp"
+    }
+  ]
+};
+var REGION_6_EQUIPMENT_THEME = {
+  regionId: "r6",
+  themeName: "\u5E7D\u77F3\u7940\u7EB9\u7CFB",
+  level: 56,
+  qualities: ["rare", "epic", "legendary"],
+  visualKeywords: ["\u7D2B\u9ED1", "\u77F3\u7EB9", "\u94F6\u7070", "\u6559\u56E2\u5FBD\u8BB0"],
+  names: {
+    weapon: "\u5E7D\u77F3\u7977\u5203",
+    head: "\u77F3\u7EB9\u7940\u51A0",
+    body: "\u5E7D\u5EAD\u796D\u793C\u88D9",
+    necklace: "\u892A\u8272\u7ECF\u5760",
+    bracelet: "\u9547\u5F71\u77F3\u956F",
+    ring: "\u865A\u5149\u8A93\u6212",
+    belt: "\u7384\u7EB9\u7940\u5E26",
+    shoes: "\u9759\u9ED8\u884C\u9774"
+  },
+  weaponNames: {
+    swordsman: "\u5E7D\u77F3\u9547\u9B42\u5251",
+    witch: "\u5E7D\u70EC\u7977\u661F\u6756",
+    shaman: "\u7384\u94C3\u9547\u5F71\u6247",
+    catkin: "\u591C\u5F71\u88C2\u77F3\u722A"
+  }
+};
+var REGION_6_SET_ID = "set_region_shadow";
+var REGION_6_SET_LEVEL = 62;
+var REGION_6_SET_QUALITY = "legendary";
+var REGION_6_SET_SLOTS = [
+  "weapon",
+  "head",
+  "body",
+  "necklace",
+  "bracelet",
+  "ring",
+  "belt",
+  "shoes"
+];
+var REGION_6_SET_NAMES = {
+  weapon: "\u8BFA\u74E6\u5E7D\u754C\u5203",
+  head: "\u5E7D\u5F71\u6559\u7687\u51A0",
+  body: "\u8BFA\u74E6\u865A\u7A7A\u793C\u88C5",
+  necklace: "\u6B8B\u6708\u9B42\u5760",
+  bracelet: "\u9547\u9B42\u5E7D\u956F",
+  ring: "\u4E0D\u706D\u5F71\u6212",
+  belt: "\u865A\u7A7A\u7940\u5E26",
+  shoes: "\u65E0\u58F0\u5F71\u9774"
+};
+var REGION_6_SET_WEAPON_NAMES = {
+  swordsman: "\u8BFA\u74E6\u5E7D\u754C\u5251",
+  witch: "\u8BFA\u74E6\u865A\u661F\u6756",
+  shaman: "\u8BFA\u74E6\u9547\u9B42\u6247",
+  catkin: "\u8BFA\u74E6\u5F71\u7F1A\u722A"
+};
+function region6SetEquipmentId(slot) {
+  return `eq_set_region_shadow_${slot}`;
+}
+
+// src/data/region7.ts
+var REGION_7 = {
+  id: "r7",
+  index: 7,
+  name: "\u8840\u6708\u5CE1\u8C37",
+  subtitle: "\u8D64\u6708\u7167\u7740\u96FE\u6D77\uFF0C\u4E5F\u7167\u4EAE\u5CE1\u8C37\u5C3D\u5934\u7684\u796D\u53F0",
+  levelFrom: 65,
+  levelTo: 78,
+  theme: ["#8e263f", "#e86f8e"],
+  mapAsset: "assets/maps/r7.webp",
+  chapters: [
+    {
+      id: "7-1",
+      name: "\u5CE1\u8C37\u5165\u53E3",
+      levelFrom: 65,
+      levelTo: 68,
+      element: "fire",
+      normals: ["\u8840\u6708\u7ED2\u8760", "\u5CE1\u8C37\u706F\u7B3C\u9B3C", "\u8D64\u6676\u89D2\u5154", "\u96FE\u884C\u5C0F\u6076\u9B54"],
+      materials: ["dew_bloodmist", "herb_soulbreak"],
+      tutorial: "\u8840\u6708\u5CE1\u8C37\u7684\u654C\u4EBA\u504F\u708E\u5C5E\u6027\uFF1B\u65B0\u533A\u96F7\u5C5E\u6027\u6B66\u5668\u80FD\u591F\u514B\u5236\u5B83\u4EEC\u3002",
+      mapAsset: "assets/maps/chapter-7-1.webp",
+      battleAsset: "assets/battlefields/chapter-7-1.webp"
+    },
+    {
+      id: "7-2",
+      name: "\u8840\u96FE\u6CBC\u6CFD",
+      levelFrom: 68,
+      levelTo: 70,
+      element: "fire",
+      normals: ["\u8840\u6CBC\u8F6F\u6CE5\u602A", "\u7EEF\u96FE\u9B45\u7075", "\u6CBC\u6CFD\u9B54\u8548\u5A18", "\u8840\u82D4\u56E2\u5B50"],
+      elite: "\u8840\u96FE\u9B54\u5973",
+      materials: ["dew_bloodmist", "herb_soulbreak", "horn_demon"],
+      mapAsset: "assets/maps/chapter-7-2.webp",
+      battleAsset: "assets/battlefields/chapter-7-2.webp"
+    },
+    {
+      id: "7-3",
+      name: "\u65AD\u9B42\u5D16",
+      levelFrom: 70,
+      levelTo: 73,
+      element: "fire",
+      normals: ["\u65AD\u9B42\u5D16\u9E26", "\u8D64\u85E4\u6500\u884C\u8005", "\u5D16\u98CE\u9B45\u5F71", "\u9B42\u706F\u89D2\u517D"],
+      materials: ["dew_bloodmist", "herb_soulbreak"],
+      mapAsset: "assets/maps/chapter-7-3.webp",
+      battleAsset: "assets/battlefields/chapter-7-3.webp"
+    },
+    {
+      id: "7-4",
+      name: "\u6076\u9B54\u96C6\u4F1A\u6240",
+      levelFrom: 73,
+      levelTo: 76,
+      element: "fire",
+      normals: ["\u6076\u9B54\u4F8D\u7AE5", "\u6708\u75D5\u77F3\u50CF\u9B3C", "\u7EA2\u7F0E\u9B45\u7075", "\u4E09\u53C9\u621F\u5C0F\u9B3C"],
+      elite: "\u5C0F\u6076\u9B54\u5A18\u4E09\u59D0\u59B9",
+      materials: ["dew_bloodmist", "herb_soulbreak", "horn_demon"],
+      mapAsset: "assets/maps/chapter-7-4.webp",
+      battleAsset: "assets/battlefields/chapter-7-4.webp"
+    },
+    {
+      id: "7-5",
+      name: "\u8840\u6708\u796D\u53F0",
+      levelFrom: 76,
+      levelTo: 78,
+      element: "fire",
+      normals: ["\u8840\u6708\u796D\u53F8", "\u7329\u7EA2\u7977\u7075", "\u6708\u8680\u5B88\u536B", "\u8389\u8389\u59C6\u8FD1\u4F8D"],
+      elite: "\u8840\u6708\u5927\u796D\u53F8",
+      boss: "\u8840\u6708\u6076\u9B54\xB7\u8389\u8389\u59C6",
+      materials: ["dew_bloodmist", "herb_soulbreak", "horn_demon", "eye_bloodmoon"],
+      mapAsset: "assets/maps/chapter-7-5.webp",
+      battleAsset: "assets/battlefields/chapter-7-5.webp"
+    }
+  ]
+};
+var REGION_7_EQUIPMENT_THEME = {
+  regionId: "r7",
+  themeName: "\u8840\u6708\u5CE1\u8C37\u7CFB",
+  level: 69,
+  qualities: ["epic", "legendary"],
+  visualKeywords: ["\u8840\u7EA2", "\u7384\u9ED1", "\u94F6\u767D\u6708\u7EB9", "\u6076\u9B54\u89D2"],
+  names: {
+    weapon: "\u8840\u6708\u65AD\u9B42\u5203",
+    head: "\u8D64\u89D2\u6708\u51A0",
+    body: "\u7EEF\u96FE\u5CE1\u8C37\u793C\u88C5",
+    necklace: "\u8840\u96FE\u51DD\u9732\u5760",
+    bracelet: "\u6076\u9B54\u89D2\u956F",
+    ring: "\u6708\u8680\u8A93\u6212",
+    belt: "\u7384\u7EA2\u675F\u9B42\u5E26",
+    shoes: "\u65AD\u5D16\u591C\u884C\u9774"
+  },
+  weaponNames: {
+    swordsman: "\u8840\u6708\u65AD\u9B42\u5251",
+    witch: "\u6708\u8680\u7EEF\u661F\u6756",
+    shaman: "\u8D64\u96FE\u5F15\u9B42\u6247",
+    catkin: "\u8840\u6708\u88C2\u9B42\u53CC\u722A"
+  }
+};
+var REGION_7_SET_ID = "set_region_bloodmoon";
+var REGION_7_SET_LEVEL = 76;
+var REGION_7_SET_QUALITY = "legendary";
+var REGION_7_SET_SLOTS = [
+  "weapon",
+  "head",
+  "body",
+  "necklace",
+  "bracelet",
+  "ring",
+  "belt",
+  "shoes"
+];
+var REGION_7_SET_NAMES = {
+  weapon: "\u8389\u8389\u59C6\u6708\u8680\u5203",
+  head: "\u8840\u6708\u7737\u5C5E\u51A0",
+  body: "\u8389\u8389\u59C6\u6DF1\u7EA2\u793C\u88C5",
+  necklace: "\u6708\u77B3\u9B42\u5760",
+  bracelet: "\u6076\u9B54\u8A93\u956F",
+  ring: "\u6708\u8680\u8840\u6212",
+  belt: "\u6DF1\u7EA2\u675F\u9B42\u5E26",
+  shoes: "\u7EEF\u96FE\u8E0F\u6708\u9774"
+};
+var REGION_7_SET_WEAPON_NAMES = {
+  swordsman: "\u8389\u8389\u59C6\u6708\u8680\u5251",
+  witch: "\u8389\u8389\u59C6\u8840\u661F\u6756",
+  shaman: "\u8389\u8389\u59C6\u5524\u6708\u6247",
+  catkin: "\u8389\u8389\u59C6\u7EEF\u6708\u53CC\u722A"
+};
+function region7SetEquipmentId(slot) {
+  return `eq_set_region_bloodmoon_${slot}`;
+}
+
+// src/data/qualitySchedule.ts
+var REGION_QUALITY_SCHEDULE = [
+  { regionId: "r1", level: 4, qualities: ["common", "fine", "rare"] },
+  { regionId: "r2", level: 16, qualities: ["fine", "rare", "epic"] },
+  { regionId: "r3", level: 26, qualities: ["fine", "rare", "epic"] },
+  { regionId: "r4", level: 36, qualities: ["fine", "rare", "epic"] },
+  {
+    regionId: REGION_5_EQUIPMENT_THEME.regionId,
+    level: REGION_5_EQUIPMENT_THEME.level,
+    qualities: REGION_5_EQUIPMENT_THEME.qualities
+  },
+  {
+    regionId: REGION_6_EQUIPMENT_THEME.regionId,
+    level: REGION_6_EQUIPMENT_THEME.level,
+    qualities: REGION_6_EQUIPMENT_THEME.qualities
+  },
+  {
+    regionId: REGION_7_EQUIPMENT_THEME.regionId,
+    level: REGION_7_EQUIPMENT_THEME.level,
+    qualities: REGION_7_EQUIPMENT_THEME.qualities
+  }
+];
+var QUALITY_LEVEL_OFFSET = {
+  common: -2,
+  fine: 0,
+  rare: 2,
+  epic: 4,
+  legendary: 6,
+  mythic: 8,
+  prismatic: 9,
+  divine: 10
+};
+function regionQualityLevel(regionId) {
+  const entry = REGION_QUALITY_SCHEDULE.find((r) => r.regionId === regionId);
+  if (!entry) throw new Error(`[\u914D\u7F6E\u9519\u8BEF] \u533A\u57DF ${regionId} \u672A\u767B\u8BB0\u54C1\u8D28\u8FDB\u5EA6\u8868`);
+  return entry.level;
+}
+function regionQualities(regionId) {
+  const entry = REGION_QUALITY_SCHEDULE.find((r) => r.regionId === regionId);
+  if (!entry) throw new Error(`[\u914D\u7F6E\u9519\u8BEF] \u533A\u57DF ${regionId} \u672A\u767B\u8BB0\u54C1\u8D28\u8FDB\u5EA6\u8868`);
+  return entry.qualities;
+}
+var QUALITY_FIRST_AVAILABLE_LEVEL = (() => {
+  const first = /* @__PURE__ */ new Map();
+  const note = (q, level) => {
+    const cur = first.get(q);
+    if (cur === void 0 || level < cur) first.set(q, level);
+  };
+  for (const entry of REGION_QUALITY_SCHEDULE) {
+    for (const q of entry.qualities) note(q, Math.max(1, entry.level + QUALITY_LEVEL_OFFSET[q]));
+  }
+  note(REGION_5_SET_QUALITY, REGION_5_SET_LEVEL);
+  note(REGION_6_SET_QUALITY, REGION_6_SET_LEVEL);
+  note(REGION_7_SET_QUALITY, REGION_7_SET_LEVEL);
+  for (const tier of EQUIPMENT_DUNGEON_TIERS) note(tier.quality, tier.level);
+  return Object.fromEntries(first);
+})();
+
+// src/data/expectedPower.ts
+function typicalQualityAt(level) {
+  let result = "common";
+  for (const q of QUALITY_ORDER) {
+    const firstLevel = QUALITY_FIRST_AVAILABLE_LEVEL[q];
+    if (firstLevel !== void 0 && firstLevel <= level) result = q;
+  }
+  return result;
+}
+function zeroStats() {
+  return { atk: 0, def: 0, hp: 0, acc: 0, eva: 0, critRate: 0, critDmg: 0, spd: 0 };
+}
+function expectedGearStats(level, quality) {
+  const baseValue = ITEM_BASE * Math.pow(level, ITEM_POW) * QUALITY_MUL[quality] * ITEM_SCALE;
+  const pctScale = QUALITY_PCT_SCALE[quality];
+  const out = zeroStats();
+  for (const slot of Object.keys(SLOT_WEIGHTS)) {
+    for (const [key, weight] of Object.entries(SLOT_WEIGHTS[slot])) {
+      out[key] += baseValue * weight;
+    }
+    for (const [key, weight] of Object.entries(SLOT_PCT_WEIGHTS[slot])) {
+      out[key] += pctScale * weight;
+    }
+  }
+  return out;
+}
+function expectedFullGearCp(level, classId = "swordsman") {
+  const quality = typicalQualityAt(level);
+  return combatPower(addStats(baseStatsFor(classId, level), expectedGearStats(level, quality)));
+}
 
 // src/data/imprintRules.ts
 var IMPRINT_CRYSTAL_IDS = {
@@ -984,389 +1434,6 @@ var REGION_34_EQUIPMENT_THEMES = [
     }
   }
 ];
-
-// src/data/region5.ts
-var REGION_5 = {
-  id: "r5",
-  index: 5,
-  name: "\u7194\u5CA9\u795E\u6BBF",
-  subtitle: "\u8D64\u91D1\u706B\u7EB9\u7167\u4EAE\u4E0D\u7184\u7684\u8A93\u7EA6",
-  levelFrom: 40,
-  levelTo: 52,
-  theme: ["#f27a70", "#ffe5bd"],
-  mapAsset: "assets/maps/r5.webp",
-  chapters: [
-    {
-      id: "5-1",
-      name: "\u7126\u571F\u5916\u73AF",
-      levelFrom: 40,
-      levelTo: 42,
-      element: "fire",
-      normals: ["\u7070\u70EC\u56E2\u5B50", "\u7194\u58F3\u8725\u7075", "\u706B\u661F\u98DE\u86FE", "\u7126\u5CA9\u7532\u866B"],
-      materials: ["slag_lava", "shard_scorched"],
-      tutorial: "\u708E\u5C5E\u6027\u602A\u7269\u767B\u573A\u3002\u653B\u51FB\u5143\u7D20\u4ECD\u53EA\u7531\u6B66\u5668\u51B3\u5B9A\uFF0C\u6362\u88C5\u524D\u53EF\u5148\u67E5\u770B\u6B66\u5668\u8BE6\u60C5\u3002",
-      mapAsset: "assets/maps/chapter-5-1.webp",
-      battleAsset: "assets/battlefields/chapter-5-1.webp"
-    },
-    {
-      id: "5-2",
-      name: "\u7194\u5CA9\u6865",
-      levelFrom: 42,
-      levelTo: 45,
-      element: "fire",
-      normals: ["\u5CA9\u6D46\u53F2\u83B1\u59C6", "\u706B\u7FBD\u8760\u7075", "\u7EA2\u6676\u5B88\u536B", "\u94FE\u6865\u706B\u94C3"],
-      elite: "\u7194\u5CA9\u536B\u5A18",
-      materials: ["slag_lava", "shard_scorched", "ember_ritual"],
-      mapAsset: "assets/maps/chapter-5-2.webp",
-      battleAsset: "assets/battlefields/chapter-5-2.webp"
-    },
-    {
-      id: "5-3",
-      name: "\u795E\u6BBF\u524D\u5EAD",
-      levelFrom: 45,
-      levelTo: 47,
-      element: "fire",
-      normals: ["\u7948\u706B\u706F\u7075", "\u8D64\u7EB9\u77F3\u50CF", "\u9999\u7070\u72D0\u7075", "\u91D1\u7130\u7532\u5175"],
-      materials: ["slag_lava", "shard_scorched"],
-      mapAsset: "assets/maps/chapter-5-3.webp",
-      battleAsset: "assets/battlefields/chapter-5-3.webp"
-    },
-    {
-      id: "5-4",
-      name: "\u796D\u706B\u5927\u5385",
-      levelFrom: 47,
-      levelTo: 50,
-      element: "fire",
-      normals: ["\u706B\u7EB1\u4F8D\u4ECE", "\u796D\u76D8\u7CBE\u7075", "\u70DB\u51A0\u706B\u7075", "\u8D64\u7EF8\u821E\u7075"],
-      elite: "\u8D64\u7EA2\u795E\u5B98",
-      materials: ["slag_lava", "shard_scorched", "ember_ritual"],
-      mapAsset: "assets/maps/chapter-5-4.webp",
-      battleAsset: "assets/battlefields/chapter-5-4.webp"
-    },
-    {
-      id: "5-5",
-      name: "\u7194\u5FC3\u5723\u6240",
-      levelFrom: 50,
-      levelTo: 52,
-      element: "fire",
-      normals: ["\u7194\u5FC3\u5B88\u536B", "\u7130\u7FBD\u5723\u7075", "\u91D1\u77B3\u706B\u86C7", "\u8A93\u706B\u4F8D\u5973"],
-      elite: "\u7194\u5FC3\u5723\u4F8D",
-      boss: "\u708E\u795E\u5B98\u957F\xB7\u7EF4\u65AF\u5854",
-      materials: ["slag_lava", "shard_scorched", "ember_ritual", "core_moltenheart"],
-      mapAsset: "assets/maps/chapter-5-5.webp",
-      battleAsset: "assets/battlefields/chapter-5-5.webp"
-    }
-  ]
-};
-var REGION_5_EQUIPMENT_THEME = {
-  regionId: "r5",
-  themeName: "\u7EEF\u91D1\u706B\u7EB9\u7CFB",
-  level: 46,
-  qualities: ["rare", "epic", "legendary"],
-  visualKeywords: ["\u8D64\u7EA2", "\u938F\u91D1", "\u706B\u7EB9", "\u900F\u660E\u7194\u6676"],
-  names: {
-    weapon: "\u7EEF\u91D1\u8A93\u5203",
-    head: "\u706B\u7EB9\u796D\u51A0",
-    body: "\u8D64\u7130\u796D\u793C\u88D9",
-    necklace: "\u4F59\u70EC\u5FC3\u5760",
-    bracelet: "\u7194\u7EB9\u62A4\u8155",
-    ring: "\u8A93\u706B\u91D1\u6212",
-    belt: "\u8D64\u91D1\u7EF6\u5E26",
-    shoes: "\u7130\u6B65\u77ED\u9774"
-  },
-  weaponNames: {
-    swordsman: "\u7EEF\u91D1\u8A93\u5203",
-    witch: "\u7194\u6676\u7130\u5FC3\u6756",
-    shaman: "\u8D64\u7FBD\u796D\u706B\u6247",
-    catkin: "\u7EEF\u7130\u88C2\u6676\u722A"
-  }
-};
-var REGION_5_SET_ID = "set_region_crimson";
-var REGION_5_SET_LEVEL = 50;
-var REGION_5_SET_QUALITY = "legendary";
-var REGION_5_SET_SLOTS = [
-  "weapon",
-  "head",
-  "body",
-  "necklace",
-  "ring",
-  "bracelet"
-];
-var REGION_5_SET_NAMES = {
-  weapon: "\u7EF4\u65AF\u5854\u8A93\u7130\u5203",
-  head: "\u7EEF\u7130\u5723\u51A0",
-  body: "\u7EEF\u7130\u8A93\u7EA6\u793C\u88C5",
-  necklace: "\u7194\u5FC3\u8A93\u5760",
-  ring: "\u4E0D\u706D\u7130\u6212",
-  bracelet: "\u8D64\u91D1\u7130\u62A4"
-};
-var REGION_5_SET_WEAPON_NAMES = {
-  swordsman: "\u7EF4\u65AF\u5854\u8A93\u7130\u5203",
-  witch: "\u7EF4\u65AF\u5854\u7130\u5FC3\u6756",
-  shaman: "\u7EF4\u65AF\u5854\u71CE\u5929\u6247",
-  catkin: "\u7EF4\u65AF\u5854\u7130\u7FBD\u722A"
-};
-function region5SetEquipmentId(slot) {
-  return `eq_set_region_crimson_${slot}`;
-}
-
-// src/data/region6.ts
-var REGION_6 = {
-  id: "r6",
-  index: 6,
-  name: "\u5E7D\u5F71\u7940\u5854",
-  subtitle: "\u7D2B\u9ED1\u77F3\u9636\u901A\u5411\u65E0\u58F0\u7684\u865A\u7A7A\u796D\u575B",
-  levelFrom: 52,
-  levelTo: 65,
-  theme: ["#6f5aa8", "#c4a9ef"],
-  mapAsset: "assets/maps/r6.webp",
-  chapters: [
-    {
-      id: "6-1",
-      name: "\u7940\u5854\u4E00\u5C42\xB7\u77F3\u50CF\u56DE\u5ECA",
-      levelFrom: 52,
-      levelTo: 55,
-      element: "thunder",
-      normals: ["\u7720\u77F3\u56E2\u5B50", "\u523B\u7EB9\u77F3\u5076", "\u9EEF\u5149\u6D6E\u96D5\u7075", "\u7940\u5854\u77F3\u7FFC\u517D"],
-      materials: ["dust_statue", "scroll_faded"],
-      tutorial: "\u77F3\u50CF\u602A\u4F1A\u5728\u7B2C\u4E00\u6B21\u53D7\u51FB\u65F6\u82CF\u9192\uFF1B\u5B83\u53EA\u6539\u53D8\u5165\u573A\u6F14\u51FA\uFF0C\u4E0D\u4F1A\u5077\u88AD\u9020\u6210\u989D\u5916\u4F24\u5BB3\u3002",
-      mapAsset: "assets/maps/chapter-6-1.webp",
-      battleAsset: "assets/battlefields/chapter-6-1.webp"
-    },
-    {
-      id: "6-2",
-      name: "\u7940\u5854\u4E09\u5C42\xB7\u796D\u7940\u95F4",
-      levelFrom: 55,
-      levelTo: 58,
-      element: "thunder",
-      normals: ["\u7ECF\u5377\u7EB8\u7075", "\u5E7D\u706F\u4F8D\u4ECE", "\u7977\u949F\u8760\u7075", "\u9ED1\u7EB1\u796D\u5076"],
-      elite: "\u5E7D\u5F71\u796D\u53F8",
-      materials: ["dust_statue", "scroll_faded", "wisp_shadow"],
-      mapAsset: "assets/maps/chapter-6-2.webp",
-      battleAsset: "assets/battlefields/chapter-6-2.webp"
-    },
-    {
-      id: "6-3",
-      name: "\u7940\u5854\u4E94\u5C42\xB7\u85CF\u7ECF\u9601",
-      levelFrom: 58,
-      levelTo: 60,
-      element: "thunder",
-      normals: ["\u58A8\u9875\u4E66\u7075", "\u6B8B\u70DB\u7ECF\u4F7F", "\u9501\u94FE\u5377\u8F74\u602A", "\u9759\u9ED8\u5B88\u4E66\u4EBA"],
-      materials: ["dust_statue", "scroll_faded"],
-      mapAsset: "assets/maps/chapter-6-3.webp",
-      battleAsset: "assets/battlefields/chapter-6-3.webp"
-    },
-    {
-      id: "6-4",
-      name: "\u7940\u5854\u4E03\u5C42\xB7\u7981\u5FCC\u4E4B\u95F4",
-      levelFrom: 60,
-      levelTo: 63,
-      element: "thunder",
-      normals: ["\u5F71\u7EB9\u4F8D\u5973", "\u7981\u4E66\u5492\u7075", "\u865A\u50CF\u5DE1\u793C\u8005", "\u7D2B\u6676\u795E\u9F9B\u7075"],
-      elite: "\u5E7D\u5F71\u6559\u4E3B\u5019\u8865",
-      materials: ["dust_statue", "scroll_faded", "wisp_shadow"],
-      mapAsset: "assets/maps/chapter-6-4.webp",
-      battleAsset: "assets/battlefields/chapter-6-4.webp"
-    },
-    {
-      id: "6-5",
-      name: "\u5854\u9876\xB7\u865A\u7A7A\u796D\u575B",
-      levelFrom: 63,
-      levelTo: 65,
-      element: "thunder",
-      normals: ["\u5854\u9876\u5B88\u671B\u8005", "\u865A\u7A7A\u661F\u706F", "\u7940\u5F71\u86C7\u7075", "\u8BFA\u74E6\u8FD1\u4F8D"],
-      elite: "\u5854\u9876\u53F8\u796D",
-      boss: "\u5E7D\u5F71\u6559\u4E3B\xB7\u8BFA\u74E6",
-      materials: ["dust_statue", "scroll_faded", "wisp_shadow", "stone_void"],
-      mapAsset: "assets/maps/chapter-6-5.webp",
-      battleAsset: "assets/battlefields/chapter-6-5.webp"
-    }
-  ]
-};
-var REGION_6_EQUIPMENT_THEME = {
-  regionId: "r6",
-  themeName: "\u5E7D\u77F3\u7940\u7EB9\u7CFB",
-  level: 56,
-  qualities: ["rare", "epic", "legendary"],
-  visualKeywords: ["\u7D2B\u9ED1", "\u77F3\u7EB9", "\u94F6\u7070", "\u6559\u56E2\u5FBD\u8BB0"],
-  names: {
-    weapon: "\u5E7D\u77F3\u7977\u5203",
-    head: "\u77F3\u7EB9\u7940\u51A0",
-    body: "\u5E7D\u5EAD\u796D\u793C\u88D9",
-    necklace: "\u892A\u8272\u7ECF\u5760",
-    bracelet: "\u9547\u5F71\u77F3\u956F",
-    ring: "\u865A\u5149\u8A93\u6212",
-    belt: "\u7384\u7EB9\u7940\u5E26",
-    shoes: "\u9759\u9ED8\u884C\u9774"
-  },
-  weaponNames: {
-    swordsman: "\u5E7D\u77F3\u9547\u9B42\u5251",
-    witch: "\u5E7D\u70EC\u7977\u661F\u6756",
-    shaman: "\u7384\u94C3\u9547\u5F71\u6247",
-    catkin: "\u591C\u5F71\u88C2\u77F3\u722A"
-  }
-};
-var REGION_6_SET_ID = "set_region_shadow";
-var REGION_6_SET_LEVEL = 62;
-var REGION_6_SET_QUALITY = "legendary";
-var REGION_6_SET_SLOTS = [
-  "weapon",
-  "head",
-  "body",
-  "necklace",
-  "bracelet",
-  "ring",
-  "belt",
-  "shoes"
-];
-var REGION_6_SET_NAMES = {
-  weapon: "\u8BFA\u74E6\u5E7D\u754C\u5203",
-  head: "\u5E7D\u5F71\u6559\u7687\u51A0",
-  body: "\u8BFA\u74E6\u865A\u7A7A\u793C\u88C5",
-  necklace: "\u6B8B\u6708\u9B42\u5760",
-  bracelet: "\u9547\u9B42\u5E7D\u956F",
-  ring: "\u4E0D\u706D\u5F71\u6212",
-  belt: "\u865A\u7A7A\u7940\u5E26",
-  shoes: "\u65E0\u58F0\u5F71\u9774"
-};
-var REGION_6_SET_WEAPON_NAMES = {
-  swordsman: "\u8BFA\u74E6\u5E7D\u754C\u5251",
-  witch: "\u8BFA\u74E6\u865A\u661F\u6756",
-  shaman: "\u8BFA\u74E6\u9547\u9B42\u6247",
-  catkin: "\u8BFA\u74E6\u5F71\u7F1A\u722A"
-};
-function region6SetEquipmentId(slot) {
-  return `eq_set_region_shadow_${slot}`;
-}
-
-// src/data/region7.ts
-var REGION_7 = {
-  id: "r7",
-  index: 7,
-  name: "\u8840\u6708\u5CE1\u8C37",
-  subtitle: "\u8D64\u6708\u7167\u7740\u96FE\u6D77\uFF0C\u4E5F\u7167\u4EAE\u5CE1\u8C37\u5C3D\u5934\u7684\u796D\u53F0",
-  levelFrom: 65,
-  levelTo: 78,
-  theme: ["#8e263f", "#e86f8e"],
-  mapAsset: "assets/maps/r7.webp",
-  chapters: [
-    {
-      id: "7-1",
-      name: "\u5CE1\u8C37\u5165\u53E3",
-      levelFrom: 65,
-      levelTo: 68,
-      element: "fire",
-      normals: ["\u8840\u6708\u7ED2\u8760", "\u5CE1\u8C37\u706F\u7B3C\u9B3C", "\u8D64\u6676\u89D2\u5154", "\u96FE\u884C\u5C0F\u6076\u9B54"],
-      materials: ["dew_bloodmist", "herb_soulbreak"],
-      tutorial: "\u8840\u6708\u5CE1\u8C37\u7684\u654C\u4EBA\u504F\u708E\u5C5E\u6027\uFF1B\u65B0\u533A\u96F7\u5C5E\u6027\u6B66\u5668\u80FD\u591F\u514B\u5236\u5B83\u4EEC\u3002",
-      mapAsset: "assets/maps/chapter-7-1.webp",
-      battleAsset: "assets/battlefields/chapter-7-1.webp"
-    },
-    {
-      id: "7-2",
-      name: "\u8840\u96FE\u6CBC\u6CFD",
-      levelFrom: 68,
-      levelTo: 70,
-      element: "fire",
-      normals: ["\u8840\u6CBC\u8F6F\u6CE5\u602A", "\u7EEF\u96FE\u9B45\u7075", "\u6CBC\u6CFD\u9B54\u8548\u5A18", "\u8840\u82D4\u56E2\u5B50"],
-      elite: "\u8840\u96FE\u9B54\u5973",
-      materials: ["dew_bloodmist", "herb_soulbreak", "horn_demon"],
-      mapAsset: "assets/maps/chapter-7-2.webp",
-      battleAsset: "assets/battlefields/chapter-7-2.webp"
-    },
-    {
-      id: "7-3",
-      name: "\u65AD\u9B42\u5D16",
-      levelFrom: 70,
-      levelTo: 73,
-      element: "fire",
-      normals: ["\u65AD\u9B42\u5D16\u9E26", "\u8D64\u85E4\u6500\u884C\u8005", "\u5D16\u98CE\u9B45\u5F71", "\u9B42\u706F\u89D2\u517D"],
-      materials: ["dew_bloodmist", "herb_soulbreak"],
-      mapAsset: "assets/maps/chapter-7-3.webp",
-      battleAsset: "assets/battlefields/chapter-7-3.webp"
-    },
-    {
-      id: "7-4",
-      name: "\u6076\u9B54\u96C6\u4F1A\u6240",
-      levelFrom: 73,
-      levelTo: 76,
-      element: "fire",
-      normals: ["\u6076\u9B54\u4F8D\u7AE5", "\u6708\u75D5\u77F3\u50CF\u9B3C", "\u7EA2\u7F0E\u9B45\u7075", "\u4E09\u53C9\u621F\u5C0F\u9B3C"],
-      elite: "\u5C0F\u6076\u9B54\u5A18\u4E09\u59D0\u59B9",
-      materials: ["dew_bloodmist", "herb_soulbreak", "horn_demon"],
-      mapAsset: "assets/maps/chapter-7-4.webp",
-      battleAsset: "assets/battlefields/chapter-7-4.webp"
-    },
-    {
-      id: "7-5",
-      name: "\u8840\u6708\u796D\u53F0",
-      levelFrom: 76,
-      levelTo: 78,
-      element: "fire",
-      normals: ["\u8840\u6708\u796D\u53F8", "\u7329\u7EA2\u7977\u7075", "\u6708\u8680\u5B88\u536B", "\u8389\u8389\u59C6\u8FD1\u4F8D"],
-      elite: "\u8840\u6708\u5927\u796D\u53F8",
-      boss: "\u8840\u6708\u6076\u9B54\xB7\u8389\u8389\u59C6",
-      materials: ["dew_bloodmist", "herb_soulbreak", "horn_demon", "eye_bloodmoon"],
-      mapAsset: "assets/maps/chapter-7-5.webp",
-      battleAsset: "assets/battlefields/chapter-7-5.webp"
-    }
-  ]
-};
-var REGION_7_EQUIPMENT_THEME = {
-  regionId: "r7",
-  themeName: "\u8840\u6708\u5CE1\u8C37\u7CFB",
-  level: 69,
-  qualities: ["epic", "legendary"],
-  visualKeywords: ["\u8840\u7EA2", "\u7384\u9ED1", "\u94F6\u767D\u6708\u7EB9", "\u6076\u9B54\u89D2"],
-  names: {
-    weapon: "\u8840\u6708\u65AD\u9B42\u5203",
-    head: "\u8D64\u89D2\u6708\u51A0",
-    body: "\u7EEF\u96FE\u5CE1\u8C37\u793C\u88C5",
-    necklace: "\u8840\u96FE\u51DD\u9732\u5760",
-    bracelet: "\u6076\u9B54\u89D2\u956F",
-    ring: "\u6708\u8680\u8A93\u6212",
-    belt: "\u7384\u7EA2\u675F\u9B42\u5E26",
-    shoes: "\u65AD\u5D16\u591C\u884C\u9774"
-  },
-  weaponNames: {
-    swordsman: "\u8840\u6708\u65AD\u9B42\u5251",
-    witch: "\u6708\u8680\u7EEF\u661F\u6756",
-    shaman: "\u8D64\u96FE\u5F15\u9B42\u6247",
-    catkin: "\u8840\u6708\u88C2\u9B42\u53CC\u722A"
-  }
-};
-var REGION_7_SET_ID = "set_region_bloodmoon";
-var REGION_7_SET_LEVEL = 76;
-var REGION_7_SET_QUALITY = "legendary";
-var REGION_7_SET_SLOTS = [
-  "weapon",
-  "head",
-  "body",
-  "necklace",
-  "bracelet",
-  "ring",
-  "belt",
-  "shoes"
-];
-var REGION_7_SET_NAMES = {
-  weapon: "\u8389\u8389\u59C6\u6708\u8680\u5203",
-  head: "\u8840\u6708\u7737\u5C5E\u51A0",
-  body: "\u8389\u8389\u59C6\u6DF1\u7EA2\u793C\u88C5",
-  necklace: "\u6708\u77B3\u9B42\u5760",
-  bracelet: "\u6076\u9B54\u8A93\u956F",
-  ring: "\u6708\u8680\u8840\u6212",
-  belt: "\u6DF1\u7EA2\u675F\u9B42\u5E26",
-  shoes: "\u7EEF\u96FE\u8E0F\u6708\u9774"
-};
-var REGION_7_SET_WEAPON_NAMES = {
-  swordsman: "\u8389\u8389\u59C6\u6708\u8680\u5251",
-  witch: "\u8389\u8389\u59C6\u8840\u661F\u6756",
-  shaman: "\u8389\u8389\u59C6\u5524\u6708\u6247",
-  catkin: "\u8389\u8389\u59C6\u7EEF\u6708\u53CC\u722A"
-};
-function region7SetEquipmentId(slot) {
-  return `eq_set_region_bloodmoon_${slot}`;
-}
 
 // src/data/regions.ts
 var REGION_1 = {
@@ -2309,9 +2376,9 @@ var THEMES = [
   {
     regionId: "r1",
     // 白装 Lv2 即可穿，和 docs/14 的「Lv2 解锁装备穿戴」一致。
-    level: 4,
+    level: regionQualityLevel("r1"),
     weaponElement: REGION_WEAPON_ELEMENTS.r1,
-    qualities: ["common", "fine", "rare"],
+    qualities: [...regionQualities("r1")],
     icons: {
       weapon: "assets/equipment/r1/weapon.png",
       head: "assets/equipment/r1/head.png",
@@ -2341,9 +2408,9 @@ var THEMES = [
   },
   {
     regionId: "r2",
-    level: 16,
+    level: regionQualityLevel("r2"),
     weaponElement: REGION_WEAPON_ELEMENTS.r2,
-    qualities: ["fine", "rare", "epic"],
+    qualities: [...regionQualities("r2")],
     icons: {
       weapon: "assets/equipment/r2/weapon.png",
       head: "assets/equipment/r2/head.png",
@@ -2376,9 +2443,9 @@ var THEMES = [
   // 提前放开会让后面的区域没有东西可给（见 docs/44 品质开放节奏）。
   ...REGION_34_EQUIPMENT_THEMES.map((theme) => ({
     regionId: theme.regionId,
-    level: theme.regionId === "r3" ? 26 : 36,
+    level: regionQualityLevel(theme.regionId),
     weaponElement: REGION_WEAPON_ELEMENTS[theme.regionId],
-    qualities: ["fine", "rare", "epic"],
+    qualities: [...regionQualities(theme.regionId)],
     icons: Object.fromEntries(
       SLOT_ORDER.map((slot) => [slot, `assets/equipment/${theme.regionId}/${slot}.png`])
     ),
@@ -2428,16 +2495,6 @@ var QUALITY_PREFIX = {
   mythic: "\u795E\u8BDD\xB7",
   prismatic: "\u5FC3\u8679\xB7",
   divine: "\u5723\u75D5\xB7"
-};
-var QUALITY_LEVEL_OFFSET = {
-  common: -2,
-  fine: 0,
-  rare: 2,
-  epic: 4,
-  legendary: 6,
-  mythic: 8,
-  prismatic: 9,
-  divine: 10
 };
 function weaponClassPresentations(appearanceId, names, qualityPrefix = "") {
   return Object.fromEntries(

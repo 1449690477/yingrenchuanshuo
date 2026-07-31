@@ -155,11 +155,11 @@ describe('G-2 · 副本胚子永远不超过同期主线最强', () => {
  * docs/66 §3.5：胚子取自玩家当前区域的主线装备定义，
  * 所以品质必须夹进该区**实有**的集合。
  *
- * 这组测试的存在理由是一个真实缺口：r2（Lv10-20）实有 [fine, rare, epic]，
- * 而 Lv10~14 的 typicalQualityAt 返回 common —— 五个等级取不到定义会崩。
- * **公式是对的，有洞的是定义集合**，所以必须逐区逐级扫覆盖面。
+ * docs/73 A3 后 typicalQualityAt 由真实可得性推导（r2 Lv10-14 = rare），
+ * 旧「r2 缺口」（Lv10~14 取到 common 而无定义）已被结构性关闭；
+ * 本组测试仍逐区逐级扫覆盖面，防止将来新区域漏登记。
  */
-describe('区域品质集合守卫（r2 缺口）', () => {
+describe('区域品质集合守卫', () => {
   const RE = /^eq_(r\d+)_ring_([a-z]+)$/;
 
   it('登记表与实际装备定义完全一致 —— 少一档品质就红', () => {
@@ -195,9 +195,9 @@ describe('区域品质集合守卫（r2 缺口）', () => {
     }
   });
 
-  it('r2 的 Lv10~14 本该要 common，夹取后落到该区最低的 fine', () => {
-    expect(typicalQualityAt(12)).toBe('common');
-    expect(blankQualityInRegion('r2', 12)).toBe('fine');
+  it('r2 的 Lv10~14 口径=rare（A3 派生），夹取后仍在实有集合内', () => {
+    expect(typicalQualityAt(12)).toBe('rare');
+    expect(blankQualityInRegion('r2', 12)).toBe('rare');
   });
 
   it('夹取不会超过该区最高品质', () => {
@@ -375,14 +375,25 @@ describe('crimson 当前只开 d1（docs/66 §七）', () => {
 });
 
 describe('推荐战力与实际难度同源', () => {
-  it('深度越深推荐战力越高', () => {
-    for (let d = 2; d <= DEPTH_PER_TIER; d++) {
-      expect(depthRecommendCp('auric', d)).toBeGreaterThan(depthRecommendCp('auric', d - 1));
+  // docs/73 A3 后为**构造保证**：rec = EFG(档位入口) × TARGET[d]，TARGET 单调。
+  // 四档全部断言，防止将来有人把等级项塞回公式重新引入非单调（auric 曾 d2>d3）。
+  it('深度越深推荐战力越高（四档全部）', () => {
+    const TIERS = ['azure', 'violet', 'auric', 'crimson'] as const;
+    for (const tier of TIERS) {
+      for (let d = 2; d <= DEPTH_PER_TIER; d++) {
+        expect(
+          depthRecommendCp(tier, d),
+          `${tier} d${d} 的推荐战力必须高于 d${d - 1}`,
+        ).toBeGreaterThan(depthRecommendCp(tier, d - 1));
+      }
     }
   });
 
   it('高档同深度的推荐战力高于低档', () => {
-    expect(depthRecommendCp('auric', 1)).toBeGreaterThan(depthRecommendCp('violet', 1));
+    const TIERS = ['azure', 'violet', 'auric', 'crimson'] as const;
+    for (let i = 1; i < TIERS.length; i++) {
+      expect(depthRecommendCp(TIERS[i], 1)).toBeGreaterThan(depthRecommendCp(TIERS[i - 1], 1));
+    }
   });
 });
 

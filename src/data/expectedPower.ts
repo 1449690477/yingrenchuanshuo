@@ -24,24 +24,26 @@ import {
   ITEM_SCALE,
   QUALITY_MUL,
   QUALITY_PCT_SCALE,
+  QUALITY_ORDER,
   SLOT_PCT_WEIGHTS,
   SLOT_WEIGHTS,
 } from './constants';
+import { QUALITY_FIRST_AVAILABLE_LEVEL } from './qualitySchedule';
 
 /**
  * 该等级的主线典型装备品质。
  *
- * 阈值与 `scripts/simulate.ts` 的 typicalQuality 保持一致 ——
- * 两处若分叉，副本门槛与模拟器验收就会互相打架。
+ * 阈值由 `QUALITY_FIRST_AVAILABLE_LEVEL` 推导（docs/73 A3）：每个品质的
+ * 「宣称等级」= 该品质实际首次可得的等级，禁止手填。改动装备节奏只改
+ * equipment.ts 一处，这里自动跟随。
  */
 export function typicalQualityAt(level: number): Quality {
-  if (level < 15) return 'common';
-  if (level < 25) return 'fine';
-  if (level < 40) return 'rare';
-  if (level < 65) return 'epic';
-  if (level < 90) return 'legendary';
-  if (level < 110) return 'mythic';
-  return 'divine';
+  let result: Quality = 'common';
+  for (const q of QUALITY_ORDER) {
+    const firstLevel = QUALITY_FIRST_AVAILABLE_LEVEL[q];
+    if (firstLevel !== undefined && firstLevel <= level) result = q;
+  }
+  return result;
 }
 
 function zeroStats(): Stats {

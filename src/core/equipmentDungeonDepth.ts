@@ -160,17 +160,33 @@ export function depthBlankQuality(
 }
 
 /**
- * 该层的推荐战力 = `expectedFullGearCp(标称等级) × k(depth)`。
+ * 该层的推荐战力 = `expectedFullGearCp(档位入口等级) × DEPTH_TARGET_MULTIPLIER[depth]`。
  *
- * **推荐战力与实际难度必须是同一个式子的两次读数** —— 怪物强度用同一个值标定。
- * 旧结构里推荐战力走公式、实际难度走手填的 `TIER_ENCOUNTER_SCALE`，
- * 两个旋钮之间没有反馈回路，于是绛紫档长期「战力比 0.76 却 100% 全胜」
- * 而没有任何门禁能发现（docs/66 §3.2）。
+ * ★ docs/73 A3 后修订：旧式 `EFG(标称等级) × k(depth)` 混进了「档内等级贡献」。
+ * 深度副本的实际难度**不随标称等级走** —— `k(depth)` 恰好把等级贡献归一掉了，
+ * 怪物只吃 `DEPTH_TARGET_MULTIPLIER[depth]`（docs/66 §3.2「跨档一致性是结构保证」）。
+ * 而 EFG 档内增速（每 5 级 ≈1.11×）慢于怪物血量档内增速（≈1.58×）——
+ * 这是威胁轴漂移（docs/73 A1 / N1）在血量轴上的同一症状。两个增速不一致时，
+ * `EFG(L_d) × k(d)` 在单一品质段内必然非单调（实测 auric d2=34,411 > d3=32,243，
+ * 旧阈值下被 65 级起的品质阶跃掩盖）。
+ *
+ * 修法：把等级项锚死在档位入口（d1 标称），推荐战力 = 入口战力 × 难度目标倍率。
+ * 单调性由此变成**构造保证**而不是调参结果；d1 读数仍 = `EFG(入口等级)`，
+ * 与 balance 脚本的入场模型战力比基准完全一致，怪物标定（`depthScaledMonster`）
+ * 一行未动。
+ *
+ * 已知残留：跨档边界（如 auric d5 与 crimson d1）的推荐战力与真实难度的
+ * 比值仍受威胁轴漂移影响（EFG 跨档增速 < 怪物血量跨档增速），随 A1 修平后
+ * 自动消失，不需要单独处理。
  */
 export function depthRecommendCp(tierId: EquipmentDungeonTierId, depth: number): number {
-  return Math.round(
-    expectedFullGearCp(depthNominalLevel(tierId, depth)) * depthDifficultyK(tierId, depth),
-  );
+  assertDepth(depth);
+  const anchor = requireDepthAnchor(tierId);
+  const target = DEPTH_TARGET_MULTIPLIER[depth - 1];
+  if (target === undefined) {
+    throw new Error(`[配置错误] DEPTH_TARGET_MULTIPLIER 缺少第 ${depth} 层（docs/66 §3.2）`);
+  }
+  return Math.round(expectedFullGearCp(anchor.baseLevel) * target);
 }
 
 /**

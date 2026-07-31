@@ -77,15 +77,19 @@ import {
   ENHANCE_PER_LEVEL,
   ENHANCE_TOTAL_GAIN_CAP_PERMILLE,
   STAGE_PACING_FACTORS,
+  QUALITY_ORDER,
+  QUALITY_RANK,
 } from '../src/data/constants';
 import { EQUIPMENT } from '../src/data/equipment';
+import { EQUIPMENT_DUNGEON_TIERS } from '../src/data/equipmentDungeonGear';
+import { QUALITY_FIRST_AVAILABLE_LEVEL } from '../src/data/qualitySchedule';
 import { idleCombatEfficiency, killsPerSecond } from '../src/core/idle';
 import { ALL_CHAPTERS } from '../src/data/regions';
 import { LEVEL_SOFT_CAP_MARGIN } from '../src/data/constants';
 import { ORDERED_STAGE_IDS, STAGES, stageClearTarget } from '../src/data/stages';
 import { MONSTERS } from '../src/data/monsters';
 import { evaluateChapterGate } from '../src/core/stageProgress';
-import { TYPICAL_ENHANCE_MUL } from '../src/data/expectedPower';
+import { typicalQualityAt, TYPICAL_ENHANCE_MUL } from '../src/data/expectedPower';
 import { timeToKill } from '../src/core/combat';
 import { estimateDuelWinChance, type DuelSide } from '../src/core/duel';
 import type { IdleContext } from '../src/core/idle';
@@ -106,16 +110,6 @@ const OUT_DIR = resolve(__dirname, 'out');
 // ──────────────────────────────────────────────────────────
 
 /** 玩家在某等级的典型装备品质。随进度推进而提升。 */
-function typicalQuality(level: number): Quality {
-  if (level < 15) return 'common';
-  if (level < 25) return 'fine';
-  if (level < 40) return 'rare';
-  if (level < 65) return 'epic';
-  if (level < 90) return 'legendary';
-  if (level < 110) return 'mythic';
-  return 'divine';
-}
-
 /** 全身 8 件装备提供的属性总和 */
 function gearStats(level: number, quality: Quality): Stats {
   const baseValue = ITEM_BASE * Math.pow(level, ITEM_POW) * QUALITY_MUL[quality] * ITEM_SCALE;
@@ -137,7 +131,7 @@ function gearStats(level: number, quality: Quality): Stats {
 
 function withGear(cls: ClassId, level: number): Stats {
   const base = baseStatsFor(cls, level);
-  const gear = gearStats(level, typicalQuality(level));
+  const gear = gearStats(level, typicalQualityAt(level));
 
   const combined: Stats = {
     atk: base.atk + gear.atk,
@@ -217,7 +211,41 @@ function checkpointTable() {
 
   reportThreatAxis();
 
-  return rows;
+  // growth 表供 main() 末尾的 N6 门禁使用（N6 推迟到全量报告之后，避免遮住其它门禁）。
+  return { rows, growth };
+}
+
+/**
+ * ★ N6 门禁（docs/73 §七 / B2）：品质档内成长 —— 每 10 级玩家倍率 ∈ [1.3, 1.9] 且相邻段差 ≤ 0.5。
+ *
+ * 放在 main() 最末尾执行：本门禁对应 B2（品质跃迁平滑），其修复依赖老板对
+ * 「品质档内拉平 vs 阈值对齐+UI 高光」的拍板（docs/73 §十），属于跨期事项。
+ * 若按出现顺序就地抛错，会遮住后面的 N1/N4/N7/G1~G5，量具失去「一次看全」的能力
+ * （docs/73 §七：先红着接入，但每条红灯都要能被看见）。
+ */
+function assertQualityTierGrowth(growth: Record<string, unknown>[]): void {
+  const n6Violations: string[] = [];
+  for (const row of growth) {
+    const mul = Number(row['玩家战力倍率']);
+    if (mul < 1.3 || mul > 1.9) {
+      n6Violations.push(`${row['区间']} 玩家战力倍率 ${mul.toFixed(3)} 超出目标带 [1.3, 1.9]`);
+    }
+  }
+  for (let i = 1; i < growth.length; i++) {
+    const prev = Number(growth[i - 1]!['玩家战力倍率']);
+    const cur = Number(growth[i]!['玩家战力倍率']);
+    if (Math.abs(cur - prev) > 0.5) {
+      n6Violations.push(
+        `${growth[i - 1]!['区间']} → ${growth[i]!['区间']} 相邻倍率差 ${Math.abs(cur - prev).toFixed(3)} > 0.5`,
+      );
+    }
+  }
+  console.log('\n[N6 门禁] 品质档内成长：每 10 级玩家倍率 ∈ [1.3, 1.9]，相邻段差 ≤ 0.5（docs/73 §七）');
+  for (const v of n6Violations) console.log(`  ✘ ${v}`);
+  if (n6Violations.length > 0) {
+    throw new Error(`[N6 失败] 品质档内成长「过山车」：\n- ${n6Violations.join('\n- ')}`);
+  }
+  console.log('  ✔ 全部 10 级段倍率落在 [1.3, 1.9] 且相邻差 ≤ 0.5');
 }
 
 /**
@@ -304,9 +332,105 @@ function reportThreatAxis(): void {
     `普通关安全边际漂移：${first.toFixed(2)} → ${last.toFixed(2)}（${drift.toFixed(1)}×）。` +
       `理想是全程基本持平 —— ` +
       (drift > 3
-        ? '⚠ 超过 3× 意味着后期已无死亡威胁、只剩「打多久」。本项只报不拦，见 docs/65。'
+        ? '⚠ 超过 3× 意味着后期已无死亡威胁、只剩「打多久」。'
         : '在可接受范围内。'),
   );
+
+  // ★ N1 门禁（docs/73 §七）：威胁轴从「只报不拦」升级为硬门禁。
+  // 每 10 级段普通关安全边际 ∈ [2, 8]，且全程漂移 ≤ 2×。
+  const n1Violations: string[] = [];
+  for (const b of bands) {
+    const v = avgOf(b);
+    if (v < 2 || v > 8) {
+      n1Violations.push(`Lv${b}~${b + 9} 普通关安全边际 ${v.toFixed(2)} 超出目标带 [2, 8]`);
+    }
+  }
+  if (drift > 2) {
+    n1Violations.push(
+      `全程漂移 ${drift.toFixed(1)}× 超出目标 ≤2×（${first.toFixed(2)} → ${last.toFixed(2)}）`,
+    );
+  }
+  console.log('\n[N1 门禁] 威胁轴：每 10 级段普通关安全边际 ∈ [2, 8] 且漂移 ≤ 2×（docs/73 §七）');
+  for (const v of n1Violations) console.log(`  ✘ ${v}`);
+  if (n1Violations.length > 0) {
+    throw new Error(`[N1 失败] 威胁轴标尺失真：\n- ${n1Violations.join('\n- ')}`);
+  }
+  console.log('  ✔ 全部等级段安全边际 ∈ [2, 8]，漂移 ≤ 2×');
+}
+
+// ──────────────────────────────────────────────────────────
+// N3：口径-可得性对齐（docs/73 A3 / §七）
+// ──────────────────────────────────────────────────────────
+
+/**
+ * 各品质「实际首次可得等级」：从主线区域装备 + 区域套装 + 副本档位推导，禁止手填。
+ * 珍品商店（boutiqueTheme）是有意超前的已知残差（A4），心虹好感线（prismatic）
+ * 是独立系统，两者都不进入主线典型口径。
+ *
+ * 这是**地面真相扫描**（直接读真实装备定义），与 qualitySchedule.ts 的
+ * QUALITY_FIRST_AVAILABLE_LEVEL（设计源）在 assertQualityAvailabilityAlignment
+ * 里互相对齐，两处任一漂移当场红。
+ */
+function firstAvailableLevelPerQuality(): Record<Quality, number> {
+  const first = new Map<Quality, number>();
+  const note = (q: Quality, level: number) => {
+    const cur = first.get(q);
+    if (cur === undefined || level < cur) first.set(q, level);
+  };
+  for (const def of Object.values(EQUIPMENT)) {
+    if (def.boutiqueTheme) continue;
+    if (def.quality === 'prismatic') continue;
+    note(def.quality, def.level);
+  }
+  for (const tier of EQUIPMENT_DUNGEON_TIERS) note(tier.quality, tier.level);
+  return Object.fromEntries(first) as Record<Quality, number>;
+}
+
+/**
+ * ★ N3 门禁：typicalQualityAt 不许宣称玩家拿不到的品质（虚高 0 档），
+ * 且低估不能超过一档。扫描范围为当前内容可达等级 [1, CONTENT_SOFT_CAP]。
+ */
+function assertQualityAvailabilityAlignment(): void {
+  const first = firstAvailableLevelPerQuality();
+  // 单源对齐：设计源（qualitySchedule）必须与地面真相（实际装备定义）一致。
+  const scheduleDrift = QUALITY_ORDER.filter(
+    (q) => QUALITY_FIRST_AVAILABLE_LEVEL[q] !== first[q],
+  ).map((q) => `${q}：qualitySchedule=${QUALITY_FIRST_AVAILABLE_LEVEL[q] ?? '-'} 实际=${first[q]}`);
+  if (scheduleDrift.length > 0) {
+    throw new Error(
+      `[N3 失败] qualitySchedule 与真实装备定义漂移（${scheduleDrift.length} 个品质）：\n- ` +
+        scheduleDrift.join('\n- '),
+    );
+  }
+  const violations: string[] = [];
+  for (let level = 1; level <= CONTENT_SOFT_CAP; level++) {
+    const claimed = typicalQualityAt(level);
+    let actual: Quality = 'common';
+    for (const q of QUALITY_ORDER) {
+      const lv = first[q];
+      if (lv !== undefined && lv <= level) actual = q;
+    }
+    const diff = QUALITY_RANK[claimed] - QUALITY_RANK[actual];
+    if (diff > 0) {
+      violations.push(`Lv${level}：口径宣称 ${claimed}，实际最高可得 ${actual}（虚高 ${diff} 档）`);
+    } else if (-diff > 1) {
+      violations.push(`Lv${level}：口径 ${claimed} 低估实际 ${actual} 达 ${-diff} 档（上限 1 档）`);
+    }
+  }
+  console.log('\n[N3 门禁] 口径-可得性对齐：typicalQualityAt 与真实装备可得性偏差 ≤ 1 档（docs/73 §七）');
+  console.log(
+    '  各品质首次可得等级：' +
+      QUALITY_ORDER.filter((q) => first[q] !== undefined)
+        .map((q) => `${q}@Lv${first[q]}`)
+        .join(' / '),
+  );
+  for (const v of violations.slice(0, 12)) console.log(`  ✘ ${v}`);
+  if (violations.length > 0) {
+    throw new Error(
+      `[N3 失败] 口径-可得性不对齐（${violations.length} 个等级）：\n- ${violations.slice(0, 12).join('\n- ')}`,
+    );
+  }
+  console.log('  ✔ 全部可达等级口径与实际可得品质对齐');
 }
 
 // ──────────────────────────────────────────────────────────
@@ -334,6 +458,12 @@ const MAX_CONTENT_LEVEL = Math.max(...ALL_CHAPTERS.map((c) => c.levelTo));
 const CONTENT_SOFT_CAP = MAX_CONTENT_LEVEL + LEVEL_SOFT_CAP_MARGIN;
 
 /**
+ * ★ N7 显式登记位（docs/73 §七 / B3）：若「r7 尾部是长期内容」经老板确认，
+ * 在这里登记对应关卡总数，60 天水平线门禁即放行。
+ */
+const N7_LONG_TERM_CONTENT_STAGES: readonly number[] = [];
+
+/**
  * 节奏模拟的玩家属性：满配 × 典型强化（数值型部分）。
  *
  * 与战斗手感门禁（TTK/η，仍用「刚穿齐」的 withGear 下限口径）刻意分开：
@@ -342,7 +472,7 @@ const CONTENT_SOFT_CAP = MAX_CONTENT_LEVEL + LEVEL_SOFT_CAP_MARGIN;
  */
 function withTypicalBuild(cls: ClassId, level: number): Stats {
   const base = baseStatsFor(cls, level);
-  const gear = gearStats(level, typicalQuality(level));
+  const gear = gearStats(level, typicalQualityAt(level));
   return {
     atk: base.atk + gear.atk * TYPICAL_ENHANCE_MUL,
     def: base.def + gear.def * TYPICAL_ENHANCE_MUL,
@@ -690,6 +820,8 @@ const MIN_FRESH_CP_CHANGE = -0.08;
 const MIN_ALL_T5_CP_GAIN = 0.12;
 const MAX_ALL_T5_CP_GAIN = 0.25;
 const MAX_CLASS_DEVIATION = 0.2;
+/** docs/73 C2：职业词条极值门禁从 ±20% 收紧到 ±15% */
+const MAX_PROFESSION_AFFIX_DEVIATION = 0.15;
 const REPRESENTATIVE_TTK_LEVEL = 50;
 const MIN_REPRESENTATIVE_TTK = 3.5;
 const MAX_REPRESENTATIVE_TTK = 6.5;
@@ -824,7 +956,7 @@ function addAffixesToProfile(
 }
 
 function statsWithProfile(cls: ClassId, level: number, profile: AffixProfile): Stats {
-  const baseAndGear = addStats(baseStatsFor(cls, level), gearStats(level, typicalQuality(level)));
+  const baseAndGear = addStats(baseStatsFor(cls, level), gearStats(level, typicalQualityAt(level)));
   return applyClassMods(cls, addStats(baseAndGear, profile.stats));
 }
 
@@ -923,6 +1055,7 @@ function slotAllocations(total: number, kinds: number): number[][] {
  * 不能只测“八条同 key”，否则攻击与元素增伤的乘法协同会被漏掉。
  */
 function offenseExtremeAcceptance() {
+  const weakestBySegment: { level: number; quality: Quality; weakest: ClassId }[] = [];
   const rows = REFORGE_ACCEPTANCE_CASES.filter(
     ({ quality }) => QUALITY_PROFESSION_AFFIX_COUNT[quality] > 0,
   ).map(({ level, quality }) => {
@@ -977,6 +1110,8 @@ function offenseExtremeAcceptance() {
       }),
     ) as Record<ClassId, { build: string; kps: number }>;
     const deviation = maxRelativeDeviation(CLASS_IDS.map((classId) => strongest[classId].kps));
+    const weakest = CLASS_IDS.reduce((a, b) => (strongest[a]!.kps <= strongest[b]!.kps ? a : b));
+    weakestBySegment.push({ level, quality, weakest });
     return {
       等级: level,
       品质: quality,
@@ -991,9 +1126,13 @@ function offenseExtremeAcceptance() {
 
   console.log('\n【职业词条可达输出极值】八件职业槽枚举全部输出 T5 混合分配\n');
   console.table(rows.map(({ rawDeviation: _rawDeviation, ...row }) => row));
+  const bottomCounts = Object.fromEntries(
+    CLASS_IDS.map((cls) => [cls, weakestBySegment.filter((s) => s.weakest === cls).length]),
+  ) as Record<ClassId, number>;
   return {
     rows,
     maxDeviation: Math.max(...rows.map((row) => row.rawDeviation)),
+    bottomCounts,
   };
 }
 
@@ -1304,8 +1443,12 @@ function assertReforgeAcceptance(
       detail: `词条四职业真实 KPS 最大偏离：新掉落 ${percent(result.maxFreshClassDeviation)}、全 T5 ${percent(result.maxT5ClassDeviation)}（目标均 ≤ ${percent(MAX_CLASS_DEVIATION)}）`,
     },
     {
-      ok: offenseExtreme.maxDeviation <= MAX_CLASS_DEVIATION,
-      detail: `八件定向输出 T5 的四职业真实 KPS 最大偏离 ${percent(offenseExtreme.maxDeviation)}（目标 ≤ ${percent(MAX_CLASS_DEVIATION)}）`,
+      ok: offenseExtreme.maxDeviation <= MAX_PROFESSION_AFFIX_DEVIATION,
+      detail: `八件定向输出 T5 的四职业真实 KPS 最大偏离 ${percent(offenseExtreme.maxDeviation)}（目标 ≤ ${percent(MAX_PROFESSION_AFFIX_DEVIATION)}，docs/73 C2 收紧）`,
+    },
+    {
+      ok: Math.max(...Object.values(offenseExtreme.bottomCounts)) <= 2,
+      detail: `固定垫底职业的等级段数最多 ${Math.max(...Object.values(offenseExtreme.bottomCounts))}（目标 ≤ 2，docs/73 C2）`,
     },
   ];
 
@@ -1335,6 +1478,8 @@ const PVP_GATE_LEVELS = [60, 100] as const;
 const PVP_GATE_SIMULATIONS = 200;
 const PVP_MIRROR_MIN = 0.45;
 const PVP_MIRROR_MAX = 0.55;
+const PVP_CROSS_MIN = 0.35;
+const PVP_CROSS_MAX = 0.65;
 
 function pvpSide(cls: ClassId, level: number): DuelSide {
   return {
@@ -1389,9 +1534,34 @@ function assertPvpBalance(result: ReturnType<typeof pvpBalance>): void {
       console.log(`      ${attacker.padEnd(10)}${cells}`);
     }
   }
-  if (violations.length > 0) {
-    throw new Error(`竞技场 PvP 同战力胜率验收失败：\n- ${violations.join('\n- ')}`);
+
+  // ★ N4 门禁（docs/73 §七 / C1）：跨职业交叉胜率 ∈ [35%, 65%]，Lv60 / Lv100 两档。
+  const crossViolations: string[] = [];
+  for (const level of PVP_GATE_LEVELS) {
+    for (const attacker of CLASS_IDS) {
+      for (const defender of CLASS_IDS) {
+        if (attacker === defender) continue;
+        const row = result.rows.find(
+          (r) => r.等级 === level && r.挑战者 === attacker && r.防守方 === defender,
+        )!;
+        const ok = row.胜率 >= PVP_CROSS_MIN && row.胜率 <= PVP_CROSS_MAX;
+        if (!ok) {
+          crossViolations.push(
+            `Lv${level} ${attacker} → ${defender} 胜率 ${(row.胜率 * 100).toFixed(1)}%（目标 35%~65%）`,
+          );
+        }
+      }
+    }
   }
+  console.log('\n[N4 门禁] 跨职业 PvP 交叉胜率 ∈ [35%, 65%]（docs/73 §七，镜像门禁保留）');
+  for (const v of crossViolations.slice(0, 16)) console.log(`  ✘ ${v}`);
+  if (violations.length > 0 || crossViolations.length > 0) {
+    throw new Error(
+      `竞技场 PvP 胜率验收失败：\n- ${violations.join('\n- ')}` +
+        (crossViolations.length > 0 ? `\n- ${crossViolations.slice(0, 16).join('\n- ')}` : ''),
+    );
+  }
+  console.log('  ✔ 跨职业交叉胜率全部落在 [35%, 65%]');
 }
 
 // ──────────────────────────────────────────────────────────
@@ -1407,7 +1577,8 @@ function toCsv(rows: Record<string, unknown>[]): string {
 }
 
 function main() {
-  const checkpoints = checkpointTable();
+  assertQualityAvailabilityAlignment();
+  const { rows: checkpoints, growth } = checkpointTable();
 
   console.log('\n【30 天成长曲线 · 剑姬】每天有效挂机 14 小时\n');
   // 30 天快照继续服务既有长期门禁；R7 另观察到 D60，用真实逐日曲线
@@ -1513,6 +1684,23 @@ function main() {
   }
   console.log(`  ✔ 内容耗尽日：${exhaustedDay === undefined ? '>60' : 'D' + exhaustedDay}（≥ D25）`);
 
+  // ★ N7 门禁（docs/73 §七 / B3）：60 天水平线 —— 60 天内到全部关卡，或显式登记长期内容。
+  if (
+    exhaustedDay === undefined &&
+    !N7_LONG_TERM_CONTENT_STAGES.includes(ORDERED_STAGE_IDS.length)
+  ) {
+    throw new Error(
+      `[N7 失败] 60 天内未推完全部 ${ORDERED_STAGE_IDS.length} 关，且未显式登记「r7 尾部为长期内容」（docs/73 B3）`,
+    );
+  }
+  console.log(
+    `  ✔ N7：60 天水平线 ${
+      exhaustedDay === undefined
+        ? `未耗尽（已登记 ${ORDERED_STAGE_IDS.length} 关为长期内容）`
+        : `D${exhaustedDay} 推完全部 ${ORDERED_STAGE_IDS.length} 关`
+    }`,
+  );
+
   // docs/59 修订口径：R7 必须保持区域系数单调递增，并落在 400～500。
   // 耗尽日只作为逐日模拟的观测值，不再重复那个与单调性矛盾的 D40～42 假目标。
   if (ORDERED_STAGE_IDS.length === 210) {
@@ -1578,6 +1766,9 @@ function main() {
 
   assertReforgeAcceptance(reforge, balance, offenseExtreme);
   assertPvpBalance(pvp);
+
+  // N6 最后执行：避免遮住 N1/N4/N7/G1~G5（见 assertQualityTierGrowth 注释）。
+  assertQualityTierGrowth(growth);
 }
 
 main();
