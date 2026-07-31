@@ -11,14 +11,11 @@
  */
 
 import type { EquipSlot, MonsterDef, Quality } from './types';
-import { typicalQualityAt, expectedFullGearCp, expectedGearStats } from '@/data/expectedPower';
+import { typicalQualityAt, expectedFullGearCp } from '@/data/expectedPower';
 import { REGIONS } from '@/data/regions';
-import { EQUIPMENT } from '@/data/equipment';
-import { itemBaseValue } from './equipment';
+import { selectStrongestDefinition } from './equipment';
 import { monsterHp, monsterAtk } from './progression';
 
-/** 只认区域主线装备 `eq_r{n}_{部位}_{品质}`，不碰珍品/好感/竞技/副本旧装。 */
-const REGIONAL_BLANK_ID = /^eq_r\d+_[a-z]+_[a-z]+$/;
 import type { EquipmentDungeonTierId } from '@/data/equipmentDungeonGear';
 import { QUALITY_ORDER } from '@/data/constants';
 import {
@@ -160,17 +157,33 @@ export function depthBlankQuality(
 }
 
 /**
- * 该层的推荐战力 = `expectedFullGearCp(标称等级) × k(depth)`。
+ * 该层的推荐战力 = `expectedFullGearCp(档位入口等级) × DEPTH_TARGET_MULTIPLIER[depth]`。
  *
- * **推荐战力与实际难度必须是同一个式子的两次读数** —— 怪物强度用同一个值标定。
- * 旧结构里推荐战力走公式、实际难度走手填的 `TIER_ENCOUNTER_SCALE`，
- * 两个旋钮之间没有反馈回路，于是绛紫档长期「战力比 0.76 却 100% 全胜」
- * 而没有任何门禁能发现（docs/66 §3.2）。
+ * ★ docs/73 A3 后修订：旧式 `EFG(标称等级) × k(depth)` 混进了「档内等级贡献」。
+ * 深度副本的实际难度**不随标称等级走** —— `k(depth)` 恰好把等级贡献归一掉了，
+ * 怪物只吃 `DEPTH_TARGET_MULTIPLIER[depth]`（docs/66 §3.2「跨档一致性是结构保证」）。
+ * 而 EFG 档内增速（每 5 级 ≈1.11×）慢于怪物血量档内增速（≈1.58×）——
+ * 这是威胁轴漂移（docs/73 A1 / N1）在血量轴上的同一症状。两个增速不一致时，
+ * `EFG(L_d) × k(d)` 在单一品质段内必然非单调（实测 auric d2=34,411 > d3=32,243，
+ * 旧阈值下被 65 级起的品质阶跃掩盖）。
+ *
+ * 修法：把等级项锚死在档位入口（d1 标称），推荐战力 = 入口战力 × 难度目标倍率。
+ * 单调性由此变成**构造保证**而不是调参结果；d1 读数仍 = `EFG(入口等级)`，
+ * 与 balance 脚本的入场模型战力比基准完全一致，怪物标定（`depthScaledMonster`）
+ * 一行未动。
+ *
+ * 已知残留：跨档边界（如 auric d5 与 crimson d1）的推荐战力与真实难度的
+ * 比值仍受威胁轴漂移影响（EFG 跨档增速 < 怪物血量跨档增速），随 A1 修平后
+ * 自动消失，不需要单独处理。
  */
 export function depthRecommendCp(tierId: EquipmentDungeonTierId, depth: number): number {
-  return Math.round(
-    expectedFullGearCp(depthNominalLevel(tierId, depth)) * depthDifficultyK(tierId, depth),
-  );
+  assertDepth(depth);
+  const anchor = requireDepthAnchor(tierId);
+  const target = DEPTH_TARGET_MULTIPLIER[depth - 1];
+  if (target === undefined) {
+    throw new Error(`[配置错误] DEPTH_TARGET_MULTIPLIER 缺少第 ${depth} 层（docs/66 §3.2）`);
+  }
+  return Math.round(expectedFullGearCp(anchor.baseLevel) * target);
 }
 
 /**
@@ -204,9 +217,7 @@ export function depthScaledMonster(
     ...base,
     level: Math.max(1, depthNominalLevel(tierId, depth) - (base.type === 'boss' ? 0 : 2)),
     hpMul: (base.hpMul ?? 1) * DEPTH_ENCOUNTER_BASE.hp * k,
-    atkMul: (base.atkMul ?? 1) * DEPTH_ENCOUNTER_BASE.atk *
-      depthAtkFactor(tierId, depth) *
-      depthTierThreatCompensation(tierId),
+    atkMul: (base.atkMul ?? 1) * DEPTH_ENCOUNTER_BASE.atk * depthAtkFactor(tierId, depth),
   };
 }
 
@@ -223,62 +234,6 @@ export function depthScaledMonster(
  * 实测证据：苍蓝 d2 胜率 34%、赤金 d2 胜率 100%，
  * **而两者战力比几乎相同（1.22 vs 1.16）** —— 战力比不预测胜负。
  */
-/**
- * ⚠ **补偿性数值：它补偿的是主线全局漂移，不是副本自身的形状问题。**
- *
- * （这段注释是 @claude-drops 2026-07-31 11:37 要求写的，理由很硬：
- *  补偿性数值若不写明补偿对象，将来对象消失后补偿会变成新的失真，
- *  而那时没人知道这组数当初是为了抵消什么而定的。）
- *
- * **补偿对象**：主线的「威胁轴」全程漂移（docs/65 §六之三）。
- * 玩家有效血量吃品质阶梯的乘法跳升（common 1.0 → divine 15.0），
- * 而 `monsterAtk(level)` 只随等级平滑增长、**没有任何补偿项** ——
- * 于是低等级段的怪物威胁性是高等级段的数倍。
- *
- * **为什么副本必须管这件事**：四个档位锚在 Lv16 / 31 / 56 / 81，
- * 正好横跨这条漂移的整个区间。不补偿的话「同一个入场强度」
- * 在四档根本不是同一件事 —— 实测苍蓝入场只够打到 d2、赤金够到 d4，
- * 同一个「入场即最弱」的定义下苍蓝玩家五层里只开得动两层。
- *
- * **补偿量从哪来**：直接取品质阶梯本身，不手填。
- * 实测佐证：品质倍率比 1.00 / 1.53 / 2.40 与主线实测的安全边际漂移
- * 1.00 / 1.44 / 2.33 几乎完全重合 —— 这既是补偿量的依据，
- * 也反过来证实了「品质阶梯是漂移根因」这个判断。
- *
- * **什么时候该删掉这个函数**：主线给 monsterAtk 配上对称的威胁因子那天
- * （已排入下版本「标尺与地基专线」，docs/65 §六之三）。
- * 那天这里会变成过度补偿，**必须整体删除，而不是把系数调小**。
- */
-/** 锚点表里 baseLevel 最低的那个档位 id —— 补偿量的分母基准。 */
-function lowestTierId(): EquipmentDungeonTierId {
-  const entries = Object.entries(EQUIPMENT_DUNGEON_DEPTH_ANCHORS) as [
-    EquipmentDungeonTierId,
-    EquipmentDungeonDepthAnchor,
-  ][];
-  if (entries.length === 0) throw new Error('[配置错误] 深度锚点表为空');
-  return entries.reduce((a, b) => (a[1].baseLevel <= b[1].baseLevel ? a : b))[0];
-}
-
-export function depthTierThreatCompensation(tierId: EquipmentDungeonTierId): number {
-  // **直接量漂移本身，不用品质阶梯当代理。**
-  // 品质阶梯是漂移的根因没错，但它是**阶跃函数** —— 拿它当补偿系数，
-  // 档位等级差几级就会整档跳一大格（实测：取 d1 则赤金偏易一层、
-  // 取跨度中点则绛紫偏难一层，两版各有一档偏出）。
-  // 改用连续量：玩家有效血量 ÷ 怪物攻击，正是漂移的那个比值本身。
-  // 全部是裸属性，不经过 combatPower（后者对暴击的定价已知有误，
-  // 见 docs/65 §六之三与频道 2026-07-31 实锤B）。
-  const pressureAt = (level: number): number =>
-    expectedGearStats(level, typicalQualityAt(level)).hp / monsterAtk(level);
-  // 取样点 = 该档 d1 的标称等级。**因为那正是玩家装备的锚点**
-  //（三元取小的结果，且不随深度变），玩家的有效血量就是在这个等级上定的。
-  // 更深层的怪物变强由 depthAtkFactor 单独负责，不该在这里重复计入 ——
-  // 实测取跨度中点会重复计入一次，把绛紫/赤金压得比苍蓝还难。
-  return (
-    pressureAt(depthNominalLevel(tierId, 1)) /
-    pressureAt(depthNominalLevel(lowestTierId(), 1))
-  );
-}
-
 export function depthAtkFactor(tierId: EquipmentDungeonTierId, depth: number): number {
   assertDepth(depth);
   const target = DEPTH_ATK_TARGET[depth - 1];
@@ -405,37 +360,13 @@ export function regionIdForLevel(level: number): string {
  * 副本给的额外价值是三样，都不击穿曲线：**定向部位**（选门户即选部位）、
  * **品质随深度往上走**、**胚子档与词条方差**（docs/66 §4.3 的显影对象）。
  */
+/**
+ * docs/73 A3 批 2-1（修正②）：选择函数提升为公共纯函数后，副本胚子与
+ * 主线推荐战力共用同一条链（selectStrongestDefinition，docs/71 §六.3）。
+ * 本层仅保留命名兼容。
+ */
 export function blankDefinitionId(slot: EquipSlot, anchorLevel: number): string {
-  const ceiling = itemBaseValue(anchorLevel, typicalQualityAt(anchorLevel));
-  let best: { id: string; value: number } | undefined;
-
-  for (const definition of Object.values(EQUIPMENT)) {
-    if (definition.slot !== slot) continue;
-    if (!REGIONAL_BLANK_ID.test(definition.id)) continue;
-    // 带定义级 setId 的不能烙印（planImprint 的 def-set-conflict 分支），
-    // 发一批不能烙印的胚子会直接违反 docs/58 红线
-    if (definition.setId) continue;
-    /*
-     * 等级不得超过锚点 —— 光约束基准值不够。
-     *
-     * claude 实测抓到的反例：violet d4 标称 Lv46 会选中 eq_r6_ring_rare(Lv58)，
-     * 它满足 bv(58,rare)=331 ≤ bv(46,epic)=379，却是 **r6 的装备出现在
-     * violet（Lv31-51）副本里** —— 「用高等级低品质换算」绕过了
-     * 「掉落等级由地点决定」，玩家会看到一件明显不属于这个副本的东西。
-     */
-    if (definition.level > anchorLevel) continue;
-    const value = itemBaseValue(definition.level, definition.quality);
-    if (value > ceiling + 1e-9) continue;
-    if (!best || value > best.value) best = { id: definition.id, value };
-  }
-
-  if (!best) {
-    throw new Error(
-      `[配置错误] 部位 ${slot} 在锚点 Lv${anchorLevel} 找不到任何不超模的主线胚子定义 ` +
-        `—— 最低品质的区域装备也高于该等级的主线典型（docs/66 §3.5）`,
-    );
-  }
-  return best.id;
+  return selectStrongestDefinition(slot, anchorLevel);
 }
 
 /** 玩家在该档已通过的最高深度；没打过是 0。 */

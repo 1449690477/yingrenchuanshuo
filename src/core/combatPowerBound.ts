@@ -33,7 +33,7 @@ import { expectedBuildCp } from '../data/expectedPower';
 import { EQUIPMENT } from '../data/equipment';
 import { ENHANCE_GAIN_MAX, ENHANCE_MAX, SLOT_ORDER } from '../data/constants';
 import { buildTrialCombatant } from './trial';
-import { itemBaseValue } from './equipment';
+import { itemBaseValue, REGIONAL_BLANK_ID } from './equipment';
 import type { ClassId, EquipmentInstance, EquipSlot } from './types';
 
 /**
@@ -48,10 +48,22 @@ export const COMBAT_POWER_HEADROOM = 1.5;
 
 /** 该槽位在该等级能穿到的最强定义：按真实基准值排序，不按名字或品质猜。 */
 function strongestDefFor(slot: EquipSlot, level: number, classId: ClassId) {
+  // docs/73 batch2-1 A3: anchor floor same as expectedGearStatsFromDefinitions.
+  // Lv1 base value is below every real definition, so selection finds nothing
+  // and the structural ceiling collapses below typical build (ratio 0.90).
+  // Use the lowest definition level as floor so the ceiling never < typical.
+  let floor = Number.POSITIVE_INFINITY;
+  for (const def of Object.values(EQUIPMENT)) {
+    if (!REGIONAL_BLANK_ID.test(def.id)) continue;
+    if (def.classId !== undefined && def.classId !== classId) continue;
+    if (def.level < floor) floor = def.level;
+  }
+  const anchor = Number.isFinite(floor) ? Math.max(level, floor) : level;
+
   let best: { id: string; value: number } | null = null;
   for (const def of Object.values(EQUIPMENT)) {
     if (def.slot !== slot) continue;
-    if (def.level > level) continue;
+    if (def.level > anchor) continue;
     if (def.classId !== undefined && def.classId !== classId) continue;
     const value = itemBaseValue(def.level, def.quality);
     if (!best || value > best.value) best = { id: def.id, value };

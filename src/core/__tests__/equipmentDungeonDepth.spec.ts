@@ -21,13 +21,12 @@ import {
   REGION_BLANK_QUALITY_RANGE,
 } from '@/data/equipmentDungeonDepthRules';
 import { EQUIPMENT_DUNGEON_TIERS } from '@/data/equipmentDungeonGear';
-import { typicalQualityAt, expectedFullGearCp } from '@/data/expectedPower';
+import { typicalQualityAt } from '@/data/expectedPower';
 import { ALL_CHAPTERS, REGIONS } from '@/data/regions';
 import { EQUIPMENT, equipIdsOfRegion } from '@/data/equipment';
 import { ITEM_BASE, ITEM_POW, ITEM_SCALE, QUALITY_MUL, QUALITY_ORDER } from '@/data/constants';
 import type { Quality, Stats } from '../types';
 import { combatPower } from '../formula';
-import { monsterAtk } from '../progression';
 
 const ZERO_STATS: Stats = {
   atk: 0, def: 0, hp: 0, acc: 0, eva: 0, critRate: 0, critDmg: 0, spd: 0,
@@ -155,9 +154,9 @@ describe('G-2 · 副本胚子永远不超过同期主线最强', () => {
  * docs/66 §3.5：胚子取自玩家当前区域的主线装备定义，
  * 所以品质必须夹进该区**实有**的集合。
  *
- * 这组测试的存在理由是一个真实缺口：r2（Lv10-20）实有 [fine, rare, epic]，
- * 而 Lv10~14 的 typicalQualityAt 返回 common —— 五个等级取不到定义会崩。
- * **公式是对的，有洞的是定义集合**，所以必须逐区逐级扫覆盖面。
+ * docs/73 A3 批 2-1 返工后 typicalQualityAt 回「典型持有」口径（r2 Lv10-14 =
+ * common），「r2 缺口」由 blankQualityInRegion 夹取到该区实有集合（fine）关闭；
+ * 本组测试仍逐区逐级扫覆盖面，防止将来新区域漏登记。
  */
 describe('区域品质集合守卫（r2 缺口）', () => {
   const RE = /^eq_(r\d+)_ring_([a-z]+)$/;
@@ -195,7 +194,7 @@ describe('区域品质集合守卫（r2 缺口）', () => {
     }
   });
 
-  it('r2 的 Lv10~14 本该要 common，夹取后落到该区最低的 fine', () => {
+  it('r2 的 Lv10~14 持有口径=common，夹取后落在该区实有集合内', () => {
     expect(typicalQualityAt(12)).toBe('common');
     expect(blankQualityInRegion('r2', 12)).toBe('fine');
   });
@@ -375,14 +374,25 @@ describe('crimson 当前只开 d1（docs/66 §七）', () => {
 });
 
 describe('推荐战力与实际难度同源', () => {
-  it('深度越深推荐战力越高', () => {
-    for (let d = 2; d <= DEPTH_PER_TIER; d++) {
-      expect(depthRecommendCp('auric', d)).toBeGreaterThan(depthRecommendCp('auric', d - 1));
+  // docs/73 A3 后为**构造保证**：rec = EFG(档位入口) × TARGET[d]，TARGET 单调。
+  // 四档全部断言，防止将来有人把等级项塞回公式重新引入非单调（auric 曾 d2>d3）。
+  it('深度越深推荐战力越高（四档全部）', () => {
+    const TIERS = ['azure', 'violet', 'auric', 'crimson'] as const;
+    for (const tier of TIERS) {
+      for (let d = 2; d <= DEPTH_PER_TIER; d++) {
+        expect(
+          depthRecommendCp(tier, d),
+          `${tier} d${d} 的推荐战力必须高于 d${d - 1}`,
+        ).toBeGreaterThan(depthRecommendCp(tier, d - 1));
+      }
     }
   });
 
   it('高档同深度的推荐战力高于低档', () => {
-    expect(depthRecommendCp('auric', 1)).toBeGreaterThan(depthRecommendCp('violet', 1));
+    const TIERS = ['azure', 'violet', 'auric', 'crimson'] as const;
+    for (let i = 1; i < TIERS.length; i++) {
+      expect(depthRecommendCp(TIERS[i], 1)).toBeGreaterThan(depthRecommendCp(TIERS[i - 1], 1));
+    }
   });
 });
 
@@ -439,10 +449,14 @@ describe('evaluateDungeonDepth 的阻挡原因', () => {
  * 但「只报不拦」有个众所周知的下场：**从此没人管**。
  * 我们今天已经吃过两次亏 —— 平衡门禁的上界缺了几个月没被发现、
  * DEPTH_GATES_CALIBRATED 挂了大半天。所以重启条件不能写成注释里的一句话，
- * 必须是一条**会自己变红**的断言：下面这两条断言的是「失真**仍然存在**」，
- * 修好任何一条的人都会被它拦住，而他绕不过去 —— 因为他改的正是被断言的东西。
+ * 必须是一条**会自己变红**的断言。
+ *
+ * 失真源②（威胁轴漂移）已由 docs/73 A1 修平（expectedThreatFactor 孪生锚点表，
+ * 批 2-3），2026-07-31 按 docs/66 §6.2 契约闭环：删除本条哨兵 + N1 门禁恢复硬拦
+ * （GATE_CLEARANCES 移除）。剩余失真源①（暴击率 CP 固定加权）仍在，
+ * 由下面这条断言继续守护，直到批 3（CP 定价）修平。
  */
-describe('哨兵 · CP 已知失真源仍然存在（修好任一条就回去把带宽门禁改回硬拦）', () => {
+describe('哨兵 · CP 已知失真源①仍存在（暴击率固定加权）', () => {
   const CALL_TO_ACTION =
     ' ★ 这条红了说明 CP 的已知失真源被修好了。请立刻回到 ' +
     'scripts/equipment-dungeon-balance.mts，把 CROSS_TIER_BANDWIDTH / ' +
@@ -459,13 +473,5 @@ describe('哨兵 · CP 已知失真源仍然存在（修好任一条就回去把
       low - lowBase,
       6,
     );
-  });
-
-  it('失真源②：怪物攻击相对玩家时代强度仍在随等级漂移（等级段间失真）', () => {
-    // 同一口径下取两个相距很远的等级，漂移比应当明显大于 1（= 尚未修复）
-    const ratioAt = (level: number) =>
-      expectedFullGearCp(level) / monsterAtk(level, 'normal', 1);
-    const drift = ratioAt(75) / ratioAt(15);
-    expect(drift, `威胁轴漂移已被修平${CALL_TO_ACTION}`).toBeGreaterThan(1.5);
   });
 });

@@ -172,6 +172,52 @@ const EXPECTED_GEAR_ANCHORS: readonly (readonly [number, number])[] = [
   [120, 15.0],
 ];
 
+/**
+ * 威胁因子孪生表（docs/73 A1 / 修正③）——EXPECTED_GEAR_ANCHORS 的攻击侧孪生。
+ *
+ * EXPECTED_GEAR_ANCHORS 让怪物血量跟「玩家 DPS 的品质爬升」走（管打多久）；
+ * 本表让怪物攻击跟「玩家 EHP 的品质爬升」走（管会不会死）。
+ * 玩家 EHP 只吃品质阶梯的 hp/def 份额，不是全额品质倍率，
+ * 所以本表数值远小于血量侧的 QUALITY_MUL 插值（试水教训：乘整段品质倍率
+ * 最高 15× 过猛，深度副本全线失衡，docs/73 P0-3）。
+ *
+ * 锚点从实测安全边际带 [2, 8] 反解（2026-07-31 批 2-1 尺子下读数）：
+ *   k(段) = 段安全边际 ÷ 目标安全边际 4.5（带中心，全程持平）；
+ *   实测 1.82 / 2.21 / 2.68 / 5.91 / 4.81 / 7.96 / 9.15
+ *   → 0.404 / 0.491 / 0.596 / 1.313 / 1.069 / 1.769 / 2.033
+ *   45/55 段反解非单调（实测噪声），保序平均为 1.19。
+ * 插值平滑、非阶跃（与血量侧同法，品质切换点不制造难度断崖）。
+ *
+ * ⚠ 改这里必然改变全部怪物攻击：必须跑 npm run sim 复验 N1 全段 ∈ [2,8]
+ * 且漂移 ≤ 2×，并同步复验 npm run balance:equipment-dungeon（P0-2b 反标定）。
+ */
+const THREAT_ANCHORS: readonly (readonly [number, number])[] = [
+  [1, 0.4],
+  [15, 0.4],
+  [25, 0.49],
+  [35, 0.6],
+  [45, 1.19],
+  [55, 1.19],
+  [65, 1.77],
+  [75, 2.03],
+  [120, 2.4],
+];
+
+export function expectedThreatFactor(level: number): number {
+  const lv = Math.max(1, level);
+  let mul = THREAT_ANCHORS[THREAT_ANCHORS.length - 1]![1];
+  for (let i = 0; i < THREAT_ANCHORS.length - 1; i++) {
+    const [l0, q0] = THREAT_ANCHORS[i]!;
+    const [l1, q1] = THREAT_ANCHORS[i + 1]!;
+    if (lv <= l1) {
+      const t = l1 === l0 ? 0 : (lv - l0) / (l1 - l0);
+      mul = q0 + (q1 - q0) * t;
+      break;
+    }
+  }
+  return mul;
+}
+
 export function expectedGearFactor(level: number): number {
   const lv = Math.max(1, level);
   let qualityMul = EXPECTED_GEAR_ANCHORS[EXPECTED_GEAR_ANCHORS.length - 1]![1];
@@ -201,7 +247,11 @@ export function monsterHp(level: number, type: MonsterType = 'normal', mul = 1):
 
 export function monsterAtk(level: number, type: MonsterType = 'normal', mul = 1): number {
   return Math.round(
-    MONSTER_ATK_BASE * Math.pow(level, MONSTER_ATK_POW) * MONSTER_TYPE_MUL[type].atk * mul,
+    MONSTER_ATK_BASE *
+      Math.pow(level, MONSTER_ATK_POW) *
+      expectedThreatFactor(level) *
+      MONSTER_TYPE_MUL[type].atk *
+      mul,
   );
 }
 
