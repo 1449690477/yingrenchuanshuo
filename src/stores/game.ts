@@ -83,7 +83,6 @@ import {
   createFixedInstance,
   createInstance,
   hasFullyFixedAffixes,
-  instanceStatsForClass,
   rollEnhanceGainPermille,
   totalEquipCombatBonuses,
   totalEquipStats,
@@ -92,6 +91,7 @@ import {
   type PermilleRoll,
   type EnhanceGainGrade,
 } from '@/core/equipment';
+import { equipmentBaseScore, equipmentCurrentScore } from '@/core/equipmentScore';
 import {
   planAffixChange,
   resolvePendingAffixChange,
@@ -1337,15 +1337,14 @@ export const useGameStore = defineStore('game', () => {
   }
 
   /**
-   * 装备自身的基础属性战力。
+   * 装备在固定职业裸属性参照上的当前评分。
    *
-   * 存档在进入 store 前已经完成迁移和严格校验；此处若再吞掉缺定义或坏实例，
-   * 只会把主流程错误伪装成“低战力垃圾装备”。配置不一致必须直接暴露。
+   * 不使用局部属性直接计算战力；否则绝大多数不带攻速的装备会被错误算成 0。
    */
   function itemCp(inst: EquipmentInstance): number {
     if (!save.value) throw new Error('[背包裁剪错误] 没有可用存档');
     const def = requireEquipment(inst.defId);
-    return combatPower(instanceStatsForClass(def, inst, save.value.player.classId));
+    return equipmentCurrentScore(def, inst, save.value.player.classId);
   }
 
   /**
@@ -2134,6 +2133,26 @@ export const useGameStore = defineStore('game', () => {
   /** 背包装备相对当前穿戴方案的精确战力变化。 */
   function equipmentCpDelta(inst: EquipmentInstance): number {
     return equipmentCandidateCp(inst) - cp.value;
+  }
+
+  /** 包含实例已发生强化，但不受玩家等级、好感、穿戴或套装影响的稳定评分。 */
+  function equipmentStableCurrentScore(inst: EquipmentInstance): number {
+    if (!save.value) return 0;
+    return equipmentCurrentScore(
+      requireEquipment(inst.defId),
+      inst,
+      save.value.player.classId,
+    );
+  }
+
+  /** 将实例规范化为 +0 后的稳定底子评分，用于识别值得培养的新掉落。 */
+  function equipmentStableBaseScore(inst: EquipmentInstance): number {
+    if (!save.value) return 0;
+    return equipmentBaseScore(
+      requireEquipment(inst.defId),
+      inst,
+      save.value.player.classId,
+    );
   }
 
   /** 单件装备在当前角色与其余七个槽位的上下文里贡献多少战力。 */
@@ -3151,6 +3170,8 @@ export const useGameStore = defineStore('game', () => {
     markTrialBestSubmitted,
     equipmentCandidateCp,
     equipmentCpDelta,
+    equipmentStableCurrentScore,
+    equipmentStableBaseScore,
     equipmentContributionCp,
     equipmentAdvancementOption,
     advanceEquipment,

@@ -16,6 +16,8 @@ const inventory = vi.hoisted(() => ({
   equipped: null,
   contributionCp: vi.fn(() => 128),
   cpDelta: vi.fn(() => 16),
+  currentScore: vi.fn(() => 128),
+  baseScore: vi.fn(() => 96),
   equip: vi.fn(),
   unequip: vi.fn(),
   decompose: vi.fn(),
