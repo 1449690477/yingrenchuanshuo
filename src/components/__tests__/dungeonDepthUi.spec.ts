@@ -40,11 +40,20 @@ function readSource(path: string): string {
 // ─────────── 1. 源码契约断言 ───────────
 
 describe('深度 UI 源码契约', () => {
-  it('激活开关当前为 false，且有契约测试锁死（翻 true 须删 stub）', () => {
+  /**
+   * 2026-07-31 开关已翻 true 并上线（claude-drops ③）。
+   *
+   * 这条断言从「锁未激活」改为「锁已激活」——**它不是走过场**：
+   * 运行时值与源码文本两边都查，防止有人只改其一
+   * （只改断言不改常量、或只改常量不改断言，都会被这条抓住）。
+   *
+   * 若将来需要回滚，改开关的同时必须改这条断言，
+   * 那一步正好逼人回来读上面那段回滚说明（深度存档进度不受影响）。
+   */
+  it('激活开关已翻 true，运行时值与源码文本一致', () => {
     const source = readSource('../../ui/dungeonDepthActivation.ts');
-    expect(source).toContain('DUNGEON_DEPTH_UI_ACTIVE = false');
-    // 运行时值与源码一致，防止有人只改断言不改常量
-    expect(DUNGEON_DEPTH_UI_ACTIVE).toBe(false);
+    expect(source).toContain('DUNGEON_DEPTH_UI_ACTIVE = true');
+    expect(DUNGEON_DEPTH_UI_ACTIVE).toBe(true);
   });
 
   it('DungeonView 把面板挂在开关后面：flag off 时模板根本不渲染', () => {
