@@ -127,37 +127,80 @@ describe('submitTrialScore', () => {
 });
 
 describe('upsertProfile', () => {
-  it('只在首次建档时使用角色名，已有档案同步不再覆盖玩家自设昵称', async () => {
-    const eq = vi.fn(async (_column: string, _value: string) => ({ error: null }));
-    const update = vi.fn((_patch: Record<string, unknown>) => ({ eq }));
-    const upsert = vi.fn(async () => ({ error: null }));
+  /**
+   * 2026-07-31 起档案同步走 sync-profile 函数（docs/65 §六之二 方向 A）。
+   * 这条测试锁的是本轮的核心红线：**载荷里不能有战力**。
+   * profiles 的 RLS 是 for all，客户端上报的战力等于自填名次；
+   * 现在服务端拿搭配快照现算，客户端连报都无从报起。
+   */
+  it('载荷只有搭配快照，没有战力字段 —— 名次不能自填', async () => {
+    const calls: { name: string; body: Record<string, unknown> }[] = [];
     const client = {
-      from: vi.fn(() => ({ upsert, update })),
+      functions: {
+        invoke: async (name: string, opts: { body: unknown }) => {
+          calls.push({ name, body: opts.body as Record<string, unknown> });
+          return { data: { combatPower: 123_456, level: 45 }, error: null };
+        },
+      },
     } as unknown as SupabaseClient;
 
     await upsertProfile(client, {
-      id: 'user-1',
       displayName: '剑姬角色名',
       classId: 'swordsman',
       level: 45,
-      combatPower: 123_456,
+      equipped: [null, null, null, null, null, null, null, null],
     });
 
-    expect(upsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: 'user-1',
-        display_name: '剑姬角色名',
-      }),
-      { onConflict: 'id', ignoreDuplicates: true },
-    );
-    const progressPatch = update.mock.calls[0]?.[0] as Record<string, unknown>;
-    expect(progressPatch).toMatchObject({
-      class_id: 'swordsman',
-      level: 45,
-      combat_power: 123_456,
+    expect(calls[0]!.name).toBe('sync-profile');
+    expect(Object.keys(calls[0]!.body).sort()).toEqual([
+      'classId',
+      'displayName',
+      'equipped',
+      'level',
+    ]);
+    expect(calls[0]!.body).not.toHaveProperty('combatPower');
+    expect(calls[0]!.body).not.toHaveProperty('combat_power');
+  });
+
+  it('昵称超长会被裁到 20 字，空名给兜底名', async () => {
+    const bodies: Record<string, unknown>[] = [];
+    const client = {
+      functions: {
+        invoke: async (_name: string, opts: { body: unknown }) => {
+          bodies.push(opts.body as Record<string, unknown>);
+          return { data: {}, error: null };
+        },
+      },
+    } as unknown as SupabaseClient;
+
+    const equipped = [null, null, null, null, null, null, null, null];
+    await upsertProfile(client, {
+      displayName: '啊'.repeat(30),
+      classId: 'witch',
+      level: 1,
+      equipped,
     });
-    expect(progressPatch).not.toHaveProperty('display_name');
-    expect(eq).toHaveBeenCalledWith('id', 'user-1');
+    await upsertProfile(client, { displayName: '   ', classId: 'witch', level: 1, equipped });
+
+    expect((bodies[0]!.displayName as string).length).toBe(20);
+    expect(bodies[1]!.displayName).toBe('无名旅人');
+  });
+
+  it('服务端业务错误翻译成玩家能看懂的异常', async () => {
+    const client = {
+      functions: {
+        invoke: async () => ({ data: { error: '装备词条数值不符合生成公式' }, error: null }),
+      },
+    } as unknown as SupabaseClient;
+
+    await expect(
+      upsertProfile(client, {
+        displayName: '甲',
+        classId: 'witch',
+        level: 1,
+        equipped: [null, null, null, null, null, null, null, null],
+      }),
+    ).rejects.toThrow('装备词条数值不符合生成公式');
   });
 });
 
@@ -364,5 +407,55 @@ describe('fetchPowerTop 过滤掉物理上不可能的战力', () => {
     const rows = await fetchPowerTop(client, null);
 
     expect(rows).toHaveLength(0);
+  });
+});
+
+/**
+ * sync-profile 与收权限迁移的契约（直接读文件断言）。
+ *
+ * 桩客户端测不出「服务端到底信不信客户端报的数」，也测不出 SQL 里
+ * 那条列级授权有没有写对形状 —— 而这两件正是本轮的全部意义。
+ */
+describe('档案同步的服务端契约', () => {
+  const edge = readFileSync(
+    new URL('../../../supabase/functions/sync-profile/index.ts', import.meta.url),
+    'utf8',
+  );
+  const grants = readFileSync(
+    new URL('../../../supabase/migrations/20260731230000_profile_write_grants.sql', import.meta.url),
+    'utf8',
+  );
+
+  it('函数载荷里没有战力字段，战力由服务端 buildTrialCombatant 现算', () => {
+    const schemaBlock = edge.slice(
+      edge.indexOf('const submissionSchema'),
+      edge.indexOf('.strict()'),
+    );
+    expect(schemaBlock).toContain('equipped');
+    expect(schemaBlock).not.toContain('combatPower');
+    expect(schemaBlock).not.toContain('combat_power');
+    expect(edge).toContain('buildTrialCombatant');
+    expect(edge).toContain('build.combatPower');
+  });
+
+  it('装备硬校验与 submit-trial 同源，不因为「只是同步档案」而放宽', () => {
+    expect(edge).toContain('trialEquipmentSnapshotIssue');
+    expect(edge).toContain('装备槽位不符');
+  });
+
+  it('迁移先撤表级再按列重授 —— 列级 revoke 削不掉表级授权', () => {
+    expect(grants).toContain('revoke insert, update on public.profiles from anon, authenticated');
+    expect(grants).toMatch(/grant update \([^)]*display_name[^)]*\) on public\.profiles/);
+    // 排名字段一个都不许出现在重新授权的名单里
+    const grantBlock = grants.slice(grants.indexOf('grant insert'), grants.indexOf('alter table'));
+    expect(grantBlock).not.toContain('combat_power');
+    expect(grantBlock).not.toContain('class_id');
+    expect(grantBlock).not.toMatch(/\blevel\b/);
+  });
+
+  it('收权限后建档要有默认值，否则第一次 insert 会失败', () => {
+    for (const column of ['class_id', 'level', 'combat_power']) {
+      expect(grants).toMatch(new RegExp(`alter column ${column} set default`));
+    }
   });
 });

@@ -24,7 +24,6 @@ import {
   type GuildMembershipState,
   type GuildSummary,
 } from '@/net/guild';
-import { buildTrialCombatant } from '@/core/trial';
 import { SLOT_ORDER } from '@/data/constants';
 import { TRIAL_SEASON_ID } from '@/data/trialRules';
 
@@ -93,13 +92,14 @@ export const useGuildStore = defineStore('guild', () => {
           return false;
         }
         const current = snapshot();
-        const power = buildTrialCombatant({ name: current.displayName, ...current }).combatPower;
+        // 战力不再由客户端算完上报：sync-profile 拿这份搭配快照在服务端现算
+        // （docs/65 §六之二 方向 A —— profiles 的写策略是 for all，
+        //   客户端上报的战力等于自填名次）
         await upsertProfile(session.client, {
-          id: session.userId,
           displayName: current.displayName,
           classId: current.classId,
           level: current.level,
-          combatPower: power,
+          equipped: current.equipped,
         });
         userId.value = session.userId;
         status.value = 'ready';

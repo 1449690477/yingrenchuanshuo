@@ -22,6 +22,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const FUNCTIONS = [
   'submit-trial',
+  'sync-profile',
   'submit-milestone',
   'submit-affection',
   'submit-progress',
@@ -335,3 +336,34 @@ for (const { a, b } of progressSortProbes) {
 console.log('✓ 进度榜确定性自检通过：L1 白名单 / L3 门槛判定 / 排序口径打包产物与 src/core 逐点一致');
 
 await import('./guild-edge-self-check.mts');
+
+// ── 确定性自检：档案同步的战力与试炼函数逐点一致（docs/65 §六之二 方向 A）──
+//
+// sync-profile 与 submit-trial 是两个函数、两份打包产物，但它们对同一份
+// 搭配快照必须算出**同一个战力** —— 否则玩家在「打开排行榜」和「提交试炼」
+// 两条路径上会拿到两个名次，而这种分叉不会有任何报错。
+// 这正是 docs/61 §2.2「同一口径两处实现」那类事故的形状。
+const syncGenerated = await import(
+  pathToFileURL(path.join(root, 'supabase/functions/sync-profile/_core.ts')).href
+);
+const syncTrialGenerated = await import(
+  pathToFileURL(path.join(root, 'supabase/functions/submit-trial/_core.ts')).href
+);
+const syncSource = await import('../src/core/trial.ts');
+
+for (const probe of [
+  { name: '自检·档案', classId: 'swordsman', level: 45, equipped },
+  { name: '自检·档案', classId: 'catkin', level: 78, equipped },
+]) {
+  const fromSync = syncGenerated.buildTrialCombatant(probe).combatPower;
+  const fromTrial = syncTrialGenerated.buildTrialCombatant(probe).combatPower;
+  const fromSource = syncSource.buildTrialCombatant(probe).combatPower;
+  if (fromSync !== fromTrial || fromSync !== fromSource) {
+    console.error(
+      `✗ 档案同步自检失败：${probe.classId} Lv${probe.level} —— ` +
+        `sync-profile=${fromSync}，submit-trial=${fromTrial}，源实现=${fromSource}`,
+    );
+    process.exit(1);
+  }
+}
+console.log('✓ 档案同步确定性自检通过：sync-profile 与 submit-trial 战力逐点一致');

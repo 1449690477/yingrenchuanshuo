@@ -80,53 +80,41 @@ interface PublicProfileIdentity {
 }
 
 /**
- * 同步公开档案里的游戏进度字段。
+ * 同步公开档案里的游戏进度字段（class_id / level / combat_power）。
  *
- * display_name 只在档案首次创建时写入默认值，之后绝不再碰。玩家自设昵称
- * 与当前游戏角色名是两套身份；如果每次同步战力都 upsert display_name，
- * 换职业或上传成绩就会把玩家刚改好的昵称覆盖掉。
+ * ── 2026-07-31 · 战力改由服务端现算（docs/65 §六之二 方向 A）──
+ * 这里原本是客户端直写 profiles。但 profiles 的 RLS 策略是 for all，
+ * 玩家可以自己 PATCH combat_power —— **战力榜的名次曾经是客户端自填的**。
+ * 现在改成调 sync-profile：**载荷里根本没有战力这个字段**，
+ * 服务端拿搭配快照用同一份 core 现算，与 submit-trial 逐点一致。
+ *
+ * display_name 只在档案首次创建时由服务端写入默认值，之后绝不再碰 ——
+ * 玩家自设昵称与游戏角色名是两套身份，每次同步都覆盖会把玩家刚改好的
+ * 昵称冲掉。昵称 / 简介 / 头像的编辑仍然走客户端直写（那些是玩家自治的
+ * 展示字段，见 net/profile.ts）。
  */
 export async function upsertProfile(
   client: SupabaseClient,
   profile: {
-    id: string;
     displayName: string;
     classId: ClassId;
     level: number;
-    combatPower: number;
+    /** 八槽位穿戴快照，顺序与 SLOT_ORDER 一致；战力由服务端据此现算 */
+    equipped: readonly (EquipmentInstance | null)[];
   },
 ): Promise<void> {
-  const updatedAt = new Date().toISOString();
-  const progress = {
-    class_id: profile.classId,
-    level: profile.level,
-    combat_power: profile.combatPower,
-    updated_at: updatedAt,
-  };
-
-  const { error: createError } = await client.from('profiles').upsert(
-    {
-      id: profile.id,
-      display_name: profile.displayName.trim().slice(0, 20) || '无名旅人',
-      ...progress,
+  const { data, error } = await client.functions.invoke('sync-profile', {
+    body: {
+      displayName: profile.displayName.trim().slice(0, 20) || '无名旅人',
+      classId: profile.classId,
+      level: profile.level,
+      equipped: profile.equipped,
     },
-    {
-      onConflict: 'id',
-      // PostgreSQL 的 ON CONFLICT DO NOTHING：已有档案时不覆盖玩家自设身份。
-      ignoreDuplicates: true,
-    },
-  );
-  if (createError) {
-    throw new NetRequestError(friendlyMessage(createError.message, '档案初始化失败'));
-  }
+  });
+  if (error) throw new NetRequestError(friendlyMessage(error.message, '档案同步失败'));
 
-  const { error: updateError } = await client
-    .from('profiles')
-    .update(progress)
-    .eq('id', profile.id);
-  if (updateError) {
-    throw new NetRequestError(friendlyMessage(updateError.message, '档案同步失败'));
-  }
+  const body = data as { error?: string } | null;
+  if (body?.error) throw new NetRequestError(body.error);
 }
 
 /**

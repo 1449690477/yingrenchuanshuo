@@ -235,13 +235,14 @@ export const useLeaderboardStore = defineStore('leaderboard', () => {
       lastError.value = null;
       const save = game.save;
       if (save) {
-        // 档案同步是战力榜的数据源；失败只影响战力榜新鲜度，不影响试炼
+        // 档案同步是战力榜的数据源；失败只影响战力榜新鲜度，不影响试炼。
+        // 战力由服务端从这份搭配快照现算，客户端不再上报 game.cp
+        // （docs/65 §六之二 方向 A）。
         await upsertProfile(session.client, {
-          id: session.userId,
           displayName: save.player.name,
           classId: save.player.classId,
           level: save.player.level,
-          combatPower: game.cp,
+          equipped: currentEquipped(),
         }).catch(() => undefined);
       }
       return true;
