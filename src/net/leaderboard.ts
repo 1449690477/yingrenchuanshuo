@@ -11,6 +11,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ClassId, EquipmentInstance } from '@/core/types';
 import { NetRequestError, friendlyMessage } from './supabase';
+import { isPlausibleCombatPower } from '@/core/combatPowerBound';
 
 // ─────────────────────────── 类型 ───────────────────────────
 
@@ -340,31 +341,42 @@ export async function fetchPowerTop(
     .select('id, display_name, bio, avatar_url, class_id, level, combat_power')
     .order('combat_power', { ascending: false })
     .order('updated_at', { ascending: true })
-    .limit(limit);
+    // 多取一些再过滤：离谱行会被剔掉，直接按 limit 取会让榜变短
+    .limit(limit * 2);
   if (error) throw new NetRequestError(friendlyMessage(error.message, '战力榜读取失败'));
 
-  return (data ?? []).map((row, index) => {
-    const r = row as {
-      id: string;
-      display_name: string;
-      bio: string | null;
-      avatar_url: string | null;
-      class_id: ClassId;
-      level: number;
-      combat_power: number;
-    };
-    return {
-      rank: index + 1,
-      userId: r.id,
-      displayName: r.display_name,
-      bio: r.bio,
-      avatarUrl: r.avatar_url,
-      classId: r.class_id,
-      level: Number(r.level),
-      combatPower: Number(r.combat_power),
-      isMe: r.id === myUserId,
-    };
-  });
+  return (data ?? [])
+    .map((row) => {
+      const r = row as {
+        id: string;
+        display_name: string;
+        bio: string | null;
+        avatar_url: string | null;
+        class_id: ClassId;
+        level: number;
+        combat_power: number;
+      };
+      return {
+        userId: r.id,
+        displayName: r.display_name,
+        bio: r.bio,
+        avatarUrl: r.avatar_url,
+        classId: r.class_id,
+        level: Number(r.level),
+        combatPower: Number(r.combat_power),
+        isMe: r.id === myUserId,
+      };
+    })
+    .filter((row) =>
+      // 纵深防御（docs/65 §六之二 方向 B）：profiles 的写策略是 for all，
+      // 已登录玩家可以直接 PATCH 自己那一行的 combat_power。方向 A 会把写权限
+      // 收到 Edge Function，但**在那之前、以及万一将来某个新写入点又把权限
+      // 放开时**，这一层保证物理上不可能的数字进不了展示。
+      // 上界从「该等级该职业真正能穿到的最强一套」推出来，不是拍的系数。
+      isPlausibleCombatPower(row.combatPower, row.level, row.classId),
+    )
+    .slice(0, limit)
+    .map((row, index) => ({ rank: index + 1, ...row }));
 }
 
 /** 我的战力名次：只数「比我高的人数 + 1」，不拉全表。 */

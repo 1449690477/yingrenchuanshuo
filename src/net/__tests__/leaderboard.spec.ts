@@ -17,6 +17,7 @@ import {
   trialNeighborhoodIsPreview,
   upsertProfile,
   type TrialBoardRow,
+  fetchPowerTop,
   type TrialSubmission,
 } from '../leaderboard';
 import { NetRequestError } from '../supabase';
@@ -291,5 +292,77 @@ describe('trial_neighborhood 迁移的 SQL 契约', () => {
     expect(sql).toMatch(
       /grant\s+execute\s+on\s+function\s+public\.trial_neighborhood\(text,\s*int,\s*text,\s*text,\s*uuid,\s*int\)/i,
     );
+  });
+});
+
+/**
+ * 战力榜的纵深防御（docs/65 §六之二 方向 B）。
+ *
+ * profiles 的写策略是 for all —— 已登录玩家能直接 PATCH 自己那一行的
+ * combat_power，也就是名次可以自填。方向 A 会把写权限收进 Edge Function；
+ * 在那之前（以及万一将来某个新写入点又把权限放开时），
+ * 展示层这道过滤保证物理上不可能的数字进不了榜。
+ */
+describe('fetchPowerTop 过滤掉物理上不可能的战力', () => {
+  function powerStub(rows: unknown[]) {
+    const log: { limit?: number } = {};
+    const builder: Record<string, unknown> = {};
+    Object.assign(builder, {
+      select: () => builder,
+      order: () => builder,
+      limit: (n: number) => {
+        log.limit = n;
+        return Promise.resolve({ data: rows, error: null });
+      },
+    });
+    const client = { from: () => builder } as unknown as SupabaseClient;
+    return { client, log };
+  }
+
+  const honest = {
+    id: 'honest',
+    display_name: '老实人',
+    bio: null,
+    avatar_url: null,
+    class_id: 'swordsman',
+    level: 78,
+    combat_power: 90_000,
+  };
+  const forged = { ...honest, id: 'forged', display_name: '自填哥', combat_power: 999_999_999 };
+
+  it('自填的天文数字被剔除，名次按剩下的重排', async () => {
+    // 伪造行排在第一（战力最高），过滤后不该占据任何名次
+    const { client } = powerStub([forged, honest]);
+
+    const rows = await fetchPowerTop(client, null);
+
+    expect(rows.map((row) => row.userId)).toEqual(['honest']);
+    expect(rows[0]!.rank).toBe(1);
+  });
+
+  it('真实玩家一个都不能少 —— 满配肝帝必须留在榜上', async () => {
+    // 90000 已接近 Lv78 的结构上界，属于真实可达
+    const { client } = powerStub([honest]);
+
+    const rows = await fetchPowerTop(client, 'honest');
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.isMe).toBe(true);
+  });
+
+  it('多取再过滤，避免剔除后榜变短', async () => {
+    const { client, log } = powerStub([]);
+
+    await fetchPowerTop(client, null, 50);
+
+    expect(log.limit).toBe(100);
+  });
+
+  it('等级伪造也拦得住：等级越界的行直接不进榜', async () => {
+    const { client } = powerStub([{ ...honest, id: 'lvhack', level: 999, combat_power: 90_000 }]);
+
+    const rows = await fetchPowerTop(client, null);
+
+    expect(rows).toHaveLength(0);
   });
 });
