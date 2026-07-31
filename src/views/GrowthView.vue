@@ -28,6 +28,7 @@ import CharacterAppearance from '@/components/CharacterAppearance.vue';
 import ClassSwitchModal from '@/components/ClassSwitchModal.vue';
 import EnhancePanel from '@/components/EnhancePanel.vue';
 import EquipmentSetStatus from '@/components/EquipmentSetStatus.vue';
+import EquipmentPresetPanel from '@/components/EquipmentPresetPanel.vue';
 import EquipmentAdvancementPanel from '@/components/EquipmentAdvancementPanel.vue';
 import ReforgeStudio from '@/components/reforge/ReforgeStudio.vue';
 import SkillIcon from '@/components/SkillIcon.vue';
@@ -600,6 +601,8 @@ onUnmounted(() => {
     </Transition>
 
     <EnhancePanel class="row-in" style="--row-delay: 40ms" />
+
+    <EquipmentPresetPanel class="row-in" style="--row-delay: 48ms" />
 
     <EquipmentSetStatus
       :sets="player.equipmentSetResolution.sets"

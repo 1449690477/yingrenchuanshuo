@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import { defineStore } from 'pinia';
 import type { AffixChangeOperation, EquipSlot, EquipmentInstance } from '@/core/types';
+import type { EquipmentPresetId } from '@/core/equipmentPresets';
 import type { EquipmentAdvancementOption } from '@/data/equipmentAdvancement';
 import {
   useGameStore,
@@ -9,6 +10,7 @@ import {
   type DecomposeResult,
   type EquipmentAdvancementActionResult,
   type EquipmentSetCraftingActionResult,
+  type EquipmentPresetActionResult,
   type EnhanceBatchActionResult,
   type EnhanceEquipmentResult,
   type EnhanceQuote,
@@ -28,6 +30,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     () => game.save?.equipmentCodex.discoveredDefIds ?? [],
   );
   const equipStats = computed(() => game.equipStats);
+  const equipmentPresets = computed(() => game.equipmentPresets);
 
   function equip(uid: string): boolean {
     return game.equip(uid);
@@ -89,6 +92,26 @@ export const useInventoryStore = defineStore('inventory', () => {
     return Object.values(equipped.value ?? {}).find((instance) => instance?.uid === uid) ?? null;
   }
 
+  function captureEquipmentPreset(id: EquipmentPresetId): EquipmentPresetActionResult {
+    return game.captureEquipmentPreset(id);
+  }
+
+  function applyEquipmentPreset(id: EquipmentPresetId): EquipmentPresetActionResult {
+    return game.applyEquipmentPreset(id);
+  }
+
+  function deleteEquipmentPreset(id: EquipmentPresetId): boolean {
+    return game.deleteEquipmentPreset(id);
+  }
+
+  function setEquipmentPresetAutoSwitch(enabled: boolean): boolean {
+    return game.setEquipmentPresetAutoSwitch(enabled);
+  }
+
+  function isEquipmentPresetReferenced(uid: string): boolean {
+    return game.isEquipmentPresetReferenced(uid);
+  }
+
   function advanceEquipment(
     uid: string,
     expectedSourceDefId: string,
@@ -140,6 +163,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     bag,
     equipped,
     equipStats,
+    equipmentPresets,
     equip,
     unequip,
     equipBest,
@@ -153,6 +177,11 @@ export const useInventoryStore = defineStore('inventory', () => {
     contributionCp,
     equipmentAdvancementOption,
     ownedEquipment,
+    captureEquipmentPreset,
+    applyEquipmentPreset,
+    deleteEquipmentPreset,
+    setEquipmentPresetAutoSwitch,
+    isEquipmentPresetReferenced,
     advanceEquipment,
     craftEquipmentSetPiece,
     startAffixChange,

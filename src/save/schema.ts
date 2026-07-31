@@ -38,6 +38,7 @@ import {
   PROFESSION_AFFIX_POOLS,
   QUALITY_AFFIX_COUNT,
   QUALITY_ORDER,
+  SLOT_ORDER,
   STAMINA_BASE_MAX,
 } from '@/data/constants';
 import { ENCOUNTERS } from '@/data/encounters';
@@ -55,11 +56,17 @@ import { LEGACY_TRIAL_BRACKET_IDS, TRIAL_BEST_KEEP, TRIAL_BRACKETS } from '@/dat
 import { MILESTONE_LEVELS, isMilestoneLevel } from '@/data/milestoneRules';
 import { getEquipment } from '@/data/equipment';
 import { createEquipmentCodexLedger, type EquipmentCodexLedger } from '@/core/equipmentCodex';
+import {
+  createEquipmentPresetState,
+  EQUIPMENT_PRESET_IDS,
+  type EquipmentPresetState,
+} from '@/core/equipmentPresets';
 
 export type { EquipmentCodexLedger } from '@/core/equipmentCodex';
+export type { EquipmentPresetState } from '@/core/equipmentPresets';
 
 /** 当前存档版本。加字段就 +1。 */
-export const SAVE_VERSION = 17;
+export const SAVE_VERSION = 18;
 
 export const SAVE_KEY = 'main';
 
@@ -218,6 +225,8 @@ export interface SaveData {
    * 口径同好感线的 discoveredGearIds：**只增不删**。
    */
   equipmentCodex: EquipmentCodexLedger;
+  /** 三套可复用的完整装备快照与按关卡自动切换开关。 */
+  equipmentPresets: EquipmentPresetState;
 }
 
 export function emptyEquipped(): Record<EquipSlot, EquipmentInstance | null> {
@@ -276,6 +285,7 @@ export function createSave(name: string, classId: ClassId, seed: number, now: nu
     trial: createTrialSave(),
     milestones: [],
     equipmentCodex: createEquipmentCodexLedger(),
+    equipmentPresets: createEquipmentPresetState(),
   };
 }
 
@@ -720,6 +730,40 @@ const milestoneRecordSchema = z
   })
   .strict();
 
+const equipmentPresetUidSchema = z.string().min(1).nullable();
+const equipmentPresetUidsSchema = z
+  .object({
+    weapon: equipmentPresetUidSchema,
+    head: equipmentPresetUidSchema,
+    body: equipmentPresetUidSchema,
+    necklace: equipmentPresetUidSchema,
+    bracelet: equipmentPresetUidSchema,
+    ring: equipmentPresetUidSchema,
+    belt: equipmentPresetUidSchema,
+    shoes: equipmentPresetUidSchema,
+  })
+  .strict();
+const equipmentPresetStateSchema = z
+  .object({
+    presets: z
+      .array(
+        z
+          .object({
+            id: z.enum(EQUIPMENT_PRESET_IDS),
+            classId: classIdSchema,
+            equipmentUids: equipmentPresetUidsSchema,
+          })
+          .strict(),
+      )
+      .max(EQUIPMENT_PRESET_IDS.length)
+      .refine(
+        (presets) => new Set(presets.map((preset) => preset.id)).size === presets.length,
+        '装备预设编号不能重复',
+      ),
+    autoSwitch: z.boolean(),
+  })
+  .strict();
+
 export const saveDataSchema = z
   .object({
     version: z.literal(SAVE_VERSION),
@@ -849,9 +893,8 @@ export const saveDataSchema = z
     // 不校验 id 是否存在于 EQUIPMENT —— 绝版装备（如烙印改版后的 80 件副本装）
     // 的定义会长期保留，但将来若真的删掉某个定义，老玩家的收集史不该因此
     // 整档读不出来。展示层查不到定义时跳过即可。
-    equipmentCodex: z
-      .object({ discoveredDefIds: z.array(z.string().min(1)) })
-      .strict(),
+    equipmentCodex: z.object({ discoveredDefIds: z.array(z.string().min(1)) }).strict(),
+    equipmentPresets: equipmentPresetStateSchema,
   })
   .strict()
   .superRefine((save, ctx) => {
@@ -982,6 +1025,7 @@ export const saveDataSchema = z
       ),
     ];
 
+    const ownedByUid = new Map<string, EquipmentInstance>();
     for (const { instance, path } of instances) {
       if (seenUids.has(instance.uid)) {
         ctx.addIssue({
@@ -991,9 +1035,60 @@ export const saveDataSchema = z
         });
       }
       seenUids.add(instance.uid);
+      ownedByUid.set(instance.uid, instance);
 
       const match = /^e(\d+)$/.exec(instance.uid);
       if (match) maxNumericUid = Math.max(maxNumericUid, Number(match[1]));
+    }
+
+    for (const [presetIndex, preset] of save.equipmentPresets.presets.entries()) {
+      const presetUids = new Set<string>();
+      for (const slot of SLOT_ORDER) {
+        const uid = preset.equipmentUids[slot];
+        if (!uid) continue;
+        const path = ['equipmentPresets', 'presets', presetIndex, 'equipmentUids', slot];
+        if (presetUids.has(uid)) {
+          ctx.addIssue({
+            code: 'custom',
+            path,
+            message: `装备预设 ${preset.id} 重复引用 ${uid}`,
+          });
+          continue;
+        }
+        presetUids.add(uid);
+
+        const instance = ownedByUid.get(uid);
+        if (!instance) {
+          ctx.addIssue({
+            code: 'custom',
+            path,
+            message: `装备预设 ${preset.id} 引用了不存在的装备 ${uid}`,
+          });
+          continue;
+        }
+        if (!instance.locked) {
+          ctx.addIssue({
+            code: 'custom',
+            path,
+            message: `装备预设 ${preset.id} 引用的 ${uid} 必须锁定`,
+          });
+        }
+        const definition = getEquipment(instance.defId);
+        if (definition?.slot !== slot) {
+          ctx.addIssue({
+            code: 'custom',
+            path,
+            message: `装备预设 ${preset.id} 的 ${slot} 槽不能引用 ${definition?.slot ?? '未知'} 装备`,
+          });
+        }
+        if (definition?.classId && definition.classId !== preset.classId) {
+          ctx.addIssue({
+            code: 'custom',
+            path,
+            message: `装备 ${uid} 不属于预设职业 ${preset.classId}`,
+          });
+        }
+      }
     }
 
     if (save.nextUid <= maxNumericUid) {

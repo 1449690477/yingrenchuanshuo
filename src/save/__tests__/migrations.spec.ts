@@ -1219,9 +1219,21 @@ describe('save migrations', () => {
     >;
     const dungeon = current.equipmentDungeon as Record<string, unknown>;
     dungeon.records = {
-      equipment_weapon_azure: { clears: 3, firstClearedAt: 1_799_000_000_000, bestDurationMs: 18_200 },
-      equipment_body_azure: { clears: 1, firstClearedAt: 1_799_500_000_000, bestDurationMs: 21_000 },
-      equipment_ring_violet: { clears: 2, firstClearedAt: 1_799_800_000_000, bestDurationMs: 25_000 },
+      equipment_weapon_azure: {
+        clears: 3,
+        firstClearedAt: 1_799_000_000_000,
+        bestDurationMs: 18_200,
+      },
+      equipment_body_azure: {
+        clears: 1,
+        firstClearedAt: 1_799_500_000_000,
+        bestDurationMs: 21_000,
+      },
+      equipment_ring_violet: {
+        clears: 2,
+        firstClearedAt: 1_799_800_000_000,
+        bestDurationMs: 25_000,
+      },
     };
     dungeon.totalClears = 6;
     dungeon.clearsToday = 0;
@@ -1326,6 +1338,26 @@ describe('save migrations', () => {
     raw.version = 16;
 
     expect(migrate(raw).equipmentCodex.discoveredDefIds).toEqual([]);
+  });
+
+  it('v17 → v18 新增空装备预设，不改写旧档资产和进度', () => {
+    const current = createSave('预设前旧档', 'catkin', 18, 1_800_000_000_000) as unknown as Record<
+      string,
+      unknown
+    >;
+    (current.player as { gold: number }).gold = 98_765;
+    const raw = structuredClone(current);
+    delete raw.equipmentPresets;
+    raw.version = 17;
+
+    const migrated = migrate(raw);
+
+    expect(migrated.version).toBe(SAVE_VERSION);
+    expect(migrated.equipmentPresets).toEqual({ presets: [], autoSwitch: false });
+    expect(migrated.player).toEqual(current.player);
+    expect(migrated.bag).toEqual(current.bag);
+    expect(migrated.progress).toEqual(current.progress);
+    expect(migrated.equipmentCodex).toEqual(current.equipmentCodex);
   });
 
   it('当前版本不迁移，只做严格结构校验', () => {

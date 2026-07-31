@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { reactive } from 'vue';
-import { affixValueRange } from '@/core/equipment';
+import { affixValueRange, createFixedPreviewInstance } from '@/core/equipment';
+import { captureEquipmentPreset } from '@/core/equipmentPresets';
 import { promoteAffix } from '@/core/reforge';
 import type { AffixKey, AffixTier, EquipmentInstance } from '@/core/types';
 import { ENHANCE_MAX, QUALITY_AFFIX_COUNT } from '@/data/constants';
@@ -62,6 +63,7 @@ describe('save schema', () => {
       depth: {},
     });
     expect(save.settings.haptics).toBe(true);
+    expect(save.equipmentPresets).toEqual({ presets: [], autoSwitch: false });
     expect(save.affection.characters.witch).toMatchObject({
       points: 0,
       mood: 'calm',
@@ -532,10 +534,7 @@ describe('save schema', () => {
     const wrongInscribeIndex = saveWithEquipment(
       testEquipment(
         'eq_r2_ring_epic',
-        [
-          rolledAffix('eq_r2_ring_epic', 'atk', 3),
-          rolledAffix('eq_r2_ring_epic', 'critRate', 3),
-        ],
+        [rolledAffix('eq_r2_ring_epic', 'atk', 3), rolledAffix('eq_r2_ring_epic', 'critRate', 3)],
         {
           operation: 'inscribe',
           affixIndex: 0,
@@ -659,14 +658,10 @@ describe('save schema', () => {
 
   it('导入档拒绝普通词条伪装元素前缀，元素只属于真实属性伤害词条', () => {
     const forged = saveWithEquipment(
-      testEquipment('eq_r1_ring_common', [
-        { key: 'atk', value: 4, tier: 3, element: 'fire' },
-      ]),
+      testEquipment('eq_r1_ring_common', [{ key: 'atk', value: 4, tier: 3, element: 'fire' }]),
     );
 
-    expect(() => importFromJson(JSON.stringify(forged))).toThrow(
-      /非属性伤害词条不能携带元素/,
-    );
+    expect(() => importFromJson(JSON.stringify(forged))).toThrow(/非属性伤害词条不能携带元素/);
   });
 
   it('v8 角色进度拒绝负关系值、重复完成记录和空回答', () => {
@@ -908,5 +903,48 @@ describe('save schema', () => {
     const depthWithoutRecord = createSave('小樱', 'witch', 4, 1_800_000_000_000);
     depthWithoutRecord.equipmentDungeon.depth = { azure: 2 };
     expect(looksLikeSave(depthWithoutRecord)).toBe(false);
+  });
+
+  it('装备预设必须完整引用真实、锁定且职业槽位匹配的装备', () => {
+    const make = () => {
+      const save = createSave('预设少女', 'witch', 18, 1_800_000_000_000);
+      const weapon = testEquipment('eq_r1_weapon_common', []);
+      weapon.locked = true;
+      save.nextUid = 2;
+      save.equipped.weapon = weapon;
+      save.equipmentPresets.presets = [captureEquipmentPreset('preset-1', 'witch', save.equipped)];
+      return save;
+    };
+
+    expect(parseSave(make()).equipmentPresets.presets[0]?.equipmentUids.weapon).toBe('e1');
+
+    const duplicate = make();
+    duplicate.equipmentPresets.presets[0]!.equipmentUids.head = 'e1';
+    expect(() => parseSave(duplicate)).toThrow(/重复引用 e1/);
+
+    const missing = make();
+    missing.equipmentPresets.presets[0]!.equipmentUids.weapon = 'e404';
+    expect(() => parseSave(missing)).toThrow(/引用了不存在的装备 e404/);
+
+    const unlocked = make();
+    unlocked.equipped.weapon!.locked = false;
+    expect(() => parseSave(unlocked)).toThrow(/必须锁定/);
+
+    const wrongSlot = make();
+    wrongSlot.equipmentPresets.presets[0]!.equipmentUids.weapon = null;
+    wrongSlot.equipmentPresets.presets[0]!.equipmentUids.ring = 'e1';
+    expect(() => parseSave(wrongSlot)).toThrow(/ring 槽不能引用 weapon 装备/);
+
+    const wrongClass = make();
+    const witchWeapon = createFixedPreviewInstance(
+      requireEquipment('eq_shop_berry-cream_weapon_witch'),
+      'e1',
+    );
+    witchWeapon.locked = true;
+    wrongClass.equipped.weapon = witchWeapon;
+    wrongClass.equipmentPresets.presets = [
+      captureEquipmentPreset('preset-1', 'catkin', wrongClass.equipped),
+    ];
+    expect(() => parseSave(wrongClass)).toThrow(/不属于预设职业 catkin/);
   });
 });
