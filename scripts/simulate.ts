@@ -30,10 +30,11 @@ import {
   type EquipSlot,
   type EquipmentDef,
   type FixedAffix,
+  type MonsterDef,
   type Quality,
   type Stats,
 } from '../src/core/types';
-import { addStats, combatPower, zeroStats } from '../src/core/formula';
+import { addStats, combatPower, zeroStats, expectedDamage } from '../src/core/formula';
 import {
   affixValueRange,
   applyAffix,
@@ -55,6 +56,8 @@ import {
   monsterExp,
   monsterGold,
   monsterHp,
+  monsterAtk,
+  monsterDef,
 } from '../src/core/progression';
 import {
   ITEM_BASE,
@@ -80,6 +83,7 @@ import { idleCombatEfficiency, killsPerSecond } from '../src/core/idle';
 import { ALL_CHAPTERS } from '../src/data/regions';
 import { LEVEL_SOFT_CAP_MARGIN } from '../src/data/constants';
 import { ORDERED_STAGE_IDS, STAGES, stageClearTarget } from '../src/data/stages';
+import { MONSTERS } from '../src/data/monsters';
 import { evaluateChapterGate } from '../src/core/stageProgress';
 import { TYPICAL_ENHANCE_MUL } from '../src/data/expectedPower';
 import { timeToKill } from '../src/core/combat';
@@ -211,7 +215,98 @@ function checkpointTable() {
   }
   console.table(growth);
 
+  reportThreatAxis();
+
   return rows;
+}
+
+/**
+ * 【威胁轴】怪物**打不打得死玩家**，随等级怎么漂。
+ *
+ * 为什么单独加这一节：上面那张【增速对比】量的是「玩家战力 vs 怪物血量」，
+ * 也就是**节奏轴**（打多久）—— 它一直是绿的。但战斗有两条轴，
+ * 另一条是**威胁轴**（会不会死），而在这一节之前**全仓没有任何量具在看它**。
+ *
+ * 后果是实测出来的：安全边际（能扛几击 ÷ 需要几击）在真实关卡上
+ * 从 Lv10 的 2.0 涨到 Lv70 的 10.9，BOSS 关更是从 **0.29 涨到 5.31（18×）**
+ * —— 前期 BOSS 会反杀玩家，后期 BOSS **结构性无法杀死玩家**。
+ * 台阶落在 65/90/110，正是 typicalQualityAt 的品质跃迁点：
+ * 品质阶梯（common 1.0 → divine 15.0）成倍抬玩家的有效血量，
+ * 而怪物攻击只随等级平滑增长，没有任何东西跟着抬。
+ *
+ * **本节目前只报不拦。** 修它要动品质阶梯或怪物攻击曲线，属于标尺结构改动，
+ * 会连带推荐战力、章节门槛、榜单连续性与反外挂上界，已排下个版本专线
+ * （与 CP 暴击定价同批，见 docs/65）。留这一节在这里，是为了让这条漂移
+ * **每次 npm run sim 都出现在眼前**，而不是靠谁记得。
+ */
+function reportThreatAxis(): void {
+  console.log('\n【威胁轴】安全边际 = 玩家能扛几击 ÷ 杀死怪要几击（真实关卡数据）\n');
+
+  const playerAt = (level: number): Combatant => {
+    const s = withTypicalBuild('swordsman', level);
+    return { name: '玩家', level, element: 'none', stats: s, currentHp: s.hp };
+  };
+  const monsterAsCombatant = (def: MonsterDef, fallbackLevel: number): Combatant => {
+    const lv = def.level ?? fallbackLevel;
+    const stats: Stats = {
+      ...zeroStats(),
+      atk: monsterAtk(lv, def.type, def.atkMul ?? 1),
+      def: monsterDef(lv, def.type),
+      hp: monsterHp(lv, def.type, def.hpMul ?? 1),
+    };
+    return { name: def.id, level: lv, element: def.element ?? 'none', stats, currentHp: stats.hp };
+  };
+
+  const buckets = new Map<number, { normal: number[]; worst: number }>();
+  for (const stage of Object.values(STAGES)) {
+    const band = Math.floor(stage.level / 10) * 10;
+    const ids = [...new Set(stage.waves.flatMap((w) => w.monsters.map((m) => m.id)))];
+    const p = playerAt(stage.level);
+    const margins = ids
+      .map((id) => MONSTERS[id])
+      .filter((d): d is MonsterDef => Boolean(d))
+      .map((d) => {
+        const m = monsterAsCombatant(d, stage.level);
+        const hitsToKill = m.stats.hp / expectedDamage(p, m, 1);
+        const hitsToDie = p.stats.hp / expectedDamage(m, p, 1);
+        return hitsToDie / hitsToKill;
+      });
+    if (!margins.length) continue;
+    const avg = margins.reduce((a, b) => a + b, 0) / margins.length;
+    const cur = buckets.get(band) ?? { normal: [], worst: Number.POSITIVE_INFINITY };
+    cur.normal.push(avg);
+    cur.worst = Math.min(cur.worst, ...margins);
+    buckets.set(band, cur);
+  }
+
+  const bands = [...buckets.keys()].filter((b) => b >= 10).sort((a, b) => a - b);
+  const table = bands.map((b) => {
+    const v = buckets.get(b)!;
+    return {
+      等级段: `Lv${b}~${b + 9}`,
+      普通关安全边际: (v.normal.reduce((a, c) => a + c, 0) / v.normal.length).toFixed(2),
+      最危险一关: v.worst.toFixed(2),
+    };
+  });
+  console.table(table);
+
+  // 漂移必须量「普通关平均」而不是「最危险一关」：后者是全段最极端的
+  // 单只怪，被个别高倍率 BOSS 主导，噪声大到能把 4.6× 的真实漂移读成 2.0×。
+  // （我第一版就是这么读错的 —— 量具选错列比没有量具更坏，它会给出绿灯。）
+  const avgOf = (band: number): number => {
+    const v = buckets.get(band)!;
+    return v.normal.reduce((a, c) => a + c, 0) / v.normal.length;
+  };
+  const first = avgOf(bands[0]!);
+  const last = avgOf(bands[bands.length - 1]!);
+  const drift = last / first;
+  console.log(
+    `普通关安全边际漂移：${first.toFixed(2)} → ${last.toFixed(2)}（${drift.toFixed(1)}×）。` +
+      `理想是全程基本持平 —— ` +
+      (drift > 3
+        ? '⚠ 超过 3× 意味着后期已无死亡威胁、只剩「打多久」。本项只报不拦，见 docs/65。'
+        : '在可接受范围内。'),
+  );
 }
 
 // ──────────────────────────────────────────────────────────
