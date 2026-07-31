@@ -1,10 +1,17 @@
 /**
  * 深度 UI 的本地数据源 stub（docs/66 §八 第 6 步）。
  *
- * ⚠ **接线批次删我**：claude-drops 把存档切成深度进度、game store 接上
- *   `game.equipmentDungeonDepth` / `game.evaluateDungeonDepth` /
- *   `game.runEquipmentDungeonDepth` 之后，DungeonView 改为直连 game store，
- *   本文件整体删除。契约签名以 22:04 频道交付承诺为准，签名变更会在频道 @。
+ * ⚠ **接线已完成（claude-drops）：DungeonView 不再引用本文件**，
+ *   已直连 `game.equipmentDungeonDepth` / `game.evaluateDungeonDepth` /
+ *   `game.runEquipmentDungeonDepth`（8d683cd 落地的契约三件套）。
+ *
+ *   **本文件暂时保留而不是删除**，因为 `blankReveal.spec.ts` 与
+ *   `dungeonDepthUi.spec.ts` 仍在用它做无 store 的纯函数断言 ——
+ *   删掉会砸别人正在跑的测试。它现在只服务测试，**不再有生产调用方**；
+ *   哪天那两个 spec 也改直连了，本文件可以整体删掉。
+ *
+ *   ⚠ 不要再从生产代码 import 它：stub 与 store 是同口径的两处实现，
+ *   同时存在两条路径正是「同一口径两处实现」那类事故的温床。
  *
  * stub 的三条假设与 docs/66 §五 迁移规则逐条对齐，保证接线前后玩家看到的
  * UI 不跳变（claude-drops 已在频道逐条核过）：

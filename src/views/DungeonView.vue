@@ -52,7 +52,7 @@ import {
   EQUIPMENT_DUNGEON_DEPTH_ANCHORS,
 } from '@/data/equipmentDungeonDepthRules';
 import { DUNGEON_DEPTH_UI_ACTIVE } from '@/ui/dungeonDepthActivation';
-import { dungeonDepthProgressStub, evaluateDungeonDepthStub } from '@/ui/dungeonDepthAdapter';
+
 
 type PlayedResult = Extract<EquipmentDungeonRunResult, { ok: true }>;
 
@@ -162,17 +162,28 @@ const currentSetProgress = computed(
       (activeSet) => activeSet.definition.id === currentSet.value.id,
     )?.equippedPieces ?? 0,
 );
-const challengeDisabled = computed(
-  () =>
-    depthUiActive ||
-    !unlocked.value ||
-    game.equipmentDungeonRemaining <= 0 ||
-    battleResult.value !== null,
-);
+const challengeDisabled = computed(() => {
+  if (battleResult.value !== null) return true;
+  // 深度已接通：可否挑战由 core 的四类 reason 决定，不再一律禁用
+  if (depthUiActive) return !currentDepthEvaluation.value?.unlocked;
+  return !unlocked.value || game.equipmentDungeonRemaining <= 0;
+});
 const lockCopy = computed(() => {
-  // 深度 UI stub 期：run 随接线批次开放（dungeonDepthAdapter.ts 第 3 条）
   if (depthUiActive) {
-    return '深度挑战随接线批次开放';
+    const evaluation = currentDepthEvaluation.value;
+    if (!evaluation) return '';
+    /*
+     * 四类 reason 各给一句人话。**优先级由 core 决定**
+     * （not-opened > previous-depth > daily-limit > ok），
+     * UI 只做文案映射，不重新判定 —— 两处判定必然分叉。
+     */
+    if (evaluation.reason === 'not-opened') return '区域 8 开放后解锁';
+    if (evaluation.reason === 'previous-depth') return `先通过第 ${selectedDepth.value - 1} 层`;
+    if (evaluation.reason === 'daily-limit') return '今日次数已用完，明日 04:00 恢复';
+    // 失败不扣次数是承重设计（docs/66 §4.4）：玩家不知道就不敢冲深层
+    return evaluation.isFirstBreak
+      ? '首次突破必得 1 件胚子 · 失败不扣次数'
+      : '胜利有几率获得胚子 · 失败不扣次数';
   }
   if (playerLevel.value < stage.value.unlockLevel) {
     return `角色达到 Lv${stage.value.unlockLevel} 后开放`;
@@ -236,19 +247,26 @@ function onImprintIconError(event: Event): void {
   (event.target as HTMLImageElement).style.display = 'none';
 }
 
-// ─────────── 深度阶梯（docs/66 §八 第 6 步 · stub 期挂激活开关） ───────────
+// ─────────── 深度阶梯（docs/66 §八 第 6 步 · 已直连 store） ───────────
 
 /**
  * 深度 UI 激活开关（src/ui/dungeonDepthActivation.ts）。
- * false = 对玩家零可见变化；接线批次由 claude-drops 翻 true、
- * 删 stub 并直连 game store（dungeonDepthAdapter.ts 头部有交接说明）。
+ *
+ * 数据源**已直连 game store**（进度 / 评估 / 挑战三件套）。
+ * 开关仍为 false，因为**难度标定尚未定稿** —— 翻 true 归 claude-drops，
+ * 条件是 K 曲线定稿且 `DEPTH_GATES_CALIBRATED` 复跑确认真绿。
+ * false 期间对玩家零可见变化。
  */
 const depthUiActive = DUNGEON_DEPTH_UI_ACTIVE;
 
-/** stub：从现有 records 推导深度进度（docs/66 §五 迁移规则同口径，绝不伪造更高深度） */
-const depthProgress = computed(() =>
-  depthUiActive ? dungeonDepthProgressStub(dungeonState.value) : {},
-);
+/**
+ * 深度进度直连 store（8d683cd 起）。
+ *
+ * 存档 v16 起 `equipmentDungeon.depth` 是**真实字段**，不再从 records 推导 ——
+ * 迁移已把旧档按同一条口径（该档有任一部位首通 ⇒ depth=1，绝不伪造更高深度）
+ * 写进存档，所以直连与原 stub 给出的结果一致，玩家不会看到 UI 跳变。
+ */
+const depthProgress = computed(() => (depthUiActive ? game.equipmentDungeonDepth : {}));
 
 /** 当前档已突破的最高深度；0 = 一层未破 */
 const clearedDepth = computed(() => depthProgress.value[selectedTierId.value] ?? 0);
@@ -264,15 +282,16 @@ const selectedDepth = ref(1);
 const depthEvaluations = computed(() => {
   if (!depthUiActive) return [];
   return Array.from({ length: DEPTH_PER_TIER }, (_, index) =>
-    evaluateDungeonDepthStub({
-      progress: depthProgress.value,
-      tierId: selectedTierId.value,
-      depth: index + 1,
-      playerLevel: playerLevel.value,
-      attemptsRemaining: game.equipmentDungeonRemaining,
-    }),
+    // playerLevel / contentTopLevel / attemptsRemaining 都由 store 内部从存档取，
+    // UI 不再自己传 —— 少一处可能对不上的口径。
+    game.evaluateDungeonDepth(selectedTierId.value, index + 1),
   );
 });
+
+/** 当前选中层的评估；深度未激活时为 null，调用方按 null 走旧分支 */
+const currentDepthEvaluation = computed(() =>
+  depthUiActive ? (depthEvaluations.value[selectedDepth.value - 1] ?? null) : null,
+);
 
 // 换档（含初始化）时把选中层收回到该档「下一层可打」的位置
 watch(
@@ -326,18 +345,32 @@ function selectTier(tierId: EquipmentDungeonTierId): void {
 function challenge(): void {
   notice.value = '';
   pendingNotice.value = '';
-  const result = game.runEquipmentDungeon(stage.value.id);
+  /*
+   * 深度激活时按「部位 + 档位 + 深度」发起，**不自己拼关卡 id** ——
+   * 那层转换在 store 里（拼错只会得到 unknown-stage，排查成本高得多）。
+   */
+  const result = depthUiActive
+    ? game.runEquipmentDungeonDepth(
+        stage.value.slot,
+        selectedTierId.value,
+        selectedDepth.value,
+      )
+    : game.runEquipmentDungeon(stage.value.id);
   if (!result.ok) {
     notice.value =
-      result.reason === 'level-locked'
-        ? `需要 Lv${stage.value.unlockLevel}`
-        : result.reason === 'previous-tier-locked'
-          ? '前一档还没有首通'
-          : result.reason === 'daily-limit'
-            ? '今天的 3 次奖励已领完'
-            : result.reason === 'unknown-stage'
-              ? '副本配置不存在，请检查内容表'
-              : '存档尚未载入';
+      result.reason === 'depth-not-opened'
+        ? '这一层尚未开放'
+        : result.reason === 'previous-depth-locked'
+          ? `先通过第 ${selectedDepth.value - 1} 层`
+          : result.reason === 'level-locked'
+            ? `需要 Lv${stage.value.unlockLevel}`
+            : result.reason === 'previous-tier-locked'
+              ? '前一档还没有首通'
+              : result.reason === 'daily-limit'
+                ? '今天的 3 次奖励已领完'
+                : result.reason === 'unknown-stage'
+                  ? '副本配置不存在，请检查内容表'
+                  : '存档尚未载入';
     return;
   }
   battleResult.value = result;

@@ -51,8 +51,18 @@ describe('深度 UI 源码契约', () => {
     const source = readSource('../../views/DungeonView.vue');
     expect(source).toContain('DUNGEON_DEPTH_UI_ACTIVE');
     expect(source).toContain('v-if="depthUiActive"');
-    // stub 期挑战入口不开放
-    expect(source).toContain('深度挑战随接线批次开放');
+    /*
+     * 接线完成后（claude-drops）：挑战入口**已经真正接通**，
+     * 原来的「深度挑战随接线批次开放」占位文案随之删除。
+     *
+     * 这条断言从「锁 stub 状态」改为「锁已接线状态」：
+     * DungeonView 必须调 store 的 runEquipmentDungeonDepth，
+     * 且**不得再引用 stub** —— 生产代码与 stub 是同口径的两处实现，
+     * 同时存在两条路径正是「同一口径两处实现」那类事故的温床。
+     */
+    expect(source).toContain('runEquipmentDungeonDepth');
+    expect(source).not.toContain('深度挑战随接线批次开放');
+    expect(source).not.toContain('dungeonDepthAdapter');
   });
 
   it('面板必含承重文案：失败不扣次数 / 区域 8 开放后解锁 / 首破必掉', () => {
