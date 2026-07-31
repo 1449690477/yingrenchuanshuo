@@ -24,6 +24,14 @@ import {
   type GuildMembershipState,
   type GuildSummary,
 } from '@/net/guild';
+import { fetchGuildCommissionState, type GuildCommissionState } from '@/net/guildCommissions';
+import {
+  claimGuildShopOffer,
+  donateGuildMerit,
+  fetchGuildStrongholdState,
+  type GuildShopOfferState,
+  type GuildStrongholdState,
+} from '@/net/guildStronghold';
 import { SLOT_ORDER } from '@/data/constants';
 import { TRIAL_SEASON_ID } from '@/data/trialRules';
 
@@ -40,6 +48,8 @@ export const useGuildStore = defineStore('guild', () => {
   const membership = ref<GuildMembershipState | null>(null);
   const guilds = ref<GuildSummary[]>([]);
   const expedition = ref<GuildExpeditionState | null>(null);
+  const commissions = ref<GuildCommissionState | null>(null);
+  const stronghold = ref<GuildStrongholdState | null>(null);
   const lastResult = ref<GuildExpeditionResult | null>(null);
   const pendingChallengeId = ref<string | null>(null);
   /** 广场详情：当前展开的公会、加载态与后端缺函数降级标记。 */
@@ -136,14 +146,21 @@ export const useGuildStore = defineStore('guild', () => {
       const listPromise = fetchGuildList(client);
       if (!membership.value) {
         expedition.value = null;
+        commissions.value = null;
+        stronghold.value = null;
         guilds.value = await listPromise;
       } else {
-        const [nextGuilds, nextExpedition] = await Promise.all([
+        const [nextGuilds, nextExpedition, nextCommissions, nextStronghold] = await Promise.all([
           listPromise,
           fetchGuildExpedition(client, TRIAL_SEASON_ID, snapshot().level),
+          // 新公会模块尚未部署时不应让已有远征或挂机失效。
+          fetchGuildCommissionState(client).catch(() => null),
+          fetchGuildStrongholdState(client, TRIAL_SEASON_ID).catch(() => null),
         ]);
         guilds.value = nextGuilds;
         expedition.value = nextExpedition;
+        commissions.value = nextCommissions;
+        stronghold.value = nextStronghold;
       }
       lastError.value = null;
     } catch (error) {
@@ -192,7 +209,11 @@ export const useGuildStore = defineStore('guild', () => {
     if (membership.value?.guild.id === guildId) {
       const { guild, members } = membership.value;
       return {
-        guild: { ...guild, leaderName: members.find((m) => m.role === 'leader')?.displayName ?? '', createdAt: '' },
+        guild: {
+          ...guild,
+          leaderName: members.find((m) => m.role === 'leader')?.displayName ?? '',
+          createdAt: '',
+        },
         members,
         expedition: null,
       };
@@ -237,6 +258,10 @@ export const useGuildStore = defineStore('guild', () => {
     mutate((client) => updateGuildNoticeRequest(client, notice));
   const removeMember = (memberId: string) =>
     mutate((client) => removeGuildMemberRequest(client, memberId));
+  const donateMerit = (amount: number) =>
+    mutate((client) => donateGuildMerit(client, TRIAL_SEASON_ID, crypto.randomUUID(), amount));
+  const claimShopOffer = (offerId: GuildShopOfferState['id']) =>
+    mutate((client) => claimGuildShopOffer(client, TRIAL_SEASON_ID, crypto.randomUUID(), offerId));
 
   async function challenge(): Promise<GuildExpeditionResult | null> {
     if (!canChallenge.value || !(await connect())) return null;
@@ -252,6 +277,13 @@ export const useGuildStore = defineStore('guild', () => {
       });
       expedition.value = state;
       lastResult.value = state.result ?? null;
+      // 委托、功勋和据点都由同一次服务端复算远征触发；客户端只刷新只读快照。
+      commissions.value = await fetchGuildCommissionState(client).catch(() => commissions.value);
+      stronghold.value = await fetchGuildStrongholdState(client, TRIAL_SEASON_ID).catch(
+        () => stronghold.value,
+      );
+      // 当天建设刚完成时，声望在服务器立即增加；同步名片以更新据点阶段展示。
+      membership.value = await fetchMyGuild(client).catch(() => membership.value);
       pendingChallengeId.value = null;
       lastError.value = null;
       return lastResult.value;
@@ -279,6 +311,8 @@ export const useGuildStore = defineStore('guild', () => {
     membership,
     guilds,
     expedition,
+    commissions,
+    stronghold,
     lastResult,
     detail,
     detailGuildId,
@@ -295,6 +329,8 @@ export const useGuildStore = defineStore('guild', () => {
     leaveGuild,
     updateNotice,
     removeMember,
+    donateMerit,
+    claimShopOffer,
     openDetail,
     closeDetail,
     challenge,

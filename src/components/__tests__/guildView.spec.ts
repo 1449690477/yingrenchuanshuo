@@ -3,6 +3,14 @@ import { describe, expect, it } from 'vitest';
 
 const guild = readFileSync(new URL('../../views/GuildView.vue', import.meta.url), 'utf8');
 const more = readFileSync(new URL('../../views/MoreView.vue', import.meta.url), 'utf8');
+const commissions = readFileSync(
+  new URL('../guild/GuildCommissionBoard.vue', import.meta.url),
+  'utf8',
+);
+const stronghold = readFileSync(
+  new URL('../guild/GuildStrongholdBoard.vue', import.meta.url),
+  'utf8',
+);
 
 describe('公会竖屏与单层页面契约', () => {
   it('从更多页以单层子页面交接并在关闭后恢复入口焦点', () => {
@@ -27,9 +35,10 @@ describe('公会竖屏与单层页面契约', () => {
     expect(guild).not.toContain('width: 320px');
   });
 
-  it('挑战结果内联展示且明确首版无战力奖励', () => {
+  it('挑战结果内联展示且明确不会出售战斗成长', () => {
     expect(guild).toContain('v-if="guild.lastResult"');
-    expect(guild).toContain('首版不出售成长');
+    expect(guild).toContain('功勋只记录在服务器');
+    expect(guild).toContain('不会出售攻击、掉率或离线收益');
     expect(guild).toContain('没有战力奖励');
   });
 
@@ -52,5 +61,34 @@ describe('公会竖屏与单层页面契约', () => {
     expect(guild).toContain('退出公会');
     expect(guild).toContain('解散公会');
     expect(guild).toContain('confirmLeave');
+  });
+
+  it('首页嵌入非阻断的今日建设委托，并深链到既有远征页', () => {
+    expect(guild).toContain('<GuildCommissionBoard');
+    expect(guild).toContain('@expedition="activeTab = \'expedition\'"');
+    expect(commissions).toContain('今日建设委托');
+    expect(commissions).toContain('远征评分由服务器复算');
+    expect(commissions).toContain('不发放战力资产');
+    expect(commissions).not.toContain('<dialog');
+    expect(commissions).not.toContain('Teleport');
+  });
+
+  it('委托板从 320px 竖屏开始保持触控和减弱动效边界', () => {
+    expect(commissions).toContain('grid-template-columns: 2.25rem minmax(0, 1fr) auto');
+    expect(commissions).toContain('min-height: 2.75rem');
+    expect(commissions).toContain('prefers-reduced-motion: reduce');
+  });
+
+  it('首页接入赛季据点、功勋捐献与无弹窗收藏商店', () => {
+    expect(guild).toContain('<GuildStrongholdBoard');
+    expect(guild).toContain('guild.donateMerit(amount)');
+    expect(guild).toContain('guild.claimShopOffer(offerId)');
+    expect(stronghold).toContain('赛季据点');
+    expect(stronghold).toContain('功勋收藏');
+    expect(stronghold).toContain('全程由服务器保管');
+    expect(stronghold).toContain('min-height: 2.75rem');
+    expect(stronghold).toContain('prefers-reduced-motion: reduce');
+    expect(stronghold).not.toContain('<dialog');
+    expect(stronghold).not.toContain('Teleport');
   });
 });

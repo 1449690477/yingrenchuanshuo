@@ -11,6 +11,7 @@ import {
   equipmentInstanceSchema,
   getEquipment,
   GUILD_DAILY_SUBMISSIONS,
+  guildCompletedCommissions,
   GUILD_WEEK_CLEAR_REPUTATION,
   GUILD_WEEKLY_TARGET_PER_MEMBER,
   TRIAL_SEASON_ID,
@@ -188,6 +189,40 @@ Deno.serve(async (req: Request) => {
       p_clear_reputation: GUILD_WEEK_CLEAR_REPUTATION,
     });
     if (applyError) return json({ error: applyError.message }, 409);
+
+    // 功勋金额不由 Edge 或客户端传值；数据库从本次已落库的远征增量自行换算。
+    const { error: meritError } = await admin.rpc('guild_award_merit', {
+      p_user_id: user.id,
+      p_request_id: body.requestId,
+    });
+    if (meritError) {
+      console.warn('guild merit unavailable', meritError.message);
+    }
+
+    // 委托只接受本函数刚刚复算出的 points；同一 request 可以依次解锁多个档位。
+    // 新迁移尚未执行时保持远征可玩，下一次状态刷新会继续柔和降级任务板。
+    for (const commission of guildCompletedCommissions(points)) {
+      const { error: commissionError } = await admin.rpc('guild_apply_commission', {
+        p_user_id: user.id,
+        p_day_key: dayKey,
+        p_commission_id: commission.id,
+        p_request_id: body.requestId,
+        p_points: points,
+      });
+      if (commissionError) {
+        console.warn('guild commission unavailable', commissionError.message);
+      }
+    }
+
+    // 只读取已完成的日建设账，按业务日和赛季做一次来源去重。
+    const { error: strongholdError } = await admin.rpc('guild_apply_commission_stronghold', {
+      p_user_id: user.id,
+      p_day_key: dayKey,
+      p_season_id: TRIAL_SEASON_ID,
+    });
+    if (strongholdError) {
+      console.warn('guild stronghold unavailable', strongholdError.message);
+    }
 
     await admin
       .from('profiles')

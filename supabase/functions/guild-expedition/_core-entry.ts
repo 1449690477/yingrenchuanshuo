@@ -5,6 +5,7 @@ export {
   guildRunSeed,
   guildWeekKey,
 } from '@/core/guildExpedition';
+export { guildCompletedCommissions } from '@/core/guildCommissions';
 export {
   buildTrialCombatant,
   runTrial,

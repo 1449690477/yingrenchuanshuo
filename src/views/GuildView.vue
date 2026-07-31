@@ -28,10 +28,16 @@ import {
 import { abbr } from '@/core/format';
 import { guildDisplayStage } from '@/core/guildExpedition';
 import { useGuildStore } from '@/stores/guild';
-import { GUILD_DISPLAY_STAGES, GUILD_NAME_MAX_LENGTH, GUILD_NOTICE_MAX_LENGTH } from '@/data/guildRules';
+import {
+  GUILD_DISPLAY_STAGES,
+  GUILD_NAME_MAX_LENGTH,
+  GUILD_NOTICE_MAX_LENGTH,
+} from '@/data/guildRules';
 import type { GuildSummary } from '@/net/guild';
 import GuildPlazaList from '@/components/guild/GuildPlazaList.vue';
 import GuildDetailSheet from '@/components/guild/GuildDetailSheet.vue';
+import GuildCommissionBoard from '@/components/guild/GuildCommissionBoard.vue';
+import GuildStrongholdBoard from '@/components/guild/GuildStrongholdBoard.vue';
 import { crestInitial, crestTintClass } from '@/components/guild/guildCrest';
 
 const emit = defineEmits<{ close: [] }>();
@@ -41,12 +47,17 @@ const backButton = ref<HTMLButtonElement | null>(null);
 type GuildTab = 'home' | 'expedition' | 'members' | 'plaza';
 const tabs: { id: GuildTab; label: string; icon: Component }[] = [
   { id: 'home', label: '首页', icon: Castle },
-  { id: 'expedition', label: '远征', icon: Swords },
+  { id: 'expedition', label: '团本', icon: Swords },
   { id: 'members', label: '成员', icon: Users },
   { id: 'plaza', label: '广场', icon: Compass },
 ];
 const activeTab = ref<GuildTab>('home');
-const tabIndex = computed(() => Math.max(0, tabs.findIndex((tab) => tab.id === activeTab.value)));
+const tabIndex = computed(() =>
+  Math.max(
+    0,
+    tabs.findIndex((tab) => tab.id === activeTab.value),
+  ),
+);
 
 const newGuildName = ref('');
 const noticeDraft = ref('');
@@ -193,6 +204,18 @@ async function leave() {
   }
 }
 
+async function donateStronghold(amount: number) {
+  if (await guild.donateMerit(amount)) {
+    showToast(`已向赛季据点捐献 ${amount} 点功勋`);
+  }
+}
+
+async function claimStrongholdOffer(offerId: 'sakura-pennant' | 'moon-lantern' | 'legend-crest') {
+  if (await guild.claimShopOffer(offerId)) {
+    showToast('已收进本季公会收藏册');
+  }
+}
+
 function openPlazaDetail(item: GuildSummary) {
   void guild.openDetail(item.id);
 }
@@ -237,7 +260,10 @@ function openPlazaDetail(item: GuildSummary) {
 
       <template v-else-if="!guild.membership">
         <section class="welcome-hero">
-          <i class="hero-petal hp-a" aria-hidden="true" /><i class="hero-petal hp-b" aria-hidden="true" />
+          <i class="hero-petal hp-a" aria-hidden="true" /><i
+            class="hero-petal hp-b"
+            aria-hidden="true"
+          />
           <i class="hero-sparkle hs-a" aria-hidden="true">✦</i>
           <i class="hero-sparkle hs-b" aria-hidden="true">✦</i>
           <span class="hero-crest"><Castle :size="30" aria-hidden="true" /></span>
@@ -321,7 +347,10 @@ function openPlazaDetail(item: GuildSummary) {
       <template v-else>
         <section class="guild-banner" :class="`stage-${stage.id}`">
           <i class="banner-shine" aria-hidden="true" />
-          <i class="hero-petal hp-a" aria-hidden="true" /><i class="hero-petal hp-b" aria-hidden="true" />
+          <i class="hero-petal hp-a" aria-hidden="true" /><i
+            class="hero-petal hp-b"
+            aria-hidden="true"
+          />
           <span class="crest-large" :class="crestTintClass(guild.membership.guild.name)">
             {{ crestInitial(guild.membership.guild.name) }}
           </span>
@@ -338,7 +367,9 @@ function openPlazaDetail(item: GuildSummary) {
           <span class="rep-pill num">声望 {{ abbr(guild.membership.guild.reputation) }}</span>
           <div v-if="nextStage" class="stage-next">
             <span>距「{{ nextStage.name }}」</span>
-            <i class="next-track" aria-hidden="true"><i :style="{ width: `${stageToNextPct}%` }" /></i>
+            <i class="next-track" aria-hidden="true"
+              ><i :style="{ width: `${stageToNextPct}%` }"
+            /></i>
             <span class="num">{{ stageToNextPct }}%</span>
           </div>
           <div v-else class="stage-next maxed">
@@ -424,11 +455,20 @@ function openPlazaDetail(item: GuildSummary) {
             </div>
           </article>
 
+          <GuildCommissionBoard :state="guild.commissions" @expedition="activeTab = 'expedition'" />
+          <GuildStrongholdBoard
+            :state="guild.stronghold"
+            :busy="guild.mutating"
+            @donate="donateStronghold"
+            @claim="claimStrongholdOffer"
+            @expedition="activeTab = 'expedition'"
+          />
+
           <article class="panel boundary-note">
             <Shield :size="20" aria-hidden="true" />
             <div>
-              <strong>首版不出售成长</strong>
-              <p>公会不会增加攻击、掉率或离线收益，先让合作本身变得好玩。</p>
+              <strong>功勋只记录在服务器</strong>
+              <p>公会不会出售攻击、掉率或离线收益；赛季据点与收藏不会改变战斗属性。</p>
             </div>
           </article>
         </section>
@@ -442,7 +482,7 @@ function openPlazaDetail(item: GuildSummary) {
             <h3>{{ guild.expedition.boss.name }}</h3>
             <p>{{ guild.expedition.boss.hint }}</p>
             <div class="progress-copy">
-              <span>全会远征进度</span><strong class="num">{{ progressPct }}%</strong>
+              <span>全会团本进度</span><strong class="num">{{ progressPct }}%</strong>
             </div>
             <div
               class="progress-track"
@@ -477,7 +517,7 @@ function openPlazaDetail(item: GuildSummary) {
 
           <article v-if="guild.lastResult" class="result-card" aria-live="polite">
             <button class="result-close" aria-label="收起战果" @click="guild.clearResult">×</button>
-            <small>本次远征战果</small>
+            <small>本次团本战果</small>
             <strong class="num">+{{ guild.lastResult.improvedBy }} 公会贡献</strong>
             <p>
               造成 {{ abbr(guild.lastResult.damage) }} 伤害 · 本次评分 {{ guild.lastResult.points }}
