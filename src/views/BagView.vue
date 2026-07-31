@@ -973,6 +973,7 @@ onUnmounted(() => {
 
 .t {
   flex: 1;
+  min-height: 44px;
   padding: 9px;
   font-size: 13px;
   font-weight: 600;
@@ -1008,6 +1009,7 @@ onUnmounted(() => {
 
 .sm {
   flex: 1;
+  min-height: 44px;
   padding: 8px;
   font-size: 12px;
 }
@@ -1023,8 +1025,8 @@ onUnmounted(() => {
 }
 
 .score-sort button {
-  min-height: 28px;
-  padding: 4px 13px;
+  min-height: 40px;
+  padding: 6px 15px;
   font-size: 10px;
   font-weight: 700;
   color: var(--text-dim);

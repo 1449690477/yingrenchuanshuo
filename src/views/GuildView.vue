@@ -28,6 +28,7 @@ import {
 import { abbr } from '@/core/format';
 import { guildDisplayStage } from '@/core/guildExpedition';
 import { useGuildStore } from '@/stores/guild';
+import { useGameStore } from '@/stores/game';
 import {
   GUILD_DISPLAY_STAGES,
   GUILD_NAME_MAX_LENGTH,
@@ -38,11 +39,19 @@ import GuildPlazaList from '@/components/guild/GuildPlazaList.vue';
 import GuildDetailSheet from '@/components/guild/GuildDetailSheet.vue';
 import GuildCommissionBoard from '@/components/guild/GuildCommissionBoard.vue';
 import GuildStrongholdBoard from '@/components/guild/GuildStrongholdBoard.vue';
+import GuildExpeditionBattleScene from '@/components/guild/GuildExpeditionBattleScene.vue';
 import { crestInitial, crestTintClass } from '@/components/guild/guildCrest';
 
 const emit = defineEmits<{ close: [] }>();
 const guild = useGuildStore();
+const game = useGameStore();
 const backButton = ref<HTMLButtonElement | null>(null);
+const guildPlaybackKey = ref(0);
+const systemReduced =
+  typeof window !== 'undefined' &&
+  typeof window.matchMedia === 'function' &&
+  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const motionReduced = computed(() => systemReduced || Boolean(game.save?.settings.reduceMotion));
 
 type GuildTab = 'home' | 'expedition' | 'members' | 'plaza';
 const tabs: { id: GuildTab; label: string; icon: Component }[] = [
@@ -214,6 +223,11 @@ async function claimStrongholdOffer(offerId: 'sakura-pennant' | 'moon-lantern' |
   if (await guild.claimShopOffer(offerId)) {
     showToast('已收进本季公会收藏册');
   }
+}
+
+async function challengeExpedition() {
+  const result = await guild.challenge();
+  if (result) guildPlaybackKey.value++;
 }
 
 function openPlazaDetail(item: GuildSummary) {
@@ -481,6 +495,18 @@ function openPlazaDetail(item: GuildSummary) {
             >
             <h3>{{ guild.expedition.boss.name }}</h3>
             <p>{{ guild.expedition.boss.hint }}</p>
+            <GuildExpeditionBattleScene
+              :boss="guild.expedition.boss"
+              :result="guild.lastResult"
+              :class-id="game.save?.player.classId ?? 'swordsman'"
+              :level="game.player?.level ?? 1"
+              :equipped="game.save?.equipped ?? null"
+              :player-name="game.player?.name ?? '挑战者'"
+              :player-max-hp="game.finalStats.hp"
+              :playback-key="guildPlaybackKey"
+              :loading="guild.challenging"
+              :reduce-motion="motionReduced"
+            />
             <div class="progress-copy">
               <span>全会团本进度</span><strong class="num">{{ progressPct }}%</strong>
             </div>
@@ -501,7 +527,7 @@ function openPlazaDetail(item: GuildSummary) {
               class="challenge-button"
               :class="{ ready: guild.canChallenge }"
               :disabled="!guild.canChallenge"
-              @click="guild.challenge"
+              @click="challengeExpedition"
             >
               <Swords :size="18" aria-hidden="true" />
               {{

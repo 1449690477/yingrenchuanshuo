@@ -29,6 +29,8 @@
     "assets:arena:check": "node scripts/validate-arena-assets.mjs",
     "assets:trial": "node scripts/build-trial-assets.mjs && node scripts/validate-trial-assets.mjs",
     "assets:trial:check": "node scripts/validate-trial-assets.mjs",
+    "assets:guild": "node scripts/build-guild-assets.mjs && node scripts/validate-guild-assets.mjs",
+    "assets:guild:check": "node scripts/validate-guild-assets.mjs",
     "assets:region34": "node scripts/build-region34-assets.mjs && node scripts/validate-region34-assets.mjs",
     "assets:region34:check": "node scripts/validate-region34-assets.mjs",
     "assets:region5:check": "node scripts/validate-region5-assets.mjs",

@@ -36,6 +36,10 @@ describe('公会竖屏与单层页面契约', () => {
   });
 
   it('挑战结果内联展示且明确不会出售战斗成长', () => {
+    expect(guild).toContain('<GuildExpeditionBattleScene');
+    expect(guild).toContain(':result="guild.lastResult"');
+    expect(guild).toContain('challengeExpedition');
+    expect(guild).toContain('guildPlaybackKey.value++');
     expect(guild).toContain('v-if="guild.lastResult"');
     expect(guild).toContain('功勋只记录在服务器');
     expect(guild).toContain('不会出售攻击、掉率或离线收益');

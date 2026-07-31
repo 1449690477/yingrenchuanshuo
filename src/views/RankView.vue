@@ -373,7 +373,12 @@ onUnmounted(() => {
 <template>
   <div class="rank scroll-y">
     <!-- ═══ 视图切换：试炼榜 | 羁绊榜 | 竞技场 ═══ -->
-    <nav class="seg view-seg" role="tablist" aria-label="排行榜与竞技场切换">
+    <nav
+      class="seg view-seg"
+      role="tablist"
+      aria-label="排行榜与竞技场切换"
+      :style="{ '--seg-count': VIEW_TABS.length }"
+    >
       <span
         class="seg-pill"
         :style="{ '--seg-x': VIEW_TABS.findIndex((t) => t.key === viewTab) }"
@@ -491,7 +496,12 @@ onUnmounted(() => {
 
       <!-- ═══ 榜单卡 ═══ -->
       <section class="card board">
-        <div class="seg" role="tablist" aria-label="榜单切换">
+        <div
+          class="seg"
+          role="tablist"
+          aria-label="榜单切换"
+          :style="{ '--seg-count': BOARD_TABS.length }"
+        >
           <span
             class="seg-pill"
             :style="{ '--seg-x': BOARD_TABS.findIndex((t) => t.key === boardTab) }"
@@ -1293,11 +1303,6 @@ onUnmounted(() => {
   border-radius: 12px;
 }
 
-/* 视图级切换（试炼榜 | 进度榜 | 羁绊榜 | 竞技场）四档 */
-.view-seg .seg-pill {
-  /* 五等分：秘境榜进来之后从 4 改 5，改漏这里胶囊会停在错的格子上 */
-  width: calc(100% / 5);
-}
 .view-seg .seg-tab {
   min-height: 44px;
   font-size: 12px;
@@ -1310,7 +1315,8 @@ onUnmounted(() => {
   top: 3px;
   bottom: 3px;
   left: 0;
-  width: calc(100% / 3);
+  /* 数量由各自的 tabs 数组直接写入，新增页签时不会再出现滑块仍停留在旧分母的问题。 */
+  width: calc(100% / var(--seg-count));
   border-radius: 10px;
   background: var(--panel);
   box-shadow: var(--shadow-sm);

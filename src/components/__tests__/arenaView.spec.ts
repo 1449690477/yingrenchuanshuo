@@ -63,15 +63,17 @@ describe('ArenaView 结构（docs/54 §十 草图）', () => {
 });
 
 describe('入口：RankView 顶部视图切换', () => {
-  it('试炼榜 | 羁绊榜 | 竞技场三档切换，胶囊三等分', async () => {
+  it('视图榜与榜单子页都由真实页签数量驱动胶囊宽度', async () => {
     const source = await rank();
     expect(source).toContain("'试炼榜'");
     expect(source).toContain("'羁绊榜'");
     expect(source).toContain("'竞技场'");
     expect(source).toContain('ArenaView');
     expect(source).toContain('AffectionBoardView');
-    expect(source).toContain('.view-seg .seg-pill');
-    expect(source).toContain('width: calc(100% / 3)');
+    expect(source).toContain("'--seg-count': VIEW_TABS.length");
+    expect(source).toContain("'--seg-count': BOARD_TABS.length");
+    expect(source).toContain('width: calc(100% / var(--seg-count))');
+    expect(source).not.toContain('width: calc(100% / 3)');
   });
 });
 
@@ -112,9 +114,19 @@ describe('ArenaBattleScene 战报回放（§5.4 红线）', () => {
     expect(source).toContain('battle.log');
   });
 
-  it('演出要素齐全：双方血条 / 伤害飘字 / 暴击 / 闪避 / 跳过 / 胜负横幅', async () => {
+  it('演出要素齐全：正式战场与人物 / 双方血条 / 飘字 / 暴击 / 闪避 / 跳过 / 横幅', async () => {
     const source = await scene();
-    for (const token of ['hp-fill', 'floater', 'crit', 'miss', '跳过', 'result-banner']) {
+    for (const token of [
+      'assets/arena/arena-banner.webp',
+      '<ClassArtwork',
+      'aspect-ratio: 3 / 2',
+      'hp-fill',
+      'floater',
+      'crit',
+      'miss',
+      '跳过',
+      'result-banner',
+    ]) {
       expect(source).toContain(token);
     }
   });

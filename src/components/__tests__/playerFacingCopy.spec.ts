@@ -29,3 +29,13 @@ describe('玩家界面文案收口', () => {
     expect(stageSelect).not.toContain('疾风扫荡 · M3-7');
   });
 });
+
+describe('背包首屏触控精度', () => {
+  it('分页、批量操作和排序入口不再落入 28～39px 的误触区', () => {
+    const bag = read('../../views/BagView.vue');
+
+    expect(bag).toMatch(/\.t\s*\{[\s\S]*?min-height:\s*44px/);
+    expect(bag).toMatch(/\.sm\s*\{[\s\S]*?min-height:\s*44px/);
+    expect(bag).toMatch(/\.score-sort button\s*\{[\s\S]*?min-height:\s*40px/);
+  });
+});
