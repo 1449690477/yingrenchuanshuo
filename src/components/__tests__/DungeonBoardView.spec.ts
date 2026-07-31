@@ -1,15 +1,22 @@
+// @vitest-environment jsdom
 /**
- * 秘境榜 UI 的源码契约（docs/64 §三 的三条口径 + 展示红线）。
+ * 秘境榜 UI 的源码契约（docs/64 §三 的三条口径 + 展示红线）+ 挂载冒烟。
  *
  * 为什么用源码断言而不是只挂载渲染：这几条要求「某句话必须在界面上」，
  * 而它们最可能的坏法是**有人重写文案时顺手删掉**，那时渲染依然正常、
  * 测试依然全绿、只是玩家再也看不到那句解释了。源码断言能拦住这种删除。
  */
 
+import 'fake-indexeddb/auto';
 import { readFileSync } from 'node:fs';
+import { createApp, h, nextTick, type App } from 'vue';
 import { createPinia, setActivePinia } from 'pinia';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { formatDungeonDuration } from '@/core/dungeonBoard';
+import { createSave } from '@/save/schema';
+import { clearSave } from '@/save/storage';
+import { useGameStore } from '@/stores/game';
+import DungeonBoardView from '../DungeonBoardView.vue';
 
 function readSource(path: string): string {
   return readFileSync(new URL(path, import.meta.url), 'utf8');
@@ -18,9 +25,34 @@ function readSource(path: string): string {
 const boardSource = readSource('../DungeonBoardView.vue');
 const rankSource = readSource('../../views/RankView.vue');
 
-beforeEach(() => {
+let app: App | null = null;
+let host: HTMLElement | null = null;
+
+beforeEach(async () => {
   setActivePinia(createPinia());
+  await clearSave();
 });
+
+afterEach(async () => {
+  app?.unmount();
+  host?.remove();
+  app = null;
+  host = null;
+  await clearSave();
+});
+
+/** 真挂载一次 —— 源码断言拦得住删文案，拦不住「渲染时就炸了」。 */
+async function mountBoard(): Promise<HTMLElement> {
+  const game = useGameStore();
+  game.loadFrom(createSave('验证用', 'swordsman', 40, Date.now() - 100_000));
+  host = document.createElement('div');
+  document.body.appendChild(host);
+  app = createApp({ render: () => h(DungeonBoardView) });
+  app.mount(host);
+  // onMounted 里的 openBoard 会同步选好默认层，等一次重渲染再断言
+  await nextTick();
+  return host;
+}
 
 describe('docs/64 §3.2 · 并列规则必须写在榜上', () => {
   /**
@@ -41,6 +73,27 @@ describe('空态不是一个空列表', () => {
   it('未联机与离线各有自己的说法，且都说明本地数据没丢', () => {
     expect(boardSource).toContain('单机模式');
     expect(boardSource).toContain('本地安然无恙');
+  });
+});
+
+describe('docs/64 §二之一 · 「没进步」与「没被采信」必须分开说', () => {
+  /**
+   * improved=false 有两种含义，只看它无法区分。若哪天有人把这段简化回
+   * 「improved ? A : B」，玩家就再也看不到「你这条没被采信」——
+   * 而那正是最难被发现的坏法：他会以为自己只是没打得更快。
+   */
+  it('UI 读了 claimVerified，而不是只看 improved', () => {
+    expect(boardSource).toContain('claimVerified');
+    expect(boardSource).toContain('没有被采信');
+  });
+
+  it('没被采信时同时换措辞与样式，不只是换一句话', () => {
+    expect(boardSource).toContain('warn: true');
+    expect(boardSource).toContain('.depths-hint.warn');
+  });
+
+  it('没被采信时明确告诉玩家本地记录还在', () => {
+    expect(boardSource).toContain('记录仍在本地保留');
   });
 });
 
@@ -69,6 +122,35 @@ describe('用时展示只有一份实现', () => {
   it('formatDungeonDuration 的口径本身没被改坏', () => {
     expect(formatDungeonDuration(200)).toBe('0.2 秒');
     expect(formatDungeonDuration(37_100)).toBe('37.1 秒');
+  });
+});
+
+describe('挂载冒烟：新档玩家打开秘境榜', () => {
+  it('渲染不炸，三级选择器都在（档位 4 / 部位 8 / 层 5）', async () => {
+    const el = await mountBoard();
+    const rows = [...el.querySelectorAll('.picker-row')];
+
+    expect(rows).toHaveLength(3);
+    // 档位：晴蓝/月紫/琥珀/绯樱
+    expect(rows[0]!.querySelectorAll('button')).toHaveLength(4);
+    // 部位：8 个装备门户
+    expect(rows[1]!.querySelectorAll('button')).toHaveLength(8);
+    // 层：该档开放的深度
+    expect(rows[2]!.querySelectorAll('button').length).toBeGreaterThan(0);
+  });
+
+  it('一层没打过时不假装有成绩，且空态给的是邀请', async () => {
+    const el = await mountBoard();
+
+    expect(el.textContent).toContain('尚未通关');
+    expect(el.textContent).toContain('你的记录会是第一个');
+    // §3.2 的并列规则必须真的渲染出来，不只是躺在源码里
+    expect(el.textContent).toContain('更早首通者在前');
+  });
+
+  it('单机模式下明确告诉玩家成绩在本地，不是坏了', async () => {
+    const el = await mountBoard();
+    expect(el.textContent).toContain('单机模式');
   });
 });
 
