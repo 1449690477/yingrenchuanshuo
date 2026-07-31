@@ -36,6 +36,8 @@
 **验收目标：手机上能打开，选职业，挂机打怪，掉装备，穿上，变强，关掉再打开有离线收益。**
 
 - [x] **M2-1** `save/schema.ts` + `save/storage.ts`：IndexedDB 存档读写，自动存档
+  - 已补齐 L1 本地完整性信封、主备链、跨页 CAS 与显式恢复；公开 SHA-256
+    只用于发现损坏 / 低成本修改，联机资产服务端账本仍待 L5 实现。
 - [x] **M2-2** `save/migrations.ts`：迁移框架 + 一个示例迁移 + 测试
 - [x] **M2-3** 存档手动导出 / 导入 JSON
 - [x] **M2-4** Pinia store：`player` / `inventory` / `stage` / `settings`
