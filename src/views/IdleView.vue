@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref } from 'vue';
-import { BookOpen, ChevronDown, Gift, Sparkles, Zap } from '@lucide/vue';
+import { BookOpen, ChevronDown, Gift, RefreshCw, Sparkles, Zap } from '@lucide/vue';
 import { abbr } from '@/core/format';
 import { battleVitalsAtProgress } from '@/core/battleVisual';
 import { aggregateLootEntries, type LootDisplayCategory } from '@/core/lootGrouping';
@@ -34,6 +34,7 @@ import ItemPeekSheet from '@/components/ItemPeekSheet.vue';
 import EquipmentAdvancementPanel from '@/components/EquipmentAdvancementPanel.vue';
 import ReforgeStudio from '@/components/reforge/ReforgeStudio.vue';
 import ElementMatchupGuide from '@/components/ElementMatchupGuide.vue';
+import { ELEMENT_LABELS } from '@/ui/elementMatchupPresentation';
 import type { EquipmentInstance } from '@/core/types';
 import type { ItemDef } from '@/data/items';
 
@@ -49,6 +50,16 @@ const stage = useStageStore();
 const showStages = ref(false);
 const showEncounters = ref(false);
 const showEncounterJournal = ref(false);
+const equipmentPresetNoticeText = computed(() => {
+  const notice = game.equipmentPresetNotice;
+  if (!notice) return '';
+  const number = notice.presetId.at(-1);
+  if (notice.kind === 'blocked') {
+    return `方案 ${number} 校验未通过，已保持原关卡与装备；请到养成页重新保存。`;
+  }
+  const element = notice.counterElement ? ELEMENT_LABELS[notice.counterElement] : '';
+  return `已切换方案 ${number} · ${element}属性克制 · 更换 ${notice.changedSlots ?? 0} 个部位`;
+});
 
 // ─────────── K2 · 挑战体力（docs/57）：当前关未通关才消耗，已通关不显示任何体力元素 ───────────
 const staminaNow = useNowTick(30_000);
@@ -341,6 +352,21 @@ function openLootEntry(entry: { itemId: string; isEquipment: boolean; count: num
       :defender-element="stage.current.element"
       context="battle"
     />
+
+    <Transition name="preset-shift">
+      <button
+        v-if="game.equipmentPresetNotice"
+        type="button"
+        class="preset-shift"
+        :class="game.equipmentPresetNotice.kind"
+        aria-label="关闭自动换装提示"
+        @click="game.dismissEquipmentPresetNotice()"
+      >
+        <span class="preset-shift-icon" aria-hidden="true"><RefreshCw :size="13" /></span>
+        <span>{{ equipmentPresetNoticeText }}</span>
+        <i>知道了</i>
+      </button>
+    </Transition>
 
     <section class="battle">
       <!-- 挂机窗口外框：状态灯 + 标题 + 进度发丝条 + 统计条，只做容器装饰，不动 BattleScene 内部 -->
@@ -817,6 +843,64 @@ function openLootEntry(entry: { itemId: string; isEquipment: boolean; count: num
     flex-direction: row;
     gap: 4px;
   }
+}
+
+.preset-shift {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  width: 100%;
+  min-height: 42px;
+  padding: 7px 9px;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid #bce6e2;
+  border-radius: 15px;
+  color: #537d7b;
+  background: linear-gradient(100deg, rgb(239 252 250 / 92%), rgb(242 248 255 / 90%));
+  box-shadow:
+    0 6px 17px rgb(73 139 151 / 10%),
+    inset 0 1px 0 white;
+  font-size: 10px;
+  line-height: 1.35;
+  text-align: left;
+}
+
+.preset-shift.blocked {
+  border-color: #f3c5d1;
+  color: #a65e72;
+  background: linear-gradient(100deg, rgb(255 243 247 / 94%), rgb(255 249 245 / 92%));
+}
+
+.preset-shift-icon {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 10px;
+  color: white;
+  background: linear-gradient(145deg, #7fd3c8, #9ecff7);
+  box-shadow: 0 4px 10px rgb(90 172 172 / 22%);
+}
+
+.preset-shift.blocked .preset-shift-icon {
+  background: linear-gradient(145deg, #ee91ad, #f2b393);
+}
+.preset-shift i {
+  color: currentcolor;
+  font-size: 9px;
+  font-style: normal;
+  opacity: 0.72;
+}
+.preset-shift-enter-active,
+.preset-shift-leave-active {
+  transition:
+    opacity 180ms ease,
+    transform 220ms var(--ease-spring);
+}
+.preset-shift-enter-from,
+.preset-shift-leave-to {
+  opacity: 0;
+  transform: translateY(-7px) scale(0.98);
 }
 
 .battle {
@@ -1704,6 +1788,8 @@ function openLootEntry(entry: { itemId: string; isEquipment: boolean; count: num
 
   .feed-enter-from,
   .feed-leave-to,
+  .preset-shift-enter-from,
+  .preset-shift-leave-to,
   .loot-fold-enter-from,
   .loot-fold-leave-to {
     transform: none;
@@ -1712,6 +1798,8 @@ function openLootEntry(entry: { itemId: string; isEquipment: boolean; count: num
   .feed-enter-active,
   .feed-leave-active,
   .feed-move,
+  .preset-shift-enter-active,
+  .preset-shift-leave-active,
   .loot-fold-enter-active,
   .loot-fold-leave-active {
     transition: none;

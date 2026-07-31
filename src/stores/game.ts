@@ -13,6 +13,7 @@ import { computed, ref, toRaw } from 'vue';
 import type {
   AffixChangeOperation,
   ClassId,
+  Element,
   EquipSlot,
   EquipmentDef,
   EquipmentInstance,
@@ -61,6 +62,16 @@ import {
   type EquipmentSetCraftingResult,
 } from '@/core/equipmentSetCrafting';
 import { planClassSwitch } from '@/core/classSwitch';
+import {
+  captureEquipmentPreset as capturePresetSnapshot,
+  createEquipmentPresetState,
+  EQUIPMENT_PRESET_IDS,
+  planAutomaticEquipmentPreset,
+  planEquipmentPreset,
+  type EquipmentPreset,
+  type EquipmentPresetId,
+  type EquipmentPresetPlanFailure,
+} from '@/core/equipmentPresets';
 import { milestoneElapsedMs, newlyReachedMilestones } from '@/core/milestones';
 import { planImprint, imprintCostOf, type ImprintCost } from '@/core/equipmentImprint';
 import { IMPRINT_SET_TIER, IMPRINTABLE_SET_IDS, isImprintableSetId } from '@/data/imprintRules';
@@ -415,6 +426,25 @@ export type ClassSwitchResult =
       cpDelta: number;
     };
 
+export type EquipmentPresetActionResult =
+  | { ok: false; reason: 'no-save' | 'empty-loadout' | 'preset-not-found' }
+  | EquipmentPresetPlanFailure
+  | {
+      ok: true;
+      preset: EquipmentPreset;
+      changedSlots: number;
+      cpDelta: number;
+    };
+
+export interface EquipmentPresetTransitionNotice {
+  at: number;
+  kind: 'switched' | 'blocked';
+  presetId: EquipmentPresetId;
+  counterElement?: Exclude<Element, 'none'>;
+  changedSlots?: number;
+  reason?: EquipmentPresetPlanFailure['reason'];
+}
+
 export type EquipmentDungeonRunResult =
   | {
       ok: false;
@@ -496,6 +526,8 @@ export const useGameStore = defineStore('game', () => {
   const autoDecomposed = ref<{ count: number; gold: number; at: number } | null>(null);
   /** 战力变化提示，UI 飘字用 */
   const cpDelta = ref<{ value: number; at: number } | null>(null);
+  /** 自动切关换装的单次反馈；只做展示，不参与战斗与存档。 */
+  const equipmentPresetNotice = ref<EquipmentPresetTransitionNotice | null>(null);
   /** 最近一次自动存档错误；成功保存后清空。 */
   const saveError = ref<string | null>(null);
   const loadError = ref<string | null>(null);
@@ -558,6 +590,9 @@ export const useGameStore = defineStore('game', () => {
   // ─────────── 派生数据 ───────────
   const hasSave = computed(() => save.value !== null);
   const player = computed(() => save.value?.player ?? null);
+  const equipmentPresets = computed(
+    () => save.value?.equipmentPresets ?? createEquipmentPresetState(),
+  );
 
   /** 装备提供的属性总和 */
   const equipStats = computed<Stats>(() => {
@@ -1603,7 +1638,11 @@ export const useGameStore = defineStore('game', () => {
    * 章节门槛只在「目标关是其章节首关且未通关」时生效 ——
    * 已经进了章的人不会被追溯性拦在自己站着的地方。
    */
-  function evaluateStageEntry(stageId: string): { gate: ChapterGate; cost: ChallengeCost } {
+  function evaluateStageEntryAtCp(
+    stageId: string,
+    currentCp: number,
+    now: number,
+  ): { gate: ChapterGate; cost: ChallengeCost } {
     const stage = STAGES[stageId];
     if (!stage || !save.value) {
       throw new Error(`[关卡错误] 无法评估不存在的关卡：${stageId}`);
@@ -1612,40 +1651,98 @@ export const useGameStore = defineStore('game', () => {
     const isChapterEntry =
       !cleared.includes(stageId) && stagesOfChapter(stage.chapterId)[0]?.id === stageId;
     const gate: ChapterGate = isChapterEntry
-      ? evaluateChapterGate(cp.value, save.value.player.level, stage.chapterId)
-      : { ok: true, requiredCp: 0, currentCp: cp.value, gapCp: 0, reason: 'ok' };
+      ? evaluateChapterGate(currentCp, save.value.player.level, stage.chapterId)
+      : { ok: true, requiredCp: 0, currentCp, gapCp: 0, reason: 'ok' };
     const cost = evaluateChallengeCost(
       stageId,
       cleared,
       save.value.player.stamina,
       staminaMax.value,
       save.value.player.staminaRecoverAt,
-      Date.now(),
+      now,
     );
     return { gate, cost };
+  }
+
+  function automaticEquipmentPlanForStage(stageId: string) {
+    const s = save.value;
+    const stage = STAGES[stageId];
+    if (!s?.equipmentPresets.autoSwitch || !stage) return null;
+    return planAutomaticEquipmentPreset({
+      presets: s.equipmentPresets.presets,
+      defenderElement: stage.element,
+      classId: s.player.classId,
+      playerLevel: s.player.level,
+      equipped: s.equipped,
+      bagEquipment: s.bag.equipment,
+      definitionOf: getEquipment,
+    });
+  }
+
+  function evaluateStageEntry(stageId: string): { gate: ChapterGate; cost: ChallengeCost } {
+    const automaticPlan = automaticEquipmentPlanForStage(stageId);
+    const candidateCp =
+      automaticPlan?.status === 'ready'
+        ? cpForEquipment(SLOT_ORDER.map((slot) => automaticPlan.plan.equipped[slot]))
+        : cp.value;
+    return evaluateStageEntryAtCp(stageId, candidateCp, Date.now());
   }
 
   function selectStage(stageId: string): boolean {
     if (!save.value || !STAGES[stageId]) return false;
     if (!isStageUnlocked(stageId)) return false;
 
+    const s = save.value;
+    const now = Date.now();
+    const automaticPlan = automaticEquipmentPlanForStage(stageId);
+
+    // 预设已经存在却无法完整应用，视为真实状态错误：不静默保持旧装继续切关。
+    if (automaticPlan?.status === 'blocked') {
+      equipmentPresetNotice.value = {
+        at: now,
+        kind: 'blocked',
+        presetId: automaticPlan.preset.id,
+        reason: automaticPlan.failure.reason,
+      };
+      return false;
+    }
+
+    const candidateCp =
+      automaticPlan?.status === 'ready'
+        ? cpForEquipment(SLOT_ORDER.map((slot) => automaticPlan.plan.equipped[slot]))
+        : cp.value;
+
     // 门槛与体力执法（docs/56 §3.3/§5）。自动切关同样走这里 ——
     // 被拦时留在原关继续产出，绝不能把玩家丢进打不进的关。
-    const entry = evaluateStageEntry(stageId);
+    const entry = evaluateStageEntryAtCp(stageId, candidateCp, now);
     if (!entry.gate.ok || !entry.cost.ok) return false;
     if (entry.cost.cost > 0) {
       const spent = spendStamina(
-        save.value.player.stamina,
+        s.player.stamina,
         staminaMax.value,
-        save.value.player.staminaRecoverAt,
+        s.player.staminaRecoverAt,
         entry.cost.cost,
-        Date.now(),
+        now,
       );
-      save.value.player.stamina = spent.stamina;
-      save.value.player.staminaRecoverAt = spent.nextRecoverAt;
+      s.player.stamina = spent.stamina;
+      s.player.staminaRecoverAt = spent.nextRecoverAt;
     }
 
-    save.value.progress.currentStageId = stageId;
+    if (automaticPlan?.status === 'ready') {
+      const beforeCp = cp.value;
+      s.equipped = automaticPlan.plan.equipped;
+      s.bag.equipment = automaticPlan.plan.bagEquipment;
+      noteCpDelta(beforeCp);
+      equipmentPresetNotice.value = {
+        at: now,
+        kind: 'switched',
+        presetId: automaticPlan.preset.id,
+        counterElement: automaticPlan.counterElement,
+        changedSlots: automaticPlan.plan.changedSlots,
+      };
+    }
+
+    s.progress.currentStageId = stageId;
     idleCarrySec = 0;
     lowEfficiencySeconds = 0;
     resetBattleVisualState();
@@ -1986,6 +2083,86 @@ export const useGameStore = defineStore('game', () => {
   }
 
   // ─────────── 装备操作 ───────────
+
+  function isEquipmentPresetReferenced(uid: string): boolean {
+    return (
+      save.value?.equipmentPresets.presets.some((preset) =>
+        SLOT_ORDER.some((slot) => preset.equipmentUids[slot] === uid),
+      ) ?? false
+    );
+  }
+
+  /** 保存当前八槽；预设引用装备立即锁定，避免自动分解把快照悄悄掏空。 */
+  function captureEquipmentPreset(id: EquipmentPresetId): EquipmentPresetActionResult {
+    if (!save.value) return { ok: false, reason: 'no-save' };
+    const s = save.value;
+    const equippedInstances = SLOT_ORDER.flatMap((slot) =>
+      s.equipped[slot] ? [s.equipped[slot]!] : [],
+    );
+    if (equippedInstances.length === 0) return { ok: false, reason: 'empty-loadout' };
+
+    const preset = capturePresetSnapshot(id, s.player.classId, s.equipped);
+    for (const instance of equippedInstances) instance.locked = true;
+    const index = s.equipmentPresets.presets.findIndex((candidate) => candidate.id === id);
+    if (index >= 0) s.equipmentPresets.presets[index] = preset;
+    else s.equipmentPresets.presets.push(preset);
+    s.equipmentPresets.presets.sort(
+      (a, b) => EQUIPMENT_PRESET_IDS.indexOf(a.id) - EQUIPMENT_PRESET_IDS.indexOf(b.id),
+    );
+    void persist();
+    return { ok: true, preset, changedSlots: 0, cpDelta: 0 };
+  }
+
+  /** 手动应用时也走同一套纯函数规划；先全量验证，成功后再一次写回。 */
+  function applyEquipmentPreset(id: EquipmentPresetId): EquipmentPresetActionResult {
+    if (!save.value) return { ok: false, reason: 'no-save' };
+    const s = save.value;
+    const preset = s.equipmentPresets.presets.find((candidate) => candidate.id === id);
+    if (!preset) return { ok: false, reason: 'preset-not-found' };
+    const plan = planEquipmentPreset({
+      preset,
+      classId: s.player.classId,
+      playerLevel: s.player.level,
+      equipped: s.equipped,
+      bagEquipment: s.bag.equipment,
+      definitionOf: getEquipment,
+    });
+    if (!plan.ok) return plan;
+
+    const beforeCp = cp.value;
+    s.equipped = plan.equipped;
+    s.bag.equipment = plan.bagEquipment;
+    const cpChange = cp.value - beforeCp;
+    noteCpDelta(beforeCp);
+    void persist();
+    return {
+      ok: true,
+      preset,
+      changedSlots: plan.changedSlots,
+      cpDelta: cpChange,
+    };
+  }
+
+  function deleteEquipmentPreset(id: EquipmentPresetId): boolean {
+    if (!save.value) return false;
+    const index = save.value.equipmentPresets.presets.findIndex((candidate) => candidate.id === id);
+    if (index < 0) return false;
+    save.value.equipmentPresets.presets.splice(index, 1);
+    // 不自动解锁：同一件可能仍被另一套引用，且“删除方案”不应暗中改变保护状态。
+    void persist();
+    return true;
+  }
+
+  function setEquipmentPresetAutoSwitch(enabled: boolean): boolean {
+    if (!save.value) return false;
+    save.value.equipmentPresets.autoSwitch = enabled;
+    void persist();
+    return true;
+  }
+
+  function dismissEquipmentPresetNotice(): void {
+    equipmentPresetNotice.value = null;
+  }
 
   function equip(uid: string): boolean {
     if (!save.value) return false;
@@ -2957,6 +3134,7 @@ export const useGameStore = defineStore('game', () => {
     if (!save.value) return;
     const inst = save.value.bag.equipment.find((e) => e.uid === uid);
     if (!inst) return;
+    if (inst.locked && isEquipmentPresetReferenced(uid)) return;
     inst.locked = !inst.locked;
     void persist();
   }
@@ -3075,6 +3253,7 @@ export const useGameStore = defineStore('game', () => {
     let changed = 0;
     for (const inst of save.value.bag.equipment) {
       if (!targets.has(inst.uid) || inst.locked === locked) continue;
+      if (!locked && isEquipmentPresetReferenced(inst.uid)) continue;
       inst.locked = locked;
       changed++;
     }
@@ -3227,6 +3406,7 @@ export const useGameStore = defineStore('game', () => {
     battleBeats,
     battleRhythmSnapshot,
     battleTargetId,
+    equipmentPresetNotice,
     // 派生
     player,
     finalStats,
@@ -3235,6 +3415,7 @@ export const useGameStore = defineStore('game', () => {
     playerCombatElement,
     playerSkillMultiplier,
     equipmentSetResolution,
+    equipmentPresets,
     affectionState,
     affectionProgress,
     affectionTier,
@@ -3291,6 +3472,12 @@ export const useGameStore = defineStore('game', () => {
     equip,
     unequip,
     equipBest,
+    captureEquipmentPreset,
+    applyEquipmentPreset,
+    deleteEquipmentPreset,
+    setEquipmentPresetAutoSwitch,
+    dismissEquipmentPresetNotice,
+    isEquipmentPresetReferenced,
     decompose,
     assessShopOfferById,
     purchaseShopOffer,

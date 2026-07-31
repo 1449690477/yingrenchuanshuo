@@ -85,7 +85,10 @@ describe('game store persistence', () => {
   it('满体力消费会重置恢复起点，立即重开不会把刚花掉的体力补回', async () => {
     let now = Date.UTC(2026, 6, 31, 19, 45);
     vi.spyOn(Date, 'now').mockImplementation(() => now);
-    vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1));
+    vi.stubGlobal(
+      'requestAnimationFrame',
+      vi.fn(() => 1),
+    );
     vi.stubGlobal('cancelAnimationFrame', vi.fn());
 
     const game = useGameStore();
@@ -106,9 +109,7 @@ describe('game store persistence', () => {
     await reopened.init();
     reopened.stopLoop();
 
-    expect(reopened.save!.player.stamina).toBe(
-      reopened.staminaMax - STAGE_CHALLENGE_STAMINA_COST,
-    );
+    expect(reopened.save!.player.stamina).toBe(reopened.staminaMax - STAGE_CHALLENGE_STAMINA_COST);
   });
 
   it('战力低于推荐值 60% 仍持续挂机，只由承伤效率软性降速', () => {
@@ -970,6 +971,91 @@ function jsonClone<T>(value: T): T {
 }
 
 describe('equipment decisions', () => {
+  function presetScenario() {
+    const game = useGameStore();
+    const save = createSave('预设测试', 'witch', 18, Date.now());
+    save.player.level = 99;
+    save.nextUid = 3;
+    const neutral = createInstance(
+      requireEquipment('eq_r1_weapon_common'),
+      new Rng(181),
+      'e1',
+      save.player.classId,
+    );
+    const fire = createInstance(
+      requireEquipment('eq_r2_weapon_fine'),
+      new Rng(182),
+      'e2',
+      save.player.classId,
+    );
+    save.equipped.weapon = fire;
+    save.bag.equipment.push(neutral);
+    const targetStageId = ORDERED_STAGE_IDS.find(
+      (stageId) => STAGES[stageId]?.chapterId === '2-5',
+    )!;
+    const targetIndex = ORDERED_STAGE_IDS.indexOf(targetStageId);
+    save.progress.clearedStageIds = ORDERED_STAGE_IDS.slice(0, targetIndex);
+    game.loadFrom(save);
+    return { game, neutral, fire, targetStageId };
+  }
+
+  it('预设保存会锁定装备，自动切入属性关时整套应用并给出反馈', async () => {
+    const { game, neutral, fire, targetStageId } = presetScenario();
+
+    expect(game.captureEquipmentPreset('preset-1')).toMatchObject({ ok: true });
+    expect(fire.locked).toBe(true);
+    expect(game.equip(neutral.uid)).toBe(true);
+    expect(game.setEquipmentPresetAutoSwitch(true)).toBe(true);
+    const staminaBefore = game.save!.player.stamina;
+
+    expect(game.selectStage(targetStageId)).toBe(true);
+    expect(game.save!.equipped.weapon?.uid).toBe(fire.uid);
+    expect(game.save!.bag.equipment.map((instance) => instance.uid)).toContain(neutral.uid);
+    expect(game.save!.player.stamina).toBeLessThan(staminaBefore);
+    expect(game.equipmentPresetNotice).toMatchObject({
+      kind: 'switched',
+      presetId: 'preset-1',
+      counterElement: 'fire',
+    });
+    await game.persist();
+  });
+
+  it('预设装备不能被解锁；删除预设后由玩家自行决定是否解除保护', async () => {
+    const { game, neutral, fire } = presetScenario();
+    expect(game.captureEquipmentPreset('preset-1')).toMatchObject({ ok: true });
+    expect(game.equip(neutral.uid)).toBe(true);
+
+    game.toggleLock(fire.uid);
+    expect(fire.locked).toBe(true);
+    expect(game.deleteEquipmentPreset('preset-1')).toBe(true);
+    expect(fire.locked).toBe(true);
+    game.toggleLock(fire.uid);
+    expect(fire.locked).toBe(false);
+    await game.persist();
+  });
+
+  it('自动预设存在坏引用时不切关、不扣体力，也不提交半套装备', async () => {
+    const { game, neutral, targetStageId } = presetScenario();
+    expect(game.captureEquipmentPreset('preset-1')).toMatchObject({ ok: true });
+    expect(game.equip(neutral.uid)).toBe(true);
+    expect(game.setEquipmentPresetAutoSwitch(true)).toBe(true);
+    await game.persist();
+
+    game.save!.equipmentPresets.presets[0]!.equipmentUids.ring = 'missing-ring';
+    const staminaBefore = game.save!.player.stamina;
+    const stageBefore = game.currentStage.id;
+
+    expect(game.selectStage(targetStageId)).toBe(false);
+    expect(game.save!.player.stamina).toBe(staminaBefore);
+    expect(game.currentStage.id).toBe(stageBefore);
+    expect(game.save!.equipped.weapon?.uid).toBe(neutral.uid);
+    expect(game.equipmentPresetNotice).toMatchObject({
+      kind: 'blocked',
+      presetId: 'preset-1',
+      reason: 'missing-equipment',
+    });
+  });
+
   it('装备比较使用角色整套属性，普通武器不会再被攻速 0 乘成零战力', async () => {
     const game = useGameStore();
     const save = createSave('装备测试', 'swordsman', 8, Date.now());

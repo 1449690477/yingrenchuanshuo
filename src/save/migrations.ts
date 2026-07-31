@@ -33,6 +33,7 @@ import {
 import { affixValueRange, professionForAffix } from '@/core/equipment';
 import { isProfessionAffixSlot } from '@/core/reforge';
 import { createEquipmentDungeonState } from '@/core/equipmentDungeon';
+import { createEquipmentPresetState } from '@/core/equipmentPresets';
 import { createAffectionState } from '@/core/affection';
 import { AFFECTION_RULES } from '@/data/affectionRules';
 import { getEquipment } from '@/data/equipment';
@@ -290,6 +291,12 @@ export const migrations: Record<number, Migration> = {
       equipmentCodex: { discoveredDefIds: [...new Set(defIds)] },
     };
   },
+  /** v18：新增三套装备预设；旧档没有可证明的玩家选择，因此只建立空状态。 */
+  17: (save) => ({
+    ...save,
+    version: 18,
+    equipmentPresets: createEquipmentPresetState(),
+  }),
 };
 
 function migrateV10Save(
