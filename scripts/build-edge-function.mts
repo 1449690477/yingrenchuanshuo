@@ -32,6 +32,7 @@ const FUNCTIONS = [
   'arena-daily-settle',
   'arena-shop-buy',
   'guild-expedition',
+  'submit-dungeon',
 ] as const;
 
 for (const name of FUNCTIONS) {
@@ -367,3 +368,78 @@ for (const probe of [
   }
 }
 console.log('✓ 档案同步确定性自检通过：sync-profile 与 submit-trial 战力逐点一致');
+
+// ── 确定性自检：秘境榜白名单、合理性判定与深度链（docs/63 §二 · P1、docs/64）──
+//
+// 白名单是**从数据推导**的：档位的 comingSoon 决定收不收，
+// 深度锚点表的 openDepths 决定开几层。内容更新时只有数据会变，
+// 不会有人来动 Edge Function —— 打包产物没跟上，就会出现
+// 「玩家能打、服务端拒收」，而且没人会想到来看这里。
+// 所以逐点比对打包产物与源实现，两边不一致就不许部署。
+const dungeonGenerated = await import(
+  pathToFileURL(path.join(root, 'supabase/functions/submit-dungeon/_core.ts')).href
+);
+const dungeonSource = await import('../src/core/dungeonBoard.ts');
+
+if (dungeonGenerated.BOARDABLE_DUNGEON_IDS.join() !== dungeonSource.BOARDABLE_DUNGEON_IDS.join()) {
+  console.error(
+    `✗ 秘境白名单漂移：打包产物 ${dungeonGenerated.BOARDABLE_DUNGEON_IDS.length} 层，` +
+      `源实现 ${dungeonSource.BOARDABLE_DUNGEON_IDS.length} 层`,
+  );
+  process.exit(1);
+}
+
+const dungeonNow = Date.parse('2026-07-31T12:00:00+08:00');
+const dungeonProbes = [
+  // 满级碾压低档低层的合法下界成绩（统计型下界会误杀的那一类）
+  { dungeonId: 'equipment_weapon_azure_d1', bestDurationMs: 200, firstClearedAt: dungeonNow - 8.64e7 },
+  // 正常的深层成绩
+  { dungeonId: 'equipment_body_auric_d3', bestDurationMs: 37_100, firstClearedAt: dungeonNow - 8.64e8 },
+  // 未开放的层（crimson openDepths=1，d2 数值上等价于 d1，不单开榜）
+  { dungeonId: 'equipment_weapon_crimson_d2', bestDurationMs: 42_300, firstClearedAt: dungeonNow },
+  // 不存在的副本
+  { dungeonId: 'equipment_weapon_rainbow_d1', bestDurationMs: 1_000, firstClearedAt: dungeonNow },
+  // 破格律（手填的数字）
+  { dungeonId: 'equipment_head_violet_d2', bestDurationMs: 1_337, firstClearedAt: dungeonNow },
+  // 低于两帧下界
+  { dungeonId: 'equipment_head_violet_d2', bestDurationMs: 100, firstClearedAt: dungeonNow },
+  // 首通时刻穿越到 1970（并列排序的作弊路径）
+  { dungeonId: 'equipment_head_violet_d2', bestDurationMs: 25_800, firstClearedAt: 0 },
+];
+for (const probe of dungeonProbes) {
+  const fromGenerated = dungeonGenerated.isPlausibleDungeonClaim(probe, dungeonNow);
+  const fromSource = dungeonSource.isPlausibleDungeonClaim(probe, dungeonNow);
+  if (fromGenerated !== fromSource) {
+    console.error(
+      `✗ 秘境自检失败：${JSON.stringify(probe)} —— ` +
+        `打包产物=${String(fromGenerated)}，源实现=${String(fromSource)}`,
+    );
+    process.exit(1);
+  }
+}
+
+// 深度链：边界两侧都必须两边一致。这条判定是删掉等级门槛之后唯一的资格门禁，
+// 打包产物若与源实现不同步，服务端会放行跳级上报，而且不会有任何报错。
+const chainProbes: [string, number][] = [
+  ['equipment_weapon_auric_d1', 0],
+  ['equipment_weapon_auric_d2', 0],
+  ['equipment_weapon_auric_d2', 1],
+  ['equipment_weapon_auric_d5', 3],
+  ['equipment_weapon_auric_d5', 4],
+  ['equipment_head_auric_d4', 3],
+];
+for (const [dungeonId, clearedDepth] of chainProbes) {
+  const fromGenerated = dungeonGenerated.meetsDungeonDepthChain(dungeonId, clearedDepth);
+  const fromSource = dungeonSource.meetsDungeonDepthChain(dungeonId, clearedDepth);
+  if (fromGenerated !== fromSource) {
+    console.error(
+      `✗ 秘境深度链自检失败：${dungeonId} 已达 ${clearedDepth} 层 —— ` +
+        `打包产物=${String(fromGenerated)}，源实现=${String(fromSource)}`,
+    );
+    process.exit(1);
+  }
+}
+console.log(
+  `✓ 秘境榜确定性自检通过：${dungeonSource.BOARDABLE_DUNGEON_IDS.length} 层已开放，` +
+    '白名单、合理性判定与深度链两边一致',
+);
