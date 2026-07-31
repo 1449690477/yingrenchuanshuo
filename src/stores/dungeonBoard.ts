@@ -31,6 +31,7 @@
 import { computed, ref } from 'vue';
 import { defineStore } from 'pinia';
 import { useGameStore } from './game';
+import { useLeaderboardStore } from './leaderboard';
 import { DUNGEON_BOARD_ENTRIES, type DungeonBoardEntry } from '@/core/dungeonBoard';
 import {
   EQUIPMENT_DUNGEON_TIERS,
@@ -262,6 +263,17 @@ export const useDungeonBoardStore = defineStore('dungeonBoard', () => {
     const session = await ensureAnonymousSession();
     if (!session || !userId.value) return;
 
+    /*
+     * ★ 上报前必须先有档案（2026-07-31 · dungeon 线上探针查出）。
+     *
+     * dungeon_records 的外键指向 profiles：**从未同步过档案的账号连第 1 层
+     * 都插不进去**。leaderboard.connect() 顺带做 upsertProfile，所以这里
+     * 复用它而不是再写一份档案同步 —— 两处各写一份档案载荷正是这个项目
+     * 反复踩过的分叉。它失败不该拦住上报（可能只是战力快照没刷新），
+     * 真的没档案时服务端会明确回「请先同步榜单档案」。
+     */
+    await useLeaderboardStore().connect().catch(() => false);
+
     syncing.value = true;
     try {
       for (const claim of ladder) {
@@ -279,6 +291,19 @@ export const useDungeonBoardStore = defineStore('dungeonBoard', () => {
     }
   }
 
+  /**
+   * 还没选层时挑一个默认的：玩家打过的最深那层（docs/64 §3.1），
+   * 没打过就落在该档第 1 层。**纯本地计算，不需要联机。**
+   */
+  function selectDefaultIfNeeded(): void {
+    if (selectedDungeonId.value) return;
+    const tierId = defaultTierId.value;
+    if (!tierId) return;
+    const ladder = localLadder(tierId);
+    const fallback = depthsInStage(stagesInTier(tierId)[0]?.stageId ?? '')[0]?.id ?? null;
+    selectedDungeonId.value = ladder[ladder.length - 1]?.dungeonId ?? fallback;
+  }
+
   /** 切层：先换选中项让 UI 立刻响应，再补数据。 */
   async function selectDungeon(dungeonId: string): Promise<void> {
     selectedDungeonId.value = dungeonId;
@@ -294,16 +319,17 @@ export const useDungeonBoardStore = defineStore('dungeonBoard', () => {
    * （improved）再静默刷新当前层。
    */
   async function openBoard(): Promise<void> {
-    if (!(await connect())) return;
+    /*
+     * ★ 选层要在联机之前做，别挪到 connect 后面。
+     *
+     * 选哪一层是纯本地的事。挪到 connect 之后，单机玩家（isSupabaseConfigured
+     * 为假）与离线玩家会在 connect 失败时直接 return，**三级选择器的第三排
+     * 一个按钮都没有** —— 界面看起来就是坏的，而没有任何报错。
+     * 这个 bug 是挂载冒烟测试抓到的，源码断言抓不到它。
+     */
+    selectDefaultIfNeeded();
 
-    if (!selectedDungeonId.value) {
-      const tierId = defaultTierId.value;
-      if (!tierId) return;
-      const ladder = localLadder(tierId);
-      // 打过的档：默认落在他打到的最深那层（docs/64 §3.1）；没打过：第 1 层
-      const fallback = depthsInStage(stagesInTier(tierId)[0]?.stageId ?? '')[0]?.id ?? null;
-      selectedDungeonId.value = ladder[ladder.length - 1]?.dungeonId ?? fallback;
-    }
+    if (!(await connect())) return;
 
     const id = selectedDungeonId.value;
     if (id) await refreshBoard(id, true);

@@ -79,14 +79,28 @@ function fmtRowTime(at: number): string {
   });
 }
 
-const syncHint = computed(() => {
-  if (board.syncing) return '成绩同步中…';
-  if (!myBest.value) return '打通这一层，你的用时就会出现在榜上';
-  if (!board.lastSubmit) return '开榜时会自动把你的成绩交上去';
-  // improved=false 是常态不是失败：没打得更快时什么都不该变（docs/64 §二）
-  return board.lastSubmit.improved
-    ? '成绩已更新 —— 榜上那行就是你'
-    : '成绩已是最快，本次没有变化';
+/**
+ * 上报回执的三种结果，**必须在界面上长得不一样**（docs/64 §二之一）。
+ *
+ * `improved=false` 有两种截然不同的含义：
+ *   - claimVerified=true  → 没打得更快，这是常态，不是失败
+ *   - claimVerified=false → **我们没采信你这一条**
+ *
+ * 只看 improved 的话这两种情况一模一样。一个真实玩家若因判定口径漂移
+ * 被持续判为不可信，他永远不会知道 —— 那是最难被发现的坏法，
+ * 所以这里宁可多一行字，也要把「没进步」和「没采信」分开说。
+ */
+const syncState = computed<{ text: string; warn: boolean }>(() => {
+  if (board.syncing) return { text: '成绩同步中…', warn: false };
+  if (!myBest.value) return { text: '打通这一层，你的用时就会出现在榜上', warn: false };
+  const submit = board.lastSubmit;
+  if (!submit) return { text: '开榜时会自动把你的成绩交上去', warn: false };
+  if (!submit.claimVerified) {
+    return { text: '这次的成绩没有被采信，暂不计入榜单 —— 记录仍在本地保留', warn: true };
+  }
+  return submit.improved
+    ? { text: '成绩已更新 —— 榜上那行就是你', warn: false }
+    : { text: '成绩已是最快，本次没有变化', warn: false };
 });
 
 function selectTier(tierId: string): void {
@@ -129,7 +143,7 @@ onMounted(() => {
         </span>
       </div>
 
-      <p class="depths-hint">{{ syncHint }}</p>
+      <p class="depths-hint" :class="{ warn: syncState.warn }">{{ syncState.text }}</p>
 
       <div v-if="board.status === 'unconfigured'" class="net-banner">
         <Info :size="13" aria-hidden="true" />
@@ -348,6 +362,11 @@ onMounted(() => {
   margin-top: 8px;
   font-size: 11px;
   color: var(--text-dim);
+}
+/* 「没被采信」不能和「没进步」长得一样 —— 见 syncState 的注释 */
+.depths-hint.warn {
+  color: #c8851f;
+  font-weight: 600;
 }
 .depths-error {
   margin-top: 6px;
