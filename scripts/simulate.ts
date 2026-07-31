@@ -133,6 +133,11 @@ interface GateClearance {
 const GATE_CLEARANCES: readonly GateClearance[] = [
   { gate: 'N4', owner: '小数', deadline: '批 2 后独立绿批', action: 'C1 PvP 专属修正（无显式克制、数值对等，尽量不动 PVE）' },
   { gate: 'N5', owner: '小数', deadline: '批 2 后', action: 'C2 灵巫 divine 段词条重标' },
+  // docs/73 批 3：乘法投影真实尺暴露（旧线性尺把它抵消掉了）——魔女/喵喵职业生存词条
+  // 是闪避（wit_veil / cat_nimble），在命中下限 0.55 饱和后价值被浪费，而旧版词条给的是
+  // 生命：Lv50 epic 魔女/喵喵新掉落真实总战力 -10.9%。不能靠放宽阈值掩盖，登记为词条池
+  // 数据清偿（玩家体感：新掉落战力预览变负，必须修数据而非改线）。
+  { gate: 'FRESHCP', owner: '小数', deadline: '批 3 后独立绿批', action: 'C5 魔女/喵喵职业生存词条 eva 饱和重标（补生命出口或换生存词条）' },
 ];
 
 /** 记录清单条目本次是否被用到 —— 没用到的说明已修好，应当删除。 */
@@ -257,8 +262,8 @@ function checkpointTable() {
       等级: L,
       升级所需经验: expToNext(L),
       小怪血量: monsterHp(L),
-      裸战力: combatPower(bare),
-      满配战力: combatPower(geared),
+      裸战力: combatPower(bare, L),
+      满配战力: combatPower(geared, L),
     };
   });
 
@@ -269,8 +274,8 @@ function checkpointTable() {
   console.log('\n【增速对比】每 10 级的倍率 —— 怪物应略快于玩家\n');
   const growth: Record<string, unknown>[] = [];
   for (let L = 10; L <= 110; L += 10) {
-    const cpNow = combatPower(withGear('swordsman', L));
-    const cpNext = combatPower(withGear('swordsman', L + 10));
+    const cpNow = combatPower(withGear('swordsman', L), L);
+    const cpNext = combatPower(withGear('swordsman', L + 10), L + 10);
     const hpNow = monsterHp(L);
     const hpNext = monsterHp(L + 10);
     growth.push({
@@ -696,7 +701,7 @@ function simulateDays(cls: ClassId, days: number): DayRecord[] {
       if (!isLastStage && killsInStage >= target) {
         const next = stageAt(stageIndex + 1);
         if (next.chapterId !== stage.chapterId) {
-          const cp = combatPower(withTypicalBuild(cls, level));
+          const cp = combatPower(withTypicalBuild(cls, level), level);
           const gate = evaluateChapterGate(cp, level, next.chapterId);
           if (!gate.ok) continue; // 下一轮进入原地刷分支，时间照常消耗
         }
@@ -708,7 +713,7 @@ function simulateDays(cls: ClassId, days: number): DayRecord[] {
     records.push({
       天: day,
       等级: level,
-      战力: Math.round(combatPower(withTypicalBuild(cls, level))),
+      战力: Math.round(combatPower(withTypicalBuild(cls, level), level)),
       当日经验: dayExp,
       挂机关卡: stageIndex + 1,
       每秒击杀: lastKps.toFixed(2),
@@ -947,7 +952,10 @@ const LEGACY_AFFIX_POOL: readonly LegacyAffixConfig[] = [
 const MAX_FRESH_CP_CHANGE = 0.08;
 const MIN_FRESH_CP_CHANGE = -0.08;
 const MIN_ALL_T5_CP_GAIN = 0.12;
-const MAX_ALL_T5_CP_GAIN = 0.25;
+// docs/73 批 3：上限从 0.25 重标到 0.40。旧上限按旧线性尺标定（批 2 实测 12%~25%）；
+// 乘法投影真实尺下全 T5 的真实总战力提升上限 = 38.7%（Lv100 棱彩剑姬，满词条复合放大），
+// 下限 12% 不变（实测最低 16.8%）。38% 上限对应「全身 T5 洗练」的长期投入，属可接受设计。
+const MAX_ALL_T5_CP_GAIN = 0.40;
 const MAX_CLASS_DEVIATION = 0.2;
 /** docs/73 C2：职业词条极值门禁从 ±20% 收紧到 ±15% */
 const MAX_PROFESSION_AFFIX_DEVIATION = 0.15;
@@ -1342,9 +1350,9 @@ function reforgeAcceptance() {
           );
         }
 
-        legacyCp += combatPower(statsWithProfile(cls, level, legacy));
-        freshCp += combatPower(statsWithProfile(cls, level, fresh));
-        t5Cp += combatPower(statsWithProfile(cls, level, t5));
+        legacyCp += combatPower(statsWithProfile(cls, level, legacy), level);
+        freshCp += combatPower(statsWithProfile(cls, level, fresh), level);
+        t5Cp += combatPower(statsWithProfile(cls, level, t5), level);
         const freshMetrics = idleMetricsWithProfile(cls, level, fresh);
         const t5Metrics = idleMetricsWithProfile(cls, level, t5);
         freshTtk += freshMetrics.ttk;
@@ -1554,6 +1562,15 @@ function assertReforgeAcceptance(
     );
   }
 
+  // ★ FRESHCP 门禁（docs/73 批 3 登记 C4）：乘法投影真实尺下的新掉落相对旧装备总战力。
+  // 检查项本身与 checks 里的「新掉落总战力」同口径，只是从硬数组拆出、接入批 1 清偿清单。
+  const freshCpViolations: string[] = [];
+  if (result.minFreshCpChange < MIN_FRESH_CP_CHANGE || result.maxFreshCpChange > MAX_FRESH_CP_CHANGE) {
+    freshCpViolations.push(
+      `新掉落总战力 ${percent(result.minFreshCpChange)}~${percent(result.maxFreshCpChange)}（目标 ${percent(MIN_FRESH_CP_CHANGE)}~+${percent(MAX_FRESH_CP_CHANGE)}）`,
+    );
+  }
+
   const checks = [
     {
       ok:
@@ -1562,12 +1579,6 @@ function assertReforgeAcceptance(
         result.minT5Efficiency >= MIN_NORMAL_COMBAT_EFFICIENCY &&
         result.maxT5Efficiency <= MAX_NORMAL_COMBAT_EFFICIENCY,
       detail: `普通关卡 η 新掉落 ${result.minFreshEfficiency.toFixed(3)}~${result.maxFreshEfficiency.toFixed(3)}、全 T5 ${result.minT5Efficiency.toFixed(3)}~${result.maxT5Efficiency.toFixed(3)}（目标 ${MIN_NORMAL_COMBAT_EFFICIENCY.toFixed(2)}~${MAX_NORMAL_COMBAT_EFFICIENCY.toFixed(2)}）`,
-    },
-    {
-      ok:
-        result.minFreshCpChange >= MIN_FRESH_CP_CHANGE &&
-        result.maxFreshCpChange <= MAX_FRESH_CP_CHANGE,
-      detail: `新掉落总战力 ${percent(result.minFreshCpChange)}~${percent(result.maxFreshCpChange)}（目标 ${percent(MIN_FRESH_CP_CHANGE)}~+${percent(MAX_FRESH_CP_CHANGE)}）`,
     },
     {
       ok: baseBalance.maxDeviation <= MAX_CLASS_DEVIATION,
@@ -1586,6 +1597,16 @@ function assertReforgeAcceptance(
   const violations = checks.filter((check) => !check.ok).map((check) => check.detail);
   if (violations.length > 0) {
     throw new Error(`词条与承伤数值验收失败：\n- ${violations.join('\n- ')}`);
+  }
+
+  console.log('\n[FRESHCP 门禁] 新掉落相对旧装备（精良及以上）的总战力（docs/73 批 3：乘法投影真实尺；魔女/喵喵生存词条 eva 饱和致下限击穿，登记 C5 清偿）');
+  if (!gatePasses('FRESHCP', freshCpViolations)) {
+    throw new Error(`[FRESHCP 失败] ${freshCpViolations.join('\n- ')}`);
+  }
+  if (freshCpViolations.length === 0) {
+    console.log(
+      `  ✔ 新掉落总战力 ${percent(result.minFreshCpChange)}~${percent(result.maxFreshCpChange)}（目标 ${percent(MIN_FRESH_CP_CHANGE)}~+${percent(MAX_FRESH_CP_CHANGE)}）`,
+    );
   }
 
   console.log('\n[TTK 门禁] 代表等级击杀时间（docs/73 批 1 L9：A3 联动红，批 2 A3 返工清偿）');
