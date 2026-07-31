@@ -55,7 +55,8 @@ const stats = computed<Stats>(() =>
     : zeroStats(),
 );
 
-const cp = computed(() => inventory.contributionCp(props.inst));
+const currentScore = computed(() => inventory.currentScore(props.inst));
+const baseScore = computed(() => inventory.baseScore(props.inst));
 const baseGrade = computed(() => baseRollGrade(props.inst.baseRollPermille));
 const forgeStage = computed(() => forgeStageAt(props.inst.enhance));
 const enhanceBonus = computed(
@@ -128,13 +129,25 @@ const setOriginMark = computed(() => {
 const compare = computed(() => {
   if (props.from !== 'bag' || !def.value || !inventory.equipped) return null;
   const worn = inventory.equipped[def.value.slot];
-  if (!worn) return { delta: cp.value, wornName: '（空）' };
+  if (!worn) {
+    return {
+      delta: inventory.cpDelta(props.inst),
+      baseDelta: baseScore.value,
+      wornName: '（空）',
+      wornEnhance: 0,
+    };
+  }
   const wornDef = requireEquipment(worn.defId);
   return {
     delta: inventory.cpDelta(props.inst),
+    baseDelta: baseScore.value - inventory.baseScore(worn),
     wornName: wornDef.name,
+    wornEnhance: worn.enhance,
   };
 });
+const showCultivateHint = computed(
+  () => Boolean(compare.value && compare.value.delta < 0 && compare.value.baseDelta > 0 && compare.value.wornEnhance > 0),
+);
 
 /** 只显示非零的属性 */
 const shownStats = computed(() =>
@@ -204,15 +217,30 @@ function doDecompose() {
       </header>
 
       <div class="body scroll-y">
-        <div class="cp-row">
-          <span>战力</span>
-          <span class="cp num">{{ abbr(cp) }}</span>
+        <div class="score-grid">
+          <div class="cp-row">
+            <span>当前评分<small>包含已发生强化</small></span>
+            <span class="cp num">{{ abbr(currentScore) }}</span>
+          </div>
+          <div class="cp-row base-score">
+            <span>装备底子<small>统一按 +0 比较</small></span>
+            <span class="cp num">{{ abbr(baseScore) }}</span>
+          </div>
         </div>
 
-        <div v-if="compare" class="cmp" :class="compare.delta >= 0 ? 'up' : 'down'">
-          <span>对比已穿戴「{{ compare.wornName }}」</span>
-          <span class="num">{{ signed(compare.delta) }}</span>
-        </div>
+        <section v-if="compare" class="compare-stack">
+          <div class="cmp" :class="compare.delta >= 0 ? 'up' : 'down'">
+            <span>立即换装战力</span>
+            <span class="num">{{ signed(compare.delta) }}</span>
+          </div>
+          <div class="cmp base" :class="compare.baseDelta >= 0 ? 'up' : 'down'">
+            <span>对比「{{ compare.wornName }}」的 +0 底子</span>
+            <span class="num">{{ signed(compare.baseDelta) }}</span>
+          </div>
+          <p v-if="showCultivateHint" class="cultivate-hint">
+            当前穿戴含 +{{ compare.wornEnhance }} 强化投入；这件装备底子更好，但直接换上会暂时降低战力，建议先锁定并培养。
+          </p>
+        </section>
 
         <section class="growth-rolls">
           <span :class="`base-${baseGrade}`">
@@ -489,9 +517,17 @@ function doDecompose() {
   }
 }
 
+.score-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+}
+
 .cp-row {
   display: flex;
-  align-items: center;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
   justify-content: space-between;
   padding: 10px 12px;
   background: var(--blue-soft);
@@ -499,10 +535,35 @@ function doDecompose() {
   font-size: 12px;
 }
 
+.cp-row > span:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.cp-row small {
+  font-size: 8px;
+  font-weight: 500;
+  color: var(--text-dim);
+}
+
+.base-score {
+  background: rgb(229 248 243 / 78%);
+}
+
+.base-score .cp {
+  color: #3c9480;
+}
+
 .cp {
   font-size: 17px;
   font-weight: 800;
   color: var(--blue-deep);
+}
+
+.compare-stack {
+  display: grid;
+  gap: 5px;
 }
 
 .cmp {
@@ -523,6 +584,20 @@ function doDecompose() {
 .cmp.down {
   color: #a33b43;
   background: #ffeef0;
+}
+
+.cmp.base {
+  border: 1px dashed currentcolor;
+}
+
+.cultivate-hint {
+  padding: 8px 10px;
+  font-size: 10px;
+  line-height: 1.55;
+  color: #6d5b68;
+  background: linear-gradient(135deg, rgb(232 250 246 / 88%), rgb(255 241 248 / 90%));
+  border: 1px solid rgb(141 213 195 / 42%);
+  border-radius: var(--r-sm);
 }
 
 .growth-rolls {

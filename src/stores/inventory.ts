@@ -54,6 +54,14 @@ export const useInventoryStore = defineStore('inventory', () => {
     return game.equipmentCpDelta(inst);
   }
 
+  function currentScore(inst: EquipmentInstance): number {
+    return game.equipmentStableCurrentScore(inst);
+  }
+
+  function baseScore(inst: EquipmentInstance): number {
+    return game.equipmentStableBaseScore(inst);
+  }
+
   function contributionCp(inst: EquipmentInstance): number {
     return game.equipmentContributionCp(inst);
   }
@@ -120,6 +128,8 @@ export const useInventoryStore = defineStore('inventory', () => {
     setLockBulk,
     candidateCp,
     cpDelta,
+    currentScore,
+    baseScore,
     contributionCp,
     equipmentAdvancementOption,
     advanceEquipment,

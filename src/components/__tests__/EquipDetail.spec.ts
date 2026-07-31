@@ -2,16 +2,18 @@ import { createSSRApp, h } from 'vue';
 import { renderToString } from 'vue/server-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ActiveEquipmentSet } from '@/core/equipmentSets';
-import type { EquipmentInstance } from '@/core/types';
+import type { EquipSlot, EquipmentInstance } from '@/core/types';
 import { equipmentAdvancementOption as resolveEquipmentAdvancementOption } from '@/data/equipmentAdvancement';
 import { requireEquipment } from '@/data/equipment';
 import { REGION_CRIMSON_SET } from '@/data/regionEquipmentSets';
 import EquipDetail from '../EquipDetail.vue';
 
 const inventory = vi.hoisted(() => ({
-  equipped: null,
+  equipped: null as Partial<Record<EquipSlot, EquipmentInstance | null>> | null,
   contributionCp: vi.fn(() => 0),
   cpDelta: vi.fn(() => 0),
+  currentScore: vi.fn((_item: EquipmentInstance) => 128),
+  baseScore: vi.fn((_item: EquipmentInstance) => 96),
   equip: vi.fn(),
   unequip: vi.fn(),
   decompose: vi.fn(),
@@ -65,6 +67,10 @@ async function render(
 beforeEach(() => {
   vi.clearAllMocks();
   inventory.equipmentAdvancementOption.mockReturnValue(undefined);
+  inventory.equipped = null;
+  inventory.cpDelta.mockReturnValue(0);
+  inventory.currentScore.mockReturnValue(128);
+  inventory.baseScore.mockReturnValue(96);
   playerStore.equipmentSetResolution.sets = [];
 });
 
@@ -77,6 +83,31 @@ describe('装备详情的武器元素来源', () => {
   it('非武器不渲染武器元素标签', async () => {
     const html = await render('eq_r2_ring_fine');
     expect(html).not.toContain('属性武器');
+  });
+
+  it('分别展示包含强化的当前评分与统一按 +0 计算的装备底子', async () => {
+    const html = await render('eq_r2_weapon_fine');
+    expect(html).toContain('当前评分');
+    expect(html).toContain('装备底子');
+    expect(html).toContain('统一按 +0 比较');
+  });
+
+  it('强化旧装当前更强但新装底子更好时，同时给出真实换装结果与培养提示', async () => {
+    const worn = instance('eq_r1_weapon_common');
+    worn.enhance = 9;
+    worn.enhanceGainPermille = [
+      ...Array<number>(9).fill(82),
+      ...Array<number>(6).fill(0),
+    ];
+    inventory.equipped = { weapon: worn };
+    inventory.cpDelta.mockReturnValue(-240);
+    inventory.baseScore.mockImplementation((item) => (item.uid === worn.uid ? 70 : 96));
+
+    const html = await render('eq_r2_weapon_fine');
+    expect(html).toContain('立即换装战力');
+    expect(html).toContain('的 +0 底子');
+    expect(html).toContain('当前穿戴含 +9 强化投入');
+    expect(html).toContain('建议先锁定并培养');
   });
 
   it('背包与穿戴详情都从同一路线接口展示升阶入口，无路线时不展示', async () => {

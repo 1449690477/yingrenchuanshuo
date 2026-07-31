@@ -11,7 +11,7 @@ import { requireEquipment } from '@/data/equipment';
 import { equipmentDisplayPresentation } from '@/data/equipmentPresentation';
 import { equipmentAdvancementOption as resolveEquipmentAdvancementOption } from '@/data/equipmentAdvancement';
 import { requireItem } from '@/data/items';
-import { QUALITY_LABELS, SLOT_LABELS } from '@/data/constants';
+import { QUALITY_LABELS, SLOT_LABELS, SLOT_ORDER } from '@/data/constants';
 import EquipDetail from '@/components/EquipDetail.vue';
 import CrimsonForgePanel from '@/components/CrimsonForgePanel.vue';
 import EquipmentAdvancementPanel from '@/components/EquipmentAdvancementPanel.vue';
@@ -29,6 +29,7 @@ const activeClassId = computed(() => {
   return classId;
 });
 const tab = ref<'equip' | 'item'>('equip');
+const scoreSort = ref<'current' | 'base'>('current');
 const detail = ref<EquipmentInstance | null>(null);
 const advancement = ref<EquipmentInstance | null>(null);
 const toast = ref('');
@@ -113,18 +114,34 @@ const bagEquips = computed(() => {
   // ⚠ 关键：战力只算一遍。
   // 早先写成 sort((a,b) => scoreOf(b) - scoreOf(a))，
   // 1.5 万件时 sort 会触发约 43 万次战力计算，页面直接假死。
+  const wornBaseBySlot = new Map(
+    SLOT_ORDER.map((slot) => {
+      const worn = inventory.equipped?.[slot];
+      return [slot, worn ? inventory.baseScore(worn) : 0] as const;
+    }),
+  );
   const scored = list.map((inst) => {
     const def = requireEquipment(inst.defId);
+    const currentScore = inventory.currentScore(inst);
+    const baseScore = inventory.baseScore(inst);
     return {
       inst,
       def,
       presentation: equipmentDisplayPresentation(def, activeClassId.value),
-      score: scoreOf(inst),
+      currentScore,
+      baseScore,
+      baseDelta: baseScore - (wornBaseBySlot.get(def.slot) ?? 0),
       // 直接用已经解析出的定义做 O(1) 路线判断；不要为每一行再按 UID 扫描背包。
       canAdvance: Boolean(resolveEquipmentAdvancementOption(def)),
     };
   });
-  scored.sort((a, b) => b.score - a.score);
+  scored.sort((a, b) => {
+    const delta =
+      scoreSort.value === 'current'
+        ? b.currentScore - a.currentScore
+        : b.baseScore - a.baseScore;
+    return delta || a.inst.uid.localeCompare(b.inst.uid);
+  });
   return scored;
 });
 
@@ -219,10 +236,6 @@ const canConfirmDecompose = computed(
     decomposePlan.value.targets.length > 0 &&
     (!hasHighRiskSelection.value || highRiskConfirmed.value),
 );
-
-function scoreOf(inst: EquipmentInstance): number {
-  return inventory.contributionCp(inst);
-}
 
 function openDecompose(event: MouseEvent): void {
   decomposeReturnFocus = event.currentTarget as HTMLElement;
@@ -453,6 +466,23 @@ onUnmounted(() => {
       <button class="btn btn-plain sm" @click="openDecompose">批量分解</button>
     </div>
 
+    <div v-if="tab === 'equip'" class="score-sort" role="group" aria-label="装备评分排序">
+      <button
+        :class="{ on: scoreSort === 'current' }"
+        :aria-pressed="scoreSort === 'current'"
+        @click="scoreSort = 'current'"
+      >
+        当前强度
+      </button>
+      <button
+        :class="{ on: scoreSort === 'base' }"
+        :aria-pressed="scoreSort === 'base'"
+        @click="scoreSort = 'base'"
+      >
+        培养潜力
+      </button>
+    </div>
+
     <div class="list scroll-y" :class="{ 'equip-list': tab === 'equip' }">
       <template v-if="tab === 'equip'">
         <p v-if="equipCount === 0" class="empty">
@@ -487,6 +517,9 @@ onUnmounted(() => {
                 <span v-if="row.inst.pendingAffixChange" class="pending-affix-badge">
                   洗练待确认
                 </span>
+                <span v-if="row.baseDelta > 0" class="potential-badge">
+                  底子更好
+                </span>
               </span>
               <span class="sub">
                 {{ SLOT_LABELS[row.def.slot] }} · {{ QUALITY_LABELS[row.def.quality] }} · Lv{{
@@ -495,8 +528,12 @@ onUnmounted(() => {
               </span>
             </span>
             <span class="cp">
-              <span class="cp-label">战力</span>
-              <span class="num">{{ abbr(row.score) }}</span>
+              <span class="cp-pair">
+                <small>当前</small><b class="num">{{ abbr(row.currentScore) }}</b>
+              </span>
+              <span class="cp-pair base">
+                <small>底子</small><b class="num">{{ abbr(row.baseScore) }}</b>
+              </span>
             </span>
           </button>
           <button
@@ -953,6 +990,41 @@ onUnmounted(() => {
   font-size: 12px;
 }
 
+.score-sort {
+  align-self: center;
+  display: flex;
+  gap: 3px;
+  padding: 3px;
+  background: rgb(231 243 252 / 78%);
+  border: 1px solid rgb(180 215 237 / 52%);
+  border-radius: 999px;
+}
+
+.score-sort button {
+  min-height: 28px;
+  padding: 4px 13px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-dim);
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  transition:
+    color var(--t-fast) ease,
+    background var(--t-fast) ease,
+    transform var(--t-fast) var(--ease-spring);
+}
+
+.score-sort button:active {
+  transform: scale(0.96);
+}
+
+.score-sort button.on {
+  color: #76546d;
+  background: rgb(255 255 255 / 92%);
+  box-shadow: 0 2px 8px rgb(96 144 176 / 12%);
+}
+
 .list {
   flex: 1;
   min-height: 0;
@@ -1206,6 +1278,18 @@ onUnmounted(() => {
   border-radius: 999px;
 }
 
+.potential-badge {
+  flex: none;
+  padding: 1px 5px;
+  font-size: 8px;
+  font-weight: 800;
+  line-height: 1.4;
+  color: #377f70;
+  background: rgb(205 246 235 / 60%);
+  border: 1px solid rgb(119 207 184 / 42%);
+  border-radius: 999px;
+}
+
 .enh {
   font-size: 11px;
   color: var(--q-legendary);
@@ -1224,16 +1308,27 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 1px;
+  gap: 2px;
   font-size: 10px;
   font-weight: 700;
   color: var(--blue-deep);
 }
 
-.cp-label {
+.cp-pair {
+  display: grid;
+  grid-template-columns: auto minmax(36px, auto);
+  gap: 4px;
+  align-items: baseline;
+}
+
+.cp-pair small {
   font-size: 8px;
   font-weight: 500;
   color: var(--text-dim);
+}
+
+.cp-pair.base b {
+  color: #3c9480;
 }
 
 .toast {
