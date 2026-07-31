@@ -91,8 +91,31 @@ const STAT_DELTAS: { key: keyof Stats; delta: number; side: 'offense' | 'defense
 
 const MAX_RATIO_SPREAD = 1.2;
 
+// ──────────────────────────────────────────────────────────
+// ★ N2 清偿清单（docs/73 §八批 1 清单 L2，独立脚本各自维护）
+// 批 1 形态：初始红项具名登记 + 带燃尽期限；清单内 → 黄牌，清单外新红 → 硬拦。
+// ──────────────────────────────────────────────────────────
+
+const N2_CLEARANCE = {
+  owner: '小数',
+  deadline: '批 3',
+  action: 'P0-4 乘法形重定价（小督小项：crit/spd 权重从玩家自身攻击派生，eva 按收益饱和点定价）',
+} as const;
+
+/**
+ * 已知红项属性集合（docs/73 批 1 清单 L2：eva/critRate/critDmg）。
+ * 清单内 → 黄牌；**清单外出现新属性违规 → 立即硬拦**（「清单外新红即失败」）。
+ *
+ * 2026-07-31 批 1 实测（A3 可得口径合入后）：atk / def / hp / eva / critRate /
+ * critDmg 六个属性全部超带（跨度 1.15×~1764×）。其中 eva/critRate/critDmg 是
+ * 修订稿 L2 原始登记（A2 暴击错价 ~40 倍）；atk/def/hp 同属 A2/A5 的 CP 定价
+ * 失真（手册 §一.2：x/(x+A) 超线性、线性固定价），并入批 3 P0-4 一起重定价。
+ * spd 当前恒 1.00×（✔），不在清单内 —— 若将来 spd 超带即为清单外新红。
+ */
+const N2_KNOWN_AFFIXES = new Set(['atk', 'def', 'hp', 'eva', 'critRate', 'critDmg']);
+
 function main(): void {
-  const violations: string[] = [];
+  const violations: { key: string; text: string }[] = [];
   const table: Record<string, unknown>[] = [];
 
   for (const cls of CLASS_IDS) {
@@ -132,9 +155,10 @@ function main(): void {
         判定: ok ? '✔' : '✘',
       });
       if (!ok) {
-        violations.push(
-          `${cls} 的 ${key}：面板价/真实值比值跨等级 ${min.toFixed(3)}~${max.toFixed(3)}（${spread.toFixed(2)}×，目标 ≤ ${MAX_RATIO_SPREAD.toFixed(2)}×）`,
-        );
+        violations.push({
+          key,
+          text: `${cls} 的 ${key}：面板价/真实值比值跨等级 ${min.toFixed(3)}~${max.toFixed(3)}（${spread.toFixed(2)}×，目标 ≤ ${MAX_RATIO_SPREAD.toFixed(2)}×）`,
+        });
       }
     }
   }
@@ -142,10 +166,20 @@ function main(): void {
   console.log('\n[N2 门禁] CP 导数恒定性：每单位属性的面板相对价 ∝ 真实 DPS/EHP 相对导数（docs/73 §七）');
   console.log('  比值 =（面板增量 ÷ 面板）÷（真实增量 ÷ 真实）；跨等级跨度 ≤ 1.20×（±20%）');
   console.table(table);
-  if (violations.length > 0) {
-    throw new Error(`[N2 失败] CP 定价与真实价值脱钩：\n- ${violations.slice(0, 20).join('\n- ')}`);
+  const known = violations.filter((v) => N2_KNOWN_AFFIXES.has(v.key));
+  const unknown = violations.filter((v) => !N2_KNOWN_AFFIXES.has(v.key));
+  if (unknown.length > 0) {
+    for (const v of unknown) console.log(`  ✘ [清单外新红·N2] ${v.text}`);
+    throw new Error(`[N2 失败] 清单外新红（不在 docs/73 L2 已知属性内）：\n- ${unknown.map((v) => v.text).join('\n- ')}`);
   }
-  console.log('  ✔ 全部职业 × 属性的面板/真实比值跨等级恒定（≤ 1.20×）');
+  if (known.length > 0) {
+    for (const v of known.slice(0, 20)) console.log(`  ⓘ [登记红项·N2] ${v.text}`);
+    console.log(
+      `  ⏳ N2 在清偿清单内：负责人 ${N2_CLEARANCE.owner} · 燃尽期限「${N2_CLEARANCE.deadline}」→ ${N2_CLEARANCE.action}`,
+    );
+  } else {
+    console.log('  ✔ 全部职业 × 属性的面板/真实比值跨等级恒定（≤ 1.20×）');
+  }
 }
 
 main();

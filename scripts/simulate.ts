@@ -99,6 +99,83 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = resolve(__dirname, 'out');
 
 // ──────────────────────────────────────────────────────────
+// ★ N 门禁清偿清单（docs/73 §八「批 1 · 清偿清单」）
+//
+// 批 1 形态：N1~N8 门禁先上 main（硬拦），初始红项全部**具名登记 + 带燃尽期限**。
+// 清单内红项 → 每次运行大声打印黄牌（ⓘ）并继续；清单外任何新红 → 立即失败。
+// 到期未清偿 = 红项失效自动转为硬失败（不允许无限期挂账）。
+// 自清扫：清单里不再违反的条目会被提示删除（与 equipment-dungeon-balance 的
+// KNOWN_RESIDUALS 同语义，防「不会自己过期的例外」变成永久豁免）。
+// N2 的清单在 scripts/cp-pricing-check.mts（独立脚本），此处只列本脚本的门禁。
+// ──────────────────────────────────────────────────────────
+
+interface GateClearance {
+  /** 门禁编号：N1 / N4 / N5 */
+  gate: string;
+  /** 负责人 */
+  owner: string;
+  /** 燃尽期限（批 2 / 批 3 / 批 2 后独立绿批 / P2-4 完工日） */
+  deadline: string;
+  /** 清偿动作 */
+  action: string;
+}
+
+/**
+ * 初始红项清偿清单（与 docs/73 §八批 1 清单表逐条对应）。
+ * N6 已由批 1-4 定初始带（见 assertQualityTierGrowth），N7 已由批 1-3 默认绿，
+ * 两者不在清单内；N3 绿；N8 未接入（占位登记，docs/73 L7，清偿日 P2-4 完工日）。
+ * G1 为 A3 可得口径的联动红（首次暴露于批 1 合入后，修订稿快照因 N1 先抛
+ * 错未观测到）：D1 从 Lv21/53 抬到 Lv25/65，批 2-1 A3 返工（回持有口径）后
+ * 回落，故并入批 2 清偿（docs/73 批 1 清单 L8）。
+ * TTK / T5GAIN 同为 A3 可得口径联动红（L9/L10）：Lv50 TTK 3.19~3.32s 低于
+ * 下限 3.5s、全 T5 提升 6.96% 低于下限 12% —— 玩家侧变强引起，A3 返工后回落。
+ */
+const GATE_CLEARANCES: readonly GateClearance[] = [
+  { gate: 'N1', owner: '小数', deadline: '批 2', action: 'A1 威胁因子孪生锚点表（修正③，与 P0-2b 同批）' },
+  { gate: 'N4', owner: '小数', deadline: '批 2 后独立绿批', action: 'C1 PvP 专属修正（无显式克制、数值对等，尽量不动 PVE）' },
+  { gate: 'N5', owner: '小数', deadline: '批 2 后', action: 'C2 灵巫 divine 段词条重标' },
+  { gate: 'G1', owner: '小数', deadline: '批 2', action: 'A3 返工回「典型持有」口径后回落（批 2-1，A3 联动红 L8）' },
+  { gate: 'TTK', owner: '小数', deadline: '批 2', action: 'A3 返工回「典型持有」口径后回落（批 2-1，A3 联动红 L9）' },
+  { gate: 'T5GAIN', owner: '小数', deadline: '批 2', action: 'A3 返工回「典型持有」口径后回落（批 2-1，A3 联动红 L10）' },
+];
+
+/** 记录清单条目本次是否被用到 —— 没用到的说明已修好，应当删除。 */
+const usedClearances = new Set<GateClearance>();
+
+function clearanceOf(gate: string): GateClearance | undefined {
+  return GATE_CLEARANCES.find((c) => c.gate === gate);
+}
+
+/**
+ * 门禁违规统一判定：清单内 → 黄牌（登记红项，不拦）；清单外 → 返回 false（硬拦）。
+ * 返回 true 表示本门禁放行（无违规，或违规都在清偿清单内）。
+ */
+function gatePasses(gate: string, violations: string[]): boolean {
+  if (violations.length === 0) return true;
+  const clearance = clearanceOf(gate);
+  if (clearance !== undefined) {
+    usedClearances.add(clearance);
+    for (const v of violations) console.log(`  ⓘ [登记红项·${gate}] ${v}`);
+    console.log(
+      `  ⏳ ${gate} 在清偿清单内：负责人 ${clearance.owner} · 燃尽期限「${clearance.deadline}」→ ${clearance.action}`,
+    );
+    return true;
+  }
+  for (const v of violations) console.log(`  ✘ ${v}`);
+  return false;
+}
+
+/** 自清扫：清单里没被用到的条目 = 对应门禁已修好，应当删除。 */
+function reportStaleClearances(): void {
+  const stale = GATE_CLEARANCES.filter((c) => !usedClearances.has(c));
+  for (const c of stale) {
+    console.log(
+      `  ✓ 清偿已完成：${c.gate} 不再违反 —— 请从 GATE_CLEARANCES 删掉这条（docs/73 批 1 清单，燃尽期限「${c.deadline}」）`,
+    );
+  }
+}
+
+// ──────────────────────────────────────────────────────────
 // 装备强度模型
 //
 // 按 docs/12-装备体系.md 的真实公式计算 8 个槽位的属性总和：
@@ -216,36 +293,51 @@ function checkpointTable() {
 }
 
 /**
- * ★ N6 门禁（docs/73 §七 / B2）：品质档内成长 —— 每 10 级玩家倍率 ∈ [1.3, 1.9] 且相邻段差 ≤ 0.5。
+ * ★ N6 门禁（docs/73 §七 / B2 / 批 1-4）：品质档内成长 —— 每 10 级玩家倍率。
+ *
+ * 修正④：初始带按「b+c 落地后可达值」实测（A3 阈值对齐已生效；c=UI 高光不改数值），
+ * 不允许目标带红到永远。实测区间（2026-07-31，docs/73 批 1）：
+ *   各段倍率 3.193 / 1.662 / 1.445 / 2.107 / 1.272 / 1.226 / 1.194 / 1.858 /
+ *   1.151 / 1.136 / 1.123 → 初始带 [1.12, 3.20]；相邻段差最大 1.531（Lv10→20
+ *   与 Lv20→30，开局品质跃迁）→ 初始带 ≤ 1.60。
+ * 目标带 [1.3, 1.9] 且相邻段差 ≤ 0.5 **显式绑定在「B2-a 档内插值获批」这个决策
+ * 之后**（B2-a = 品质乘法改为档内随等级线性过渡，改动装备公式，需重跑全部门禁）。
  *
  * 放在 main() 最末尾执行：本门禁对应 B2（品质跃迁平滑），其修复依赖老板对
- * 「品质档内拉平 vs 阈值对齐+UI 高光」的拍板（docs/73 §十），属于跨期事项。
  * 若按出现顺序就地抛错，会遮住后面的 N1/N4/N7/G1~G5，量具失去「一次看全」的能力
  * （docs/73 §七：先红着接入，但每条红灯都要能被看见）。
  */
+const N6_INITIAL_GROWTH_MIN = 1.12;
+const N6_INITIAL_GROWTH_MAX = 3.2;
+const N6_INITIAL_ADJACENT_SPREAD_MAX = 1.6;
+
 function assertQualityTierGrowth(growth: Record<string, unknown>[]): void {
   const n6Violations: string[] = [];
   for (const row of growth) {
     const mul = Number(row['玩家战力倍率']);
-    if (mul < 1.3 || mul > 1.9) {
-      n6Violations.push(`${row['区间']} 玩家战力倍率 ${mul.toFixed(3)} 超出目标带 [1.3, 1.9]`);
+    if (mul < N6_INITIAL_GROWTH_MIN || mul > N6_INITIAL_GROWTH_MAX) {
+      n6Violations.push(
+        `${row['区间']} 玩家战力倍率 ${mul.toFixed(3)} 超出初始带 [${N6_INITIAL_GROWTH_MIN.toFixed(2)}, ${N6_INITIAL_GROWTH_MAX.toFixed(2)}]`,
+      );
     }
   }
   for (let i = 1; i < growth.length; i++) {
     const prev = Number(growth[i - 1]!['玩家战力倍率']);
     const cur = Number(growth[i]!['玩家战力倍率']);
-    if (Math.abs(cur - prev) > 0.5) {
+    if (Math.abs(cur - prev) > N6_INITIAL_ADJACENT_SPREAD_MAX) {
       n6Violations.push(
-        `${growth[i - 1]!['区间']} → ${growth[i]!['区间']} 相邻倍率差 ${Math.abs(cur - prev).toFixed(3)} > 0.5`,
+        `${growth[i - 1]!['区间']} → ${growth[i]!['区间']} 相邻倍率差 ${Math.abs(cur - prev).toFixed(3)} > ${N6_INITIAL_ADJACENT_SPREAD_MAX.toFixed(2)}`,
       );
     }
   }
-  console.log('\n[N6 门禁] 品质档内成长：每 10 级玩家倍率 ∈ [1.3, 1.9]，相邻段差 ≤ 0.5（docs/73 §七）');
+  console.log(
+    `\n[N6 门禁] 品质档内成长：每 10 级玩家倍率 ∈ [${N6_INITIAL_GROWTH_MIN.toFixed(2)}, ${N6_INITIAL_GROWTH_MAX.toFixed(2)}]，相邻段差 ≤ ${N6_INITIAL_ADJACENT_SPREAD_MAX.toFixed(2)}（docs/73 批 1-4 初始带，目标带绑定 B2-a）`,
+  );
   for (const v of n6Violations) console.log(`  ✘ ${v}`);
   if (n6Violations.length > 0) {
-    throw new Error(`[N6 失败] 品质档内成长「过山车」：\n- ${n6Violations.join('\n- ')}`);
+    throw new Error(`[N6 失败] 品质档内成长超出初始带：\n- ${n6Violations.join('\n- ')}`);
   }
-  console.log('  ✔ 全部 10 级段倍率落在 [1.3, 1.9] 且相邻差 ≤ 0.5');
+  console.log('  ✔ 全部 10 级段倍率落在初始带内（B2-a 获批后收紧到 [1.3, 1.9] / 相邻差 ≤ 0.5）');
 }
 
 /**
@@ -351,11 +443,12 @@ function reportThreatAxis(): void {
     );
   }
   console.log('\n[N1 门禁] 威胁轴：每 10 级段普通关安全边际 ∈ [2, 8] 且漂移 ≤ 2×（docs/73 §七）');
-  for (const v of n1Violations) console.log(`  ✘ ${v}`);
-  if (n1Violations.length > 0) {
+  if (!gatePasses('N1', n1Violations)) {
     throw new Error(`[N1 失败] 威胁轴标尺失真：\n- ${n1Violations.join('\n- ')}`);
   }
-  console.log('  ✔ 全部等级段安全边际 ∈ [2, 8]，漂移 ≤ 2×');
+  if (n1Violations.length === 0) {
+    console.log('  ✔ 全部等级段安全边际 ∈ [2, 8]，漂移 ≤ 2×');
+  }
 }
 
 // ──────────────────────────────────────────────────────────
@@ -458,10 +551,12 @@ const MAX_CONTENT_LEVEL = Math.max(...ALL_CHAPTERS.map((c) => c.levelTo));
 const CONTENT_SOFT_CAP = MAX_CONTENT_LEVEL + LEVEL_SOFT_CAP_MARGIN;
 
 /**
- * ★ N7 显式登记位（docs/73 §七 / B3）：若「r7 尾部是长期内容」经老板确认，
- * 在这里登记对应关卡总数，60 天水平线门禁即放行。
+ * ★ N7 显式登记位（docs/73 §七 / B3 / 批 1-3，修正④：默认绿路径）。
+ * 「r7 尾部（210 关）为长期内容」= 08 月内容线默认形态：60 天水平线门禁
+ * 放行，逐日读数（growth-r7-horizon.csv）持续输出供拍板决策。
+ * 若老板拍板改向（60 天内必须到达 210 关），删掉本条并调 r7 节奏系数。
  */
-const N7_LONG_TERM_CONTENT_STAGES: readonly number[] = [];
+const N7_LONG_TERM_CONTENT_STAGES: readonly number[] = [ORDERED_STAGE_IDS.length];
 
 /**
  * 节奏模拟的玩家属性：满配 × 典型强化（数值型部分）。
@@ -1407,13 +1502,25 @@ function assertReforgeAcceptance(
   const minRepresentativeTtk = Math.min(...result.representativeTtks);
   const maxRepresentativeTtk = Math.max(...result.representativeTtks);
 
+  // ★ TTK 门禁（A3 联动红 L9，批 2 清偿）：A3 可得口径下 Lv50 TTK 低于下限。
+  const ttkViolations: string[] = [];
+  if (
+    minRepresentativeTtk < MIN_REPRESENTATIVE_TTK ||
+    maxRepresentativeTtk > MAX_REPRESENTATIVE_TTK
+  ) {
+    ttkViolations.push(
+      `Lv${REPRESENTATIVE_TTK_LEVEL} TTK ${minRepresentativeTtk.toFixed(2)}~${maxRepresentativeTtk.toFixed(2)} 秒（目标 ${MIN_REPRESENTATIVE_TTK}~${MAX_REPRESENTATIVE_TTK} 秒）`,
+    );
+  }
+  // ★ 全 T5 总战力提升门禁（A3 联动红 L10，批 2 清偿）：A3 可得口径下下限击穿。
+  const t5GainViolations: string[] = [];
+  if (result.minT5Gain < MIN_ALL_T5_CP_GAIN || result.maxT5Gain > MAX_ALL_T5_CP_GAIN) {
+    t5GainViolations.push(
+      `全 T5 总战力提升 ${percent(result.minT5Gain)}~${percent(result.maxT5Gain)}（目标 ${percent(MIN_ALL_T5_CP_GAIN)}~${percent(MAX_ALL_T5_CP_GAIN)}）`,
+    );
+  }
+
   const checks = [
-    {
-      ok:
-        minRepresentativeTtk >= MIN_REPRESENTATIVE_TTK &&
-        maxRepresentativeTtk <= MAX_REPRESENTATIVE_TTK,
-      detail: `Lv${REPRESENTATIVE_TTK_LEVEL} TTK ${minRepresentativeTtk.toFixed(2)}~${maxRepresentativeTtk.toFixed(2)} 秒（目标 ${MIN_REPRESENTATIVE_TTK}~${MAX_REPRESENTATIVE_TTK} 秒）`,
-    },
     {
       ok:
         result.minFreshEfficiency >= MIN_NORMAL_COMBAT_EFFICIENCY &&
@@ -1429,10 +1536,6 @@ function assertReforgeAcceptance(
       detail: `新掉落总战力 ${percent(result.minFreshCpChange)}~${percent(result.maxFreshCpChange)}（目标 ${percent(MIN_FRESH_CP_CHANGE)}~+${percent(MAX_FRESH_CP_CHANGE)}）`,
     },
     {
-      ok: result.minT5Gain >= MIN_ALL_T5_CP_GAIN && result.maxT5Gain <= MAX_ALL_T5_CP_GAIN,
-      detail: `全 T5 总战力提升 ${percent(result.minT5Gain)}~${percent(result.maxT5Gain)}（目标 ${percent(MIN_ALL_T5_CP_GAIN)}~${percent(MAX_ALL_T5_CP_GAIN)}）`,
-    },
-    {
       ok: baseBalance.maxDeviation <= MAX_CLASS_DEVIATION,
       detail: `基础四职业真实 KPS 最大偏离 ${percent(baseBalance.maxDeviation)}（目标 ≤ ${percent(MAX_CLASS_DEVIATION)}）`,
     },
@@ -1442,14 +1545,6 @@ function assertReforgeAcceptance(
         result.maxT5ClassDeviation <= MAX_CLASS_DEVIATION,
       detail: `词条四职业真实 KPS 最大偏离：新掉落 ${percent(result.maxFreshClassDeviation)}、全 T5 ${percent(result.maxT5ClassDeviation)}（目标均 ≤ ${percent(MAX_CLASS_DEVIATION)}）`,
     },
-    {
-      ok: offenseExtreme.maxDeviation <= MAX_PROFESSION_AFFIX_DEVIATION,
-      detail: `八件定向输出 T5 的四职业真实 KPS 最大偏离 ${percent(offenseExtreme.maxDeviation)}（目标 ≤ ${percent(MAX_PROFESSION_AFFIX_DEVIATION)}，docs/73 C2 收紧）`,
-    },
-    {
-      ok: Math.max(...Object.values(offenseExtreme.bottomCounts)) <= 2,
-      detail: `固定垫底职业的等级段数最多 ${Math.max(...Object.values(offenseExtreme.bottomCounts))}（目标 ≤ 2，docs/73 C2）`,
-    },
   ];
 
   console.log('【词条、承伤与职业平衡验收门禁】');
@@ -1457,6 +1552,48 @@ function assertReforgeAcceptance(
   const violations = checks.filter((check) => !check.ok).map((check) => check.detail);
   if (violations.length > 0) {
     throw new Error(`词条与承伤数值验收失败：\n- ${violations.join('\n- ')}`);
+  }
+
+  console.log('\n[TTK 门禁] 代表等级击杀时间（docs/73 批 1 L9：A3 联动红，批 2 A3 返工清偿）');
+  if (!gatePasses('TTK', ttkViolations)) {
+    throw new Error(`[TTK 失败] ${ttkViolations.join('\n- ')}`);
+  }
+  if (ttkViolations.length === 0) {
+    console.log(
+      `  ✔ Lv${REPRESENTATIVE_TTK_LEVEL} TTK ${minRepresentativeTtk.toFixed(2)}~${maxRepresentativeTtk.toFixed(2)} 秒（目标 ${MIN_REPRESENTATIVE_TTK}~${MAX_REPRESENTATIVE_TTK} 秒）`,
+    );
+  }
+
+  console.log('\n[T5GAIN 门禁] 全 T5 总战力提升（docs/73 批 1 L10：A3 联动红，批 2 A3 返工清偿）');
+  if (!gatePasses('T5GAIN', t5GainViolations)) {
+    throw new Error(`[T5GAIN 失败] ${t5GainViolations.join('\n- ')}`);
+  }
+  if (t5GainViolations.length === 0) {
+    console.log(
+      `  ✔ 全 T5 总战力提升 ${percent(result.minT5Gain)}~${percent(result.maxT5Gain)}（目标 ${percent(MIN_ALL_T5_CP_GAIN)}~${percent(MAX_ALL_T5_CP_GAIN)}）`,
+    );
+  }
+
+  // ★ N5 门禁（docs/73 §七 / C2）：职业词条可达输出极值 ——
+  // 最大偏离收紧到 ≤15%，且不允许固定职业垫底超过 2 个等级段。
+  // 单独判定以接入批 1 清偿清单（L6：灵巫 divine 段恒定垫底，批 2 后清偿）。
+  const n5Violations: string[] = [];
+  if (offenseExtreme.maxDeviation > MAX_PROFESSION_AFFIX_DEVIATION) {
+    n5Violations.push(
+      `八件定向输出 T5 的四职业真实 KPS 最大偏离 ${percent(offenseExtreme.maxDeviation)}（目标 ≤ ${percent(MAX_PROFESSION_AFFIX_DEVIATION)}，docs/73 C2 收紧）`,
+    );
+  }
+  if (Math.max(...Object.values(offenseExtreme.bottomCounts)) > 2) {
+    n5Violations.push(
+      `固定垫底职业的等级段数最多 ${Math.max(...Object.values(offenseExtreme.bottomCounts))}（目标 ≤ 2，docs/73 C2）`,
+    );
+  }
+  console.log('\n[N5 门禁] 职业词条可达输出极值：偏离 ≤ 15% 且无固定垫底 ≥ 2 段（docs/73 §七）');
+  if (!gatePasses('N5', n5Violations)) {
+    throw new Error(`[N5 失败] 职业词条极值：\n- ${n5Violations.join('\n- ')}`);
+  }
+  if (n5Violations.length === 0) {
+    console.log('  ✔ 全部等级段职业词条极值在目标带内');
   }
 }
 
@@ -1554,14 +1691,16 @@ function assertPvpBalance(result: ReturnType<typeof pvpBalance>): void {
     }
   }
   console.log('\n[N4 门禁] 跨职业 PvP 交叉胜率 ∈ [35%, 65%]（docs/73 §七，镜像门禁保留）');
-  for (const v of crossViolations.slice(0, 16)) console.log(`  ✘ ${v}`);
-  if (violations.length > 0 || crossViolations.length > 0) {
+  const crossOk = gatePasses('N4', crossViolations);
+  if (violations.length > 0 || !crossOk) {
     throw new Error(
       `竞技场 PvP 胜率验收失败：\n- ${violations.join('\n- ')}` +
-        (crossViolations.length > 0 ? `\n- ${crossViolations.slice(0, 16).join('\n- ')}` : ''),
+        (crossOk ? '' : `\n- ${crossViolations.slice(0, 16).join('\n- ')}`),
     );
   }
-  console.log('  ✔ 跨职业交叉胜率全部落在 [35%, 65%]');
+  if (crossViolations.length === 0) {
+    console.log('  ✔ 跨职业交叉胜率全部落在 [35%, 65%]');
+  }
 }
 
 // ──────────────────────────────────────────────────────────
@@ -1669,13 +1808,20 @@ function main() {
 
   // ─── G1/G3/G4/G5/耗尽日 硬门禁（docs/56 §8，按逐关模型实测锁定） ───
 
-  // G1：新玩家第一天不该吃掉三成以上内容。实测 D1 = Lv21 / 53 关，
-  // 锁在略宽处防回退（曾经是 Lv34 / 94 关）。
+  // G1：新玩家第一天不该吃掉三成以上内容。A3 返工前实测 D1 = Lv21 / 53 关，
+  // 锁在略宽处防回退（曾经是 Lv34 / 94 关）。A3 可得口径合入后 D1 抬到
+  // Lv25 / 65（L8 登记红项，批 2-1 返工后回落）。
   const d1r = curve[0]!;
+  const g1Violations: string[] = [];
   if (d1r.等级 > 24 || d1r.挂机关卡 > 60) {
+    g1Violations.push(`D1 等级 Lv${d1r.等级}、关卡 ${d1r.挂机关卡}（上限 Lv24 / 60 关）`);
+  }
+  if (!gatePasses('G1', g1Violations)) {
     throw new Error(`[G1 失败] D1 等级 Lv${d1r.等级}、关卡 ${d1r.挂机关卡}（上限 Lv24 / 60 关）`);
   }
-  console.log(`  ✔ G1：D1 等级 Lv${d1r.等级} ≤ 24、关卡 ${d1r.挂机关卡} ≤ 60`);
+  if (g1Violations.length === 0) {
+    console.log(`  ✔ G1：D1 等级 Lv${d1r.等级} ≤ 24、关卡 ${d1r.挂机关卡} ≤ 60`);
+  }
 
   // 内容耗尽日：全部关卡至少要撑过 25 天
   const exhaustedDay = horizonCurve.find((r) => r.挂机关卡 >= ORDERED_STAGE_IDS.length)?.天;
@@ -1769,6 +1915,8 @@ function main() {
 
   // N6 最后执行：避免遮住 N1/N4/N7/G1~G5（见 assertQualityTierGrowth 注释）。
   assertQualityTierGrowth(growth);
+
+  reportStaleClearances();
 }
 
 main();

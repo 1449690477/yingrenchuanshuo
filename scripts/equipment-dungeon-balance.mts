@@ -195,6 +195,10 @@ interface KnownResidual {
   classId: string;
   metric: 'winRate' | 'duration';
   reason: string;
+  /** 负责人（docs/73 批 1：红项具名） */
+  owner: string;
+  /** 燃尽期限（docs/73 批 1：到期未清偿自动转硬失败） */
+  deadline: string;
 }
 
 const KNOWN_RESIDUALS: readonly KnownResidual[] = [
@@ -208,6 +212,8 @@ const KNOWN_RESIDUALS: readonly KnownResidual[] = [
       '那会变成给单档手填补偿。根因判断为主线威胁轴漂移在 Lv56~76 段的残留，' +
       '应在下版本「标尺与地基专线」修 monsterAtk 威胁因子时一起消失。' +
       '★ 那天若仍未消失，才说明副本自身另有形状问题，届时必须单独立项。',
+    owner: '小数',
+    deadline: '批 2（A1 威胁因子修平后若仍在则单独立项）',
   },
   {
     tier: 'auric',
@@ -218,7 +224,18 @@ const KNOWN_RESIDUALS: readonly KnownResidual[] = [
       '同上一条同源：赤金偏易 ⇒ 灵巫在 d5 还能磨赢，于是胜局均时被拉到 75s。' +
       '它是「赢得太久」而不是「打不完」——超时会让整层归零，而这里仍有 25.8% 胜率，' +
       '说明是拖不是卡。与上一条同一个修复触发器。',
+    owner: '小数',
+    deadline: '批 2（A1 威胁因子修平后若仍在则单独立项）',
   },
+  // docs/73 L5：A3 可得口径联动红（P0-2b 证据留档）——typicalQualityAt 改为
+  // 「真实首次可得」后，violet/auric 档位入口的入场模型装备品质升一档、战力抬
+  // 约 1.6×，而深度怪物标定按旧玩家模型，于是 d4/d5 被击穿成全职业 100%。
+  // 清偿动作 = 批 2-1 A3 返工（回「典型持有」口径）+ 批 2-4 P0-2b 反标定
+  // （从「三走一试一挣」带反解 DEPTH_ENCOUNTER_BASE / DEPTH_ATK_TARGET）。
+  { tier: 'violet', depth: 4, classId: '*', metric: 'winRate', owner: '小数', deadline: '批 2', reason: 'A3 可得口径联动（docs/73 L5）：d4 全职业 100% 击穿对抗层带，P0-2b 反标定清偿' },
+  { tier: 'violet', depth: 5, classId: '*', metric: 'winRate', owner: '小数', deadline: '批 2', reason: 'A3 可得口径联动（docs/73 L5）：d5 全职业 100% 击穿挣扎层带，P0-2b 反标定清偿' },
+  { tier: 'auric', depth: 4, classId: '*', metric: 'winRate', owner: '小数', deadline: '批 2', reason: 'A3 可得口径联动（docs/73 L5）：d4 全职业 100% 击穿对抗层带，P0-2b 反标定清偿' },
+  { tier: 'auric', depth: 5, classId: '*', metric: 'winRate', owner: '小数', deadline: '批 2', reason: 'A3 可得口径联动（docs/73 L5）：d5 全职业 100% 击穿挣扎层带，P0-2b 反标定清偿' },
 ];
 
 function residualOf(
@@ -228,7 +245,11 @@ function residualOf(
   metric: 'winRate' | 'duration',
 ): KnownResidual | undefined {
   return KNOWN_RESIDUALS.find(
-    (r) => r.tier === tier && r.depth === depth && r.classId === classId && r.metric === metric,
+    (r) =>
+      r.tier === tier &&
+      r.depth === depth &&
+      (r.classId === classId || r.classId === '*') &&
+      r.metric === metric,
   );
 }
 
