@@ -18,7 +18,12 @@ import {
 } from '../src/core/equipmentDungeon';
 import { SLOT_ORDER } from '../src/data/constants';
 import { DEPTH_PER_TIER } from '../src/data/equipmentDungeonDepthRules';
-import { depthRecommendCp, isDepthOpen } from '../src/core/equipmentDungeonDepth';
+import {
+  blankDefinitionId,
+  depthNominalLevel,
+  depthRecommendCp,
+  isDepthOpen,
+} from '../src/core/equipmentDungeonDepth';
 import { ALL_CHAPTERS } from '../src/data/regions';
 
 const CONTENT_TOP_LEVEL = Math.max(...ALL_CHAPTERS.map((chapter) => chapter.levelTo));
@@ -28,46 +33,57 @@ import {
 } from '../src/data/equipmentDungeons';
 import {
   EQUIPMENT_DUNGEON_TIERS,
-  equipmentDungeonGearFor,
   type EquipmentDungeonTierId,
 } from '../src/data/equipmentDungeonGear';
 import { getEquipmentSet } from '../src/data/equipmentSets';
 
 const NOW = Date.parse('2026-07-28T12:00:00+08:00');
 const RUNS = 120;
-const enhanceByTier: Readonly<Record<EquipmentDungeonTierId, number>> = {
-  azure: 3,
-  violet: 5,
-  auric: 8,
-  crimson: 11,
-};
+/**
+ * 入场玩家的强化档：**固定 +9，不再逐档手填**。
+ *
+ * docs/65 口径里「典型玩家」= 八件平均 +9（TYPICAL_ENHANCE_MUL 1.6），
+ * 而 expectedFullGearCp / depthRecommendCp 都建立在这个口径上。
+ * 原来的逐档表（3/5/8/11）是另一套假设，与推荐战力的口径不同源 ——
+ * 那正是「两个旋钮之间没有反馈回路」的老毛病在入场模型这一侧的残留。
+ */
+const TYPICAL_ENHANCE = 9;
 
-function entryDefinitions(tierId: EquipmentDungeonTierId, classId: ClassId): EquipmentDef[] {
-  const index = EQUIPMENT_DUNGEON_TIERS.findIndex((tier) => tier.id === tierId);
-  if (index === 0) {
-    return SLOT_ORDER.map((slot) =>
-      requireEquipment(`eq_r2_${slot}_rare`),
-    );
-  }
-  const previous = EQUIPMENT_DUNGEON_TIERS[index - 1]!;
-  return SLOT_ORDER.map((slot) => {
-    const candidates = equipmentDungeonGearFor(previous.id, slot, classId);
-    const classSpecific = candidates.find((definition) => definition.classId === classId);
-    return classSpecific ?? candidates[0]!;
-  });
+/**
+ * 入场装备 = **该深度标称等级上的主线典型装**（docs/58 §六 第 5 步）。
+ *
+ * 两处旧问题一起修：
+ *
+ * 1. **原模型穿的是上一档的副本装备**，而烙印激活批次（79022ea）之后
+ *    副本只掉材料 —— 那批装备**再也拿不到了**。拿玩家穿不上的装备做入场模型，
+ *    测出来的难度与真实体验无关。
+ *
+ * 2. **原模型的玩家不随深度成长**：playerFor 只按档位取装备，
+ *    于是 d1~d5 的玩家战力完全相同（实测 azure 五档都是 3441），
+ *    深度越深怪越强而玩家不动 —— d3 之后必然 0% 胜率。
+ *    但 docs/66 §3.2 写明深度 d 对标的是「**标称等级上养成到位的玩家**」，
+ *    不是入场玩家。模型与门禁意图对不上，测出来的红是假红。
+ *
+ * 复用 blankDefinitionId：胚子掉什么、入场模型穿什么，**必须是同一个函数** ——
+ * 否则又是「同一口径两处实现」（docs/61 §2.2 的教训）。
+ */
+function entryDefinitions(tierId: EquipmentDungeonTierId, depth: number): EquipmentDef[] {
+  const nominal = depthNominalLevel(tierId, depth);
+  return SLOT_ORDER.map((slot) => requireEquipment(blankDefinitionId(slot, nominal)));
 }
 
 function entryInstances(
   tierId: EquipmentDungeonTierId,
+  depth: number,
   classId: ClassId,
 ): EquipmentInstance[] {
-  const rng = new Rng(90_000 + CLASS_IDS.indexOf(classId) * 997);
-  const enhance = enhanceByTier[tierId];
-  return entryDefinitions(tierId, classId).map((definition, index) => {
+  const rng = new Rng(90_000 + CLASS_IDS.indexOf(classId) * 997 + depth * 31);
+  const enhance = TYPICAL_ENHANCE;
+  return entryDefinitions(tierId, depth).map((definition, index) => {
     const instance = createInstance(
       definition,
       rng,
-      `balance-${tierId}-${classId}-${index}`,
+      `balance-${tierId}-d${depth}-${classId}-${index}`,
       classId,
     );
     instance.enhance = enhance;
@@ -78,9 +94,8 @@ function entryInstances(
   });
 }
 
-function playerFor(tierId: EquipmentDungeonTierId, classId: ClassId) {
-  const tier = EQUIPMENT_DUNGEON_TIERS.find((candidate) => candidate.id === tierId)!;
-  const equipment = entryInstances(tierId, classId);
+function playerFor(tierId: EquipmentDungeonTierId, depth: number, classId: ClassId) {
+  const equipment = entryInstances(tierId, depth, classId);
   const setResolution = resolveEquipmentSetBonuses(
     equipment,
     (id) => EQUIPMENT[id],
@@ -90,17 +105,17 @@ function playerFor(tierId: EquipmentDungeonTierId, classId: ClassId) {
     classId,
     applyEquipmentSetStats(
       addStats(
-        baseStatsFor(classId, tier.level),
+        baseStatsFor(classId, depthNominalLevel(tierId, depth)),
         totalEquipStats(equipment, (id) => EQUIPMENT[id], classId),
       ),
       setResolution,
     ),
   );
   return {
-    combatant: makePlayer(classId, tier.level, stats),
+    combatant: makePlayer(classId, depthNominalLevel(tierId, depth), stats),
     cp: combatPower(stats),
     skillMultiplier:
-      averageSkillMultiplier(tier.level) + setResolution.skillMultiplierBonus,
+      averageSkillMultiplier(depthNominalLevel(tierId, depth)) + setResolution.skillMultiplierBonus,
   };
 }
 
@@ -135,7 +150,7 @@ for (const tier of EQUIPMENT_DUNGEON_TIERS) {
  for (let depth = 1; depth <= DEPTH_PER_TIER; depth += 1) {
   if (!isDepthOpen(tier.id, depth)) continue;
   for (const classId of CLASS_IDS) {
-    const player = playerFor(tier.id, classId);
+    const player = playerFor(tier.id, depth, classId);
     let wins = 0;
     let totalDurationMs = 0;
     let worstPortal = '';
