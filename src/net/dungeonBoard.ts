@@ -29,6 +29,15 @@ export interface DungeonSubmitResult {
    * 没打得更快就什么都不该变。UI 不要拿它当错误提示。
    */
   improved: boolean;
+  /**
+   * **这一次提交本身**是否通过了合理性判定。
+   *
+   * 与 verified 的区别：verified 说的是库里那行现在的状态，
+   * claimVerified 说的是你刚交的这条。两者分开是因为
+   * 「没打得更快」和「这条成绩没被采信」在 improved 上长得一模一样 ——
+   * 而一个真实玩家若因口径漂移被持续判不可信，只看 improved 永远察觉不到。
+   */
+  claimVerified: boolean;
 }
 
 export interface DungeonBoardRow {
@@ -69,6 +78,8 @@ export async function submitDungeonRecord(
     firstClearedAt: Number(body?.firstClearedAt ?? submission.firstClearedAt),
     verified: body?.verified === true,
     improved: body?.improved === true,
+    // 缺省按 false：与 verified 同一条口径，「没说」不等于「通过」
+    claimVerified: body?.claimVerified === true,
   };
 }
 

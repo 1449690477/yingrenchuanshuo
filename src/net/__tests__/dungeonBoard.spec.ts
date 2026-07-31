@@ -75,6 +75,27 @@ describe('submitDungeonRecord', () => {
     expect(result.bestDurationMs).toBe(30_000);
   });
 
+  it('claimVerified 把「没打得更快」与「这条没被采信」分开', async () => {
+    // 线上探针实测：报一个破格律的用时，improved=false、verified=true
+    //（库里那行还是老的可信记录）——只看这两个字段，玩家无从知道
+    // 自己刚交的那条被判了不可信。claimVerified 就是这条信息。
+    const { client } = invokeStub(() => ({
+      data: { bestDurationMs: 31_000, firstClearedAt: 1, verified: true, improved: false, claimVerified: false },
+      error: null,
+    }));
+
+    const result = await submitDungeonRecord(client, submission);
+
+    expect(result.improved).toBe(false);
+    expect(result.verified).toBe(true); // 库里那行是可信的
+    expect(result.claimVerified).toBe(false); // 但我刚交的这条不是
+  });
+
+  it('claimVerified 缺省按 false，不许「没说就算通过」', async () => {
+    const { client } = invokeStub(() => ({ data: { bestDurationMs: 200 }, error: null }));
+    expect((await submitDungeonRecord(client, submission)).claimVerified).toBe(false);
+  });
+
   it('服务端业务错误翻译成玩家能看懂的异常', async () => {
     const { client } = invokeStub(() => ({
       data: { error: '这座秘境尚未开放，或者不存在' },
@@ -229,6 +250,14 @@ describe('秘境榜 Supabase 契约', () => {
     expect(migration).toContain(
       '(dungeon_id, best_duration_ms asc, first_cleared_at asc)',
     );
+  });
+
+  it('没有档案时给的是「先同步档案」而不是「稍后重试」', () => {
+    // 线上探针实测过这条：dungeon_records 的外键指向 profiles，
+    // 没档案的账号插入直接失败。若只回「写入失败，请稍后重试」，
+    // 玩家会重试到天亮也好不了 —— 前置条件不满足必须说清是哪一条。
+    expect(edge).toContain('请先同步榜单档案再上报秘境成绩');
+    expect(edge).toContain(".from('profiles')");
   });
 
   it('深度链查的是服务端自己的表，不是客户端上报的存档字段', () => {

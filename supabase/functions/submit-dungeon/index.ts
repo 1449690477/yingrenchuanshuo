@@ -89,6 +89,22 @@ Deno.serve(async (req: Request) => {
     const admin = createClient(supabaseUrl, serviceKey);
     const entry = dungeonBoardEntry(dungeonId)!;
 
+    // ── 3.5 档案前置 ──
+    //
+    // dungeon_records.user_id 外键指向 profiles，没有档案的账号插不进去。
+    // 不显式检查的话，玩家会收到「写入失败，请稍后重试」——一句既没解释
+    // 原因、重试一万次也不会好的话。**线上端到端探针就是撞在这里**：
+    // 一个从未同步过档案的账号，连第 1 层都交不上去。
+    // 与 submit-milestone 同一条口径：档案是榜单的展示与外部证据来源，
+    // 缺它是前置条件不满足，不是「稍后重试」。
+    const { data: profile, error: profileError } = await admin
+      .from('profiles')
+      .select('id')
+      .eq('id', user.id)
+      .maybeSingle();
+    if (profileError) return json({ error: '读取档案失败，请稍后重试' }, 500);
+    if (!profile) return json({ error: '请先同步榜单档案再上报秘境成绩' }, 400);
+
     // ── 4. L3 深度链（取代旧的等级门槛）──
     //
     // 旧版查的是 profiles.level >= 副本 unlockLevel。docs/66 删掉了等级门槛，
@@ -153,7 +169,7 @@ Deno.serve(async (req: Request) => {
         first_cleared_at: new Date(firstClearedAt).toISOString(),
         verified,
       });
-      if (!insertError) return json({ ...incoming, improved: true });
+      if (!insertError) return json({ ...incoming, improved: true, claimVerified: verified });
 
       // 23505 = 并发下另一次提交刚刚先落了库。这是**正常路径**而不是失败：
       // 重新读回那一行，再走同一套合并规则，本次成绩不会丢。
@@ -168,7 +184,12 @@ Deno.serve(async (req: Request) => {
     if (!merged.changed) {
       // 没有变好就不写库 —— 玩家每次进榜单都会重报一次当前记录，
       // 这条路径是常态，不是失败。
-      return json({ ...merged.row, improved: false });
+      //
+      // claimVerified 把两种「没变化」分开：**没打得更快** 与
+      // **这次的成绩没通过合理性判定**。两者对玩家的含义完全不同，
+      // 而只看 improved 的话它们长得一模一样 —— 一个真实玩家若因为
+      // 口径漂移被持续判为不可信，会永远收到「没变化」而无从察觉。
+      return json({ ...merged.row, improved: false, claimVerified: verified });
     }
 
     const { error: updateError } = await admin
@@ -183,7 +204,7 @@ Deno.serve(async (req: Request) => {
       .eq('dungeon_id', dungeonId);
     if (updateError) return json({ error: '秘境成绩写入失败，请稍后重试' }, 500);
 
-    return json({ ...merged.row, improved: true });
+    return json({ ...merged.row, improved: true, claimVerified: verified });
   } catch (_error) {
     return json({ error: '服务器开小差了，请稍后重试' }, 500);
   }
