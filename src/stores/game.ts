@@ -216,7 +216,16 @@ import { TRIAL_BEST_KEEP } from '@/data/trialRules';
 
 import { createSave, type SaveData, type TrialBest } from '@/save/schema';
 import { grantEquipment } from '@/save/grantEquipment';
-import { clearSave, loadSave, saveSave, SaveConflictError, SaveWriteError } from '@/save/storage';
+import type { SaveEnvelopeSource } from '@/core/saveIntegrity';
+import {
+  clearSave,
+  getSaveIntegrityStatus,
+  loadSave,
+  saveSave,
+  SaveConflictError,
+  SaveWriteError,
+  type SaveIntegrityStatus,
+} from '@/save/storage';
 
 /** 掉落流水的一条记录，UI 用 */
 export interface LootLogEntry {
@@ -489,6 +498,7 @@ export const useGameStore = defineStore('game', () => {
   /** 最近一次自动存档错误；成功保存后清空。 */
   const saveError = ref<string | null>(null);
   const loadError = ref<string | null>(null);
+  const saveIntegrityStatus = ref<SaveIntegrityStatus>(getSaveIntegrityStatus());
   /** 当前一只怪的击杀进度，0=满血，1=即将击杀。 */
   const battleProgress = ref(0);
   const battlePulse = ref<BattlePulse | null>(null);
@@ -532,6 +542,7 @@ export const useGameStore = defineStore('game', () => {
    * 这不是可重试的网络错误：必须停机并要求刷新，绝不能继续拿旧快照自动覆盖。
    */
   let storageConflict = false;
+  let nextSaveSource: SaveEnvelopeSource | undefined;
   /**
    * 清档等待 IDB 提交期间把 save 暂时从所有业务入口隔离。
    * 这样 pagehide、导入或其他点击都不能在清档墓碑之后排入一份旧快照。
@@ -904,6 +915,7 @@ export const useGameStore = defineStore('game', () => {
     } catch (error) {
       loadError.value = error instanceof Error ? error.message : '未知存档读取错误';
     }
+    saveIntegrityStatus.value = getSaveIntegrityStatus();
     loaded.value = true;
     if (!loadError.value && realtimeMayRun()) startLoop();
   }
@@ -972,6 +984,8 @@ export const useGameStore = defineStore('game', () => {
     storageConflict = false;
     saveError.value = null;
     loadError.value = null;
+    nextSaveSource = undefined;
+    saveIntegrityStatus.value = getSaveIntegrityStatus();
     resumeRealtimeForNextNewGame = resumeRealtime || resumeRequestedDuringReset;
     resumeRequestedDuringReset = false;
     resetBattleVisualState();
@@ -3144,7 +3158,10 @@ export const useGameStore = defineStore('game', () => {
     try {
       // Zod 仍会完整校验并产出独立快照；先剥掉 Vue 深层 Proxy，可避免大背包
       // 在校验遍历时反复触发代理读取（5,000 件装备约从 67ms 降到 17ms）。
-      await saveSave(toRaw(save.value));
+      const source = nextSaveSource;
+      await saveSave(toRaw(save.value), source ? { source } : undefined);
+      nextSaveSource = undefined;
+      saveIntegrityStatus.value = getSaveIntegrityStatus();
       saveError.value = null;
     } catch (e) {
       if (e instanceof SaveConflictError) {
@@ -3172,7 +3189,7 @@ export const useGameStore = defineStore('game', () => {
     }
   }
 
-  function loadFrom(data: SaveData): void {
+  function loadFrom(data: SaveData, source: SaveEnvelopeSource = 'local'): void {
     if (paidPersistencePending) {
       saveError.value = '付费养成结果正在安全写入，暂时不能导入存档。';
       return;
@@ -3182,6 +3199,7 @@ export const useGameStore = defineStore('game', () => {
       return;
     }
     save.value = data;
+    nextSaveSource = source;
     refreshAffectionClock();
     rng = new Rng(data.rngState);
     lootLog.value = [];
@@ -3206,6 +3224,7 @@ export const useGameStore = defineStore('game', () => {
     autoDecomposed,
     saveError,
     loadError,
+    saveIntegrityStatus,
     battleProgress,
     battlePulse,
     battleBeats,

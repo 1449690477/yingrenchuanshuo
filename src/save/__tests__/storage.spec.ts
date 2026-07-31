@@ -7,6 +7,7 @@ import {
   createSaveStorageClient,
   InvalidSaveError,
   clearSave,
+  forceClearCorruptedSave,
   exportToJson,
   importFromJson,
   loadBackup,
@@ -24,7 +25,11 @@ async function synchronizeAndClear(): Promise<void> {
   } catch {
     // 主槽损坏用例仍会在读取阶段记住 revision，随后可以安全清除。
   }
-  await clearSave();
+  try {
+    await clearSave();
+  } catch {
+    await forceClearCorruptedSave();
+  }
 }
 
 afterEach(async () => {
@@ -141,7 +146,7 @@ describe('IndexedDB storage', () => {
     expect(await loadBackup()).toBeNull();
   });
 
-  it('主档损坏时读取上一版有效备份', async () => {
+  it('主档损坏时停止自动覆盖，玩家确认后才恢复上一版备份', async () => {
     const first = createSave('可恢复备份', 'swordsman', 1, 1_800_000_000_000);
     const second = createSave('损坏前主档', 'witch', 2, 1_800_000_000_001);
     await saveSave(first);
@@ -150,6 +155,15 @@ describe('IndexedDB storage', () => {
     const db = await openDB('sakura-legend', 1);
     await db.put('saves', { version: 2, player: {} }, 'main');
 
+    const client = createSaveStorageClient();
+    await expect(client.loadSave()).rejects.toMatchObject({
+      name: 'SaveLoadError',
+      backupAvailable: true,
+    });
+    expect(client.getIntegrityStatus()).toMatchObject({ state: 'error', backupAvailable: true });
+
+    const recovered = await client.recoverBackup();
+    expect(recovered.player.name).toBe('可恢复备份');
     expect((await loadSave())?.player.name).toBe('可恢复备份');
   });
 
