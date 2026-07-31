@@ -15,6 +15,7 @@ import { typicalQualityAt, expectedFullGearCp } from '@/data/expectedPower';
 import { REGIONS } from '@/data/regions';
 import { EQUIPMENT } from '@/data/equipment';
 import { itemBaseValue } from './equipment';
+import { monsterHp, monsterAtk } from './progression';
 
 /** 只认区域主线装备 `eq_r{n}_{部位}_{品质}`，不碰珍品/好感/竞技/副本旧装。 */
 const REGIONAL_BLANK_ID = /^eq_r\d+_[a-z]+_[a-z]+$/;
@@ -22,7 +23,8 @@ import type { EquipmentDungeonTierId } from '@/data/equipmentDungeonGear';
 import { QUALITY_ORDER } from '@/data/constants';
 import {
   DEPTH_BLANK_CHANCE,
-  DEPTH_DIFFICULTY_K,
+  DEPTH_TARGET_MULTIPLIER,
+  DEPTH_ATK_TARGET,
   DEPTH_PER_TIER,
   DEPTH_ENCOUNTER_BASE,
   EQUIPMENT_DUNGEON_DEPTH_ANCHORS,
@@ -166,7 +168,9 @@ export function depthBlankQuality(
  * 而没有任何门禁能发现（docs/66 §3.2）。
  */
 export function depthRecommendCp(tierId: EquipmentDungeonTierId, depth: number): number {
-  return Math.round(expectedFullGearCp(depthNominalLevel(tierId, depth)) * depthDifficultyK(depth));
+  return Math.round(
+    expectedFullGearCp(depthNominalLevel(tierId, depth)) * depthDifficultyK(tierId, depth),
+  );
 }
 
 /**
@@ -177,35 +181,87 @@ export function depthRecommendCp(tierId: EquipmentDungeonTierId, depth: number):
  * **推荐战力走公式、实际难度走手填，两个旋钮之间没有反馈回路** ——
  * 于是绛紫档长期「战力比 0.76 却 100% 全胜」而没有任何门禁能发现。
  *
- * 改成同源之后，`k(depth)` 是唯一旋钮：怪物强度与推荐战力都由它推导，
+ * 改成同源之后，`k` 是唯一旋钮：怪物强度与推荐战力都由它推导，
  * 不可能再各自漂移。
  *
- * 血量按 k 全量放大、攻击只按 sqrt(k) 放大 —— docs/36 的既有结论：
- * 抬攻击会优先杀死低生命职业（辉金魔女曾因此胜率只有 47.5%），
- * 把压力放在血量与限时输出上，职业间差异更小。
+ * **两轴分工：血量管节奏、攻击管生死。**
+ * 两条轴各自按档反推（见下面两个函数），不再共用一个 sqrt 关系 ——
+ * 旧写法 `atk = base × sqrt(k)` 把生死绑死在节奏上，
+ * 于是「想让深层更持久」必然连带「更容易暴毙」，两个体验目标无法分开表达。
+ *
+ * docs/36 的既有结论仍然成立：抬攻击会优先杀死低生命职业
+ * （辉金魔女曾因此胜率只有 47.5%），所以 `DEPTH_ATK_TARGET` 的斜率
+ * 刻意比 `DEPTH_TARGET_MULTIPLIER` 缓（2.0× vs 3.0×）——
+ * 压力主要放在血量与限时输出上，职业间差异更小。
  */
 export function depthScaledMonster(
   base: MonsterDef,
   tierId: EquipmentDungeonTierId,
   depth: number,
 ): MonsterDef {
-  const k = depthDifficultyK(depth);
+  const k = depthDifficultyK(tierId, depth);
   return {
     ...base,
     level: Math.max(1, depthNominalLevel(tierId, depth) - (base.type === 'boss' ? 0 : 2)),
     hpMul: (base.hpMul ?? 1) * DEPTH_ENCOUNTER_BASE.hp * k,
-    atkMul: (base.atkMul ?? 1) * DEPTH_ENCOUNTER_BASE.atk * Math.sqrt(k),
+    atkMul: (base.atkMul ?? 1) * DEPTH_ENCOUNTER_BASE.atk * depthAtkFactor(tierId, depth),
   };
 }
 
-/** 难度系数，越界抛错而不是回退默认值。 */
-export function depthDifficultyK(depth: number): number {
+/**
+ * 攻击系数 —— 与 `depthDifficultyK` 同源同法，管的是**生死**那一轴。
+ *
+ * atk(档, 层) = 致死目标(层) ÷ 该档「标称等级本身贡献的攻击涨幅」
+ *
+ * 为什么攻击也要按档反推：入场玩家的装备锚在 d1 标称等级**不随深度变**
+ * （三元取小的必然结果），怪物等级却一路涨到 d5。于是真正决定生死的
+ * 「怪物攻击 ÷ 玩家战力」，各档跨 5 层的自然涨幅差很多：
+ * 苍蓝 2.13× 而赤金只有 1.51×。
+ *
+ * 实测证据：苍蓝 d2 胜率 34%、赤金 d2 胜率 100%，
+ * **而两者战力比几乎相同（1.22 vs 1.16）** —— 战力比不预测胜负。
+ */
+export function depthAtkFactor(tierId: EquipmentDungeonTierId, depth: number): number {
   assertDepth(depth);
-  const k = DEPTH_DIFFICULTY_K[depth - 1];
-  if (k === undefined) {
-    throw new Error(`[配置错误] DEPTH_DIFFICULTY_K 缺少第 ${depth} 层（docs/66 §3.2）`);
+  const target = DEPTH_ATK_TARGET[depth - 1];
+  if (target === undefined) {
+    throw new Error(`[配置错误] DEPTH_ATK_TARGET 缺少第 ${depth} 层（docs/66 §3.2）`);
   }
-  return k;
+  // 等级本身带来的攻击涨幅，按档归一后换成上面那条作者曲线
+  const levelContribution =
+    monsterAtk(depthNominalLevel(tierId, depth)) / monsterAtk(depthNominalLevel(tierId, 1));
+  if (!(levelContribution > 0)) {
+    throw new Error(`[配置错误] ${tierId} 第 ${depth} 层攻击等级贡献非正：${levelContribution}`);
+  }
+  return target / levelContribution;
+}
+
+/**
+ * 难度系数 —— **按档反推**，不是全局单一曲线。
+ *
+ * k(档, 层) = 目标倍率(层) ÷ 该档「标称等级本身贡献的难度」
+ *
+ * 为什么必须按档：各档的等级贡献差异极大（相对 d1：azure 3.63× /
+ * violet 3.54× / auric 2.67× / crimson 2.19×），同一条 k 叠上去会让
+ * 总难度变成 azure 7.61× 而 crimson 只有 4.60× —— 跨档带宽收不拢的根因，
+ * 且不是调数值能解决的，是形状问题。
+ *
+ * 反推之后，**玩家实际体验到的难度倍率四档一致**，
+ * 跨档一致性成为结构保证而不是调参成果。
+ */
+export function depthDifficultyK(tierId: EquipmentDungeonTierId, depth: number): number {
+  assertDepth(depth);
+  const target = DEPTH_TARGET_MULTIPLIER[depth - 1];
+  if (target === undefined) {
+    throw new Error(`[配置错误] DEPTH_TARGET_MULTIPLIER 缺少第 ${depth} 层（docs/66 §3.2）`);
+  }
+  // 等级贡献：该层标称等级的怪物血量 ÷ 第 1 层的
+  const levelContribution =
+    monsterHp(depthNominalLevel(tierId, depth)) / monsterHp(depthNominalLevel(tierId, 1));
+  if (!(levelContribution > 0)) {
+    throw new Error(`[配置错误] ${tierId} 第 ${depth} 层等级贡献非正：${levelContribution}`);
+  }
+  return target / levelContribution;
 }
 
 /** 该层稳定后的胚子掉率；首破必掉不走这个数（docs/66 §4.2）。 */
