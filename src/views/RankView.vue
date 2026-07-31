@@ -47,11 +47,13 @@ import PlayerPeekSheet from '@/components/PlayerPeekSheet.vue';
 import TrialBattleScene from '@/components/TrialBattleScene.vue';
 import ArenaView from '@/views/ArenaView.vue';
 import AffectionBoardView from '@/components/AffectionBoardView.vue';
+import ProgressBoardView from '@/components/ProgressBoardView.vue';
 import type { PowerBoardRow, TrialBoardRow } from '@/net/leaderboard';
 
-// ─────────── 视图切换：周常试炼榜 | 羁绊榜 | 竞技场（docs/54 §十 + docs/63 §三） ───────────
+// ─────────── 视图切换：周常试炼榜 | 进度榜 | 羁绊榜 | 竞技场（docs/54 §十 + docs/63 §三/§五） ───────────
 const VIEW_TABS = [
   { key: 'trial', label: '试炼榜' },
+  { key: 'progress', label: '进度榜' },
   { key: 'affection', label: '羁绊榜' },
   { key: 'arena', label: '竞技场' },
 ] as const;
@@ -818,6 +820,7 @@ onUnmounted(() => {
       </Transition>
     </template>
 
+    <ProgressBoardView v-else-if="viewTab === 'progress'" />
     <AffectionBoardView v-else-if="viewTab === 'affection'" />
     <ArenaView v-else />
   </div>
@@ -1287,9 +1290,9 @@ onUnmounted(() => {
   border-radius: 12px;
 }
 
-/* 视图级切换（试炼榜 | 羁绊榜 | 竞技场）三档，与榜单内三档同一宽度 */
+/* 视图级切换（试炼榜 | 进度榜 | 羁绊榜 | 竞技场）四档 */
 .view-seg .seg-pill {
-  width: calc(100% / 3);
+  width: calc(100% / 4);
 }
 .view-seg .seg-tab {
   font-size: 12px;

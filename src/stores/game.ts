@@ -1522,6 +1522,12 @@ export const useGameStore = defineStore('game', () => {
       // 只在这一处写，因为这里是全仓唯一往 clearedStageIds 追加的地方。
       // 老档已通关的关卡没有时刻且不补记 —— 理由同 docs/62 §4.1。
       save.value.progress.stageFirstClearedAt[stage.id] = Date.now();
+      // 进度榜火忘上报：只在已连过榜的玩家身上自动联网，其余人开榜时同步
+      // （docs/63 §五；动态 import 避免 game → progressBoard → game 静态环，
+      // 任何失败都被吞掉，绝不阻塞战斗结算）。
+      void import('@/stores/progressBoard')
+        .then(({ useProgressBoardStore }) => useProgressBoardStore().notifyFirstClear())
+        .catch(() => {});
       for (const reward of stage.firstClearRewards) grantBonus(reward);
     }
 
