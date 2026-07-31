@@ -173,13 +173,14 @@ describe('RankView 第五页签', () => {
   });
 
   /**
-   * ★ 胶囊宽度与页签数必须一起改。
+   * ★ 胶囊宽度必须由页签数组的真实长度驱动。
    *
-   * 只加页签不改宽度，滑块会停在错的格子上 —— 界面不会报错，
-   * 只是从第四个页签起，高亮块和文字对不上。这条断言的作用是：
-   * 将来再加第六个榜时，这里会立刻红，而不是等有人截图来问。
+   * 旧实现是手写 `calc(100% / 5)`，只加页签不改宽度，滑块会停在错的格子上 ——
+   * 界面不会报错，只是高亮块和文字对不上。现改为 `--seg-count` 直接注入
+   * `VIEW_TABS.length` / `BOARD_TABS.length`，这条断言保证以后新增页签
+   * 时宽度自动跟随，不再需要人工改分母。
    */
-  it('滑块宽度是五等分，与页签数一致', () => {
+  it('滑块宽度由页签数组长度驱动，与页签数一致', () => {
     // 只数 VIEW_TABS（页面顶部那排）—— 榜内还有一组 BOARD_TABS，别数混了
     const viewTabsBlock = rankSource.match(/const VIEW_TABS = \[([\s\S]*?)\] as const;/);
     expect(viewTabsBlock).not.toBeNull();
@@ -187,6 +188,7 @@ describe('RankView 第五页签', () => {
       .length;
 
     expect(tabCount).toBe(5);
-    expect(rankSource).toContain('width: calc(100% / 5)');
+    expect(rankSource).toContain("'--seg-count': VIEW_TABS.length");
+    expect(rankSource).toContain('width: calc(100% / var(--seg-count))');
   });
 });
