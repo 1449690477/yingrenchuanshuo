@@ -301,6 +301,15 @@ export function blankDefinitionId(slot: EquipSlot, anchorLevel: number): string 
     // 带定义级 setId 的不能烙印（planImprint 的 def-set-conflict 分支），
     // 发一批不能烙印的胚子会直接违反 docs/58 红线
     if (definition.setId) continue;
+    /*
+     * 等级不得超过锚点 —— 光约束基准值不够。
+     *
+     * claude 实测抓到的反例：violet d4 标称 Lv46 会选中 eq_r6_ring_rare(Lv58)，
+     * 它满足 bv(58,rare)=331 ≤ bv(46,epic)=379，却是 **r6 的装备出现在
+     * violet（Lv31-51）副本里** —— 「用高等级低品质换算」绕过了
+     * 「掉落等级由地点决定」，玩家会看到一件明显不属于这个副本的东西。
+     */
+    if (definition.level > anchorLevel) continue;
     const value = itemBaseValue(definition.level, definition.quality);
     if (value > ceiling + 1e-9) continue;
     if (!best || value > best.value) best = { id: definition.id, value };

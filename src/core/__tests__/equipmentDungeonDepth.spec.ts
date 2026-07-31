@@ -276,6 +276,26 @@ describe('G-2 · 胚子必须是玩家刷主线就能掉到的定义', () => {
     }
   });
 
+  /**
+   * 只约束基准值是不够的：低品质高等级的装备可以在基准值上「换算」过关。
+   *
+   * claude 实测的反例：violet d4 标称 Lv46 曾选中 eq_r6_ring_rare(Lv58) ——
+   * bv(58,rare)=331 ≤ bv(46,epic)=379 所以基准值那关过了，
+   * 但那是 **r6 的装备出现在 violet（Lv31-51）副本里**，
+   * 玩家会看到一件明显不属于这个副本、甚至还没解锁的区域的东西。
+   */
+  it('胚子等级永不超过锚点 —— 不许用「高等级低品质」在基准值上换算过关', () => {
+    for (let level = ENTRY; level <= CONTENT_TOP + 3; level++) {
+      for (const slot of ['weapon', 'ring', 'shoes'] as const) {
+        const definition = EQUIPMENT[blankDefinitionId(slot, level)]!;
+        expect(
+          definition.level,
+          `锚点 Lv${level} 选中了 ${definition.id}（Lv${definition.level}），高于锚点`,
+        ).toBeLessThanOrEqual(level);
+      }
+    }
+  });
+
   it('深度越深、品质在本区阶梯上越高（等级足够时）', () => {
     // Lv78 满级玩家：azure d1（标称 16）应当明显差于 auric d5（标称 76）
     const shallow = depthAnchorLevel('azure', 1, 78, CONTENT_TOP);
