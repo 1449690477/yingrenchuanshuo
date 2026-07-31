@@ -118,10 +118,52 @@ export function trialDamageCeiling(
 }
 
 /**
+ * ★ 判据实际使用的上界：**权威等级所在分段的段顶**，而不是权威等级本身。
+ *
+ * ## 为什么必须放宽到段顶 —— 这条是拿一次真实的误伤风险换来的
+ *
+ * 权威等级来自 profiles.level，而档案同步**每个会话只跑一次**
+ * （stores/leaderboard.ts 的 connect() 在 status==='ready' 时提前返回），
+ * 之后玩家继续玩、继续升级，**提交成绩时并不会重新同步**。
+ * 于是权威等级会滞后于真实等级，而滞后方向恒定：**权威偏低**。
+ *
+ * 用权威等级本身当标尺，就等于拿玩家几十分钟前的实力去量他现在的成绩。
+ * 2026-08-01 实测这个缺口有多大（catkin，第 29 周，段顶物理可达 ÷ 段底判定上界）：
+ *   - b_bud   Lv1-10  ：**1075 倍** ← 新手一个会话从 Lv1 升到 Lv10 就中招
+ *   - b_moon  Lv11-23 ：**19.7 倍**
+ *   - b_crown Lv55-120：1.4 倍
+ * 前两个都超过 EXTREME_OVERAGE，**会被直接公示到封神榜上** ——
+ * 而受害者恰恰是升级最快的新玩家。这正是老板划的红线：
+ * 「不要一搞就给正常玩家触发数值异常」。
+ *
+ * 改用段顶之后，**同一分段内的等级滞后被完全免疫**（整段共用一把尺），
+ * 而判据要抓的「跨分段伪造」丝毫不受影响：分段之间差着数量级。
+ * 复核：绿玩（权威 Lv13、报 1,489,904）按段顶 Lv23 的上界 146,106 计，
+ * 仍然超 10.2 倍，照样抓得住。
+ *
+ * ## 残留风险与它的处置
+ *
+ * **跨分段**的滞后（例如权威 Lv23 而实际已 Lv30）仍会被判不可信。
+ * 但那种超额是小幅的，落在 PUBLISH_MIN_OVERAGE 之下 —— **只隐藏、不公示**，
+ * 且玩家下次同步后重交即可自愈。根治要靠提交前先同步档案
+ * （stores/leaderboard.ts 的 submitBest 应先调 upsertProfile），那在别人名下，已另行提出。
+ */
+export function trialBracketDamageCeiling(
+  authoritativeLevel: number,
+  classId: ClassId,
+  weekIndex: number,
+): number {
+  const bracket = trialBracketFor(authoritativeLevel);
+  return trialDamageCeiling(bracket.maxLevel, classId, weekIndex);
+}
+
+/**
  * 这条试炼成绩是否可能属于一个真实玩家。
  *
  * @param level **权威等级**（profiles.level，由 sync-profile 从真实存档写入），
  *              绝不能传客户端本次自报的等级 —— 那正是被伪造的那个值。
+ *              判据会自动放宽到该等级所在分段的段顶，理由见
+ *              trialBracketDamageCeiling。
  */
 export function isPlausibleTrialDamage(
   damage: number,
@@ -131,5 +173,5 @@ export function isPlausibleTrialDamage(
 ): boolean {
   if (!Number.isFinite(damage) || damage < 0) return false;
   if (!Number.isInteger(level) || level < 1 || level > 120) return false;
-  return damage <= trialDamageCeiling(level, classId, weekIndex);
+  return damage <= trialBracketDamageCeiling(level, classId, weekIndex);
 }

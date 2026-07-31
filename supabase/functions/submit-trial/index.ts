@@ -32,7 +32,7 @@ import {
   SLOT_ORDER,
   TRIAL_SEASON_ID,
   trialBracketFor,
-  trialDamageCeiling,
+  trialBracketDamageCeiling,
   trialEquipmentSnapshotIssue,
   trialScoreSeed,
   trialWeekIndex,
@@ -202,7 +202,9 @@ Deno.serve(async (req: Request) => {
           source: 'submit-trial',
           claimField: 'trial_damage',
           claimedValue: damage,
-          boundValue: trialDamageCeiling(authLevel, sub.classId, serverWeek),
+          // 与 isPlausibleTrialDamage 用的是同一把尺（段顶），否则榜上写的上界
+          // 会不是真正判它的那个数 —— 今晚反复出现的「验的对象不是用的对象」。
+          boundValue: trialBracketDamageCeiling(authLevel, sub.classId, serverWeek),
           boundKind: 'upper',
           priorEvidenceCount: 0,
         });

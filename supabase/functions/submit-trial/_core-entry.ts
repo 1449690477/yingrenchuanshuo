@@ -31,7 +31,7 @@ export type { ClassId, EquipmentInstance } from '@/core/types';
 
 // 试炼伤害物理上界（docs/78 §六）。**必须用权威等级（profiles.level）判**，
 // 不能用本次提交自报的等级 —— 那正是 2026-07-30 被伪造的那个值。
-export { isPlausibleTrialDamage, trialDamageCeiling } from '@/core/trialBound';
+export { isPlausibleTrialDamage, trialBracketDamageCeiling } from '@/core/trialBound';
 
 // 作弊证据分级与行构造（与 sync-profile 同一套闸门与措辞）
 export {

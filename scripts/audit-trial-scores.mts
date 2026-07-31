@@ -14,7 +14,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
-import { isPlausibleTrialDamage, trialDamageCeiling } from '../src/core/trialBound';
+import { isPlausibleTrialDamage, trialBracketDamageCeiling } from '../src/core/trialBound';
 import { judgeCheatEvidence, buildCheatEvidenceRow } from '../src/core/cheatEvidence';
 import type { ClassId } from '../src/core/types';
 
@@ -54,7 +54,7 @@ for (const row of (data ?? []) as any[]) {
   const level: number = p.level;
   const classId: ClassId = p.class_id;
   const damage = Number(row.damage);
-  const ceiling = trialDamageCeiling(level, classId, row.week_index);
+  const ceiling = trialBracketDamageCeiling(level, classId, row.week_index);
   const ok = isPlausibleTrialDamage(damage, level, classId, row.week_index);
   const pct = ((damage / ceiling) * 100).toFixed(1) + '%';
   console.log(
