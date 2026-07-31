@@ -6,10 +6,12 @@ import {
   resolveEquipmentSetBonuses,
 } from '../src/core/equipmentSets';
 import { Rng } from '../src/core/rng';
+import { simulateFight } from '../src/core/combat';
 import {
   applyClassMods,
   averageSkillMultiplier,
   baseStatsFor,
+  makeMonster,
   makePlayer,
 } from '../src/core/progression';
 import {
@@ -18,16 +20,19 @@ import {
 } from '../src/core/equipmentDungeon';
 import { SLOT_ORDER } from '../src/data/constants';
 import { DEPTH_PER_TIER } from '../src/data/equipmentDungeonDepthRules';
+import { EQUIPMENT_DUNGEON_RULES } from '../src/data/equipmentDungeonRules';
 import {
   blankDefinitionId,
   depthNominalLevel,
   depthRecommendCp,
+  depthScaledMonster,
   isDepthOpen,
 } from '../src/core/equipmentDungeonDepth';
 import { ALL_CHAPTERS } from '../src/data/regions';
 
 const CONTENT_TOP_LEVEL = Math.max(...ALL_CHAPTERS.map((chapter) => chapter.levelTo));
 import { EQUIPMENT, requireEquipment } from '../src/data/equipment';
+import { requireEquipmentDungeonStage } from '../src/data/equipmentDungeons';
 import {
   EQUIPMENT_DUNGEON_STAGE_LIST,
 } from '../src/data/equipmentDungeons';
@@ -38,6 +43,7 @@ import {
 import { getEquipmentSet } from '../src/data/equipmentSets';
 
 const NOW = Date.parse('2026-07-28T12:00:00+08:00');
+const REAL_PACE_RUNS = 60;
 const RUNS = 120;
 /**
  * 入场玩家的强化档：**固定 +9，不再逐档手填**。
@@ -77,19 +83,23 @@ const TYPICAL_ENHANCE = 9;
  * 复用 blankDefinitionId：胚子掉什么、入场模型穿什么，**必须是同一个函数** ——
  * 否则又是「同一口径两处实现」（docs/61 §2.2 的教训）。
  */
-function entryDefinitions(tierId: EquipmentDungeonTierId): EquipmentDef[] {
-  // 锚在档位等级（= 该档 d1 的标称），不随深度变。
-  const tierLevel = depthNominalLevel(tierId, 1);
-  return SLOT_ORDER.map((slot) => requireEquipment(blankDefinitionId(slot, tierLevel)));
+function entryDefinitions(
+  tierId: EquipmentDungeonTierId,
+  atLevel = depthNominalLevel(tierId, 1),
+): EquipmentDef[] {
+  // 默认锚在档位等级（= 该档 d1 的标称），不随深度变；
+  // 传入 atLevel 则取该等级的时代装备（第二人群读数用）。
+  return SLOT_ORDER.map((slot) => requireEquipment(blankDefinitionId(slot, atLevel)));
 }
 
 function entryInstances(
   tierId: EquipmentDungeonTierId,
   classId: ClassId,
+  atLevel = depthNominalLevel(tierId, 1),
 ): EquipmentInstance[] {
   const rng = new Rng(90_000 + CLASS_IDS.indexOf(classId) * 997);
   const enhance = TYPICAL_ENHANCE;
-  return entryDefinitions(tierId).map((definition, index) => {
+  return entryDefinitions(tierId, atLevel).map((definition, index) => {
     const instance = createInstance(
       definition,
       rng,
@@ -104,8 +114,16 @@ function entryInstances(
   });
 }
 
-function playerFor(tierId: EquipmentDungeonTierId, classId: ClassId) {
-  const equipment = entryInstances(tierId, classId);
+/**
+ * @param atLevel 覆盖玩家等级与装备时代。省略 = 入场模型（钉在档位等级）。
+ *   传入 = 「边升级边下潜」的第二人群读数（见文件末尾的第二人群报表）。
+ */
+function playerFor(
+  tierId: EquipmentDungeonTierId,
+  classId: ClassId,
+  atLevel = depthNominalLevel(tierId, 1),
+) {
+  const equipment = entryInstances(tierId, classId, atLevel);
   const setResolution = resolveEquipmentSetBonuses(
     equipment,
     (id) => EQUIPMENT[id],
@@ -115,17 +133,16 @@ function playerFor(tierId: EquipmentDungeonTierId, classId: ClassId) {
     classId,
     applyEquipmentSetStats(
       addStats(
-        baseStatsFor(classId, depthNominalLevel(tierId, 1)),
+        baseStatsFor(classId, atLevel),
         totalEquipStats(equipment, (id) => EQUIPMENT[id], classId),
       ),
       setResolution,
     ),
   );
   return {
-    combatant: makePlayer(classId, depthNominalLevel(tierId, 1), stats),
+    combatant: makePlayer(classId, atLevel, stats),
     cp: combatPower(stats),
-    skillMultiplier:
-      averageSkillMultiplier(depthNominalLevel(tierId, 1)) + setResolution.skillMultiplierBonus,
+    skillMultiplier: averageSkillMultiplier(atLevel) + setResolution.skillMultiplierBonus,
   };
 }
 
@@ -472,6 +489,78 @@ if (staleResiduals.length > 0) {
     console.log(
       `  ✓ 豁免已失效：${r.tier} d${r.depth} ${r.classId} 的 ${r.metric} 不再违反 —— 请从 KNOWN_RESIDUALS 里删掉这条`,
     );
+  }
+}
+
+/*
+ * ★★ 第二条人群读数：**边升级边下潜**（2026-07-31 新增）。
+ *
+ * 上面所有门禁量的都是「等级钉死在档位入场等级」的静态玩家。
+ * 但真实玩家爬完五层要花时间，期间会升级 —— azure 跨 Lv16→28 只是一两天。
+ * 两种人群的读数差别极大，实测（四职业 × 60 场，玩家等级跟随该层标称等级）：
+ *
+ *   档位 d5 胜率：  静态入场 → 真实节奏
+ *   azure    0.4% → **100%**（均时 9.4s）
+ *   violet   0.7% → **100%**（均时 14.3s）
+ *   auric   16.6% → **100%**（均时 16.3s）
+ *
+ * **十六层全部 100%。** 也就是说门禁描述的「一层要试、一层要挣」
+ * 只对**不升级的玩家**成立；正常升级的玩家眼里深度是一路平推。
+ *
+ * ★ 这不是 bug，但**必须有人一直看得见它**：
+ *   ①奖励不会因此失衡 —— 胚子锚点是 min(标称, 玩家等级, 内容顶)，
+ *     越级平推拿到的仍是自己时代的东西，「越级的回报是更早拿到而不是拿到更强的」；
+ *   ②但「深度是挑战轴」这个说法，**只在早潜时成立**。
+ *     玩家可以用「等几天」换掉全部难度，这是设计上必须知情的取舍。
+ *
+ * 之所以做成常驻报表而不是门禁：它没有「应该是多少」的正确答案 ——
+ * 定成 100% 不对（那深度就白设计了），定成低值也不对（那等于惩罚正常升级）。
+ * **没有正确答案的量不该拿来拦人，但绝不能因此就不量** ——
+ * 今天我们已经吃够了「某条轴没有量具于是漂到几十倍没人知道」的亏。
+ */
+console.log('');
+console.log('── 第二人群读数：边升级边下潜（只报，不拦）──');
+for (const tier of EQUIPMENT_DUNGEON_TIERS) {
+  for (let depth = 1; depth <= DEPTH_PER_TIER; depth += 1) {
+    if (!isDepthOpen(tier.id, depth)) continue;
+    const level = depthNominalLevel(tier.id, depth);
+    let wins = 0;
+    let totalMs = 0;
+    for (const classId of CLASS_IDS) {
+      const leveled = playerFor(tier.id, classId, level);
+      for (let run = 0; run < REAL_PACE_RUNS; run += 1) {
+        const stage = requireEquipmentDungeonStage(`equipment_weapon_${tier.id}`);
+        const rng = new Rng(9_000 + run * 37);
+        const unit = { ...leveled.combatant, stats: { ...leveled.combatant.stats } };
+        unit.currentHp = unit.stats.hp;
+        let ok = true;
+        let ms = 0;
+        for (const encounter of stage.encounters) {
+          const monster = makeMonster(depthScaledMonster(encounter.monster, tier.id, depth));
+          const result = simulateFight(unit, monster, rng, {
+            playerSkillMultiplier: leveled.skillMultiplier,
+            maxSeconds: EQUIPMENT_DUNGEON_RULES.maxFightSeconds,
+          });
+          ms += result.duration * 1000;
+          if (!result.win) {
+            ok = false;
+            break;
+          }
+          unit.currentHp = Math.min(
+            unit.stats.hp,
+            unit.currentHp + unit.stats.hp * EQUIPMENT_DUNGEON_RULES.betweenWaveHealRatio,
+          );
+        }
+        if (ok) {
+          wins += 1;
+          totalMs += ms;
+        }
+      }
+    }
+    const total = REAL_PACE_RUNS * CLASS_IDS.length;
+    const rate = ((wins / total) * 100).toFixed(1);
+    const avg = wins > 0 ? (totalMs / wins / 1000).toFixed(1) + 's' : '—';
+    console.log(`  ${tier.id.padEnd(8)} d${depth} Lv${String(level).padStart(3)} 胜率 ${rate.padStart(5)}% 均时 ${avg}`);
   }
 }
 
