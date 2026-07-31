@@ -20,20 +20,25 @@
 import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import {
+  buildCheatEvidenceRow,
   buildTrialCombatant,
   CLASS_IDS,
   decideTrialScoreWrite,
   equipmentInstanceSchema,
   getEquipment,
+  isPlausibleTrialDamage,
+  judgeCheatEvidence,
   runTrial,
   SLOT_ORDER,
   TRIAL_SEASON_ID,
   trialBracketFor,
+  trialDamageCeiling,
   trialEquipmentSnapshotIssue,
   trialScoreSeed,
   trialWeekIndex,
   weeklyTrialBoss,
 } from './_core.ts';
+import type { CheatEvidenceInput } from './_core.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -60,6 +65,43 @@ function json(body: unknown, status = 200): Response {
     status,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
+}
+
+/**
+ * 记录一条作弊证据（docs/78）。与 sync-profile 里那份同构：
+ * 分级判定全在 core 的 judgeCheatEvidence，这里只负责 IO，
+ * 且**写证据永远不能影响判定本身** —— 落库失败最多丢一条遥测。
+ */
+async function recordCheatEvidence(
+  admin: ReturnType<typeof createClient>,
+  userId: string,
+  evidence: CheatEvidenceInput,
+): Promise<void> {
+  try {
+    const { count } = await admin
+      .from('cheat_evidence')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('published', true)
+      .is('cleared_at', null);
+
+    const verdict = judgeCheatEvidence({ ...evidence, priorEvidenceCount: count ?? 0 });
+    if (!verdict.isProven) return;
+
+    await admin.from('cheat_evidence').insert(
+      buildCheatEvidenceRow({
+        userId,
+        evidence,
+        verdict,
+        bundleVersion: Deno.env.get('CORE_BUNDLE_VERSION') ?? 'unknown',
+      }),
+    );
+    if (verdict.shouldPublish) {
+      await admin.rpc('demote_cheater_board_rows', { p_user_id: userId });
+    }
+  } catch (_error) {
+    // 静默：证据是附加产物，不参与业务判定。
+  }
 }
 
 Deno.serve(async (req: Request) => {
@@ -133,32 +175,72 @@ Deno.serve(async (req: Request) => {
     // 走到这里的快照已通过全部可证明的硬校验，伤害也由服务端亲自复算。
     // 匿名账号创建时间不等于玩家存档年龄；平均战力也不等于合法上限。
     // 两者都不能作为拒绝真实成绩的证据。
-    const verified = true;
+    //
+    // ★ 但有一条**可证明**的：上面每一步都建立在客户端自报的 sub.level 上
+    //   —— 分段 Boss、角色组建、装备越级校验三者同源，于是它们互相自洽，
+    //   报 Lv81 + 一套 Lv81 装备处处都过。2026-07-30 线上就这样被绕过：
+    //   真实档案 Lv13/战力1593 的账号提交出 1,489,904 伤害，
+    //   而 Lv13 所在分段的 Boss 总血量只有 97,404。
+    //
+    //   判据必须换一把**不受本次提交影响**的尺子：profiles.level ——
+    //   它由 sync-profile 从真实存档写入。用它算「这个玩家在他真实等级上
+    //   最多能打出多少」，超了就是物理不可能（docs/78 §六）。
+    const admin = createClient(supabaseUrl, serviceKey);
+    const { data: authoritative } = await admin
+      .from('profiles')
+      .select('level, class_id')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    let verified = true;
+    // 没有档案 = 首次提交，没有可比对的权威值，此时放行（下次同步后即可比对）。
+    if (authoritative && typeof authoritative.level === 'number') {
+      const authLevel = authoritative.level;
+      if (!isPlausibleTrialDamage(damage, authLevel, sub.classId, serverWeek)) {
+        verified = false;
+        await recordCheatEvidence(admin, user.id, {
+          source: 'submit-trial',
+          claimField: 'trial_damage',
+          claimedValue: damage,
+          boundValue: trialDamageCeiling(authLevel, sub.classId, serverWeek),
+          boundKind: 'upper',
+          priorEvidenceCount: 0,
+        });
+      }
+    }
 
     // ── 5. 写入（service role；成绩表对客户端无写权限）──
-    const admin = createClient(supabaseUrl, serviceKey);
-    const profileProgress = {
-      class_id: sub.classId,
-      level: sub.level,
-      combat_power: build.combatPower,
-      updated_at: new Date().toISOString(),
-    };
-    const { error: createProfileError } = await admin.from('profiles').upsert(
-      {
-        id: user.id,
-        // 只在首次建档时使用角色名；已有档案的自设昵称绝不能被成绩上传覆盖。
-        display_name: sub.displayName,
-        ...profileProgress,
-      },
-      { onConflict: 'id', ignoreDuplicates: true },
-    );
-    if (createProfileError) return json({ error: '档案初始化失败' }, 500);
+    // ★ 判为不可信时**绝不把自报进度写进档案** —— 档案是下一次判定的尺子，
+    //   让伪造值写进去等于亲手把尺子弄弯（2026-07-30 那次绕过的关键一环：
+    //   伪造的 Lv81 先写进 profiles，后续判定便再也无从比对）。
+    const profileProgress = verified
+      ? {
+          class_id: sub.classId,
+          level: sub.level,
+          combat_power: build.combatPower,
+          updated_at: new Date().toISOString(),
+        }
+      : null;
+    if (profileProgress) {
+      const { error: createProfileError } = await admin.from('profiles').upsert(
+        {
+          id: user.id,
+          // 只在首次建档时使用角色名；已有档案的自设昵称绝不能被成绩上传覆盖。
+          display_name: sub.displayName,
+          ...profileProgress,
+        },
+        { onConflict: 'id', ignoreDuplicates: true },
+      );
+      if (createProfileError) return json({ error: '档案初始化失败' }, 500);
+    }
 
-    const { error: updateProfileError } = await admin
-      .from('profiles')
-      .update(profileProgress)
-      .eq('id', user.id);
-    if (updateProfileError) return json({ error: '档案同步失败' }, 500);
+    if (profileProgress) {
+      const { error: updateProfileError } = await admin
+        .from('profiles')
+        .update(profileProgress)
+        .eq('id', user.id);
+      if (updateProfileError) return json({ error: '档案同步失败' }, 500);
+    }
 
     const { data: existing } = await admin
       .from('trial_scores')
