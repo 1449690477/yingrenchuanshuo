@@ -24,10 +24,31 @@ import {
   type GuildMembershipState,
   type GuildSummary,
 } from '@/net/guild';
+import { fetchGuildCommissionState, type GuildCommissionState } from '@/net/guildCommissions';
+import {
+  claimGuildShopOffer,
+  donateGuildMerit,
+  fetchGuildStrongholdState,
+  type GuildShopOfferState,
+  type GuildStrongholdState,
+} from '@/net/guildStronghold';
 import { SLOT_ORDER } from '@/data/constants';
 import { TRIAL_SEASON_ID } from '@/data/trialRules';
 
 export type GuildStatus = 'unconfigured' | 'connecting' | 'ready' | 'offline';
+
+const PENDING_GUILD_ACTION_PREFIX = 'sakura-legend:guild-action:v1';
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/** 只把“后端尚未部署该 RPC”视为分阶段发布；网络和服务端错误必须显式冒泡。 */
+async function optionalGuildModule<T>(loader: () => Promise<T>): Promise<T | null> {
+  try {
+    return await loader();
+  } catch (error) {
+    if (isMissingGuildFunctionError(error)) return null;
+    throw error;
+  }
+}
 
 export const useGuildStore = defineStore('guild', () => {
   const game = useGameStore();
@@ -40,6 +61,8 @@ export const useGuildStore = defineStore('guild', () => {
   const membership = ref<GuildMembershipState | null>(null);
   const guilds = ref<GuildSummary[]>([]);
   const expedition = ref<GuildExpeditionState | null>(null);
+  const commissions = ref<GuildCommissionState | null>(null);
+  const stronghold = ref<GuildStrongholdState | null>(null);
   const lastResult = ref<GuildExpeditionResult | null>(null);
   const pendingChallengeId = ref<string | null>(null);
   /** 广场详情：当前展开的公会、加载态与后端缺函数降级标记。 */
@@ -47,6 +70,7 @@ export const useGuildStore = defineStore('guild', () => {
   const detailGuildId = ref<string | null>(null);
   const detailLoading = ref(false);
   const detailUnsupported = ref(false);
+  const pendingActionIds = new Map<string, string>();
 
   const isLeader = computed(() => membership.value?.myRole === 'leader');
   const attemptsLeft = computed(() => {
@@ -72,6 +96,49 @@ export const useGuildStore = defineStore('guild', () => {
       displayName: save.player.name,
       equipped: equipped(),
     };
+  }
+
+  function actionRequestKey(action: string): string | null {
+    const currentUserId = userId.value;
+    const guildId = membership.value?.guild.id;
+    if (!currentUserId || !guildId) return null;
+    return [PENDING_GUILD_ACTION_PREFIX, currentUserId, guildId, TRIAL_SEASON_ID, action]
+      .map(encodeURIComponent)
+      .join(':');
+  }
+
+  /**
+   * 权威联机操作的 requestId 必须跨刷新保留：响应丢失后重试同一 ID，数据库才有机会
+   * 返回第一次结算，而不是把玩家的同一次点击再扣一遍。
+   */
+  function pendingRequestId(key: string): string {
+    const cached = pendingActionIds.get(key);
+    if (cached) return cached;
+    let stored: string | null = null;
+    try {
+      stored = typeof localStorage === 'undefined' ? null : localStorage.getItem(key);
+    } catch {
+      // 隐私模式禁用存储时仍保留本页内幂等；不伪造“已持久化”。
+    }
+    const requestId = stored && UUID_PATTERN.test(stored) ? stored : crypto.randomUUID();
+    pendingActionIds.set(key, requestId);
+    try {
+      if (typeof localStorage !== 'undefined') localStorage.setItem(key, requestId);
+    } catch {
+      // 同上：内存账仍能保护当前页面的重试。
+    }
+    return requestId;
+  }
+
+  function completeRequest(key: string, requestId: string): void {
+    if (pendingActionIds.get(key) === requestId) pendingActionIds.delete(key);
+    try {
+      if (typeof localStorage !== 'undefined' && localStorage.getItem(key) === requestId) {
+        localStorage.removeItem(key);
+      }
+    } catch {
+      // 存储不可用时没有持久项需要清理。
+    }
   }
 
   let connectPromise: Promise<boolean> | null = null;
@@ -136,14 +203,21 @@ export const useGuildStore = defineStore('guild', () => {
       const listPromise = fetchGuildList(client);
       if (!membership.value) {
         expedition.value = null;
+        commissions.value = null;
+        stronghold.value = null;
         guilds.value = await listPromise;
       } else {
-        const [nextGuilds, nextExpedition] = await Promise.all([
+        const [nextGuilds, nextExpedition, nextCommissions, nextStronghold] = await Promise.all([
           listPromise,
           fetchGuildExpedition(client, TRIAL_SEASON_ID, snapshot().level),
+          // 新公会模块尚未部署时不应让已有远征或挂机失效。
+          optionalGuildModule(() => fetchGuildCommissionState(client)),
+          optionalGuildModule(() => fetchGuildStrongholdState(client, TRIAL_SEASON_ID)),
         ]);
         guilds.value = nextGuilds;
         expedition.value = nextExpedition;
+        commissions.value = nextCommissions;
+        stronghold.value = nextStronghold;
       }
       lastError.value = null;
     } catch (error) {
@@ -192,7 +266,11 @@ export const useGuildStore = defineStore('guild', () => {
     if (membership.value?.guild.id === guildId) {
       const { guild, members } = membership.value;
       return {
-        guild: { ...guild, leaderName: members.find((m) => m.role === 'leader')?.displayName ?? '', createdAt: '' },
+        guild: {
+          ...guild,
+          leaderName: members.find((m) => m.role === 'leader')?.displayName ?? '',
+          createdAt: '',
+        },
         members,
         expedition: null,
       };
@@ -237,13 +315,39 @@ export const useGuildStore = defineStore('guild', () => {
     mutate((client) => updateGuildNoticeRequest(client, notice));
   const removeMember = (memberId: string) =>
     mutate((client) => removeGuildMemberRequest(client, memberId));
+  async function donateMerit(amount: number): Promise<boolean> {
+    const key = actionRequestKey(`donation:${amount}`);
+    if (!key) return false;
+    const requestId = pendingRequestId(key);
+    const ok = await mutate((client) =>
+      donateGuildMerit(client, TRIAL_SEASON_ID, requestId, amount),
+    );
+    if (ok) completeRequest(key, requestId);
+    return ok;
+  }
+
+  async function claimShopOffer(offerId: GuildShopOfferState['id']): Promise<boolean> {
+    const key = actionRequestKey(`claim:${offerId}`);
+    if (!key) return false;
+    const requestId = pendingRequestId(key);
+    const ok = await mutate((client) =>
+      claimGuildShopOffer(client, TRIAL_SEASON_ID, requestId, offerId),
+    );
+    if (ok) completeRequest(key, requestId);
+    return ok;
+  }
 
   async function challenge(): Promise<GuildExpeditionResult | null> {
     if (!canChallenge.value || !(await connect())) return null;
     const client = await getSupabaseClient();
     if (!client) return null;
     challenging.value = true;
-    pendingChallengeId.value ??= crypto.randomUUID();
+    const challengeKey = actionRequestKey('challenge');
+    if (!challengeKey) {
+      challenging.value = false;
+      return null;
+    }
+    pendingChallengeId.value ??= pendingRequestId(challengeKey);
     try {
       const state = await submitGuildExpedition(client, {
         requestId: pendingChallengeId.value,
@@ -252,6 +356,14 @@ export const useGuildStore = defineStore('guild', () => {
       });
       expedition.value = state;
       lastResult.value = state.result ?? null;
+      // 委托、功勋和据点都由同一次服务端复算远征触发；客户端只刷新只读快照。
+      commissions.value = await optionalGuildModule(() => fetchGuildCommissionState(client));
+      stronghold.value = await optionalGuildModule(() =>
+        fetchGuildStrongholdState(client, TRIAL_SEASON_ID),
+      );
+      // 当天建设刚完成时，声望在服务器立即增加；同步名片以更新据点阶段展示。
+      membership.value = await fetchMyGuild(client);
+      completeRequest(challengeKey, pendingChallengeId.value);
       pendingChallengeId.value = null;
       lastError.value = null;
       return lastResult.value;
@@ -279,6 +391,8 @@ export const useGuildStore = defineStore('guild', () => {
     membership,
     guilds,
     expedition,
+    commissions,
+    stronghold,
     lastResult,
     detail,
     detailGuildId,
@@ -295,6 +409,8 @@ export const useGuildStore = defineStore('guild', () => {
     leaveGuild,
     updateNotice,
     removeMember,
+    donateMerit,
+    claimShopOffer,
     openDetail,
     closeDetail,
     challenge,

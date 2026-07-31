@@ -33,6 +33,19 @@ const leaveGuild = vi.fn();
 const updateGuildNotice = vi.fn();
 const removeGuildMember = vi.fn();
 const submitGuildExpedition = vi.fn();
+const fetchGuildCommissionState = vi.fn();
+vi.mock('@/net/guildCommissions', () => ({
+  fetchGuildCommissionState: (...args: unknown[]) => fetchGuildCommissionState(...args),
+}));
+const fetchGuildStrongholdState = vi.fn();
+const donateGuildMerit = vi.fn();
+const claimGuildShopOffer = vi.fn();
+vi.mock('@/net/guildStronghold', () => ({
+  fetchGuildStrongholdState: (...args: unknown[]) => fetchGuildStrongholdState(...args),
+  donateGuildMerit: (...args: unknown[]) => donateGuildMerit(...args),
+  claimGuildShopOffer: (...args: unknown[]) => claimGuildShopOffer(...args),
+}));
+
 vi.mock('@/net/guild', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/net/guild')>();
   return {
@@ -103,6 +116,31 @@ const expedition = {
   today: { attemptsUsed: 0, attemptsMax: 3, bestPoints: 0 },
 };
 
+const commissions = {
+  dayKey: '2026-08-01',
+  commissions: [
+    { id: 'expedition-entry', name: '远征集结', description: '完成一次公会远征', contribution: 80 },
+  ],
+  progress: 80,
+  target: 1800,
+  completed: false,
+  participants: 1,
+  completedCommissionIds: ['expedition-entry'],
+};
+
+const stronghold = {
+  seasonId: 's1',
+  meritBalance: 5,
+  stronghold: {
+    progress: 12,
+    commissionDays: 1,
+    raidClears: 1,
+    donatedMerits: 0,
+    stageId: 'lantern' as const,
+  },
+  offers: [],
+};
+
 beforeEach(async () => {
   setActivePinia(createPinia());
   await clearSave();
@@ -123,16 +161,25 @@ beforeEach(async () => {
     updateGuildNotice,
     removeGuildMember,
     submitGuildExpedition,
+    fetchGuildCommissionState,
+    fetchGuildStrongholdState,
+    donateGuildMerit,
+    claimGuildShopOffer,
   ])
     mock.mockReset();
   upsertProfile.mockResolvedValue(undefined);
   fetchGuildList.mockResolvedValue([]);
   fetchMyGuild.mockResolvedValue(membership);
   fetchGuildExpedition.mockResolvedValue(expedition);
+  fetchGuildCommissionState.mockResolvedValue(commissions);
+  fetchGuildStrongholdState.mockResolvedValue(stronghold);
+  donateGuildMerit.mockResolvedValue(undefined);
+  claimGuildShopOffer.mockResolvedValue(undefined);
 });
 
 afterEach(async () => {
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
   await clearSave();
 });
 
@@ -144,6 +191,76 @@ describe('公会 store 联机降级与刷新', () => {
     expect(upsertProfile).toHaveBeenCalledTimes(1);
     expect(guild.membership?.guild.name).toBe('樱灯庭');
     expect(guild.expedition?.expedition.progress).toBe(500);
+    expect(guild.commissions?.completedCommissionIds).toEqual(['expedition-entry']);
+    expect(guild.stronghold?.meritBalance).toBe(5);
+  });
+
+  it('委托后端未部署时只收起建设板，不影响已上线公会和远征', async () => {
+    fetchGuildCommissionState.mockRejectedValue(new Error('Could not find the function'));
+    const guild = useGuildStore();
+    await guild.refresh();
+    expect(guild.lastError).toBeNull();
+    expect(guild.expedition?.guildId).toBe('g-1');
+    expect(guild.commissions).toBeNull();
+  });
+
+  it('据点后端未部署时只收起据点板，不影响团本和挂机入口', async () => {
+    fetchGuildStrongholdState.mockRejectedValue(new Error('Could not find the function'));
+    const guild = useGuildStore();
+    await guild.refresh();
+    expect(guild.lastError).toBeNull();
+    expect(guild.expedition?.guildId).toBe('g-1');
+    expect(guild.stronghold).toBeNull();
+  });
+
+  it('功勋捐献和收藏领取走统一的幂等操作与状态刷新', async () => {
+    const guild = useGuildStore();
+    await guild.refresh();
+    await guild.donateMerit(5);
+    await guild.claimShopOffer('moon-lantern');
+    expect(donateGuildMerit).toHaveBeenCalledWith(expect.anything(), 's1', expect.any(String), 5);
+    expect(claimGuildShopOffer).toHaveBeenCalledWith(
+      expect.anything(),
+      's1',
+      expect.any(String),
+      'moon-lantern',
+    );
+    expect(fetchGuildStrongholdState).toHaveBeenCalledTimes(3);
+  });
+
+  it('功勋捐献响应丢失后跨页面重试同一 requestId，不会重复扣款', async () => {
+    const persisted = new Map<string, string>();
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => persisted.get(key) ?? null,
+      setItem: (key: string, value: string) => persisted.set(key, value),
+      removeItem: (key: string) => persisted.delete(key),
+    });
+    donateGuildMerit.mockRejectedValueOnce(new Error('请求超时')).mockResolvedValueOnce(undefined);
+
+    const firstGuild = useGuildStore();
+    await firstGuild.refresh();
+    await expect(firstGuild.donateMerit(5)).resolves.toBe(false);
+    const firstRequestId = donateGuildMerit.mock.calls[0]![2] as string;
+    expect(persisted.size).toBe(1);
+
+    setActivePinia(createPinia());
+    const nextGame = useGameStore();
+    const nextSave = createSave('夜见', 'swordsman', 7, Date.now() - 1000);
+    nextSave.player.level = 48;
+    nextGame.loadFrom(nextSave);
+    const nextGuild = useGuildStore();
+    await nextGuild.refresh();
+    await expect(nextGuild.donateMerit(5)).resolves.toBe(true);
+
+    expect(donateGuildMerit.mock.calls[1]![2]).toBe(firstRequestId);
+    expect(persisted.size).toBe(0);
+  });
+
+  it('新模块已部署后的真实读取错误必须显示，不能伪装成“准备中”', async () => {
+    fetchGuildStrongholdState.mockRejectedValue(new Error('数据库超时'));
+    const guild = useGuildStore();
+    await guild.refresh();
+    expect(guild.lastError).toContain('数据库超时');
   });
 
   it('网络失败只记录错误，不向挂机主流程抛出', async () => {
@@ -309,6 +426,9 @@ describe('公会远征提交', () => {
     const guild = useGuildStore();
     await guild.refresh();
     const result = await guild.challenge();
+    expect(fetchGuildCommissionState).toHaveBeenCalledTimes(2);
+    expect(fetchGuildStrongholdState).toHaveBeenCalledTimes(2);
+    expect(guild.commissions?.progress).toBe(80);
     expect(result?.points).toBe(620);
     const payload = submitGuildExpedition.mock.calls[0]![1] as Record<string, unknown>;
     expect(Object.keys(payload).sort()).toEqual(

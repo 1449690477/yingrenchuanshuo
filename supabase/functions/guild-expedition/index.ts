@@ -11,6 +11,7 @@ import {
   equipmentInstanceSchema,
   getEquipment,
   GUILD_DAILY_SUBMISSIONS,
+  guildCompletedCommissions,
   GUILD_WEEK_CLEAR_REPUTATION,
   GUILD_WEEKLY_TARGET_PER_MEMBER,
   TRIAL_SEASON_ID,
@@ -188,6 +189,40 @@ Deno.serve(async (req: Request) => {
       p_clear_reputation: GUILD_WEEK_CLEAR_REPUTATION,
     });
     if (applyError) return json({ error: applyError.message }, 409);
+
+    // 功勋金额不由 Edge 或客户端传值；数据库从本次已落库的远征增量自行换算。
+    const { error: meritError } = await admin.rpc('guild_award_merit', {
+      p_user_id: user.id,
+      p_request_id: body.requestId,
+    });
+    if (meritError) {
+      throw new Error(`公会功勋结算失败：${meritError.message}`);
+    }
+
+    // 委托只接受本函数刚刚复算出的 points；同一 request 可以依次解锁多个档位。
+    // 新函数必须在迁移之后部署；此处抛错会让客户端保留 requestId 幂等补账。
+    for (const commission of guildCompletedCommissions(points)) {
+      const { error: commissionError } = await admin.rpc('guild_apply_commission', {
+        p_user_id: user.id,
+        p_day_key: dayKey,
+        p_commission_id: commission.id,
+        p_request_id: body.requestId,
+        p_points: points,
+      });
+      if (commissionError) {
+        throw new Error(`公会委托结算失败：${commissionError.message}`);
+      }
+    }
+
+    // 只读取已完成的日建设账，按业务日和赛季做一次来源去重。
+    const { error: strongholdError } = await admin.rpc('guild_apply_commission_stronghold', {
+      p_user_id: user.id,
+      p_day_key: dayKey,
+      p_season_id: TRIAL_SEASON_ID,
+    });
+    if (strongholdError) {
+      throw new Error(`公会据点结算失败：${strongholdError.message}`);
+    }
 
     await admin
       .from('profiles')
