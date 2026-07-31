@@ -17,11 +17,14 @@ import { readFileSync } from 'node:fs';
 import { createApp, h, type App } from 'vue';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { EquipmentInstance } from '@/core/types';
-import type { EquipmentDungeonDepthProgress } from '@/core/equipmentDungeonDepth';
+import {
+  evaluateDungeonDepth,
+  type EquipmentDungeonDepthProgress,
+} from '@/core/equipmentDungeonDepth';
 import { EQUIPMENT_BASE_ROLL_TIERS } from '@/data/constants';
 import { DEPTH_PER_TIER } from '@/data/equipmentDungeonDepthRules';
 import { EQUIPMENT_DUNGEON_TIERS } from '@/data/equipmentDungeonGear';
-import { evaluateDungeonDepthStub } from '@/ui/dungeonDepthAdapter';
+import { ALL_CHAPTERS } from '@/data/regions';
 import EquipmentDungeonReward from '../EquipmentDungeonReward.vue';
 import DungeonDepthPanel from '../dungeon/DungeonDepthPanel.vue';
 
@@ -31,6 +34,7 @@ function readSource(path: string): string {
 
 const MIRACLE_MIN = EQUIPMENT_BASE_ROLL_TIERS.find((tier) => tier.id === 'miracle')!.min;
 const REFINED_MIN = EQUIPMENT_BASE_ROLL_TIERS.find((tier) => tier.id === 'refined')!.min;
+const CONTENT_TOP_LEVEL = Math.max(...ALL_CHAPTERS.map((chapter) => chapter.levelTo));
 
 let app: App | null = null;
 let host: HTMLElement | null = null;
@@ -126,11 +130,12 @@ function mountPanel(miracleCount: number): HTMLElement {
   const tier = EQUIPMENT_DUNGEON_TIERS.find((candidate) => candidate.id === 'azure')!;
   const progress: EquipmentDungeonDepthProgress = { azure: 1 };
   const evaluations = Array.from({ length: DEPTH_PER_TIER }, (_, index) =>
-    evaluateDungeonDepthStub({
+    evaluateDungeonDepth({
       progress,
       tierId: 'azure',
       depth: index + 1,
       playerLevel: 90,
+      contentTopLevel: CONTENT_TOP_LEVEL,
       attemptsRemaining: 3,
     }),
   );

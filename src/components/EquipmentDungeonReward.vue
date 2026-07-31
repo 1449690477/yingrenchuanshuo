@@ -101,7 +101,11 @@ const hasMiracle = computed(() => rewards.value.some(({ blankGrade }) => blankGr
         :aria-label="`查看${presentation.name}详情`"
         @click="detail = instance"
       >
-        <span v-if="blankGrade === 'miracle' && !reduceMotion" class="miracle-shine" aria-hidden="true" />
+        <span
+          v-if="blankGrade === 'miracle' && !reduceMotion"
+          class="miracle-shine"
+          aria-hidden="true"
+        />
         <EquipmentIcon
           :def="definition"
           :class-id="classId"
@@ -138,7 +142,13 @@ const hasMiracle = computed(() => rewards.value.some(({ blankGrade }) => blankGr
 
     <Teleport to="body">
       <Transition name="modal-pop">
-        <EquipDetail v-if="detail" :inst="detail" from="bag" @close="detail = null" />
+        <EquipDetail
+          v-if="detail"
+          :inst="detail"
+          from="bag"
+          :allow-advanced-actions="false"
+          @close="detail = null"
+        />
       </Transition>
     </Teleport>
   </section>

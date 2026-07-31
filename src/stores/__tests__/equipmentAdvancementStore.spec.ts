@@ -7,12 +7,7 @@ import type { EquipmentInstance } from '@/core/types';
 import { requireEquipment } from '@/data/equipment';
 import { createSave } from '@/save/schema';
 import * as saveStorage from '@/save/storage';
-import {
-  clearSave,
-  createSaveStorageClient,
-  loadSave,
-  SaveWriteError,
-} from '@/save/storage';
+import { clearSave, createSaveStorageClient, loadSave, SaveWriteError } from '@/save/storage';
 import { useGameStore } from '../game';
 import { useInventoryStore } from '../inventory';
 
@@ -82,6 +77,19 @@ function owned(game: ReturnType<typeof useGameStore>, uid: string): EquipmentIns
 }
 
 describe('game store 装备跨区升阶事务', () => {
+  it('页面交接可按 UID 重新取得背包或穿戴中的当前实例', () => {
+    const game = useGameStore();
+    const inventory = useInventoryStore();
+    const bagCase = advancementSave('bag');
+    game.loadFrom(bagCase.save);
+    expect(inventory.ownedEquipment(bagCase.instance.uid)).toBe(game.save?.bag.equipment[0]);
+
+    const equippedCase = advancementSave('equipped');
+    game.loadFrom(equippedCase.save);
+    expect(inventory.ownedEquipment(equippedCase.instance.uid)).toBe(game.save?.equipped.weapon);
+    expect(inventory.ownedEquipment('missing-uid')).toBeNull();
+  });
+
   it('背包装备精确扣费、原地换定义并持久化全部既有投入', async () => {
     const game = useGameStore();
     const inventory = useInventoryStore();
@@ -317,9 +325,7 @@ describe('game store 装备跨区升阶事务', () => {
     await game.persist();
     const before = jsonClone(game.save);
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    vi.spyOn(saveStorage, 'saveSave').mockRejectedValueOnce(
-      new Error('schema invariant broken'),
-    );
+    vi.spyOn(saveStorage, 'saveSave').mockRejectedValueOnce(new Error('schema invariant broken'));
 
     await expect(game.advanceEquipment(instance.uid, SOURCE_ID)).rejects.toThrow(
       'schema invariant broken',

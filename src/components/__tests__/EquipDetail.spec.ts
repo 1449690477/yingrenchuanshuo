@@ -56,10 +56,11 @@ function instance(defId: string): EquipmentInstance {
 async function render(
   defId: string,
   from: 'bag' | 'equipped' = 'bag',
+  allowAdvancedActions = true,
 ): Promise<string> {
   return renderToString(
     createSSRApp({
-      render: () => h(EquipDetail, { inst: instance(defId), from }),
+      render: () => h(EquipDetail, { inst: instance(defId), from, allowAdvancedActions }),
     }),
   );
 }
@@ -95,10 +96,7 @@ describe('装备详情的武器元素来源', () => {
   it('强化旧装当前更强但新装底子更好时，同时给出真实换装结果与培养提示', async () => {
     const worn = instance('eq_r1_weapon_common');
     worn.enhance = 9;
-    worn.enhanceGainPermille = [
-      ...Array<number>(9).fill(82),
-      ...Array<number>(6).fill(0),
-    ];
+    worn.enhanceGainPermille = [...Array<number>(9).fill(82), ...Array<number>(6).fill(0)];
     inventory.equipped = { weapon: worn };
     inventory.cpDelta.mockReturnValue(-240);
     inventory.baseScore.mockImplementation((item) => (item.uid === worn.uid ? 70 : 96));
@@ -120,6 +118,17 @@ describe('装备详情的武器元素来源', () => {
 
     inventory.equipmentAdvancementOption.mockReturnValue(undefined);
     expect(await render('eq_r1_weapon_common', 'equipped')).not.toContain('跨区升阶');
+  });
+
+  it('战斗奖励里的只读详情不提供会继续叠加窗口的深层操作', async () => {
+    const route = resolveEquipmentAdvancementOption(requireEquipment('eq_r1_weapon_rare'));
+    if (!route) throw new Error('[测试配置错误] r1 rare 武器缺少升阶路线');
+    inventory.equipmentAdvancementOption.mockReturnValue(route);
+
+    const html = await render('eq_r1_weapon_rare', 'bag', false);
+    expect(html).not.toContain('跨区升阶');
+    expect(html).not.toContain('词条洗练');
+    expect(html).toContain('穿戴');
   });
 
   it('绯焰件详情展示当前穿戴进度和真实 2/4/6 件效果，未穿戴时也不隐藏来源', async () => {

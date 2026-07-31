@@ -1941,19 +1941,15 @@ export const useGameStore = defineStore('game', () => {
   /**
    * 深度 UI 契约（docs/66 §八 第 6 步，2026-07-30 22:03 在频道承诺给 kimi-boards）。
    *
-   * 这三个是我当时作为「交付承诺」发出去的签名，接线批次却漏了没暴露 ——
-   * 于是 `ui/dungeonDepthAdapter.ts` 只能一直挂着 stub，深度面板无法直连。
-   * **UI 侧不是没做完，是在等我这一层。**
+   * 这三个签名已由 DungeonView 直连。这里只保留运行时唯一数据源，测试也直接
+   * 调 core 纯函数，避免再养一套会与真实 store 漂移的 UI stub。
    */
   const equipmentDungeonDepth = computed<EquipmentDungeonDepthProgress>(
     () => save.value?.equipmentDungeon.depth ?? {},
   );
 
   /** 某一层的完整评估：一次拿全 UI 要展示与判定的东西。 */
-  function evaluateDungeonDepthOf(
-    tierId: EquipmentDungeonTierId,
-    depth: number,
-  ): DepthEvaluation {
+  function evaluateDungeonDepthOf(tierId: EquipmentDungeonTierId, depth: number): DepthEvaluation {
     return evaluateDungeonDepth({
       progress: equipmentDungeonDepth.value,
       tierId,
@@ -2263,21 +2259,13 @@ export const useGameStore = defineStore('game', () => {
   /** 包含实例已发生强化，但不受玩家等级、好感、穿戴或套装影响的稳定评分。 */
   function equipmentStableCurrentScore(inst: EquipmentInstance): number {
     if (!save.value) return 0;
-    return equipmentCurrentScore(
-      requireEquipment(inst.defId),
-      inst,
-      save.value.player.classId,
-    );
+    return equipmentCurrentScore(requireEquipment(inst.defId), inst, save.value.player.classId);
   }
 
   /** 将实例规范化为 +0 后的稳定底子评分，用于识别值得培养的新掉落。 */
   function equipmentStableBaseScore(inst: EquipmentInstance): number {
     if (!save.value) return 0;
-    return equipmentBaseScore(
-      requireEquipment(inst.defId),
-      inst,
-      save.value.player.classId,
-    );
+    return equipmentBaseScore(requireEquipment(inst.defId), inst, save.value.player.classId);
   }
 
   /** 单件装备在当前角色与其余七个槽位的上下文里贡献多少战力。 */

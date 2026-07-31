@@ -357,11 +357,7 @@ onBeforeUnmount(() => {
           </article>
         </div>
 
-        <aside
-          v-if="baseElementChange"
-          class="element-change"
-          aria-label="基础攻击属性变化"
-        >
+        <aside v-if="baseElementChange" class="element-change" aria-label="基础攻击属性变化">
           <header>
             <strong>基础攻击属性变化</strong>
             <span>
@@ -522,13 +518,13 @@ onBeforeUnmount(() => {
 
 .orb-pink {
   top: 82px;
-  left: -50px;
+  left: 0;
   background: radial-gradient(circle at 65% 38%, #fff, #ffb4d4 32%, transparent 68%);
 }
 
 .orb-blue {
   top: 250px;
-  right: -52px;
+  right: 0;
   background: radial-gradient(circle at 34% 38%, #fff, #95dcfa 32%, transparent 68%);
 }
 

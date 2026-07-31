@@ -6,7 +6,7 @@ import { EQUIPMENT } from '@/data/equipment';
 import { equipmentDisplayPresentation } from '@/data/equipmentPresentation';
 import BagView from '@/views/BagView.vue';
 import EquipDetail from '../EquipDetail.vue';
-import ReforgePanel from '../ReforgePanel.vue';
+import ReforgeStudio from '../reforge/ReforgeStudio.vue';
 
 const inventory = vi.hoisted(() => ({
   bag: {
@@ -107,7 +107,8 @@ describe('洗练组件产品红线', () => {
   it('旧档技能倍率仍可严格展示，并明确只能换掉、不能继续养成', async () => {
     const legacy = instance(randomDefinition.id, [{ key: 'skillMul', tier: 3, value: 2.5 }]);
     const detailHtml = await render(EquipDetail, { inst: legacy, from: 'bag' });
-    const reforgeHtml = await render(ReforgePanel, { inst: legacy });
+    inventory.bag.equipment = [legacy];
+    const reforgeHtml = await render(ReforgeStudio, { initialUid: legacy.uid });
 
     expect(detailHtml).toContain('技能倍率');
     expect(detailHtml).toContain('待 M3-4 技能结算');
@@ -138,19 +139,19 @@ describe('洗练组件产品红线', () => {
   });
 
   it('已付费候选必须先同时展示原词条与新候选，再给采用或保留选择', async () => {
-    const html = await render(ReforgePanel, {
-      inst: instance(randomDefinition.id, [{ key: 'atk', tier: 2, value: 12 }], {
-        operation: 'reforge',
-        affixIndex: 0,
-        candidate: { key: 'wit_elem', tier: 4, value: 10.6, element: 'thunder' },
-      }),
+    const pendingInstance = instance(randomDefinition.id, [{ key: 'atk', tier: 2, value: 12 }], {
+      operation: 'reforge',
+      affixIndex: 0,
+      candidate: { key: 'wit_elem', tier: 4, value: 10.6, element: 'thunder' },
     });
+    inventory.bag.equipment = [pendingInstance];
+    const html = await render(ReforgeStudio, { initialUid: pendingInstance.uid });
 
     expect(html).toContain('洗练结果已保留在存档');
     expect(html).toContain('原词条');
     expect(html).toContain('新候选');
-    expect(html).toContain('保留原样');
-    expect(html).toContain('采用新词条');
+    expect(html).toContain('保留原词条');
+    expect(html).toContain('替换为新词条');
   });
 
   it('装备详情把待决候选显示为硬保护，不能再手动解锁或分解', async () => {

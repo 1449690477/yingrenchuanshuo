@@ -28,6 +28,7 @@ import CharacterAppearance from '@/components/CharacterAppearance.vue';
 import ClassSwitchModal from '@/components/ClassSwitchModal.vue';
 import EnhancePanel from '@/components/EnhancePanel.vue';
 import EquipmentSetStatus from '@/components/EquipmentSetStatus.vue';
+import EquipmentAdvancementPanel from '@/components/EquipmentAdvancementPanel.vue';
 import ReforgeStudio from '@/components/reforge/ReforgeStudio.vue';
 import SkillIcon from '@/components/SkillIcon.vue';
 import AffectionPanel from '@/components/affection/AffectionPanel.vue';
@@ -66,6 +67,8 @@ const galleryOpen = ref(false);
 const companionOpen = ref(false);
 const companionInitialSection = ref<AffectionCompanionSection>('chat');
 const studioOpen = ref(false);
+const studioInitialUid = ref<string | null>(null);
+const advancement = ref<EquipmentInstance | null>(null);
 const BASE = import.meta.env.BASE_URL;
 const selectedAffectionEquipmentId = ref<string | null>(null);
 const galleryRef = ref<HTMLElement | null>(null);
@@ -285,6 +288,35 @@ function open(slot: EquipSlot): void {
     return;
   }
   announce(`${SLOT_LABELS[slot]}槽还是空的，可在背包中选择该部位装备。`);
+}
+
+function openReforgeStudio(initialUid: string | null = null): void {
+  studioInitialUid.value = initialUid;
+  studioOpen.value = true;
+}
+
+function closeReforgeStudio(): void {
+  studioOpen.value = false;
+  studioInitialUid.value = null;
+}
+
+async function openReforgeFromDetail(uid: string): Promise<void> {
+  detail.value = null;
+  await nextTick();
+  openReforgeStudio(uid);
+}
+
+async function openAdvancementFromDetail(uid: string): Promise<void> {
+  detail.value = null;
+  await nextTick();
+  advancement.value = inventory.ownedEquipment(uid);
+  if (!advancement.value) announce('这件装备已经变化，请重新选择。');
+}
+
+function onEquipmentUpgraded(result: { targetName: string; cpDelta: number }): void {
+  const delta =
+    result.cpDelta === 0 ? '' : `，战力 ${result.cpDelta > 0 ? '+' : ''}${abbr(result.cpDelta)}`;
+  announce(`已升阶为 ${result.targetName}${delta}`);
 }
 
 function equipBest(): void {
@@ -583,7 +615,7 @@ onUnmounted(() => {
       :aria-label="
         reforgeOverview.unlocked ? '进入星辉洗练坊' : `星辉洗练坊，Lv${REFORGE_UNLOCK_LEVEL} 解锁`
       "
-      @click="studioOpen = true"
+      @click="openReforgeStudio()"
     >
       <span class="reforge-entry-art">
         <img
@@ -669,7 +701,14 @@ onUnmounted(() => {
     </section>
 
     <Transition name="modal-pop">
-      <EquipDetail v-if="detail" :inst="detail" from="equipped" @close="detail = null" />
+      <EquipDetail
+        v-if="detail"
+        :inst="detail"
+        from="equipped"
+        @close="detail = null"
+        @request-reforge="openReforgeFromDetail"
+        @request-advancement="openAdvancementFromDetail"
+      />
     </Transition>
 
     <ClassSwitchModal
@@ -681,8 +720,19 @@ onUnmounted(() => {
     />
 
     <Teleport to="body">
-      <ReforgeStudio v-if="studioOpen" @close="studioOpen = false" />
+      <ReforgeStudio
+        v-if="studioOpen"
+        :initial-uid="studioInitialUid"
+        @close="closeReforgeStudio"
+      />
     </Teleport>
+
+    <EquipmentAdvancementPanel
+      v-if="advancement"
+      :inst="advancement"
+      @close="advancement = null"
+      @upgraded="onEquipmentUpgraded"
+    />
 
     <AffectionStoryModal
       v-if="activeStory && affectionCharacter"

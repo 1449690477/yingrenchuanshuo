@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, nextTick, ref } from 'vue';
 import { BookOpen, ChevronDown, Gift, Sparkles, Zap } from '@lucide/vue';
 import { abbr } from '@/core/format';
 import { battleVitalsAtProgress } from '@/core/battleVisual';
@@ -15,7 +15,12 @@ import { requireMonster } from '@/data/monsters';
 import { requireEquipment } from '@/data/equipment';
 import { equipmentDisplayPresentation } from '@/data/equipmentPresentation';
 import { requireItem } from '@/data/items';
-import { QUALITY_LABELS, QUALITY_ORDER, QUALITY_RANK, STAMINA_RECOVER_SECONDS } from '@/data/constants';
+import {
+  QUALITY_LABELS,
+  QUALITY_ORDER,
+  QUALITY_RANK,
+  STAMINA_RECOVER_SECONDS,
+} from '@/data/constants';
 import { useNowTick } from '@/ui/useNowTick';
 import StageSelect from '@/components/StageSelect.vue';
 import BattleScene from '@/components/BattleScene.vue';
@@ -26,6 +31,8 @@ import EncounterJournalPanel from '@/components/EncounterJournalPanel.vue';
 import CollapsibleCard from '@/components/CollapsibleCard.vue';
 import EquipDetail from '@/components/EquipDetail.vue';
 import ItemPeekSheet from '@/components/ItemPeekSheet.vue';
+import EquipmentAdvancementPanel from '@/components/EquipmentAdvancementPanel.vue';
+import ReforgeStudio from '@/components/reforge/ReforgeStudio.vue';
 import type { EquipmentInstance } from '@/core/types';
 import type { ItemDef } from '@/data/items';
 
@@ -230,6 +237,8 @@ const lootSubtitle = computed(() =>
 );
 
 const selectedEquip = ref<EquipmentInstance | null>(null);
+const advancement = ref<EquipmentInstance | null>(null);
+const reforgeUid = ref<string | null>(null);
 const peekItem = ref<{ def: ItemDef; owned: number } | null>(null);
 const lootNotice = ref<string | null>(null);
 let noticeTimer = 0;
@@ -238,6 +247,25 @@ function notice(text: string): void {
   lootNotice.value = text;
   clearTimeout(noticeTimer);
   noticeTimer = window.setTimeout(() => (lootNotice.value = null), 2200);
+}
+
+async function openReforgeFromDetail(uid: string): Promise<void> {
+  selectedEquip.value = null;
+  await nextTick();
+  reforgeUid.value = uid;
+}
+
+async function openAdvancementFromDetail(uid: string): Promise<void> {
+  selectedEquip.value = null;
+  await nextTick();
+  advancement.value = inventory.ownedEquipment(uid);
+  if (!advancement.value) notice('这件装备已经变化，请重新选择');
+}
+
+function onEquipmentUpgraded(result: { targetName: string; cpDelta: number }): void {
+  const delta =
+    result.cpDelta === 0 ? '' : `，战力 ${result.cpDelta > 0 ? '+' : ''}${abbr(result.cpDelta)}`;
+  notice(`已升阶为 ${result.targetName}${delta}`);
 }
 
 /**
@@ -514,6 +542,8 @@ function openLootEntry(entry: { itemId: string; isEquipment: boolean; count: num
         :inst="selectedEquip"
         from="bag"
         @close="selectedEquip = null"
+        @request-reforge="openReforgeFromDetail"
+        @request-advancement="openAdvancementFromDetail"
       />
     </Transition>
     <ItemPeekSheet
@@ -522,6 +552,16 @@ function openLootEntry(entry: { itemId: string; isEquipment: boolean; count: num
       :owned="peekItem.owned"
       @close="peekItem = null"
     />
+    <EquipmentAdvancementPanel
+      v-if="advancement"
+      :inst="advancement"
+      @close="advancement = null"
+      @upgraded="onEquipmentUpgraded"
+    />
+
+    <Teleport to="body">
+      <ReforgeStudio v-if="reforgeUid" :initial-uid="reforgeUid" @close="reforgeUid = null" />
+    </Teleport>
 
     <Transition name="toast-up">
       <div v-if="lootNotice" class="loot-toast">{{ lootNotice }}</div>

@@ -128,7 +128,9 @@ describe('星辉洗练坊独立界面', () => {
     expect(html.match(/建议重铸/g)).toHaveLength(1);
     // 首推横幅指向带死词条的装备，其卡片排在轨道最前
     expect(html).toContain('先换掉');
-    expect(html.indexOf('建议重铸')).toBeLessThan(html.indexOf('-good') === -1 ? Infinity : html.indexOf('-good'));
+    expect(html.indexOf('建议重铸')).toBeLessThan(
+      html.indexOf('-good') === -1 ? Infinity : html.indexOf('-good'),
+    );
   });
 
   it('全部装备词条组良好时显示安抚横幅，不出现选用按钮', async () => {
@@ -215,9 +217,38 @@ describe('星辉洗练坊独立界面', () => {
     expect(html).toContain('洗练结果已保留在存档');
     expect(html).toContain('原词条');
     expect(html).toContain('新候选');
-    expect(html).toContain('保留原样');
-    expect(html).toContain('采用新词条');
+    expect(html).toContain('保留原词条');
+    expect(html).toContain('替换为新词条');
     // 待决期间不渲染操作台
+    expect(html).not.toContain('重铸一次');
+  });
+
+  it('调用方指定 UID 时优先打开该装备及其待确认候选', async () => {
+    const recommended = instance(
+      randomDefinition.id,
+      [
+        { key: 'skillMul', tier: 1, value: 1 },
+        { key: 'atk', tier: 1, value: 8 },
+      ],
+      undefined,
+      '-recommended',
+    );
+    const requested = instance(
+      randomDefinition.id,
+      [{ key: 'atk', tier: 2, value: 12 }],
+      {
+        operation: 'reforge',
+        affixIndex: 0,
+        candidate: { key: 'def', tier: 4, value: 22 },
+      },
+      '-requested',
+    );
+    inventory.bag.equipment = [recommended, requested];
+
+    const html = await render(ReforgeStudio, { initialUid: requested.uid });
+
+    expect(html).toContain('洗练结果已保留在存档');
+    expect(html).toContain('替换为新词条');
     expect(html).not.toContain('重铸一次');
   });
 

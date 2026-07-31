@@ -739,7 +739,7 @@ describe('encounter transaction', () => {
     expect(game.replayEncounterStory('enc_r1_petalsmith').at(-1)?.text).toContain('草图');
     expect(game.save).toEqual(before);
     expect(game.save?.rngState).toBe(303);
-    expect(SAVE_VERSION).toBe(SAVE_VERSION);
+    expect(game.save?.version).toBe(SAVE_VERSION);
   });
   it('在线首通会在旧关结算结束后进入下一关，并保留新关的初始演出状态', async () => {
     const game = useGameStore();
@@ -1495,9 +1495,8 @@ describe('equipment dungeon transaction', () => {
   /**
    * 深度 UI 契约（docs/66 §八 第 6 步）。
    *
-   * 这三个签名 2026-07-30 22:03 在频道作为「交付承诺」发给了 kimi-boards，
-   * 但接线批次漏了没暴露 —— UI 侧的 adapter 因此只能一直挂 stub。
-   * **承诺过的公共接口必须有测试守着**，否则漏掉时没有任何东西会红。
+   * 这三个签名由 DungeonView 直接消费。测试守住真实 store 公共接口，UI 挂载
+   * 直接消费 core 评估结果，不再通过第二套 adapter 自证。
    */
   it('深度 UI 契约三件套：进度、评估、按部位挑战', () => {
     const game = useGameStore();

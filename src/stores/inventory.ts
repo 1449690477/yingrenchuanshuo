@@ -77,6 +77,18 @@ export const useInventoryStore = defineStore('inventory', () => {
     return game.equipmentAdvancementOption(uid);
   }
 
+  /**
+   * 按稳定 UID 重新读取当前持有实例。
+   *
+   * 页面从装备详情交接到养成操作台时会先关闭旧 dialog，再到下一帧查这里。
+   * 不把详情里的对象快照继续传下去，避免交接期间装备已被另一事务改变或移走。
+   */
+  function ownedEquipment(uid: string): EquipmentInstance | null {
+    const inBag = bag.value?.equipment.find((instance) => instance.uid === uid);
+    if (inBag) return inBag;
+    return Object.values(equipped.value ?? {}).find((instance) => instance?.uid === uid) ?? null;
+  }
+
   function advanceEquipment(
     uid: string,
     expectedSourceDefId: string,
@@ -140,6 +152,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     baseScore,
     contributionCp,
     equipmentAdvancementOption,
+    ownedEquipment,
     advanceEquipment,
     craftEquipmentSetPiece,
     startAffixChange,

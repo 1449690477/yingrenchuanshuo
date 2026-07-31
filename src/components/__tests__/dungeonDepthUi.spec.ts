@@ -1,36 +1,29 @@
 // @vitest-environment jsdom
 /**
- * 深度阶梯 UI 的契约断言 + 适配器单测 + 挂载冒烟（docs/66 §八 第 6 步）。
+ * 深度阶梯 UI 的契约断言 + 挂载冒烟（docs/66 §八 第 6 步）。
  *
  * 钉死三件事：
- *   1. 激活开关现在是 false —— stub 期对玩家零可见变化，
- *      翻 true 必须连带删 stub（dungeonDepthAdapter.ts），
- *      防止「开关开着、stub 还在」的半成品上线（照烙印批次先例）
+ *   1. 激活开关、DungeonView 直连与 stub 删除必须同时成立，
+ *      防止「开关开着、假数据源还在」的半成品上线（照烙印批次先例）
  *   2. 展示红线落在源码与渲染结果里：
  *      「失败不扣次数」「区域 8 开放后解锁」必在；
  *      not-opened 分支**不显示任何门槛数字**（K5 同款，docs/57）；
  *      **没有任何负向奇迹措辞**（docs/66 §4.3 / G-9 / docs/40 损失厌恶红线）
- *   3. stub 的三条假设与 docs/66 §五 迁移规则一致（接线前后 UI 不跳变）：
- *      progress 推导（首通 ⇒ d1，绝不伪造更高）、reason 优先级链、
- *      contentTopLevel 与 arenaEquipment 同源、run 在 stub 期不开放
+ *   3. 挂载数据直接来自 core/equipmentDungeonDepth 的真实评估函数，测试不得
+ *      另养一套 UI 适配器来复制运行时口径。
  */
 
 import { readFileSync } from 'node:fs';
 import { createApp, h, type App } from 'vue';
 import { afterEach, describe, expect, it } from 'vitest';
-import type { EquipmentDungeonState } from '@/core/equipmentDungeon';
-import { createEquipmentDungeonState } from '@/core/equipmentDungeon';
-import type { EquipmentDungeonDepthProgress } from '@/core/equipmentDungeonDepth';
+import {
+  evaluateDungeonDepth,
+  type EquipmentDungeonDepthProgress,
+} from '@/core/equipmentDungeonDepth';
 import { DEPTH_PER_TIER } from '@/data/equipmentDungeonDepthRules';
 import { EQUIPMENT_DUNGEON_TIERS } from '@/data/equipmentDungeonGear';
 import { ALL_CHAPTERS } from '@/data/regions';
 import { DUNGEON_DEPTH_UI_ACTIVE } from '@/ui/dungeonDepthActivation';
-import {
-  dungeonDepthContentTopLevel,
-  dungeonDepthProgressStub,
-  evaluateDungeonDepthStub,
-  runEquipmentDungeonDepthStub,
-} from '@/ui/dungeonDepthAdapter';
 import DungeonDepthPanel from '../dungeon/DungeonDepthPanel.vue';
 
 function readSource(path: string): string {
@@ -100,98 +93,9 @@ describe('深度 UI 源码契约', () => {
   });
 });
 
-// ─────────── 2. stub 适配器单测 ───────────
+// ─────────── 2. 面板挂载冒烟（jsdom） ───────────
 
-const NOW = Date.parse('2026-07-31T10:00:00+08:00');
-
-function stateWithRecords(recordIds: string[]): EquipmentDungeonState {
-  const state = createEquipmentDungeonState(NOW);
-  for (const id of recordIds) {
-    state.records[id] = { clears: 1, firstClearedAt: NOW - 1000, bestDurationMs: 12_300 };
-  }
-  return state;
-}
-
-describe('dungeonDepthProgressStub：与 docs/66 §五 迁移规则同口径', () => {
-  it('空存档 / 无记录 ⇒ 每档深度 0（不出现该档的键）', () => {
-    expect(dungeonDepthProgressStub(null)).toEqual({});
-    expect(dungeonDepthProgressStub(createEquipmentDungeonState(NOW))).toEqual({});
-  });
-
-  it('该档任一部位有首通记录 ⇒ 视为 d1 已过', () => {
-    expect(dungeonDepthProgressStub(stateWithRecords(['equipment_weapon_azure']))).toEqual({
-      azure: 1,
-    });
-    expect(
-      dungeonDepthProgressStub(
-        stateWithRecords(['equipment_weapon_azure', 'equipment_ring_violet']),
-      ),
-    ).toEqual({ azure: 1, violet: 1 });
-  });
-
-  it('绝不伪造更高深度：四部位全首通也只记 d1', () => {
-    const progress = dungeonDepthProgressStub(
-      stateWithRecords([
-        'equipment_weapon_azure',
-        'equipment_head_azure',
-        'equipment_body_azure',
-        'equipment_ring_azure',
-      ]),
-    );
-    expect(progress).toEqual({ azure: 1 });
-  });
-});
-
-describe('evaluateDungeonDepthStub：reason 优先级链', () => {
-  const base = { playerLevel: 90, attemptsRemaining: 3 };
-
-  it('可打 ⇒ ok；未破链 ⇒ previous-depth；未开放 ⇒ not-opened；次数尽 ⇒ daily-limit', () => {
-    const progress = { azure: 1 };
-    expect(evaluateDungeonDepthStub({ progress, tierId: 'azure', depth: 2, ...base }).reason).toBe(
-      'ok',
-    );
-    expect(evaluateDungeonDepthStub({ progress, tierId: 'azure', depth: 4, ...base }).reason).toBe(
-      'previous-depth',
-    );
-    expect(
-      evaluateDungeonDepthStub({ progress, tierId: 'crimson', depth: 3, ...base }).reason,
-    ).toBe('not-opened');
-    expect(
-      evaluateDungeonDepthStub({ progress, tierId: 'azure', depth: 2, playerLevel: 90, attemptsRemaining: 0 })
-        .reason,
-    ).toBe('daily-limit');
-  });
-
-  it('优先级 not-opened > previous-depth：crimson 深层无论如何都是 not-opened', () => {
-    expect(
-      evaluateDungeonDepthStub({ progress: {}, tierId: 'crimson', depth: 5, ...base }).reason,
-    ).toBe('not-opened');
-    // crimson d1 是开放的：进度 0 时它是「下一层可打」
-    expect(
-      evaluateDungeonDepthStub({ progress: {}, tierId: 'crimson', depth: 1, ...base }).reason,
-    ).toBe('ok');
-  });
-
-  it('首破标记：超过已破层 ⇒ isFirstBreak，已破层重刷 ⇒ 不是首破', () => {
-    const progress = { azure: 2 };
-    expect(evaluateDungeonDepthStub({ progress, tierId: 'azure', depth: 3, ...base }).isFirstBreak)
-      .toBe(true);
-    expect(evaluateDungeonDepthStub({ progress, tierId: 'azure', depth: 1, ...base }).isFirstBreak)
-      .toBe(false);
-  });
-
-  it('contentTopLevel 与 arenaEquipment 同源：max(ALL_CHAPTERS.levelTo)', () => {
-    expect(dungeonDepthContentTopLevel()).toBe(
-      Math.max(...ALL_CHAPTERS.map((chapter) => chapter.levelTo)),
-    );
-  });
-
-  it('run 在 stub 期不开放', () => {
-    expect(runEquipmentDungeonDepthStub()).toEqual({ ok: false, reason: 'not-wired' });
-  });
-});
-
-// ─────────── 3. 面板挂载冒烟（jsdom） ───────────
+const CONTENT_TOP_LEVEL = Math.max(...ALL_CHAPTERS.map((chapter) => chapter.levelTo));
 
 let app: App | null = null;
 let host: HTMLElement | null = null;
@@ -215,11 +119,12 @@ function mountPanel(options: {
   const progress: EquipmentDungeonDepthProgress =
     options.cleared > 0 ? { [options.tierId]: options.cleared } : {};
   const evaluations = Array.from({ length: DEPTH_PER_TIER }, (_, index) =>
-    evaluateDungeonDepthStub({
+    evaluateDungeonDepth({
       progress,
       tierId: options.tierId,
       depth: index + 1,
       playerLevel: 90,
+      contentTopLevel: CONTENT_TOP_LEVEL,
       attemptsRemaining: options.attemptsRemaining ?? 3,
     }),
   );

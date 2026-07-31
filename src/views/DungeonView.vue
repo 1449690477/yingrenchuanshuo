@@ -21,7 +21,12 @@ import {
   type EquipmentDungeonClearRecord,
 } from '@/core/equipmentDungeon';
 import { abbr } from '@/core/format';
-import { CLASS_INFO, EQUIPMENT_BASE_ROLL_TIERS, QUALITY_LABELS, SLOT_LABELS } from '@/data/constants';
+import {
+  CLASS_INFO,
+  EQUIPMENT_BASE_ROLL_TIERS,
+  QUALITY_LABELS,
+  SLOT_LABELS,
+} from '@/data/constants';
 import { requireEquipment } from '@/data/equipment';
 import { equipmentDisplayPresentation } from '@/data/equipmentPresentation';
 import {
@@ -29,7 +34,11 @@ import {
   equipmentDungeonDropsForClass,
   equipmentDungeonStagesForSlot,
 } from '@/data/equipmentDungeons';
-import { EQUIPMENT_DUNGEON_TIERS, type EquipmentDungeonTier, type EquipmentDungeonTierId } from '@/data/equipmentDungeonGear';
+import {
+  EQUIPMENT_DUNGEON_TIERS,
+  type EquipmentDungeonTier,
+  type EquipmentDungeonTierId,
+} from '@/data/equipmentDungeonGear';
 import { EQUIPMENT_DUNGEON_RULES } from '@/data/equipmentDungeonRules';
 import { requireEquipmentDungeonSet } from '@/data/equipmentDungeonSets';
 import { emptyEquipped } from '@/save/schema';
@@ -47,12 +56,8 @@ import {
 import { IMPRINT_BATCH_ACTIVE } from '@/ui/imprintActivation';
 import { prefersCompactLayout, useFold } from '@/ui/useFold';
 import DungeonDepthPanel from '@/components/dungeon/DungeonDepthPanel.vue';
-import {
-  DEPTH_PER_TIER,
-  EQUIPMENT_DUNGEON_DEPTH_ANCHORS,
-} from '@/data/equipmentDungeonDepthRules';
+import { DEPTH_PER_TIER, EQUIPMENT_DUNGEON_DEPTH_ANCHORS } from '@/data/equipmentDungeonDepthRules';
 import { DUNGEON_DEPTH_UI_ACTIVE } from '@/ui/dungeonDepthActivation';
-
 
 type PlayedResult = Extract<EquipmentDungeonRunResult, { ok: true }>;
 
@@ -151,9 +156,7 @@ const currentTier = computed(() =>
  */
 function tierComingSoon(tierId: EquipmentDungeonTierId): boolean {
   const tier = EQUIPMENT_DUNGEON_TIERS.find((candidate) => candidate.id === tierId);
-  return Boolean(
-    tier && (tier as EquipmentDungeonTier & { comingSoon?: boolean }).comingSoon,
-  );
+  return Boolean(tier && (tier as EquipmentDungeonTier & { comingSoon?: boolean }).comingSoon);
 }
 const currentSet = computed(() => requireEquipmentDungeonSet(currentTier.value.setId));
 const currentSetProgress = computed(
@@ -253,9 +256,8 @@ function onImprintIconError(event: Event): void {
  * 深度 UI 激活开关（src/ui/dungeonDepthActivation.ts）。
  *
  * 数据源**已直连 game store**（进度 / 评估 / 挑战三件套）。
- * 开关仍为 false，因为**难度标定尚未定稿** —— 翻 true 归 claude-drops，
- * 条件是 K 曲线定稿且 `DEPTH_GATES_CALIBRATED` 复跑确认真绿。
- * false 期间对玩家零可见变化。
+ * 难度标定门禁已经通过，开关现为 true；若未来需要紧急回滚，只关闭展示，
+ * 已写入存档的深度进度仍保持单调，不做回退迁移。
  */
 const depthUiActive = DUNGEON_DEPTH_UI_ACTIVE;
 
@@ -264,7 +266,7 @@ const depthUiActive = DUNGEON_DEPTH_UI_ACTIVE;
  *
  * 存档 v16 起 `equipmentDungeon.depth` 是**真实字段**，不再从 records 推导 ——
  * 迁移已把旧档按同一条口径（该档有任一部位首通 ⇒ depth=1，绝不伪造更高深度）
- * 写进存档，所以直连与原 stub 给出的结果一致，玩家不会看到 UI 跳变。
+ * 写进存档；现在生产和测试都直连同一个 core 评估函数，不再保留第二套适配器。
  */
 const depthProgress = computed(() => (depthUiActive ? game.equipmentDungeonDepth : {}));
 
@@ -272,9 +274,7 @@ const depthProgress = computed(() => (depthUiActive ? game.equipmentDungeonDepth
 const clearedDepth = computed(() => depthProgress.value[selectedTierId.value] ?? 0);
 
 /** 当前档实际开放的层数（crimson 现在只开 d1，docs/66 §七） */
-const openDepths = computed(
-  () => EQUIPMENT_DUNGEON_DEPTH_ANCHORS[selectedTierId.value].openDepths,
-);
+const openDepths = computed(() => EQUIPMENT_DUNGEON_DEPTH_ANCHORS[selectedTierId.value].openDepths);
 
 const selectedDepth = ref(1);
 
@@ -317,9 +317,7 @@ watch(clearedDepth, (cleared, previous) => {
  * 持有口径（分解不追责），阈值从掉率表推导，绝不手写数字。
  * 0 时面板整行不渲染（「0」是一种嘲讽，不给）。
  */
-const MIRACLE_ROLL_MIN = EQUIPMENT_BASE_ROLL_TIERS.find(
-  (tier) => tier.id === 'miracle',
-)!.min;
+const MIRACLE_ROLL_MIN = EQUIPMENT_BASE_ROLL_TIERS.find((tier) => tier.id === 'miracle')!.min;
 const miracleBlankCount = computed(() => {
   const save = game.save;
   if (!save) return 0;
@@ -350,11 +348,7 @@ function challenge(): void {
    * 那层转换在 store 里（拼错只会得到 unknown-stage，排查成本高得多）。
    */
   const result = depthUiActive
-    ? game.runEquipmentDungeonDepth(
-        stage.value.slot,
-        selectedTierId.value,
-        selectedDepth.value,
-      )
+    ? game.runEquipmentDungeonDepth(stage.value.slot, selectedTierId.value, selectedDepth.value)
     : game.runEquipmentDungeon(stage.value.id);
   if (!result.ok) {
     notice.value =
@@ -537,11 +531,7 @@ onUnmounted(() => {
               @click="selectTier(candidate.tierId)"
             >
               <span class="tier-gem">
-                <Hourglass
-                  v-if="tierComingSoon(candidate.tierId)"
-                  :size="12"
-                  aria-hidden="true"
-                />
+                <Hourglass v-if="tierComingSoon(candidate.tierId)" :size="12" aria-hidden="true" />
                 <LockKeyhole
                   v-else-if="
                     !dungeonState ||
@@ -563,7 +553,7 @@ onUnmounted(() => {
               />
             </button>
           </div>
-          <!-- 深度阶梯：挂激活开关，stub 期对玩家零可见（docs/66 §八 第 6 步） -->
+          <!-- 深度阶梯：开关仅供紧急回滚展示，数据与挑战始终走真实 store。 -->
           <DungeonDepthPanel
             v-if="depthUiActive"
             :tier="currentTier"
@@ -701,7 +691,9 @@ onUnmounted(() => {
             @click="toggleDropFold"
           >
             <span>
-              <small>{{ imprintActive ? '当前档可掉落材料' : `当前 ${CLASS_INFO[classId].name} 可掉落` }}</small>
+              <small>{{
+                imprintActive ? '当前档可掉落材料' : `当前 ${CLASS_INFO[classId].name} 可掉落`
+              }}</small>
               <strong>{{ imprintActive ? '烙印材料' : `${drops.length} 件定向候选` }}</strong>
             </span>
             <em>{{ currentTier.shortName }}</em>

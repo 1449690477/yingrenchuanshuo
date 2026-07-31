@@ -17,6 +17,7 @@ import CrimsonForgePanel from '@/components/CrimsonForgePanel.vue';
 import EquipmentAdvancementPanel from '@/components/EquipmentAdvancementPanel.vue';
 import EquipmentIcon from '@/components/EquipmentIcon.vue';
 import ItemIcon from '@/components/ItemIcon.vue';
+import ReforgeStudio from '@/components/reforge/ReforgeStudio.vue';
 import SystemArtwork from '@/components/SystemArtwork.vue';
 import SetCodexView from '@/views/SetCodexView.vue';
 import { buildSetCodex } from '@/components/setCodex/setCodexData';
@@ -32,6 +33,7 @@ const tab = ref<'equip' | 'item'>('equip');
 const scoreSort = ref<'current' | 'base'>('current');
 const detail = ref<EquipmentInstance | null>(null);
 const advancement = ref<EquipmentInstance | null>(null);
+const reforgeUid = ref<string | null>(null);
 const toast = ref('');
 const salvageBurst = ref(false);
 const showCodex = ref(false);
@@ -137,9 +139,7 @@ const bagEquips = computed(() => {
   });
   scored.sort((a, b) => {
     const delta =
-      scoreSort.value === 'current'
-        ? b.currentScore - a.currentScore
-        : b.baseScore - a.baseScore;
+      scoreSort.value === 'current' ? b.currentScore - a.currentScore : b.baseScore - a.baseScore;
     return delta || a.inst.uid.localeCompare(b.inst.uid);
   });
   return scored;
@@ -389,6 +389,19 @@ function openAdvancement(inst: EquipmentInstance): void {
   advancement.value = inst;
 }
 
+async function openReforgeFromDetail(uid: string): Promise<void> {
+  detail.value = null;
+  await nextTick();
+  reforgeUid.value = uid;
+}
+
+async function openAdvancementFromDetail(uid: string): Promise<void> {
+  detail.value = null;
+  await nextTick();
+  advancement.value = inventory.ownedEquipment(uid);
+  if (!advancement.value) show('这件装备已经变化，请重新选择');
+}
+
 function onEquipmentUpgraded(result: { targetName: string; cpDelta: number }): void {
   const delta =
     result.cpDelta === 0 ? '' : `，战力 ${result.cpDelta > 0 ? '+' : ''}${abbr(result.cpDelta)}`;
@@ -517,9 +530,7 @@ onUnmounted(() => {
                 <span v-if="row.inst.pendingAffixChange" class="pending-affix-badge">
                   洗练待确认
                 </span>
-                <span v-if="row.baseDelta > 0" class="potential-badge">
-                  底子更好
-                </span>
+                <span v-if="row.baseDelta > 0" class="potential-badge"> 底子更好 </span>
               </span>
               <span class="sub">
                 {{ SLOT_LABELS[row.def.slot] }} · {{ QUALITY_LABELS[row.def.quality] }} · Lv{{
@@ -620,7 +631,14 @@ onUnmounted(() => {
     </Transition>
 
     <Transition name="modal-pop">
-      <EquipDetail v-if="detail" :inst="detail" from="bag" @close="detail = null" />
+      <EquipDetail
+        v-if="detail"
+        :inst="detail"
+        from="bag"
+        @close="detail = null"
+        @request-reforge="openReforgeFromDetail"
+        @request-advancement="openAdvancementFromDetail"
+      />
     </Transition>
 
     <EquipmentAdvancementPanel
@@ -629,6 +647,10 @@ onUnmounted(() => {
       @close="advancement = null"
       @upgraded="onEquipmentUpgraded"
     />
+
+    <Teleport to="body">
+      <ReforgeStudio v-if="reforgeUid" :initial-uid="reforgeUid" @close="reforgeUid = null" />
+    </Teleport>
 
     <Transition name="page-up">
       <SetCodexView v-if="showCodex" @close="closeCodex" />
