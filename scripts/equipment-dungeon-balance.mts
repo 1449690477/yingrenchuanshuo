@@ -58,32 +58,42 @@ const TYPICAL_ENHANCE = 9;
  *    副本只掉材料 —— 那批装备**再也拿不到了**。拿玩家穿不上的装备做入场模型，
  *    测出来的难度与真实体验无关。
  *
- * 2. **原模型的玩家不随深度成长**：playerFor 只按档位取装备，
- *    于是 d1~d5 的玩家战力完全相同（实测 azure 五档都是 3441），
- *    深度越深怪越强而玩家不动 —— d3 之后必然 0% 胜率。
- *    但 docs/66 §3.2 写明深度 d 对标的是「**标称等级上养成到位的玩家**」，
- *    不是入场玩家。模型与门禁意图对不上，测出来的红是假红。
+ * 2. **强化档原本逐档手填**（3/5/8/11），与 expectedFullGearCp / depthRecommendCp
+ *    的口径不同源 —— 那是「两个旋钮之间没有反馈回路」在入场模型这一侧的残留。
+ *    改为固定 +9，与 docs/65 的「典型玩家」（TYPICAL_ENHANCE_MUL 1.6）同源。
+ *
+ * **玩家不随深度成长**（2026-07-31 裁定，见下）：装备锚在**档位等级**，
+ * d1~d5 是同一个玩家面对递增难度。我一度改成「按深度标称等级取装备」，
+ * 那是错的 —— 判据在 dungeonMinAnchorLevel 的注释里：
+ * 三元 min(标称, 玩家等级, 内容顶) 的存在前提就是**玩家等级可能低于标称**。
+ * 若玩家永远等于标称，那个 min 里的玩家等级项就退化成死代码。
+ * **一个设计如果让自己的核心公式退化成恒等式，那个读法就是错的。**
+ *
+ * 而且两边都随深度成长会造成**结构性非单调**：玩家品质按 typicalQualityAt
+ * 阈值跳变（azure 五层标称 16/19/22/25/28，前三层全困在 fine 段），
+ * 怪物却连续变强 —— 两个阶梯台阶位置不同，实测出现「d5 反而是唯一能过的」。
+ * 玩家不动之后只剩一个阶梯在走，非单调结构上消失，k(d) 才有可调空间。
  *
  * 复用 blankDefinitionId：胚子掉什么、入场模型穿什么，**必须是同一个函数** ——
  * 否则又是「同一口径两处实现」（docs/61 §2.2 的教训）。
  */
-function entryDefinitions(tierId: EquipmentDungeonTierId, depth: number): EquipmentDef[] {
-  const nominal = depthNominalLevel(tierId, depth);
-  return SLOT_ORDER.map((slot) => requireEquipment(blankDefinitionId(slot, nominal)));
+function entryDefinitions(tierId: EquipmentDungeonTierId): EquipmentDef[] {
+  // 锚在档位等级（= 该档 d1 的标称），不随深度变。
+  const tierLevel = depthNominalLevel(tierId, 1);
+  return SLOT_ORDER.map((slot) => requireEquipment(blankDefinitionId(slot, tierLevel)));
 }
 
 function entryInstances(
   tierId: EquipmentDungeonTierId,
-  depth: number,
   classId: ClassId,
 ): EquipmentInstance[] {
-  const rng = new Rng(90_000 + CLASS_IDS.indexOf(classId) * 997 + depth * 31);
+  const rng = new Rng(90_000 + CLASS_IDS.indexOf(classId) * 997);
   const enhance = TYPICAL_ENHANCE;
-  return entryDefinitions(tierId, depth).map((definition, index) => {
+  return entryDefinitions(tierId).map((definition, index) => {
     const instance = createInstance(
       definition,
       rng,
-      `balance-${tierId}-d${depth}-${classId}-${index}`,
+      `balance-${tierId}-${classId}-${index}`,
       classId,
     );
     instance.enhance = enhance;
@@ -94,8 +104,8 @@ function entryInstances(
   });
 }
 
-function playerFor(tierId: EquipmentDungeonTierId, depth: number, classId: ClassId) {
-  const equipment = entryInstances(tierId, depth, classId);
+function playerFor(tierId: EquipmentDungeonTierId, classId: ClassId) {
+  const equipment = entryInstances(tierId, classId);
   const setResolution = resolveEquipmentSetBonuses(
     equipment,
     (id) => EQUIPMENT[id],
@@ -105,17 +115,17 @@ function playerFor(tierId: EquipmentDungeonTierId, depth: number, classId: Class
     classId,
     applyEquipmentSetStats(
       addStats(
-        baseStatsFor(classId, depthNominalLevel(tierId, depth)),
+        baseStatsFor(classId, depthNominalLevel(tierId, 1)),
         totalEquipStats(equipment, (id) => EQUIPMENT[id], classId),
       ),
       setResolution,
     ),
   );
   return {
-    combatant: makePlayer(classId, depthNominalLevel(tierId, depth), stats),
+    combatant: makePlayer(classId, depthNominalLevel(tierId, 1), stats),
     cp: combatPower(stats),
     skillMultiplier:
-      averageSkillMultiplier(depthNominalLevel(tierId, depth)) + setResolution.skillMultiplierBonus,
+      averageSkillMultiplier(depthNominalLevel(tierId, 1)) + setResolution.skillMultiplierBonus,
   };
 }
 
@@ -150,7 +160,7 @@ for (const tier of EQUIPMENT_DUNGEON_TIERS) {
  for (let depth = 1; depth <= DEPTH_PER_TIER; depth += 1) {
   if (!isDepthOpen(tier.id, depth)) continue;
   for (const classId of CLASS_IDS) {
-    const player = playerFor(tier.id, depth, classId);
+    const player = playerFor(tier.id, classId);
     let wins = 0;
     let totalDurationMs = 0;
     let worstPortal = '';
