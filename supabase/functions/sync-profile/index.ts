@@ -24,14 +24,18 @@
 import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import {
+  buildCheatEvidenceRow,
   buildTrialCombatant,
   CLASS_IDS,
+  combatPowerCeiling,
   equipmentInstanceSchema,
   getEquipment,
   isPlausibleCombatPower,
+  judgeCheatEvidence,
   SLOT_ORDER,
   trialEquipmentSnapshotIssue,
 } from './_core.ts';
+import type { CheatEvidenceInput } from './_core.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -54,6 +58,47 @@ function json(body: unknown, status = 200): Response {
     status,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
+}
+
+/**
+ * 记录一条作弊证据（docs/78）。
+ *
+ * 分级判定全在 core 的 judgeCheatEvidence 里，这里只负责 IO。
+ * **写证据永远不能影响拒绝本身**：拒绝已经发生了，证据落库失败最多丢一条遥测，
+ * 绝不能因此把一个已经判定非法的提交放行，也不能把异常抛给玩家。
+ */
+async function recordCheatEvidence(
+  admin: ReturnType<typeof createClient>,
+  userId: string,
+  evidence: CheatEvidenceInput,
+): Promise<void> {
+  try {
+    const { count } = await admin
+      .from('cheat_evidence')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('published', true)
+      .is('cleared_at', null);
+
+    const verdict = judgeCheatEvidence({ ...evidence, priorEvidenceCount: count ?? 0 });
+    if (!verdict.isProven) return;
+
+    await admin.from('cheat_evidence').insert(
+      buildCheatEvidenceRow({
+        userId,
+        evidence,
+        verdict,
+        bundleVersion: Deno.env.get('CORE_BUNDLE_VERSION') ?? 'unknown',
+      }),
+    );
+
+    // 公开的那一刻，把该玩家的历史成绩从所有正常榜单移出（只移出展示，不删数据）。
+    if (verdict.shouldPublish) {
+      await admin.rpc('demote_cheater_board_rows', { p_user_id: userId });
+    }
+  } catch (_error) {
+    // 静默：证据是附加产物，不参与业务判定。
+  }
 }
 
 Deno.serve(async (req: Request) => {
@@ -99,6 +144,19 @@ Deno.serve(async (req: Request) => {
           'equipment-class': '装备职业限制不符',
           'affix-value': '装备词条数值不符合生成公式',
         };
+        // 证据（docs/78）：只有两个数来自**同一次提交内部**的判据才够格自动公开。
+        // 「装备等级 > 角色等级」正是这种：Lv5 穿 Lv100 在任何版本都不可能，
+        // 不会像「定义不存在 / 词条不符公式」那样被版本漂移伪造出来。
+        if (snapshotIssue === 'equipment-level') {
+          await recordCheatEvidence(createClient(supabaseUrl, serviceKey), user.id, {
+            source: 'sync-profile',
+            claimField: 'equipment_level',
+            claimedValue: def.level,
+            boundValue: sub.level,
+            boundKind: 'upper',
+            priorEvidenceCount: 0,
+          });
+        }
         return json({ error: issueMessages[snapshotIssue] }, 400);
       }
     }
@@ -117,6 +175,17 @@ Deno.serve(async (req: Request) => {
     // 此时宁可少写一次战力，也不要让榜单收下一个会被前端过滤掉的值，
     // 那种「写进去了但榜上看不见」的状态最难排查。
     if (!isPlausibleCombatPower(combatPower, sub.level, sub.classId)) {
+      // 走到这里有两种可能，证据分级会自动把它们分开（docs/78 §2.3）：
+      //   ① core 口径改动让某个真实搭配越过了展示层上界 —— 超额小，只记录不公开；
+      //   ② 逐件都合法、合起来却物理上不可能的伪造快照 —— 超额大，够格公开。
+      await recordCheatEvidence(createClient(supabaseUrl, serviceKey), user.id, {
+        source: 'sync-profile',
+        claimField: 'combat_power',
+        claimedValue: combatPower,
+        boundValue: combatPowerCeiling(sub.level, sub.classId),
+        boundKind: 'upper',
+        priorEvidenceCount: 0,
+      });
       return json({ error: '战力核算异常，请稍后重试' }, 500);
     }
 

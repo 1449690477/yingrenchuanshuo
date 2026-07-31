@@ -49,15 +49,19 @@ import ArenaView from '@/views/ArenaView.vue';
 import AffectionBoardView from '@/components/AffectionBoardView.vue';
 import ProgressBoardView from '@/components/ProgressBoardView.vue';
 import DungeonBoardView from '@/components/DungeonBoardView.vue';
+import CheatBoardView from '@/components/CheatBoardView.vue';
 import type { PowerBoardRow, TrialBoardRow } from '@/net/leaderboard';
 
-// ─────────── 视图切换：周常试炼榜 | 进度榜 | 羁绊榜 | 竞技场（docs/54 §十 + docs/63 §三/§五） ───────────
+// ─────────── 视图切换：周常试炼榜 | 进度榜 | 羁绊榜 | 秘境榜 | 竞技场 | 封神榜 ───────────
+// （docs/54 §十 + docs/63 §三/§五 + docs/78 封神榜）
+// 封神榜排在最后：它是公示不是竞争，不该抢正常榜单的位置。
 const VIEW_TABS = [
   { key: 'trial', label: '试炼榜' },
   { key: 'progress', label: '进度榜' },
   { key: 'affection', label: '羁绊榜' },
   { key: 'dungeon', label: '秘境榜' },
   { key: 'arena', label: '竞技场' },
+  { key: 'cheat', label: '封神榜' },
 ] as const;
 const viewTab = ref<(typeof VIEW_TABS)[number]['key']>('trial');
 
@@ -835,6 +839,7 @@ onUnmounted(() => {
     <ProgressBoardView v-else-if="viewTab === 'progress'" />
     <AffectionBoardView v-else-if="viewTab === 'affection'" />
     <DungeonBoardView v-else-if="viewTab === 'dungeon'" />
+    <CheatBoardView v-else-if="viewTab === 'cheat'" />
     <ArenaView v-else />
   </div>
 </template>

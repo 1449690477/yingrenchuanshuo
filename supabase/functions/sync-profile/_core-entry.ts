@@ -28,4 +28,12 @@ export type { ClassId, EquipmentInstance } from '../../../src/core/types';
 // 展示层那道上界（方向 B）也打包进来：服务端算完之后再自查一次，
 // 万一将来 core 的战力口径改动让某个真实搭配越过上界，
 // 这里会当场记 verified=false 而不是让榜单默默收下一个越界值。
-export { isPlausibleCombatPower } from '../../../src/core/combatPowerBound';
+export { isPlausibleCombatPower, combatPowerCeiling } from '../../../src/core/combatPowerBound';
+
+// 作弊证据的分级与行构造（docs/78）。判定留在 core，Edge 只做 insert ——
+// 五条上报路径共用同一套闸门与措辞，避免同一口径五处实现。
+export {
+  buildCheatEvidenceRow,
+  judgeCheatEvidence,
+  type CheatEvidenceInput,
+} from '../../../src/core/cheatEvidence';
