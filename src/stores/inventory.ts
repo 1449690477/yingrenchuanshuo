@@ -20,6 +20,13 @@ export const useInventoryStore = defineStore('inventory', () => {
 
   const bag = computed(() => game.save?.bag ?? null);
   const equipped = computed(() => game.save?.equipped ?? null);
+  /**
+   * 永久图鉴账本里「曾经获得过」的定义 id（存档 v17 起）。
+   * 图鉴按它展示收集进度，所以分解装备不会让进度倒退（docs/63 §4.2）。
+   */
+  const discoveredDefIds = computed<readonly string[]>(
+    () => game.save?.equipmentCodex.discoveredDefIds ?? [],
+  );
   const equipStats = computed(() => game.equipStats);
 
   function equip(uid: string): boolean {
@@ -117,6 +124,7 @@ export const useInventoryStore = defineStore('inventory', () => {
   }
 
   return {
+    discoveredDefIds,
     bag,
     equipped,
     equipStats,

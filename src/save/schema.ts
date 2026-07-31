@@ -54,9 +54,12 @@ import { AFFECTION_RULES } from '@/data/affectionRules';
 import { LEGACY_TRIAL_BRACKET_IDS, TRIAL_BEST_KEEP, TRIAL_BRACKETS } from '@/data/trialRules';
 import { MILESTONE_LEVELS, isMilestoneLevel } from '@/data/milestoneRules';
 import { getEquipment } from '@/data/equipment';
+import { createEquipmentCodexLedger, type EquipmentCodexLedger } from '@/core/equipmentCodex';
+
+export type { EquipmentCodexLedger } from '@/core/equipmentCodex';
 
 /** 当前存档版本。加字段就 +1。 */
-export const SAVE_VERSION = 16;
+export const SAVE_VERSION = 17;
 
 export const SAVE_KEY = 'main';
 
@@ -207,6 +210,14 @@ export interface SaveData {
   trial: TrialSave;
   /** 登顶速度榜的首次达成记录（docs/51 §4 榜 4）。 */
   milestones: MilestoneRecord[];
+  /**
+   * 装备永久图鉴：曾经获得过哪些装备定义（docs/63 §4.2）。
+   *
+   * 与背包分离的理由：背包上限 300 且会强制裁剪，分解也是常规操作 ——
+   * 若图鉴按背包推导，玩家每分解一件进度就倒退一次（docs/40 红线）。
+   * 口径同好感线的 discoveredGearIds：**只增不删**。
+   */
+  equipmentCodex: EquipmentCodexLedger;
 }
 
 export function emptyEquipped(): Record<EquipSlot, EquipmentInstance | null> {
@@ -264,6 +275,7 @@ export function createSave(name: string, classId: ClassId, seed: number, now: nu
     affection: createAffectionState(now, AFFECTION_RULES),
     trial: createTrialSave(),
     milestones: [],
+    equipmentCodex: createEquipmentCodexLedger(),
   };
 }
 
@@ -833,6 +845,13 @@ export const saveDataSchema = z
       .strict(),
     // 上界取档位数：每个档位最多一条，改档存档塞不进第四条。
     milestones: z.array(milestoneRecordSchema).max(MILESTONE_LEVELS.length),
+    // 装备永久图鉴：只增不删的定义 id 集合（docs/63 §4.2）。
+    // 不校验 id 是否存在于 EQUIPMENT —— 绝版装备（如烙印改版后的 80 件副本装）
+    // 的定义会长期保留，但将来若真的删掉某个定义，老玩家的收集史不该因此
+    // 整档读不出来。展示层查不到定义时跳过即可。
+    equipmentCodex: z
+      .object({ discoveredDefIds: z.array(z.string().min(1)) })
+      .strict(),
   })
   .strict()
   .superRefine((save, ctx) => {

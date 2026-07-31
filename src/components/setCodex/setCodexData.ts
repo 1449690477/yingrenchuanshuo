@@ -237,6 +237,15 @@ export interface SetCollectionInput {
   bagEquipment: readonly Pick<EquipmentInstance, 'defId'>[];
   equipped: readonly (Pick<EquipmentInstance, 'defId' | 'imprintSetId'> | null)[];
   bagItems: Readonly<Record<string, number>>;
+  /**
+   * 永久图鉴账本里「曾经获得过」的定义 id（存档 v17 起）。
+   *
+   * 有了它，分解装备不再让图鉴进度倒退（docs/40 红线）——
+   * 这也是这一页从「当前持有」升级回「已收集」的依据。
+   * 可选：老档迁移前或调用方没传时，退化成只看背包与穿戴，
+   * 表现与 v17 之前完全一致。
+   */
+  discoveredDefIds?: readonly string[];
 }
 
 export interface SetProgress {
@@ -250,7 +259,8 @@ export interface SetProgress {
 
 /** 单套收集进度：拥有一件即点亮该槽（同款变体 / 职业装任一即可）。 */
 export function setProgressFor(entry: SetCodexEntry, input: SetCollectionInput): SetProgress {
-  const ownedDefIds = new Set<string>();
+  // 「曾经获得过」优先：分解掉的装备仍然算收集过（docs/63 §4.2）
+  const ownedDefIds = new Set<string>(input.discoveredDefIds ?? []);
   for (const inst of input.bagEquipment) ownedDefIds.add(inst.defId);
 
   let equippedPieces = 0;

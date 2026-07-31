@@ -215,6 +215,7 @@ import { getFieldEquipmentSet } from '@/data/equipmentSets';
 import { TRIAL_BEST_KEEP } from '@/data/trialRules';
 
 import { createSave, type SaveData, type TrialBest } from '@/save/schema';
+import { grantEquipment } from '@/save/grantEquipment';
 import { clearSave, loadSave, saveSave, SaveConflictError, SaveWriteError } from '@/save/storage';
 
 /** 掉落流水的一条记录，UI 用 */
@@ -1408,7 +1409,7 @@ export const useGameStore = defineStore('game', () => {
           ? createFixedInstance(eqDef, uid, true, rng.derive(s.nextUid), s.player.classId)
           : createInstance(eqDef, rng.derive(s.nextUid), uid, s.player.classId);
         s.nextUid++;
-        s.bag.equipment.push(inst);
+        grantEquipment(s, [inst]);
       }
       if (log) pushLog(drop.itemId, eqDef.name, drop.count, eqDef.quality, true);
       return;
@@ -1893,7 +1894,7 @@ export const useGameStore = defineStore('game', () => {
     s.progress.pity = planned.pity;
     rng.setState(planned.nextRngState);
     s.nextUid = nextUid;
-    s.bag.equipment.push(...instances);
+    grantEquipment(s, instances);
     for (const material of materialDrops) {
       s.bag.items[material.itemId] = (s.bag.items[material.itemId] ?? 0) + material.count;
     }
@@ -2147,7 +2148,7 @@ export const useGameStore = defineStore('game', () => {
     s.affection = result.state;
     if (instance && rewardDefinition) {
       s.nextUid += 1;
-      s.bag.equipment.push(instance);
+      grantEquipment(s, [instance]);
       pushLog(rewardDefinition.id, rewardDefinition.name, 1, rewardDefinition.quality, true);
       enforceBagCapacity();
     }
@@ -2210,7 +2211,7 @@ export const useGameStore = defineStore('game', () => {
     s.bag.items = result.items;
     if (instance && rewardDefinition) {
       s.nextUid += 1;
-      s.bag.equipment.push(instance);
+      grantEquipment(s, [instance]);
       pushLog(rewardDefinition.id, rewardDefinition.name, 1, rewardDefinition.quality, true);
       enforceBagCapacity();
     }
@@ -2434,13 +2435,17 @@ export const useGameStore = defineStore('game', () => {
     const previousNextUid = save.value.nextUid;
     const previousRngState = rng.getState();
     const previousSavedRngState = save.value.rngState;
+    // 图鉴账本也在这笔事务里：grantEquipment 会往里追加，写盘失败必须一起回滚。
+    // 否则玩家会看到「图鉴里有这件、背包里没有」—— 账本是只增的，
+    // 一次回滚不彻底就永远留在那里，而且不会有任何报错。
+    const previousCodex = save.value.equipmentCodex;
     const resumeRealtime = rafId !== 0;
 
     paidPersistencePending = true;
     stopLoop();
     try {
       save.value.bag.items = { ...result.wallet.items };
-      save.value.bag.equipment.push(result.equipment);
+      grantEquipment(save.value, [result.equipment]);
       save.value.nextUid += 1;
       rng.setState(result.nextRngState);
       const created = save.value.bag.equipment[previousEquipmentCount]!;
@@ -2451,6 +2456,7 @@ export const useGameStore = defineStore('game', () => {
         save.value.bag.items = previousItems;
         save.value.bag.equipment.splice(previousEquipmentCount);
         save.value.nextUid = previousNextUid;
+        save.value.equipmentCodex = previousCodex;
         rng.setState(previousRngState);
         save.value.rngState = previousSavedRngState;
         if (error instanceof SaveConflictError) {
@@ -2930,7 +2936,7 @@ export const useGameStore = defineStore('game', () => {
 
     s.player.gold -= offer.price;
     s.nextUid += 1;
-    s.bag.equipment.push(instance);
+    grantEquipment(s, [instance]);
     s.shop.purchasedOfferIds.push(offer.id);
     void persist();
     return { ok: true, instance, offer };

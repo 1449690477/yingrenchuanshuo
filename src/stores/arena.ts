@@ -11,6 +11,7 @@
 
 import { computed, ref } from 'vue';
 import { defineStore } from 'pinia';
+import { grantEquipment } from '@/save/grantEquipment';
 import { useGameStore } from './game';
 import {
   ensureAnonymousSession,
@@ -253,9 +254,9 @@ export const useArenaStore = defineStore('arena', () => {
         const already = save.bag.equipment.some((equip) => equip.uid === grant.id);
         const definition = ARENA_EQUIPMENT[payload.defId];
         if (!already && definition) {
-          save.bag.equipment.push(
+          grantEquipment(save, [
             createInstance(definition, new Rng(payload.seed >>> 0), grant.id, save.player.classId),
-          );
+          ]);
         }
       }
       await markArenaGrantClaimed(client, grant.id);
@@ -327,7 +328,7 @@ export const useArenaStore = defineStore('arena', () => {
       save.player.classId,
     );
     save.nextUid++;
-    save.bag.equipment.push(instance);
+    grantEquipment(save, [instance]);
     lastError.value = null;
     return instance;
   }

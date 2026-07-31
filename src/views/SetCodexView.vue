@@ -27,8 +27,10 @@ const classId = computed(() => {
 const entries = computed(() => buildSetCodex(classId.value));
 
 /** 拥有集合只建一次，所有卡片共用。 */
+// 「曾经获得过」∪「此刻持有」：分解掉的装备仍然算收集过（docs/63 §4.2）。
+// 并上当前持有是为了让迁移前后的任何中间状态都不倒退。
 const ownedDefIds = computed<ReadonlySet<string>>(() => {
-  const set = new Set<string>();
+  const set = new Set<string>(inventory.discoveredDefIds);
   for (const inst of inventory.bag?.equipment ?? []) set.add(inst.defId);
   for (const inst of Object.values(inventory.equipped ?? {})) {
     if (inst) set.add(inst.defId);
@@ -40,6 +42,7 @@ const collectionInput = computed(() => ({
   bagEquipment: inventory.bag?.equipment ?? [],
   equipped: Object.values(inventory.equipped ?? {}),
   bagItems: inventory.bag?.items ?? {},
+  discoveredDefIds: inventory.discoveredDefIds,
 }));
 
 const progressBySetId = computed(() => {
@@ -100,20 +103,18 @@ function jumpCraft() {
 
     <main class="codex-scroll scroll-y">
       <!--
-        文案说的是「当前持有」而不是「已收集」，这是刻意的：本页的拥有关系
-        由背包与穿戴实时推导，分解掉就不再点亮。若写成「已收集」，玩家分解
-        一件装备时进度会当场变小 —— 那是 docs/40 红线「不许进度条倒退」。
-        而且背包上限 300 且会强制裁剪，「把 58 件全留着」本就做不到。
-        永久收集账本（照好感线的 discoveredGearIds）是下一步，落地后这里
-        再改回「已收集」并同时展示两个数字。
+        存档 v17 起这里是「已收集」而不是「当前持有」：拥有关系取自永久图鉴
+        账本（曾经获得过 ∪ 此刻持有），分解不会让它倒退。
+        账本落地之前这一页只能按背包推导，那会踩 docs/40 红线
+        「不许进度条倒退」—— 所以当时的文案刻意写成「当前持有」。
       -->
       <p class="codex-hint">
-        共 {{ summary.totalSets }} 套 · 当前持有 {{ summary.owned }}/{{ summary.total }} 件；
+        共 {{ summary.totalSets }} 套 · 已收集 {{ summary.owned }}/{{ summary.total }} 件；
         点亮全部部位即算集齐，穿上对应件数可激活套装效果。
       </p>
       <p class="codex-note">
-        这里看的是<b>此刻背包与身上</b>的装备，不是收集史 —— 分解后会重新变灰，
-        不用为了图鉴屯着不敢分解。
+        <b>分解不会抹掉收集记录</b> —— 曾经获得过就一直亮着，
+        放心清背包。账本从本次更新开始记录，此前已分解的装备无法追溯。
       </p>
 
       <section

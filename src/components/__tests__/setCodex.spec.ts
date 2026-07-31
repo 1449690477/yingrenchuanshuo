@@ -270,36 +270,48 @@ describe('套装图鉴入口接线（源码契约）', () => {
 });
 
 /**
- * 口径诚实性红线：本页的拥有关系是「此刻背包与穿戴」，不是收集史。
+ * 口径诚实性红线（存档 v17 起）。
  *
- * 为什么要用测试钉住文案：拥有关系由背包推导，分解一件装备数字就会变小。
- * 若把它写成「已收集」，玩家看到的就是一条会倒退的进度 ——
- * docs/40 明文红线「不许进度条倒退」。而且背包上限 300 且会强制裁剪，
- * 「把全部件数留着」本就做不到，这个口径在设计上无法达成。
- *
- * 等永久发现账本（照好感线 discoveredGearIds）落地后，这几条断言应当
- * 连同文案一起更新为「已收集 + 当前持有」双数字，而不是被悄悄删掉。
+ * 历史：账本落地之前，这一页只能按背包推导拥有关系，于是分解一件装备
+ * 进度就会倒退（docs/40 红线）。当时的处置是把文案改成「当前持有」并
+ * 加一条测试钉住它，同时写明「账本落地后应当连同文案一起升级，
+ * 而不是把断言悄悄删掉」。现在账本落地了，这几条就是那次约定的兑现。
  */
 describe('图鉴口径诚实性', () => {
-  it('总览用「当前持有」而不是「已收集」，并说明它看的是此刻的背包与身上', () => {
-    expect(codexViewSource).toContain('当前持有');
-    expect(codexViewSource).not.toContain('已收集 {{');
-    expect(codexViewSource).toContain('此刻背包与身上');
+  it('总览用「已收集」，并说明分解不会抹掉记录', () => {
+    expect(codexViewSource).toContain('已收集');
+    expect(codexViewSource).toContain('分解不会抹掉收集记录');
+    // 账本从迁移当天开始记录，这个限制必须对玩家讲清楚，不能含糊
+    expect(codexViewSource).toContain('此前已分解的装备无法追溯');
   });
 
-  it('部位无障碍文案同样只声称持有状态，不声称获得史', () => {
-    expect(codexCardSource).toContain('持有中');
-    expect(codexCardSource).toContain('未持有');
-    expect(codexCardSource).not.toContain("'，已获得'");
+  it('部位无障碍文案同样是收集口径', () => {
+    expect(codexCardSource).toContain('已收集');
+    expect(codexCardSource).toContain('未收集');
   });
 
-  it('拥有关系确实只由背包与穿戴推导 —— 文案与实现必须是同一件事', () => {
-    // 这条防的是「文案改对了、实现却偷偷引入别的来源」：
-    // setProgressFor 的输入只有背包、穿戴与材料，没有任何历史记录字段。
-    const progress = setProgressFor(entryOf(buildSetCodex('swordsman'), 'set_region_crimson'), {
+  it('拥有关系确实取自永久账本，而不是只看背包', () => {
+    // 这条防的是「文案改成已收集、实现却还在按背包推」——
+    // 那种组合比之前更坏：话说满了，行为却照样倒退。
+    expect(codexViewSource).toContain('inventory.discoveredDefIds');
+
+    const entry = entryOf(buildSetCodex('swordsman'), 'set_region_crimson');
+    const piece = entry.pieces[0]!;
+    // 背包与穿戴全空，只有账本里有这件 —— 也必须算收集过
+    const progress = setProgressFor(entry, {
       ...emptyInput(),
+      discoveredDefIds: [piece.def.id],
     });
-    expect(progress.ownedPieces).toBe(0);
-    expect(Object.keys(emptyInput()).sort()).toEqual(['bagEquipment', 'bagItems', 'equipped']);
+    expect(progress.ownedPieces).toBe(1);
+  });
+
+  it('账本缺省时退化成只看背包，老档与迁移中途都不会更差', () => {
+    const entry = entryOf(buildSetCodex('swordsman'), 'set_region_crimson');
+    const piece = entry.pieces[0]!;
+    const progress = setProgressFor(entry, {
+      ...emptyInput(),
+      bagEquipment: [{ defId: piece.def.id }],
+    });
+    expect(progress.ownedPieces).toBe(1);
   });
 });

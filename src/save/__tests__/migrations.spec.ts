@@ -1254,6 +1254,80 @@ describe('save migrations', () => {
     expect(migrated.equipmentDungeon.totalClears).toBe(6);
   });
 
+  it('v16 → v17 回填当前持有的装备，背包与穿戴都不漏', () => {
+    const current = createSave('图鉴前旧档', 'shaman', 7, 1_800_000_000_000) as unknown as Record<
+      string,
+      unknown
+    >;
+    const bag = current.bag as Record<string, unknown>;
+    const equipped = current.equipped as Record<string, unknown>;
+    const sample = (defId: string, uid: string) => ({
+      uid,
+      defId,
+      enhance: 0,
+      baseRollPermille: 1000,
+      enhanceGainPermille: Array<number>(15).fill(0),
+      enhanceLuck: {},
+      affixes: [],
+      reforgeResonance: 0,
+      locked: false,
+    });
+    bag.equipment = [sample('eq_r1_weapon_common', 'e1'), sample('eq_r1_head_common', 'e2')];
+    equipped.ring = sample('eq_r1_ring_common', 'e3');
+    current.nextUid = 10; // nextUid 必须大于现有最大装备编号
+
+    const raw = structuredClone(current);
+    delete raw.equipmentCodex;
+    raw.version = 16;
+
+    const migrated = migrate(raw);
+
+    expect(migrated.version).toBe(SAVE_VERSION);
+    // 背包两件 + 身上一件，一件都不能漏
+    expect([...migrated.equipmentCodex.discoveredDefIds].sort()).toEqual([
+      'eq_r1_head_common',
+      'eq_r1_ring_common',
+      'eq_r1_weapon_common',
+    ]);
+  });
+
+  it('v16 → v17 同一定义在背包与身上各一件时只记一次', () => {
+    const current = createSave('去重档', 'catkin', 9, 1_800_000_000_000) as unknown as Record<
+      string,
+      unknown
+    >;
+    const sample = (uid: string) => ({
+      uid,
+      defId: 'eq_r1_weapon_common',
+      enhance: 0,
+      baseRollPermille: 1000,
+      enhanceGainPermille: Array<number>(15).fill(0),
+      enhanceLuck: {},
+      affixes: [],
+      reforgeResonance: 0,
+      locked: false,
+    });
+    (current.bag as Record<string, unknown>).equipment = [sample('e1')];
+    (current.equipped as Record<string, unknown>).weapon = sample('e2');
+    current.nextUid = 10;
+
+    const raw = structuredClone(current);
+    delete raw.equipmentCodex;
+    raw.version = 16;
+
+    expect(migrate(raw).equipmentCodex.discoveredDefIds).toEqual(['eq_r1_weapon_common']);
+  });
+
+  it('v16 → v17 空背包空穿戴迁出空账本，不炸也不塞占位', () => {
+    const raw = structuredClone(
+      createSave('新号', 'swordsman', 1, 1_800_000_000_000) as unknown as Record<string, unknown>,
+    );
+    delete raw.equipmentCodex;
+    raw.version = 16;
+
+    expect(migrate(raw).equipmentCodex.discoveredDefIds).toEqual([]);
+  });
+
   it('当前版本不迁移，只做严格结构校验', () => {
     const current = createSave('当前档', 'shaman', 3, 1_800_000_000_000);
     expect(migrate(current as unknown as Record<string, unknown>)).toEqual(current);

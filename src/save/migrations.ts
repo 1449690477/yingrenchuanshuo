@@ -259,6 +259,37 @@ export const migrations: Record<number, Migration> = {
       equipmentDungeon: { ...dungeon, records, depth },
     };
   },
+  /*
+   * v17：装备永久图鉴（docs/63 §4.2）。
+   *
+   * 为什么要单独存一份而不是从背包推：背包上限 300 且会强制裁剪，分解又是
+   * 常规操作 —— 按背包推导的话，玩家每分解一件，图鉴进度就当场倒退一次
+   * （docs/40 红线）。口径同好感线的 discoveredGearIds：只增不删。
+   *
+   * **回填当前持有（背包 + 穿戴），不回填历史。**
+   * 与 v15 不补记首通时刻、v16 不伪造更高深度是同一条原则的两面：
+   * 那两条拒绝的是**无法证明的历史**；而「你此刻背包里有这件装备」是
+   * 当下就能验证的事实，记下来不是捏造。已经分解掉的确实找不回来 ——
+   * 账本从这次迁移开始才完整，这一点在 docs/63 §4.2 里写明。
+   */
+  16: (save) => {
+    const bag = asObject(save.bag, 16, 'bag');
+    const equipped = asObject(save.equipped, 16, 'equipped');
+
+    const defIds: string[] = [];
+    const collect = (entry: unknown) => {
+      const defId = (entry as { defId?: unknown } | null)?.defId;
+      if (typeof defId === 'string' && defId) defIds.push(defId);
+    };
+    if (Array.isArray(bag.equipment)) bag.equipment.forEach(collect);
+    Object.values(equipped).forEach(collect);
+
+    return {
+      ...save,
+      version: 17,
+      equipmentCodex: { discoveredDefIds: [...new Set(defIds)] },
+    };
+  },
 };
 
 function migrateV10Save(
