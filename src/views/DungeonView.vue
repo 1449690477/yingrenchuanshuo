@@ -85,20 +85,20 @@ const { open: dropOpen, toggle: toggleDropFold } = useFold('dungeon.drops', drop
 const planned = [
   {
     name: '日常材料副本',
-    when: 'M4-4',
+    when: '筹备中',
     desc: '周一到周日轮换，定向刷强化材料',
     icon: CalendarDays,
   },
-  { name: '无尽塔', when: 'M6-4', desc: '爬塔，层数上排行榜', icon: TowerControl },
+  { name: '无尽塔', when: '筹备中', desc: '爬塔，层数上排行榜', icon: TowerControl },
   {
     name: '世界 BOSS',
-    when: 'M8-1',
+    when: '筹备中',
     desc: '每日定时两场，全服伤害排名',
     icon: Crown,
   },
   {
     name: '公会团本',
-    when: 'M8-5',
+    when: '筹备中',
     desc: '成员各自打，伤害累加到共享血条',
     icon: UsersRound,
   },

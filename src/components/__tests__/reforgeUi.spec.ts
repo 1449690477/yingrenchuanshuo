@@ -111,8 +111,8 @@ describe('洗练组件产品红线', () => {
     const reforgeHtml = await render(ReforgeStudio, { initialUid: legacy.uid });
 
     expect(detailHtml).toContain('技能倍率');
-    expect(detailHtml).toContain('待 M3-4 技能结算');
-    expect(reforgeHtml).toContain('待 M3-4 技能结算');
+    expect(detailHtml).toContain('技能编成开放后生效');
+    expect(reforgeHtml).toContain('技能编成开放后生效');
     expect(reforgeHtml).toContain('通用槽可通过重铸换掉');
     expect(reforgeHtml).toContain('预留职业槽也可通过铭刻换掉');
     expect(reforgeHtml).toContain('淬炼、同调不会继续投入');

@@ -294,19 +294,19 @@ function say(text: string, ok: boolean) {
         </p>
       </CollapsibleCard>
 
-      <CollapsibleCard title="即将开放" persist-key="more.roadmap" :default-open="false">
+      <CollapsibleCard title="旅途计划" persist-key="more.roadmap" :default-open="false">
         <template #peek>
-          <span class="peek-note">邮件 · 成就 · 图鉴 · 排行榜…</span>
+          <span class="peek-note">来信 · 成就 · 日常委托 · 宠物</span>
         </template>
         <div class="chips">
-          <span class="chip">邮件 · M4-5</span>
-          <span class="chip">成就 · M4-7</span>
-          <span class="chip">图鉴 · M4-8</span>
-          <span class="chip">排行榜 · M7-4</span>
+          <span class="chip">旅途来信 · 筹备中</span>
+          <span class="chip">成就纪念册 · 筹备中</span>
+          <span class="chip">日常委托 · 筹备中</span>
+          <span class="chip">宠物协战 · 筹备中</span>
         </div>
       </CollapsibleCard>
 
-      <p class="ver">樱刃传说 · 开发版 M2</p>
+      <p class="ver">樱刃传说 · 二版</p>
 
       <Transition name="toast-up">
         <div v-if="msg" class="toast" :class="{ bad: !msg.ok }">{{ msg.text }}</div>
@@ -396,16 +396,16 @@ function say(text: string, ok: boolean) {
   display: flex;
   align-items: center;
   gap: 3px;
-  font-size: 8px;
+  font-size: 9px;
   font-style: normal;
 }
 
 .boutique-copy strong {
-  font-size: 17px;
+  font-size: 18px;
 }
 
 .boutique-copy > span {
-  font-size: 9px;
+  font-size: 10px;
   line-height: 1.45;
 }
 
@@ -709,14 +709,14 @@ function say(text: string, ok: boolean) {
 }
 
 .guild-entry-copy small {
-  font-size: 0.62rem;
+  font-size: 0.66rem;
   opacity: 0.85;
 }
 .guild-entry-copy strong {
   font-size: 1rem;
 }
 .guild-entry-copy > span {
-  font-size: 0.67rem;
+  font-size: 0.72rem;
   line-height: 1.45;
   opacity: 0.9;
 }
@@ -729,11 +729,12 @@ function say(text: string, ok: boolean) {
   justify-content: center;
   gap: 0.3rem;
   padding: 0 0.55rem;
-  font-size: 0.68rem;
+  font-size: 0.72rem;
   font-weight: 800;
   color: #6b6178;
   background: rgb(255 255 255 / 92%);
   border-radius: 0.75rem;
+  white-space: nowrap;
 }
 
 .codex-entry {
@@ -781,14 +782,14 @@ function say(text: string, ok: boolean) {
 }
 
 .codex-entry-copy small {
-  font-size: 0.62rem;
+  font-size: 0.66rem;
   opacity: 0.85;
 }
 .codex-entry-copy strong {
   font-size: 1rem;
 }
 .codex-entry-copy > span {
-  font-size: 0.67rem;
+  font-size: 0.72rem;
   line-height: 1.45;
   opacity: 0.9;
 }
@@ -801,16 +802,48 @@ function say(text: string, ok: boolean) {
   justify-content: center;
   gap: 0.3rem;
   padding: 0 0.55rem;
-  font-size: 0.68rem;
+  font-size: 0.72rem;
   font-weight: 800;
   color: #6b6178;
   background: rgb(255 255 255 / 92%);
   border-radius: 0.75rem;
+  white-space: nowrap;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .boutique-shade::after {
     animation: none;
+  }
+}
+
+@media (max-width: 340px) {
+  .boutique-entry {
+    min-height: 146px;
+    padding: 11px;
+  }
+
+  .boutique-cta {
+    min-width: 82px;
+    padding-inline: 7px;
+  }
+
+  .guild-entry,
+  .codex-entry {
+    grid-template-columns: 2.6rem minmax(0, 1fr) 5.3rem;
+    gap: 0.45rem;
+    padding: 0.7rem;
+  }
+
+  .guild-entry-crest,
+  .codex-entry-crest {
+    width: 2.6rem;
+    height: 2.6rem;
+  }
+
+  .guild-entry-cta,
+  .codex-entry-cta {
+    min-width: 5.3rem;
+    padding-inline: 0.35rem;
   }
 }
 </style>

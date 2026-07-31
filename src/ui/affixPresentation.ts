@@ -70,7 +70,7 @@ export function affixProfessionLabel(key: AffixKey): string | null {
 
 export function affixRuntimeNotice(key: AffixKey): string | null {
   const rule = AFFIX_RUNTIME_RULES[key];
-  return rule.generation === 'deferred' ? rule.notice : null;
+  return rule.generation === 'deferred' ? '技能编成开放后生效' : null;
 }
 
 export function affixDisplayName(affix: Affix): string {

@@ -160,43 +160,64 @@ onMounted(() => {
 
     <!-- ═══ 选层：档位 → 部位 → 层 ═══ -->
     <section class="card picker">
-      <div class="picker-row" role="group" aria-label="选择档位">
-        <button
-          v-for="tier in tiers"
-          :key="tier.id"
-          class="chip"
-          :class="{ on: tier.id === board.selectedTierId, dim: !tier.played }"
-          type="button"
-          @click="selectTier(tier.id)"
-        >
-          {{ tier.name }}
-        </button>
+      <div class="picker-block">
+        <header class="picker-label">
+          <span><small>STEP 1</small>选择秘匣档位</span>
+          <em>决定装备品质</em>
+        </header>
+        <div class="picker-row tiers" role="group" aria-label="选择档位">
+          <button
+            v-for="tier in tiers"
+            :key="tier.id"
+            class="chip"
+            :class="{ on: tier.id === board.selectedTierId, dim: !tier.played }"
+            type="button"
+            :aria-pressed="tier.id === board.selectedTierId"
+            @click="selectTier(tier.id)"
+          >
+            {{ tier.name }}
+          </button>
+        </div>
       </div>
 
-      <div class="picker-row sub" role="group" aria-label="选择部位">
-        <button
-          v-for="stage in stages"
-          :key="stage.stageId"
-          class="chip sm"
-          :class="{ on: stage.stageId === board.selectedStageId }"
-          type="button"
-          @click="selectStage(stage.stageId)"
-        >
-          {{ stage.slotLabel }}
-        </button>
+      <div class="picker-block">
+        <header class="picker-label">
+          <span><small>STEP 2</small>选择定向部位</span>
+          <em>缺什么就刷什么</em>
+        </header>
+        <div class="picker-row slots" role="group" aria-label="选择部位">
+          <button
+            v-for="stage in stages"
+            :key="stage.stageId"
+            class="chip sm"
+            :class="{ on: stage.stageId === board.selectedStageId }"
+            type="button"
+            :aria-pressed="stage.stageId === board.selectedStageId"
+            @click="selectStage(stage.stageId)"
+          >
+            {{ stage.slotLabel }}
+          </button>
+        </div>
       </div>
 
-      <div class="picker-row sub" role="group" aria-label="选择深度">
-        <button
-          v-for="entry in depths"
-          :key="entry.id"
-          class="chip sm"
-          :class="{ on: entry.id === board.selectedDungeonId }"
-          type="button"
-          @click="board.selectDungeon(entry.id)"
-        >
-          第 {{ entry.depth }} 层
-        </button>
+      <div class="picker-block">
+        <header class="picker-label">
+          <span><small>STEP 3</small>选择挑战深度</span>
+          <em>逐层突破</em>
+        </header>
+        <div class="picker-row depths-grid" role="group" aria-label="选择深度">
+          <button
+            v-for="entry in depths"
+            :key="entry.id"
+            class="chip sm"
+            :class="{ on: entry.id === board.selectedDungeonId }"
+            type="button"
+            :aria-pressed="entry.id === board.selectedDungeonId"
+            @click="board.selectDungeon(entry.id)"
+          >
+            第 {{ entry.depth }} 层
+          </button>
+        </div>
       </div>
     </section>
 
@@ -378,32 +399,83 @@ onMounted(() => {
 .picker {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 12px;
+  gap: 12px;
+  padding: 13px;
 }
-.picker-row {
+.picker-block {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 6px;
 }
+.picker-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.picker-label span {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--text-mid);
+}
+.picker-label small {
+  font-size: 8px;
+  letter-spacing: 0.08em;
+  color: var(--pink-deep);
+}
+.picker-label em {
+  font-size: 9px;
+  font-style: normal;
+  color: var(--text-dim);
+}
+.picker-row {
+  display: grid;
+  gap: 6px;
+}
+.picker-row.tiers {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.picker-row.slots {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.picker-row.depths-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
 .chip {
+  min-width: 0;
+  min-height: 40px;
+  display: grid;
+  place-items: center;
   border: 1px solid var(--line);
   background: var(--card);
   color: var(--text);
-  border-radius: 999px;
-  padding: 5px 12px;
+  border-radius: 12px;
+  padding: 6px 7px;
   font-size: 12px;
   font-weight: 700;
+  line-height: 1.2;
   cursor: pointer;
   transition:
     background 0.16s ease,
     color 0.16s ease,
-    border-color 0.16s ease;
+    border-color 0.16s ease,
+    transform 0.16s ease,
+    box-shadow 0.16s ease;
 }
 .chip.sm {
-  padding: 4px 10px;
+  padding: 5px 3px;
   font-size: 11px;
   font-weight: 600;
+}
+.chip:active {
+  transform: scale(0.96);
+}
+.chip:focus-visible {
+  outline: 2px solid var(--pink);
+  outline-offset: 2px;
 }
 .chip.dim {
   color: var(--text-dim);
@@ -412,6 +484,30 @@ onMounted(() => {
   background: var(--pink-soft);
   border-color: var(--pink);
   color: var(--pink-deep);
+  box-shadow: 0 4px 10px rgb(244 130 172 / 14%);
+}
+
+@media (max-width: 340px) {
+  .picker {
+    gap: 10px;
+    padding: 11px;
+  }
+
+  .picker-row {
+    gap: 5px;
+  }
+
+  .picker-label em {
+    font-size: 8px;
+  }
+
+  .chip {
+    font-size: 11px;
+  }
+
+  .chip.sm {
+    font-size: 10px;
+  }
 }
 
 /* ═══ 榜单 ═══ */

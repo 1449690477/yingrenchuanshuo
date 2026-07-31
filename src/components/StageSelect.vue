@@ -271,7 +271,7 @@ function staminaBlocked(stageId: string): boolean {
         <div class="sweep-teaser">
           <SystemArtwork kind="sweep" class="sweep-art" />
           <span class="sweep-copy">
-            <strong>疾风扫荡 · M3-7</strong>
+            <strong>疾风扫荡</strong>
             <span>击败章节 BOSS 后开放，用体力快速领取挂机收益。</span>
           </span>
           <span class="sweep-badge">筹备中</span>

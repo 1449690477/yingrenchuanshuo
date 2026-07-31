@@ -883,8 +883,7 @@ onBeforeUnmount(() => {
                   <button class="protect-apply" @click="protectSuggested">定契保护</button>
                 </p>
                 <small v-if="hasDeferredAffix">
-                  「待 M3-4
-                  技能结算」词条仍可查看；通用槽可通过重铸换掉，预留职业槽也可通过铭刻换掉；淬炼、同调不会继续投入。
+                  「技能编成开放后生效」词条仍可查看；通用槽可通过重铸换掉，预留职业槽也可通过铭刻换掉；淬炼、同调不会继续投入。
                 </small>
                 <small v-if="operation !== 'resonate' && operation !== 'inscribe'">
                   定契本次消耗 {{ bindCost }} 张；完成洗练后自动解除。

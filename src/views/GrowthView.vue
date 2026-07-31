@@ -693,10 +693,10 @@ onUnmounted(() => {
     </CollapsibleCard>
 
     <section class="card soon row-in" style="--row-delay: 190ms">
-      <div class="card-head"><span>后续养成</span></div>
+      <div class="card-head"><span>成长预告</span></div>
       <div class="soon-list">
-        <span class="chip">技能 · M3-5</span>
-        <span class="chip">宠物 · M6-1</span>
+        <span class="chip">主动技能编成 · 筹备中</span>
+        <span class="chip">宠物协战 · 筹备中</span>
       </div>
     </section>
 

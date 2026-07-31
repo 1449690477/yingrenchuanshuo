@@ -1299,9 +1299,10 @@ onUnmounted(() => {
   width: calc(100% / 5);
 }
 .view-seg .seg-tab {
+  min-height: 44px;
   font-size: 12px;
   font-weight: 700;
-  padding: 8px 0;
+  padding: 6px 0;
 }
 
 .seg-pill {
@@ -1321,6 +1322,7 @@ onUnmounted(() => {
   position: relative;
   z-index: 1;
   flex: 1;
+  min-height: 42px;
   padding: 7px 0;
   font-size: 11px;
   font-weight: 600;
@@ -1338,6 +1340,12 @@ onUnmounted(() => {
 .seg-tab.active {
   font-weight: 800;
   color: var(--pink-deep);
+}
+
+@media (max-width: 340px) {
+  .view-seg .seg-tab {
+    font-size: 11px;
+  }
 }
 
 .net-banner {

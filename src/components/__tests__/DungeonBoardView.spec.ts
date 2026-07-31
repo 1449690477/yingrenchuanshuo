@@ -139,6 +139,17 @@ describe('挂载冒烟：新档玩家打开秘境榜', () => {
     expect(rows[2]!.querySelectorAll('button').length).toBeGreaterThan(0);
   });
 
+  it('三级选择器有玩家可读的步骤标签与稳定网格，不再靠窄胶囊自然换行', async () => {
+    const el = await mountBoard();
+
+    expect(el.textContent).toContain('STEP 1选择秘匣档位');
+    expect(el.textContent).toContain('STEP 2选择定向部位');
+    expect(el.textContent).toContain('STEP 3选择挑战深度');
+    expect(boardSource).toContain('grid-template-columns: repeat(4, minmax(0, 1fr))');
+    expect(boardSource).toContain('grid-template-columns: repeat(5, minmax(0, 1fr))');
+    expect(boardSource).toContain('min-height: 40px');
+  });
+
   it('一层没打过时不假装有成绩，且空态给的是邀请', async () => {
     const el = await mountBoard();
 
@@ -172,7 +183,8 @@ describe('RankView 第五页签', () => {
     // 只数 VIEW_TABS（页面顶部那排）—— 榜内还有一组 BOARD_TABS，别数混了
     const viewTabsBlock = rankSource.match(/const VIEW_TABS = \[([\s\S]*?)\] as const;/);
     expect(viewTabsBlock).not.toBeNull();
-    const tabCount = (viewTabsBlock![1]!.match(/\{ key: '[a-z]+', label: '[^']+' \}/g) ?? []).length;
+    const tabCount = (viewTabsBlock![1]!.match(/\{ key: '[a-z]+', label: '[^']+' \}/g) ?? [])
+      .length;
 
     expect(tabCount).toBe(5);
     expect(rankSource).toContain('width: calc(100% / 5)');

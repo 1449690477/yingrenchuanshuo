@@ -32,8 +32,8 @@ describe('词条 UI 展示', () => {
     expect(affixProfessionLabel('critRate')).toBeNull();
   });
 
-  it('旧档延后词条明确标出结算里程碑，活跃词条不显示警告', () => {
-    expect(affixRuntimeNotice('skillMul')).toBe('待 M3-4 技能结算');
+  it('旧档延后词条使用玩家能理解的开放提示，活跃词条不显示警告', () => {
+    expect(affixRuntimeNotice('skillMul')).toBe('技能编成开放后生效');
     expect(affixRuntimeNotice('atk')).toBeNull();
   });
 
@@ -41,9 +41,9 @@ describe('词条 UI 展示', () => {
     expect(formatAffixValue({ key: 'spd', tier: 3, value: 0.03 })).toBe('+3%');
     expect(formatAffixValue({ key: 'cat_swift', tier: 3, value: 0.039 })).toBe('+3.9%');
     expect(formatAffixValue({ key: 'dmgReduce', tier: 3, value: 2.5 })).toBe('+2.5%');
-    expect(
-      formatAffixValue({ key: 'elemDmg', tier: 4, value: 8.5, element: 'fire' }),
-    ).toBe('+8.5%');
+    expect(formatAffixValue({ key: 'elemDmg', tier: 4, value: 8.5, element: 'fire' })).toBe(
+      '+8.5%',
+    );
     expect(formatAffixValue({ key: 'lifesteal', tier: 3, value: 1.6 })).toBe('+1.6%');
   });
 
