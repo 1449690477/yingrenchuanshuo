@@ -52,6 +52,7 @@ import type {
   ProfessionAffixPoolEntry,
   ProfessionAffixRole,
 } from '@/data/constants';
+import { isV10RebasedAffixKey, V10_PROFESSION_AFFIX_REBASE } from '@/data/legacyAffixHistory';
 
 export type BaseRollGrade = (typeof EQUIPMENT_BASE_ROLL_TIERS)[number]['id'];
 export type EnhanceGainGrade = (typeof ENHANCE_GAIN_TIERS)[number]['id'];
@@ -454,32 +455,152 @@ export function isVerifiablePersistedAffixValue(
   if (isRolledAffixValue(key, level, tier, value)) return true;
   if (!Number.isFinite(value)) return false;
 
-  // v9 只有通用 AFFIX_POOL；职业词条从 v10 才出现，不能借历史兼容扩大它们。
-  const spec = AFFIX_POOL.find((entry) => entry.key === key);
+  const spec = affixSpecForHistory(key);
   if (!spec) return false;
 
   const precision = 10 ** spec.decimals;
   const scaled = value * precision;
   if (Math.abs(scaled - Math.round(scaled)) > 1e-8) return false;
 
+  // v10 首次加入职业词条，v11 又调整了四条职业基准与 T5 系数。
+  // 迁移按最终 value 比例重标并再次四舍五入，因此极少数合法旧值会落在
+  // 当前 ±3% 离散区间之外。必须复现完整发布时序，不能拿当前公式反推历史。
+  if (isMigratedV10AffixValue(key, level, tier, value, spec)) return true;
+
+  // v9 只有通用 AFFIX_POOL；职业词条不能借更早历史兼容扩大值域。
+  const generalSpec = AFFIX_POOL.find((entry) => entry.key === key);
+  if (!generalSpec) return false;
   for (let origin = 1; origin <= tier; origin++) {
     const originTier = origin as AffixTier;
-    const legacyRange = legacyV9RangeForInferredTier(spec, level, originTier);
+    const legacyRange = legacyV9RangeForInferredTier(generalSpec, level, originTier);
     if (!legacyRange) continue;
 
-    const currentPath = migrateLegacyV9Range(legacyRange, spec, originTier, tier, 'current');
+    const currentPath = migrateLegacyV9Range(legacyRange, generalSpec, originTier, tier, 'current');
     if (value >= currentPath.min - Number.EPSILON && value <= currentPath.max + Number.EPSILON) {
       return true;
     }
 
     // 玩家可能在 v10 时已经同调，再进入 v11；T5 的两次四舍五入与
     // “先迁移、后同调”可能差最后一个精度单位，必须把两条正式时序都验入。
-    const v10Path = migrateLegacyV9Range(legacyRange, spec, originTier, tier, 'v10');
+    const v10Path = migrateLegacyV9Range(legacyRange, generalSpec, originTier, tier, 'v10');
     if (value >= v10Path.min - Number.EPSILON && value <= v10Path.max + Number.EPSILON) {
       return true;
     }
   }
   return false;
+}
+
+type HistoricalAffixSpec = AffixPoolEntry | ProfessionAffixPoolEntry;
+
+function affixSpecForHistory(key: AffixKey): HistoricalAffixSpec | null {
+  const general = AFFIX_POOL.find((entry) => entry.key === key);
+  if (general) return general;
+  for (const pool of Object.values(PROFESSION_AFFIX_POOLS)) {
+    const profession = pool.find((entry) => entry.key === key);
+    if (profession) return profession;
+  }
+  return null;
+}
+
+/** v10 掉落/洗练可以产生的闭区间（使用 v10 的旧基准与旧品阶系数）。 */
+function legacyV10RolledRange(
+  key: AffixKey,
+  level: number,
+  tier: AffixTier,
+  spec: HistoricalAffixSpec,
+): LegacyAffixValueRange | null {
+  if (!Number.isInteger(level) || level < 1) return null;
+  const rebase = isV10RebasedAffixKey(key) ? V10_PROFESSION_AFFIX_REBASE[key] : undefined;
+  const baseline =
+    (rebase?.oldBaseline ?? (spec.min + spec.max) / 2) *
+    (spec.scalesWithLevel ? Math.pow(level, 1.3) : 1);
+  if (!Number.isFinite(baseline) || baseline <= 0) return null;
+  const precision = 10 ** spec.decimals;
+  const multiplier = LEGACY_V10_AFFIX_TIER_MULTIPLIERS[tier];
+  return {
+    min: Math.round(baseline * multiplier * (1 - AFFIX_VALUE_VARIANCE) * precision) / precision,
+    max: Math.round(baseline * multiplier * (1 + AFFIX_VALUE_VARIANCE) * precision) / precision,
+  };
+}
+
+/**
+ * 判断最终值是否能由“v10 生成/同调 → v11 重标 → v11 同调”得到。
+ *
+ * `migrationTier` 枚举迁移发生时词条所处的品阶，因而同时覆盖：全在 v10
+ * 同调、全在 v11 同调，以及一部分在升级前/一部分在升级后的真实玩家时序。
+ */
+function isMigratedV10AffixValue(
+  key: AffixKey,
+  level: number,
+  targetTier: AffixTier,
+  expected: number,
+  spec: HistoricalAffixSpec,
+): boolean {
+  const tiers = [1, 2, 3, 4, 5] as const satisfies readonly AffixTier[];
+  for (const originTier of tiers) {
+    if (originTier > targetTier) break;
+    const rolled = legacyV10RolledRange(key, level, originTier, spec);
+    if (!rolled) continue;
+    const precision = 10 ** spec.decimals;
+    const minUnit = Math.round(rolled.min * precision);
+    const maxUnit = Math.round(rolled.max * precision);
+    for (const migrationTier of tiers) {
+      if (migrationTier < originTier) continue;
+      if (migrationTier > targetTier) break;
+      // v10 先按配置精度落袋，再经每一步同调/迁移分别四舍五入。倍率大于 1
+      // 时最终离散集合可能有空洞，不能只拿首尾拼成连续范围放宽反作弊。
+      for (let unit = minUnit; unit <= maxUnit; unit++) {
+        const migrated = migrateV10ValueAcrossV11(
+          unit / precision,
+          key,
+          spec,
+          originTier,
+          migrationTier,
+          targetTier,
+        );
+        if (Math.abs(expected - migrated) <= Number.EPSILON) return true;
+      }
+    }
+  }
+  return false;
+}
+
+function migrateV10ValueAcrossV11(
+  initial: number,
+  key: AffixKey,
+  spec: HistoricalAffixSpec,
+  originTier: AffixTier,
+  migrationTier: AffixTier,
+  targetTier: AffixTier,
+): number {
+  const precision = 10 ** spec.decimals;
+  const round = (candidate: number) => Math.round(candidate * precision) / precision;
+  const tiers = [1, 2, 3, 4, 5] as const satisfies readonly AffixTier[];
+  let value = initial;
+
+  for (let index = tiers.indexOf(originTier); index < tiers.indexOf(migrationTier); index++) {
+    const current = tiers[index]!;
+    const next = tiers[index + 1]!;
+    value = round(
+      value *
+        (LEGACY_V10_AFFIX_TIER_MULTIPLIERS[next] / LEGACY_V10_AFFIX_TIER_MULTIPLIERS[current]),
+    );
+  }
+
+  const rebase = isV10RebasedAffixKey(key) ? V10_PROFESSION_AFFIX_REBASE[key] : undefined;
+  // migrations.ts 的 rebaseV10Affix 会把基准倍率与 T5 倍率相乘后只做一次
+  // 四舍五入；拆成两次会在极少数边界值上相差一个精度单位。
+  const baselineMultiplier = rebase ? rebase.newBaseline / rebase.oldBaseline : 1;
+  const tierMultiplier =
+    migrationTier === 5 ? requireAffixTierMultiplier(5) / LEGACY_V10_AFFIX_TIER_MULTIPLIERS[5] : 1;
+  value = round(value * baselineMultiplier * tierMultiplier);
+
+  for (let index = tiers.indexOf(migrationTier); index < tiers.indexOf(targetTier); index++) {
+    const current = tiers[index]!;
+    const next = tiers[index + 1]!;
+    value = round(value * (requireAffixTierMultiplier(next) / requireAffixTierMultiplier(current)));
+  }
+  return value;
 }
 
 interface LegacyAffixValueRange {

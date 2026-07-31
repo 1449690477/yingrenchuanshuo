@@ -369,6 +369,27 @@ describe('榜单展示辅助', () => {
     ).toBe('affix-value');
   });
 
+  it('v10→v11 重标后落在当前离散区间外的职业词条仍可联机', () => {
+    const definition = Object.values(EQUIPMENT).find(
+      (candidate) => candidate.level === 50 && candidate.quality === 'epic',
+    );
+    if (!definition) throw new Error('缺少 Lv50 史诗装备定义');
+    const legacyCatkin = createInstance(definition, new Rng(10), 'trial-v10-catkin', 'catkin');
+
+    // v10 的 cat_nimble T5=233.4；v11 把 T5 从 1.54 重标到 1.64 后为 248.6。
+    // 该值是正式迁移产物，但由于两次四舍五入不在当前直接生成的离散区间内。
+    legacyCatkin.affixes = [{ key: 'cat_nimble', value: 248.6, tier: 5 }];
+    expect(trialEquipmentSnapshotIssue(legacyCatkin, 'catkin', 69)).toBeNull();
+
+    expect(
+      trialEquipmentSnapshotIssue(
+        { ...legacyCatkin, affixes: [{ key: 'cat_nimble', value: 24_860, tier: 5 }] },
+        'catkin',
+        69,
+      ),
+    ).toBe('affix-value');
+  });
+
   it('区域升阶原样保留的低区词条可参与档案同步与竞技场', () => {
     const source = EQUIPMENT.eq_r1_weapon_rare;
     const target = EQUIPMENT.eq_r6_weapon_rare;

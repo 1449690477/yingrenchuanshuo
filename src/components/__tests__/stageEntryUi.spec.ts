@@ -115,6 +115,12 @@ describe('K4 · 经验条冻结态', () => {
     expect(topBarSource).toContain('.expbar.frozen .expbar-fill::after');
     expect(topBarSource).toContain('if (!frozen) capTipOpen.value = false');
   });
+
+  it('经验条不裁剪向上浮出的区域顶点角标', () => {
+    const expbarCss = topBarSource.match(/\.expbar\s*\{[\s\S]*?\}/)?.[0] ?? '';
+    expect(expbarCss).toContain('overflow: visible');
+    expect(expbarCss).not.toContain('overflow: hidden');
+  });
 });
 
 describe('K5 · crimson 档敬请期待', () => {
