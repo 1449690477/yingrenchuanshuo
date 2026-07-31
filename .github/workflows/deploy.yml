@@ -3,6 +3,19 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [main]
+    # ── 纯文档改动不触发部署 ──
+    # 协作聊天室（docs/34）每发一条消息就产生一次提交，发版清单（docs/72）
+    # 每有人交付一次也要改。这些提交此前每一个都会触发完整部署
+    # （npm ci + verify + build，数分钟），而且**因为 concurrency 组会取消
+    # 上一次正在跑的部署** —— 实测 2026-07-31 16:2x 那段，连续两次真实代码
+    # 的部署被随后的文档提交挤掉，只有最后一次活下来。
+    #
+    # docs/ 不参与构建（应用代码里对 docs 的引用只出现在注释中），
+    # 所以排除它是安全的。**只含 docs/ 的推送才会被跳过**；
+    # 代码与文档一起推时照常部署。
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
   workflow_dispatch:
 
 permissions:
