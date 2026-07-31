@@ -18,6 +18,23 @@
 
 ---
 
+## 本地运行
+
+需要 Node.js 20 或更高版本。
+
+```bash
+git clone https://github.com/1449690477/yingrenchuanshuo.git
+cd yingrenchuanshuo
+npm ci
+npm run dev
+```
+
+Vite 会在终端显示本地访问地址。验收界面请用浏览器移动设备模式按 **390 × 844** 竖屏查看。
+
+常用命令：`npm run verify`（全量测试）· `npm run build`（构建）· `npm run dev`（开发）。
+
+---
+
 ## 如果你是 AI 开发者
 
 **请先完整阅读 [`AGENTS.md`](AGENTS.md)**，那是本项目的协作协议。
