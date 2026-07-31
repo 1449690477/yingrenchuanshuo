@@ -1492,6 +1492,44 @@ describe('equipment dungeon transaction', () => {
     await game.persist();
   });
 
+  /**
+   * 深度 UI 契约（docs/66 §八 第 6 步）。
+   *
+   * 这三个签名 2026-07-30 22:03 在频道作为「交付承诺」发给了 kimi-boards，
+   * 但接线批次漏了没暴露 —— UI 侧的 adapter 因此只能一直挂 stub。
+   * **承诺过的公共接口必须有测试守着**，否则漏掉时没有任何东西会红。
+   */
+  it('深度 UI 契约三件套：进度、评估、按部位挑战', () => {
+    const game = useGameStore();
+    game.loadFrom(dungeonSave(true));
+
+    // ① 进度：新档一层未过
+    expect(game.equipmentDungeonDepth).toEqual({});
+
+    // ② 评估：返回 UI 要展示的全部字段
+    const evaluation = game.evaluateDungeonDepth('azure', 1);
+    expect(evaluation).toMatchObject({
+      unlocked: true,
+      reason: 'ok',
+      isFirstBreak: true,
+    });
+    expect(evaluation.nominalLevel).toBeGreaterThan(0);
+    expect(evaluation.anchorLevel).toBeGreaterThan(0);
+    expect(evaluation.recommendCp).toBeGreaterThan(0);
+    expect(evaluation.blankChance).toBeGreaterThan(0);
+
+    // 跳级要被拒，且原因可读
+    expect(game.evaluateDungeonDepth('azure', 2).reason).toBe('previous-depth');
+    // crimson 只开 d1
+    expect(game.evaluateDungeonDepth('crimson', 2).reason).toBe('not-opened');
+
+    // ③ 按部位挑战：UI 不用拼关卡 id
+    const result = game.runEquipmentDungeonDepth('weapon', 'azure', 1, now);
+    expect(result.ok).toBe(true);
+    // 打赢之后深度进度真的推进了
+    expect(game.equipmentDungeonDepth.azure).toBe(1);
+  });
+
   it('穿齐八件副本套装后，属性与技能共鸣真实进入 store 结算', () => {
     const game = useGameStore();
     const save = dungeonSave(false);

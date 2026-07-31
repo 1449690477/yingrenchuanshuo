@@ -193,6 +193,12 @@ import {
 import { requireAffectionGift } from '@/data/affectionGifts';
 import { getEquipmentDungeonStage, type EquipmentDungeonStage } from '@/data/equipmentDungeons';
 import { ALL_CHAPTERS } from '@/data/regions';
+import {
+  evaluateDungeonDepth,
+  type DepthEvaluation,
+  type EquipmentDungeonDepthProgress,
+} from '@/core/equipmentDungeonDepth';
+import type { EquipmentDungeonTierId } from '@/data/equipmentDungeonGear';
 
 /**
  * 内容顶等级 —— 胚子锚点的第三个约束（docs/66 §3.3）。
@@ -1918,6 +1924,48 @@ export const useGameStore = defineStore('game', () => {
     };
   }
 
+  /**
+   * 深度 UI 契约（docs/66 §八 第 6 步，2026-07-30 22:03 在频道承诺给 kimi-boards）。
+   *
+   * 这三个是我当时作为「交付承诺」发出去的签名，接线批次却漏了没暴露 ——
+   * 于是 `ui/dungeonDepthAdapter.ts` 只能一直挂着 stub，深度面板无法直连。
+   * **UI 侧不是没做完，是在等我这一层。**
+   */
+  const equipmentDungeonDepth = computed<EquipmentDungeonDepthProgress>(
+    () => save.value?.equipmentDungeon.depth ?? {},
+  );
+
+  /** 某一层的完整评估：一次拿全 UI 要展示与判定的东西。 */
+  function evaluateDungeonDepthOf(
+    tierId: EquipmentDungeonTierId,
+    depth: number,
+  ): DepthEvaluation {
+    return evaluateDungeonDepth({
+      progress: equipmentDungeonDepth.value,
+      tierId,
+      depth,
+      playerLevel: save.value?.player.level ?? 1,
+      contentTopLevel: DUNGEON_CONTENT_TOP_LEVEL,
+      attemptsRemaining: equipmentDungeonRemaining.value,
+    });
+  }
+
+  /**
+   * 按「部位 + 档位 + 深度」发起挑战。
+   *
+   * 深度面板选的是部位与深度，而关卡 id 是「部位 × 档位」的内部编码 ——
+   * 这一层转换放在 store 而不是 UI，避免 UI 去拼字符串 id
+   * （拼错只会得到 unknown-stage，排查成本远高于在这里转一次）。
+   */
+  function runEquipmentDungeonDepth(
+    slot: EquipSlot,
+    tierId: EquipmentDungeonTierId,
+    depth: number,
+    now = Date.now(),
+  ): EquipmentDungeonRunResult {
+    return runEquipmentDungeon(`equipment_${slot}_${tierId}`, now, depth);
+  }
+
   // ─────────── 装备操作 ───────────
 
   function equip(uid: string): boolean {
@@ -3193,6 +3241,9 @@ export const useGameStore = defineStore('game', () => {
     resolvePendingEncounter,
     refreshEquipmentDungeon,
     runEquipmentDungeon,
+    equipmentDungeonDepth,
+    evaluateDungeonDepth: evaluateDungeonDepthOf,
+    runEquipmentDungeonDepth,
     interactWithCharacter,
     giveAffectionGift,
     completeAffectionStoryChoice,
