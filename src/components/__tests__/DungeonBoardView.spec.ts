@@ -187,7 +187,11 @@ describe('RankView 第五页签', () => {
     const tabCount = (viewTabsBlock![1]!.match(/\{ key: '[a-z]+', label: '[^']+' \}/g) ?? [])
       .length;
 
-    expect(tabCount).toBe(5);
+    // 6 = 试炼 / 进度 / 羁绊 / 秘境 / 竞技场 / 封神榜（docs/78）。
+    // 这个数字被钉住不是为了防止新增页签，而是为了**逼下一个加页签的人
+    // 亲自看一眼 320px 窄屏**：分母越大每格越窄，六格时单格已到 ~53px，
+    // 再加就要改成可横滑而不是继续等分。改这个数前先跑窄屏截图。
+    expect(tabCount).toBe(6);
     expect(rankSource).toContain("'--seg-count': VIEW_TABS.length");
     expect(rankSource).toContain('width: calc(100% / var(--seg-count))');
   });
