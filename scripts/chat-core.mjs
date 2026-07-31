@@ -11,7 +11,7 @@ export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '
 export const DOC = path.join(ROOT, 'docs', '34-协作聊天室.md');
 export const CLAIMS_START = '<!-- chat:claims:start -->';
 export const CLAIMS_END = '<!-- chat:claims:end -->';
-export const TYPES = ['进度', '占用', '释放', '求助', '决策', '预警', '聊天'];
+export const TYPES = ['显名', '进度', '占用', '释放', '求助', '决策', '预警', '聊天'];
 
 const CLAIM_LINE = /^- \*\*(.+?)\*\*: (.*)$/;
 const MSG_LINE = /^- \[(.+?)\] 【(.+?)】\*\*(.+?)\*\*：(.*)$/;
