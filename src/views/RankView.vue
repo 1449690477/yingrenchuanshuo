@@ -48,6 +48,7 @@ import TrialBattleScene from '@/components/TrialBattleScene.vue';
 import ArenaView from '@/views/ArenaView.vue';
 import AffectionBoardView from '@/components/AffectionBoardView.vue';
 import ProgressBoardView from '@/components/ProgressBoardView.vue';
+import DungeonBoardView from '@/components/DungeonBoardView.vue';
 import type { PowerBoardRow, TrialBoardRow } from '@/net/leaderboard';
 
 // ─────────── 视图切换：周常试炼榜 | 进度榜 | 羁绊榜 | 竞技场（docs/54 §十 + docs/63 §三/§五） ───────────
@@ -55,6 +56,7 @@ const VIEW_TABS = [
   { key: 'trial', label: '试炼榜' },
   { key: 'progress', label: '进度榜' },
   { key: 'affection', label: '羁绊榜' },
+  { key: 'dungeon', label: '秘境榜' },
   { key: 'arena', label: '竞技场' },
 ] as const;
 const viewTab = ref<(typeof VIEW_TABS)[number]['key']>('trial');
@@ -822,6 +824,7 @@ onUnmounted(() => {
 
     <ProgressBoardView v-else-if="viewTab === 'progress'" />
     <AffectionBoardView v-else-if="viewTab === 'affection'" />
+    <DungeonBoardView v-else-if="viewTab === 'dungeon'" />
     <ArenaView v-else />
   </div>
 </template>
@@ -1292,7 +1295,8 @@ onUnmounted(() => {
 
 /* 视图级切换（试炼榜 | 进度榜 | 羁绊榜 | 竞技场）四档 */
 .view-seg .seg-pill {
-  width: calc(100% / 4);
+  /* 五等分：秘境榜进来之后从 4 改 5，改漏这里胶囊会停在错的格子上 */
+  width: calc(100% / 5);
 }
 .view-seg .seg-tab {
   font-size: 12px;
