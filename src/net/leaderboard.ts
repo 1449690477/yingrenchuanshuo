@@ -111,7 +111,10 @@ export async function upsertProfile(
       equipped: profile.equipped,
     },
   });
-  if (error) throw new NetRequestError(friendlyMessage(error.message, '档案同步失败'));
+  if (error) {
+    const serverMessage = await extractFunctionErrorMessage(error);
+    throw new NetRequestError(serverMessage ?? friendlyMessage(error.message, '档案同步失败'));
+  }
 
   const body = data as { error?: string } | null;
   if (body?.error) throw new NetRequestError(body.error);

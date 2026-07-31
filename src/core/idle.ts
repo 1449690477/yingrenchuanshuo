@@ -226,3 +226,39 @@ export function recoverStamina(
     nextRecoverAt: stamina >= max ? now : lastRecoverAt + consumed,
   };
 }
+
+/**
+ * 消耗体力并维护恢复时钟。
+ *
+ * 从满体力开始消费时，第一点恢复必须从“消费发生的此刻”计时；不能沿用满体力
+ * 期间的旧时间戳，否则重开页面时会把消费前已经过去的时间重复结算，表现为刚花掉
+ * 的体力瞬间回满。部分体力继续消费时则保留原时间戳，避免吃掉玩家已等待的余数。
+ */
+export function spendStamina(
+  current: number,
+  max: number,
+  lastRecoverAt: number,
+  cost: number,
+  now: number,
+): { stamina: number; nextRecoverAt: number } {
+  if (!Number.isSafeInteger(current) || current < 0) {
+    throw new Error(`spendStamina: 当前体力必须是非负安全整数，收到 ${current}`);
+  }
+  if (!Number.isSafeInteger(max) || max <= 0) {
+    throw new Error(`spendStamina: 体力上限必须是正安全整数，收到 ${max}`);
+  }
+  if (!Number.isSafeInteger(cost) || cost < 0) {
+    throw new Error(`spendStamina: 消耗必须是非负安全整数，收到 ${cost}`);
+  }
+  if (!Number.isFinite(lastRecoverAt) || !Number.isFinite(now)) {
+    throw new Error('spendStamina: 恢复时间必须是有限数');
+  }
+  if (cost > current) {
+    throw new Error(`spendStamina: 体力不足，当前 ${current}，需要 ${cost}`);
+  }
+
+  return {
+    stamina: current - cost,
+    nextRecoverAt: current >= max && cost > 0 ? now : lastRecoverAt,
+  };
+}

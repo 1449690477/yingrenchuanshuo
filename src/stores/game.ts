@@ -148,6 +148,7 @@ import {
   idleCombatEfficiency,
   killsPerSecond,
   recoverStamina,
+  spendStamina,
   settleOffline,
 } from '@/core/idle';
 import { trimBag } from '@/core/bag';
@@ -1633,7 +1634,15 @@ export const useGameStore = defineStore('game', () => {
     const entry = evaluateStageEntry(stageId);
     if (!entry.gate.ok || !entry.cost.ok) return false;
     if (entry.cost.cost > 0) {
-      save.value.player.stamina -= entry.cost.cost;
+      const spent = spendStamina(
+        save.value.player.stamina,
+        staminaMax.value,
+        save.value.player.staminaRecoverAt,
+        entry.cost.cost,
+        Date.now(),
+      );
+      save.value.player.stamina = spent.stamina;
+      save.value.player.staminaRecoverAt = spent.nextRecoverAt;
     }
 
     save.value.progress.currentStageId = stageId;

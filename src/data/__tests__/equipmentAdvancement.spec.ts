@@ -6,6 +6,7 @@ import {
   EQUIPMENT_ADVANCEMENT_GOLD_PER_TARGET_LEVEL,
   EQUIPMENT_ADVANCEMENT_RARE_COUNT,
   EQUIPMENT_ADVANCEMENT_ROUTES,
+  equipmentAffixGenerationLevels,
   equipmentAdvancementOption,
 } from '../equipmentAdvancement';
 import { requireItem } from '../items';
@@ -152,5 +153,20 @@ describe('区域装备升阶数据规则', () => {
     );
     expect(nonRegional).toBeDefined();
     expect(equipmentAdvancementOption(nonRegional!)).toBeUndefined();
+  });
+
+  it('词条生成等级只沿真实保值升阶祖先回溯，不把非区域装备混入', () => {
+    expect(equipmentAffixGenerationLevels(requireEquipment('eq_r6_weapon_rare'))).toEqual([
+      58, 48, 38, 28, 18, 6,
+    ]);
+    expect(equipmentAffixGenerationLevels(requireEquipment('eq_r7_weapon_epic'))).toEqual([
+      73, 60, 50, 40, 30, 20,
+    ]);
+
+    const nonRegional = Object.values(EQUIPMENT).find(
+      (definition) => !definition.id.startsWith('eq_r'),
+    );
+    expect(nonRegional).toBeDefined();
+    expect(equipmentAffixGenerationLevels(nonRegional!)).toEqual([nonRegional!.level]);
   });
 });

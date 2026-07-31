@@ -8,7 +8,12 @@ import { createInstance, rollAffixForKey } from '@/core/equipment';
 import { averageSkillMultiplier, expToNext, makeMonster, makePlayer } from '@/core/progression';
 import { CLASS_IDS, type EquipmentInstance } from '@/core/types';
 import { Rng } from '@/core/rng';
-import { ENHANCE_MAX, ENHANCE_MATERIAL_IDS, SLOT_ORDER } from '@/data/constants';
+import {
+  ENHANCE_MAX,
+  ENHANCE_MATERIAL_IDS,
+  SLOT_ORDER,
+  STAGE_CHALLENGE_STAMINA_COST,
+} from '@/data/constants';
 import { requireEquipment } from '@/data/equipment';
 import { requireMonster } from '@/data/monsters';
 import { SHOP_OFFERS } from '@/data/shop';
@@ -75,6 +80,35 @@ describe('game store persistence', () => {
     expect(useInventoryStore().bag?.equipment).toEqual([]);
     expect(useStageStore().current.id).toBe(game.currentStage.id);
     await game.persist();
+  });
+
+  it('满体力消费会重置恢复起点，立即重开不会把刚花掉的体力补回', async () => {
+    let now = Date.UTC(2026, 6, 31, 19, 45);
+    vi.spyOn(Date, 'now').mockImplementation(() => now);
+    vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1));
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+
+    const game = useGameStore();
+    const save = createSave('体力刷新测试', 'swordsman', 20260731, now);
+    save.player.level = 69;
+    game.loadFrom(save);
+    game.save!.player.stamina = game.staminaMax;
+    game.save!.player.staminaRecoverAt = now - 24 * 60 * 60 * 1000;
+
+    expect(game.selectStage(FIRST_STAGE_ID)).toBe(true);
+    expect(game.save!.player.stamina).toBe(game.staminaMax - STAGE_CHALLENGE_STAMINA_COST);
+    expect(game.save!.player.staminaRecoverAt).toBe(now);
+    await game.persist();
+
+    now += 1_000;
+    setActivePinia(createPinia());
+    const reopened = useGameStore();
+    await reopened.init();
+    reopened.stopLoop();
+
+    expect(reopened.save!.player.stamina).toBe(
+      reopened.staminaMax - STAGE_CHALLENGE_STAMINA_COST,
+    );
   });
 
   it('战力低于推荐值 60% 仍持续挂机，只由承伤效率软性降速', () => {

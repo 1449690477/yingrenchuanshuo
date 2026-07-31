@@ -133,6 +133,44 @@ if (legacyIssueFromGenerated !== null || legacyIssueFromSource !== null) {
 }
 console.log('✓ 历史词条自检通过：v9 正式生成并迁移的装备可进入服务端复算');
 
+// 区域升阶只换 defId、原样保留来源等级生成的词条。线上曾把 r1→r6 的合法词条
+// 拿 r6 等级区间校验，导致档案、公会入口与竞技场同时报“词条不符合公式”。
+const advancedLegacyInstance = {
+  ...legacyV9Instance,
+  uid: 'edge-selfcheck-advanced',
+  defId: 'eq_r6_weapon_rare',
+};
+for (const [name, generated] of [
+  ['submit-trial', trialGenerated],
+  [
+    'arena-snapshot',
+    await import(pathToFileURL(path.join(root, 'supabase/functions/arena-snapshot/_core.ts')).href),
+  ],
+  [
+    'arena-challenge',
+    await import(pathToFileURL(path.join(root, 'supabase/functions/arena-challenge/_core.ts')).href),
+  ],
+  [
+    'sync-profile',
+    await import(pathToFileURL(path.join(root, 'supabase/functions/sync-profile/_core.ts')).href),
+  ],
+  [
+    'guild-expedition',
+    await import(pathToFileURL(path.join(root, 'supabase/functions/guild-expedition/_core.ts')).href),
+  ],
+] as const) {
+  const issue = generated.trialEquipmentSnapshotIssue(
+    advancedLegacyInstance,
+    'swordsman',
+    58,
+  );
+  if (issue !== null) {
+    console.error(`✗ 升阶保值词条自检失败：${name}=${String(issue)}`);
+    process.exit(1);
+  }
+}
+console.log('✓ 升阶保值词条自检通过：五条联机写入路径接受显式升阶链的历史生成等级');
+
 // ── 确定性自检 2：竞技场对决（docs/52 §5.3 的地基）──
 const duelGenerated = await import(
   pathToFileURL(path.join(root, 'supabase/functions/arena-challenge/_core.ts')).href

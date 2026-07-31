@@ -202,6 +202,25 @@ describe('upsertProfile', () => {
       }),
     ).rejects.toThrow('装备词条数值不符合生成公式');
   });
+
+  it('档案同步的 4xx 正文会透出，不再只显示 non-2xx', async () => {
+    const httpError = Object.assign(new Error('Edge Function returned a non-2xx status code'), {
+      context: new Response(JSON.stringify({ error: '装备词条数值不符合生成公式' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    });
+    const client = stubClient(async () => ({ data: null, error: httpError }));
+
+    await expect(
+      upsertProfile(client, {
+        displayName: '甲',
+        classId: 'witch',
+        level: 69,
+        equipped: [null, null, null, null, null, null, null, null],
+      }),
+    ).rejects.toThrow('装备词条数值不符合生成公式');
+  });
 });
 
 // ─────────────────── 邻域榜（2026-07-30 线上 rows=0 修复） ───────────────────

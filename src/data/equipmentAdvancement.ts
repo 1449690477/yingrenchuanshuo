@@ -7,7 +7,10 @@
  */
 
 import type { EquipmentDef, EquipSlot, Quality } from '@/core/types';
-import type { EquipmentAdvancementRequirement } from '@/core/equipmentAdvancement';
+import {
+  isAffixPreservingAdvancementPair,
+  type EquipmentAdvancementRequirement,
+} from '@/core/equipmentAdvancement';
 import { getEquipment } from './equipment';
 import { requireItem } from './items';
 
@@ -154,10 +157,47 @@ export function equipmentAdvancementOption(
     );
   }
 
+  if (!isAffixPreservingAdvancementPair(sourceDefinition, target)) return undefined;
+
   return {
     source: sourceDefinition,
     target,
     requirement: requirementForRoute(route),
     route,
   };
+}
+
+/**
+ * 当前装备上的词条可能在哪些定义等级生成。
+ *
+ * 区域升阶明确承诺“只换定义、词条原样保留”，所以一件 r6 装备上的词条既可能
+ * 是在 r6 洗出的，也可能从 r1→…→r6 一路带上来。这里沿显式登记的相邻路线
+ * 反向追溯，返回精确的等级并集；非区域装、套装、固定模板只返回当前等级。
+ */
+export function equipmentAffixGenerationLevels(definition: EquipmentDef): readonly number[] {
+  const levels = [definition.level];
+  const visited = new Set([definition.id]);
+  let current = definition;
+
+  while (true) {
+    const identity = regionalEquipmentIdentity(current);
+    if (!identity) break;
+    const previousRoute = EQUIPMENT_ADVANCEMENT_ROUTES.find(
+      (route) => route.targetRegionId === identity.regionId,
+    );
+    if (!previousRoute) break;
+
+    const source = getEquipment(
+      `eq_${previousRoute.sourceRegionId}_${identity.slot}_${identity.quality}`,
+    );
+    if (!source || visited.has(source.id)) break;
+    const option = equipmentAdvancementOption(source);
+    if (!option || option.target.id !== current.id) break;
+
+    levels.push(source.level);
+    visited.add(source.id);
+    current = source;
+  }
+
+  return levels;
 }

@@ -61,6 +61,7 @@ import {
   type TrialBracket,
   type TrialTilt,
 } from '@/data/trialRules';
+import { equipmentAffixGenerationLevels } from '@/data/equipmentAdvancement';
 
 // ─────────────────────────── 哈希 ───────────────────────────
 
@@ -274,8 +275,13 @@ export function trialEquipmentSnapshotIssue(
   if (definition.level > playerLevel) return 'equipment-level';
   if (definition.classId && definition.classId !== classId) return 'equipment-class';
 
+  const possibleGenerationLevels = equipmentAffixGenerationLevels(definition);
   for (const affix of instance.affixes) {
-    if (!isVerifiablePersistedAffixValue(affix.key, definition.level, affix.tier, affix.value)) {
+    if (
+      !possibleGenerationLevels.some((level) =>
+        isVerifiablePersistedAffixValue(affix.key, level, affix.tier, affix.value),
+      )
+    ) {
       return 'affix-value';
     }
   }

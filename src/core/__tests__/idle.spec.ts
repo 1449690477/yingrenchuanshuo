@@ -4,6 +4,7 @@ import {
   idleCombatEfficiency,
   killsPerSecond,
   recoverStamina,
+  spendStamina,
   settleIdle,
   settleOffline,
   settleSweep,
@@ -325,5 +326,34 @@ describe('recoverStamina', () => {
     const r = recoverStamina(10, 120, last, now);
     expect(r.stamina).toBe(10);
     expect(r.nextRecoverAt).toBe(last);
+  });
+});
+
+describe('spendStamina', () => {
+  it('从满体力消费时以消费时刻重启恢复计时，旧时间戳不能让刷新白嫖回满', () => {
+    const now = 1_800_000_000_000;
+    expect(spendStamina(150, 150, now - 24 * 60 * 60 * 1000, 6, now)).toEqual({
+      stamina: 144,
+      nextRecoverAt: now,
+    });
+    expect(recoverStamina(144, 150, now, now + 1_000)).toEqual({
+      stamina: 144,
+      nextRecoverAt: now,
+    });
+  });
+
+  it('未满时继续消费保留已经等待的恢复余数', () => {
+    const now = 1_800_000_000_000;
+    const baseline = now - 90_000;
+    expect(spendStamina(80, 150, baseline, 6, now)).toEqual({
+      stamina: 74,
+      nextRecoverAt: baseline,
+    });
+  });
+
+  it('拒绝负数、非整数与超额消费', () => {
+    expect(() => spendStamina(5, 120, 1, 6, 2)).toThrow('体力不足');
+    expect(() => spendStamina(5, 120, 1, -1, 2)).toThrow('消耗');
+    expect(() => spendStamina(5.5, 120, 1, 1, 2)).toThrow('当前体力');
   });
 });

@@ -368,6 +368,28 @@ describe('榜单展示辅助', () => {
       ),
     ).toBe('affix-value');
   });
+
+  it('区域升阶原样保留的低区词条可参与档案同步与竞技场', () => {
+    const source = EQUIPMENT.eq_r1_weapon_rare;
+    const target = EQUIPMENT.eq_r6_weapon_rare;
+    if (!source || !target) throw new Error('缺少 r1→r6 稀有武器升阶链');
+    const sourceInstance = createInstance(source, new Rng(20260731), 'advanced-legal', 'swordsman');
+    const advanced = { ...sourceInstance, defId: target.id };
+
+    expect(trialEquipmentSnapshotIssue(advanced, 'swordsman', target.level)).toBeNull();
+    expect(
+      trialEquipmentSnapshotIssue(
+        {
+          ...advanced,
+          affixes: advanced.affixes.map((affix, index) =>
+            index === 0 ? { ...affix, value: affix.value * 1000 + 1 } : affix,
+          ),
+        },
+        'swordsman',
+        target.level,
+      ),
+    ).toBe('affix-value');
+  });
 });
 
 describe('decideTrialScoreWrite / 最好成绩写入决策', () => {

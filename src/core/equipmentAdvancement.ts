@@ -111,7 +111,25 @@ function assertAdvancementDefinitions(
       `[配置错误] 升阶不得改变职业限制：${source.id} → ${target.id}`,
     );
   }
-  if (
+  if (!isAffixPreservingAdvancementPair(source, target)) {
+    throw new Error(
+      `[配置错误] 固定模板、额外词条槽、套装或带固定词条的装备不能走区域升阶：${source.id} → ${target.id}`,
+    );
+  }
+}
+
+/**
+ * 两个定义是否允许走“只换 defId、词条原样保留”的区域升阶。
+ *
+ * 联机装备校验也必须读同一条规则：升阶后的词条是在来源装备等级生成的，
+ * 不能拿目标等级的生成区间误判。把这条边界公开为纯函数，可避免服务端另抄一份
+ * “哪些装备可以保值升阶”的近似规则。
+ */
+export function isAffixPreservingAdvancementPair(
+  source: EquipmentDef,
+  target: EquipmentDef,
+): boolean {
+  return !(
     source.fixedTemplate ||
     target.fixedTemplate ||
     (source.fixedAffixes?.length ?? 0) > 0 ||
@@ -120,11 +138,7 @@ function assertAdvancementDefinitions(
     (target.extraAffixSlots ?? 0) > 0 ||
     source.setId ||
     target.setId
-  ) {
-    throw new Error(
-      `[配置错误] 固定模板、额外词条槽、套装或带固定词条的装备不能走区域升阶：${source.id} → ${target.id}`,
-    );
-  }
+  );
 }
 
 export function equipmentAdvancementCost(
