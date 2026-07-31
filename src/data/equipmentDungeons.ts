@@ -224,27 +224,21 @@ const PORTAL_BY_SLOT = Object.fromEntries(
   EQUIPMENT_DUNGEON_PORTALS.map((portal) => [portal.slot, portal]),
 ) as Record<EquipSlot, EquipmentDungeonPortal>;
 
-/**
- * 入场装备按“上一档全套的稳定强化阶段”校准。
+/*
+ * 【已删除】TIER_ENCOUNTER_SCALE —— 逐档手填的怪物血量/攻击倍率表。
  *
- * 蓝、紫阶段的装备生命池尚未随品质拉开，必须压低敌方攻击，避免玩家
- * 明明战力达标却被第二波两下带走；橙、红阶段装备生存成长更快，则把
- * 难度主要放在血量与限时输出上。详见 balance 脚本的四职业 15,360 场模拟。
+ * 它是「推荐战力走公式、实际难度走手填」那个病灶的最后一层，
+ * 实测跨档极差 **3.06×**（azure 小怪 hpMul 0.415 vs violet 0.147）。
+ *
+ * ⚠ 教训记在这里：docs/66 §3.2 曾写「本函数取代了逐档手填的
+ * TIER_ENCOUNTER_SCALE」，但当时只是在 depthScaledMonster 里**加了一层公式，
+ * 没有把旧表拿掉** —— 于是两层相乘，不一致原样幸存，而文档和注释都写着
+ * 「已取代」。**「取代」必须是删除，不能是覆盖**；只要旧旋钮还在，
+ * 它就会继续悄悄生效，而所有人都以为它没了。
+ *
+ * 档间差异现由标称等级承担、深度差异由 k(depth) 承担，都在
+ * core/equipmentDungeonDepth.ts 的 depthScaledMonster 里。
  */
-const TIER_ENCOUNTER_SCALE: Readonly<
-  Record<EquipmentDungeonTierId, { hp: number; atk: number }>
-> = {
-  // 2026-07-30 按 codex 平衡模拟修订（docs/56 停更修基配套）：
-  // 苍蓝原 8 秒即结束、入场战力比 2.4~2.7，副本毫无仪式感 —— 血量翻倍
-  // 把入场套装战斗拉到 15~25 秒；攻击不动，低生命职业的容错保持不变。
-  azure: { hp: 2.4, atk: 0.58 },
-  // 绛紫 21~24 秒尚可，小幅上调与苍蓝形成递进
-  violet: { hp: 0.85, atk: 0.24 },
-  // 辉金 weapon 入口对魔女胜率仅 47.5%（喵喵 61.7%）：败因是被打死
-  // 而不是打不动，砍攻击救低生命职业，时长几乎不变
-  auric: { hp: 1.5, atk: 0.85 },
-  crimson: { hp: 2.6, atk: 1.4 },
-};
 
 function stageId(slot: EquipSlot, tierId: EquipmentDungeonTierId): string {
   return `equipment_${slot}_${tierId}`;
@@ -329,15 +323,24 @@ function encounterFor(
   const asset = isBoss ? portal.bossAsset : portal.minionAsset;
   const name = isBoss ? portal.keeperName : portal.minionName;
   const visualId = `equipment-${portal.slot}-${role}`;
-  const tierScale = TIER_ENCOUNTER_SCALE[tier.id];
   const monster: MonsterDef = {
     id: `monster_${portal.slot}_${tier.id}_${role}`,
     name: `${tier.name}·${name}`,
     level: Math.max(1, tier.level - (isBoss ? 0 : 2)),
     type: isBoss ? 'boss' : 'elite',
     element: portal.element,
-    hpMul: (isBoss ? 0.065 : 0.18) * portal.hpMul * tierScale.hp,
-    atkMul: (isBoss ? 0.18 : 0.2) * portal.atkMul * tierScale.atk,
+    /*
+     * 只保留「关卡位」与「门户风味」两个系数，**不再乘任何逐档手填值**。
+     *
+     * 档间差异由标称等级承担、深度差异由 k(depth) 承担，
+     * 两者都在 core/equipmentDungeonDepth.ts 的 depthScaledMonster 里，
+     * 是公式而不是手填 —— 这样跨档一致性是结构保证而不是调参成果。
+     *
+     * 门户系数（hpMul 0.86~1.18 / atkMul 0.86~1.12）是**刻意保留**的风味差异：
+     * 「有的门户偏难」是设计意图，且幅度受 G-12 跨职业带宽门禁约束。
+     */
+    hpMul: (isBoss ? 0.065 : 0.18) * portal.hpMul,
+    atkMul: (isBoss ? 0.18 : 0.2) * portal.atkMul,
     lootTableId,
     sprite: asset,
   };
