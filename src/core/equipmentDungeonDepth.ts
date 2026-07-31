@@ -11,7 +11,7 @@
  */
 
 import type { EquipSlot, MonsterDef, Quality } from './types';
-import { typicalQualityAt, expectedFullGearCp } from '@/data/expectedPower';
+import { typicalQualityAt, expectedFullGearCp, expectedGearStats } from '@/data/expectedPower';
 import { REGIONS } from '@/data/regions';
 import { EQUIPMENT } from '@/data/equipment';
 import { itemBaseValue } from './equipment';
@@ -204,7 +204,9 @@ export function depthScaledMonster(
     ...base,
     level: Math.max(1, depthNominalLevel(tierId, depth) - (base.type === 'boss' ? 0 : 2)),
     hpMul: (base.hpMul ?? 1) * DEPTH_ENCOUNTER_BASE.hp * k,
-    atkMul: (base.atkMul ?? 1) * DEPTH_ENCOUNTER_BASE.atk * depthAtkFactor(tierId, depth),
+    atkMul: (base.atkMul ?? 1) * DEPTH_ENCOUNTER_BASE.atk *
+      depthAtkFactor(tierId, depth) *
+      depthTierThreatCompensation(tierId),
   };
 }
 
@@ -221,6 +223,62 @@ export function depthScaledMonster(
  * 实测证据：苍蓝 d2 胜率 34%、赤金 d2 胜率 100%，
  * **而两者战力比几乎相同（1.22 vs 1.16）** —— 战力比不预测胜负。
  */
+/**
+ * ⚠ **补偿性数值：它补偿的是主线全局漂移，不是副本自身的形状问题。**
+ *
+ * （这段注释是 @claude-drops 2026-07-31 11:37 要求写的，理由很硬：
+ *  补偿性数值若不写明补偿对象，将来对象消失后补偿会变成新的失真，
+ *  而那时没人知道这组数当初是为了抵消什么而定的。）
+ *
+ * **补偿对象**：主线的「威胁轴」全程漂移（docs/65 §六之三）。
+ * 玩家有效血量吃品质阶梯的乘法跳升（common 1.0 → divine 15.0），
+ * 而 `monsterAtk(level)` 只随等级平滑增长、**没有任何补偿项** ——
+ * 于是低等级段的怪物威胁性是高等级段的数倍。
+ *
+ * **为什么副本必须管这件事**：四个档位锚在 Lv16 / 31 / 56 / 81，
+ * 正好横跨这条漂移的整个区间。不补偿的话「同一个入场强度」
+ * 在四档根本不是同一件事 —— 实测苍蓝入场只够打到 d2、赤金够到 d4，
+ * 同一个「入场即最弱」的定义下苍蓝玩家五层里只开得动两层。
+ *
+ * **补偿量从哪来**：直接取品质阶梯本身，不手填。
+ * 实测佐证：品质倍率比 1.00 / 1.53 / 2.40 与主线实测的安全边际漂移
+ * 1.00 / 1.44 / 2.33 几乎完全重合 —— 这既是补偿量的依据，
+ * 也反过来证实了「品质阶梯是漂移根因」这个判断。
+ *
+ * **什么时候该删掉这个函数**：主线给 monsterAtk 配上对称的威胁因子那天
+ * （已排入下版本「标尺与地基专线」，docs/65 §六之三）。
+ * 那天这里会变成过度补偿，**必须整体删除，而不是把系数调小**。
+ */
+/** 锚点表里 baseLevel 最低的那个档位 id —— 补偿量的分母基准。 */
+function lowestTierId(): EquipmentDungeonTierId {
+  const entries = Object.entries(EQUIPMENT_DUNGEON_DEPTH_ANCHORS) as [
+    EquipmentDungeonTierId,
+    EquipmentDungeonDepthAnchor,
+  ][];
+  if (entries.length === 0) throw new Error('[配置错误] 深度锚点表为空');
+  return entries.reduce((a, b) => (a[1].baseLevel <= b[1].baseLevel ? a : b))[0];
+}
+
+export function depthTierThreatCompensation(tierId: EquipmentDungeonTierId): number {
+  // **直接量漂移本身，不用品质阶梯当代理。**
+  // 品质阶梯是漂移的根因没错，但它是**阶跃函数** —— 拿它当补偿系数，
+  // 档位等级差几级就会整档跳一大格（实测：取 d1 则赤金偏易一层、
+  // 取跨度中点则绛紫偏难一层，两版各有一档偏出）。
+  // 改用连续量：玩家有效血量 ÷ 怪物攻击，正是漂移的那个比值本身。
+  // 全部是裸属性，不经过 combatPower（后者对暴击的定价已知有误，
+  // 见 docs/65 §六之三与频道 2026-07-31 实锤B）。
+  const pressureAt = (level: number): number =>
+    expectedGearStats(level, typicalQualityAt(level)).hp / monsterAtk(level);
+  // 取样点 = 该档 d1 的标称等级。**因为那正是玩家装备的锚点**
+  //（三元取小的结果，且不随深度变），玩家的有效血量就是在这个等级上定的。
+  // 更深层的怪物变强由 depthAtkFactor 单独负责，不该在这里重复计入 ——
+  // 实测取跨度中点会重复计入一次，把绛紫/赤金压得比苍蓝还难。
+  return (
+    pressureAt(depthNominalLevel(tierId, 1)) /
+    pressureAt(depthNominalLevel(lowestTierId(), 1))
+  );
+}
+
 export function depthAtkFactor(tierId: EquipmentDungeonTierId, depth: number): number {
   assertDepth(depth);
   const target = DEPTH_ATK_TARGET[depth - 1];
