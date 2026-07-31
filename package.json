@@ -54,7 +54,8 @@
     "sim:r5": "tsx scripts/region5-economy.mts",
     "sim:r6": "tsx scripts/region6-economy.mts",
     "sim:r7": "tsx scripts/region7-economy.mts",
-    "edge:build": "tsx scripts/build-edge-function.mts"
+    "edge:build": "tsx scripts/build-edge-function.mts",
+    "ops:check": "tsx scripts/ops-check.mts"
   },
   "repository": {
     "type": "git",
