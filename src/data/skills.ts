@@ -1415,6 +1415,74 @@ const SKILLS_BY_CLASS: Readonly<Record<ClassId, readonly Skill[]>> = {
   kenshi: KENSHI_SKILLS,
 };
 
+/**
+ * 没有技能栏 UI 时的默认主动技偏好顺序。
+ *
+ * `priority` 只决定一场战斗里“多个技能同时就绪时先放谁”，不能兼任选栏价值；
+ * 否则高优先级的终极技、双治疗会挤掉低冷却循环和职业招牌技。构建器会按本表
+ * 过滤当前等级已解锁项并取前四个，因此低等级自然使用表尾的成长过渡技。
+ */
+export const DEFAULT_ACTIVE_SKILL_ORDER: Readonly<Record<ClassId, readonly string[]>> = {
+  swordsman: [
+    'skill_swordsman_attack',
+    'skill_swordsman_flame',
+    'skill_swordsman_soul_breaker',
+    'skill_swordsman_heaven_end',
+    'skill_swordsman_thrust',
+    'skill_swordsman_halfmoon',
+    'skill_swordsman_charge',
+    'skill_swordsman_crescent',
+    'skill_swordsman_sun_chaser',
+  ],
+  witch: [
+    'skill_witch_fireball',
+    'skill_witch_magic_shield',
+    'skill_witch_fire_wall',
+    'skill_witch_apocalypse',
+    'skill_witch_greater_fireball',
+    'skill_witch_lightning_beam',
+    'skill_witch_fire_ring',
+    'skill_witch_hell_lightning',
+    'skill_witch_ice_roar',
+    'skill_witch_ice_palm',
+    'skill_witch_meteor_rain',
+    'skill_witch_heaven_fire',
+  ],
+  shaman: [
+    'skill_shaman_heal',
+    'skill_shaman_poison',
+    'skill_shaman_divine_beast',
+    'skill_shaman_all_spirits',
+    'skill_shaman_soul_fire',
+    'skill_shaman_skeleton',
+    'skill_shaman_group_heal',
+    'skill_shaman_group_poison',
+  ],
+  catkin: [
+    'skill_catkin_paw_combo',
+    'skill_catkin_bristle_counter',
+    'skill_catkin_box_ambush',
+    'skill_catkin_hundred_claw',
+    'skill_catkin_light_pounce',
+    'skill_catkin_scratch_frenzy',
+    'skill_catkin_tail_sweep',
+    'skill_catkin_nine_life_spin',
+    'skill_catkin_moonshadow_step',
+    'skill_catkin_furball_storm',
+  ],
+  kenshi: [
+    'skill_kenshi_iai_draw',
+    'skill_kenshi_armor_break',
+    'skill_kenshi_swallow_return',
+    'skill_kenshi_thousand_sakura',
+    'skill_kenshi_wind_thrust',
+    'skill_kenshi_sakura_blizzard',
+    'skill_kenshi_iai_flash',
+    'skill_kenshi_sword_storm',
+    'skill_kenshi_ice_heart',
+  ],
+};
+
 export const ALL_SKILLS: readonly Skill[] = Object.values(SKILLS_BY_CLASS).flat();
 
 export function skillsFor(classId: ClassId): readonly Skill[] {

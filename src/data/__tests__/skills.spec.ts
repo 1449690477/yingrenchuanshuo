@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  DEFAULT_ACTIVE_SKILL_ORDER,
   ALL_SKILLS,
   CATKIN_SKILLS,
   CATKIN_VISUAL_SKILLS,
@@ -17,6 +18,49 @@ function requireSkill<T extends { id: string }>(skills: readonly T[], id: string
 }
 
 describe('five-class skill roster', () => {
+  it('默认四槽顺序逐职业覆盖全部主动技，且不会跨职业或重复', () => {
+    const rosters = {
+      swordsman: SWORDSMAN_SKILLS,
+      witch: WITCH_SKILLS,
+      shaman: SHAMAN_SKILLS,
+      catkin: CATKIN_SKILLS,
+      kenshi: KENSHI_SKILLS,
+    } as const;
+
+    for (const [classId, skills] of Object.entries(rosters)) {
+      const active = skills.filter((skill) => skill.type === 'active');
+      const order = DEFAULT_ACTIVE_SKILL_ORDER[classId as keyof typeof rosters];
+      expect(new Set(order).size, `${classId} 默认顺序不能重复`).toBe(order.length);
+      expect(new Set(order), `${classId} 默认顺序必须覆盖全部主动技`).toEqual(
+        new Set(active.map((skill) => skill.id)),
+      );
+      for (const id of order) {
+        expect(requireSkill(active, id).class).toBe(classId);
+      }
+    }
+  });
+
+  it('高等级默认四槽保留各职业低冷却循环、招牌机制与终结技', () => {
+    expect(DEFAULT_ACTIVE_SKILL_ORDER.shaman.slice(0, 4)).toEqual([
+      'skill_shaman_heal',
+      'skill_shaman_poison',
+      'skill_shaman_divine_beast',
+      'skill_shaman_all_spirits',
+    ]);
+    expect(DEFAULT_ACTIVE_SKILL_ORDER.catkin.slice(0, 4)).toEqual([
+      'skill_catkin_paw_combo',
+      'skill_catkin_bristle_counter',
+      'skill_catkin_box_ambush',
+      'skill_catkin_hundred_claw',
+    ]);
+    expect(DEFAULT_ACTIVE_SKILL_ORDER.kenshi.slice(0, 4)).toEqual([
+      'skill_kenshi_iai_draw',
+      'skill_kenshi_armor_break',
+      'skill_kenshi_swallow_return',
+      'skill_kenshi_thousand_sakura',
+    ]);
+  });
+
   it('五职业各 14 技能、全局 70 个 id 唯一', () => {
     const expectations = [
       [SWORDSMAN_SKILLS, 9, 5],
