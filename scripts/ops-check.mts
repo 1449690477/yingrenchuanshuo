@@ -39,6 +39,25 @@ interface Check {
   remedy: string;
 }
 
+/** sync-profile 的上次部署时刻（毫秒）—— 用作「本次发车之后」的时间锚点。 */
+const SYNC_PROFILE_DEPLOYED_MS = (() => {
+  try {
+    const raw = execFileSync(
+      'npx',
+      ['supabase', 'functions', 'list', '-o', 'json'],
+      { encoding: 'utf8', shell: true, stdio: ['ignore', 'pipe', 'pipe'] },
+    );
+    const fns = JSON.parse(raw.slice(raw.indexOf('['), raw.lastIndexOf(']') + 1)) as {
+      slug: string;
+      updated_at: number;
+    }[];
+    return fns.find((f) => f.slug === 'sync-profile')?.updated_at ?? 0;
+  } catch {
+    // 取不到就退化成 0（= 检查全表），宁可多报不漏报。
+    return 0;
+  }
+})();
+
 const CHECKS: Check[] = [
   {
     name: 'pg_cron / pg_net 扩展已启用',
@@ -128,6 +147,33 @@ const CHECKS: Check[] = [
     remedy:
       '先查 information_schema.column_privileges 确认玩家写不了这一列；' +
       '再确认 12 个 Edge Function 都用当前 core 重打包并部署过（npm run edge:build）',
+  },
+  {
+    // ★ 版本戳的写入点不止一个，这一条抓「写了值却没更新戳」的那些。
+    //
+    // 2026-08-01 实查：**五个** Edge Function 会写 profiles.combat_power ——
+    // submit-trial / submit-progress / arena-snapshot / arena-challenge /
+    // guild-expedition —— 而当时只有 sync-profile 会同时写 cp_formula_version。
+    // 我加版本戳时以为 sync-profile 是唯一写入点，**没有 grep 全部函数就下了结论**。
+    //
+    // 症状是安全那一侧（该显示的没显示，而不是不可比的数字混进排名），
+    // 所以它不会自己暴露出来 —— 玩家只是从榜上消失，没有任何东西会红。
+    // 判据：**一行的 updated_at 晚于 sync-profile 的上次部署时刻，戳却不是当前版本**
+    // ⇒ 它被某条不打戳的路径写过。部署时刻由脚本自己从线上取，不手写。
+    name: '所有写入点都更新了公式版本戳',
+    sql: `select count(*) as n from public.profiles
+           where cp_formula_version <> ${CP_FORMULA_VERSION}
+             and updated_at > (timestamp 'epoch' + ${SYNC_PROFILE_DEPLOYED_MS} / 1000 * interval '1 second')`,
+    verdict: (rows) => {
+      const n = Number(rows[0]?.n ?? 0);
+      return n === 0
+        ? null
+        : `${n} 行在本次部署之后被写过，但版本戳仍不是 ${CP_FORMULA_VERSION} —— ` +
+            '说明有写入点只写了 combat_power 没写戳，那些玩家会从榜上消失';
+    },
+    remedy:
+      '给这五个函数的 progress 对象补 cp_formula_version（写法抄 sync-profile），' +
+      '并从各自的 _core-entry 导出该常量；改完 npm run edge:build 并重新部署',
   },
 ];
 
