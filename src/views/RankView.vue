@@ -276,6 +276,9 @@ const myPowerRankDetail = computed(() => lb.powerCache?.value.myRank ?? null);
  * staleFormula（我的战力是旧尺量的）与 exact=false（扫描到上限、名次只是下界）
  * 都不给 —— 那两种情况下写「第 N 名」是在说一个我们并不知道的数。
  */
+/** 还有多少人等着按新公式重算 —— 用来解释「榜为什么比平时短」。 */
+const pendingRecalcCount = computed(() => lb.powerCache?.value.pendingRecalc ?? 0);
+
 const myPowerRank = computed(() => {
   const detail = myPowerRankDetail.value;
   return detail?.kind === 'ranked' && detail.exact ? detail.rank : null;
@@ -752,6 +755,17 @@ onUnmounted(() => {
           </div>
           <p v-if="myPowerRank && !powerRows.some((r) => r.isMe)" class="my-power-note">
             我的战力名次：第 {{ myPowerRank }} 名
+          </p>
+          <!--
+            战力标尺换代期间的两句话（老板批准锚点方案时的前提条件）。
+            没有它们，玩家看到的是「我不见了」和「榜变短了」，而不知道原因 ——
+            而这两件都会在换尺当天同时发生。文案措辞归榜单线，这里先给可用版本。
+          -->
+          <p v-if="myPowerRankDetail?.kind === 'staleFormula'" class="my-power-note">
+            战力标尺已更新，你的战力正在按新口径重算；下次同步后自动回到榜上。
+          </p>
+          <p v-if="pendingRecalcCount > 0" class="my-power-note">
+            另有 {{ pendingRecalcCount }} 位玩家的战力正在按新口径重算，尚未计入本榜。
           </p>
         </div>
       </section>

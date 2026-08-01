@@ -13,6 +13,7 @@ import { defineStore } from 'pinia';
 import { useGameStore } from './game';
 import { ensureAnonymousSession, getSupabaseClient, isSupabaseConfigured } from '@/net/supabase';
 import {
+  countStaleFormulaProfiles,
   fetchMyPowerRank,
   fetchPowerTop,
   fetchTrialNeighborhood,
@@ -102,7 +103,12 @@ export const useLeaderboardStore = defineStore('leaderboard', () => {
   const topCache = ref<CacheSlot<TrialBoardRow[]> | null>(null);
   // myRank 不是裸数字：过渡期存在「战力是旧公式量的、与榜上的值不可比」这个
   // 真实状态，裸数字只能表达成一个编出来的名次（批3-3，见 net/leaderboard.ts）。
-  const powerCache = ref<CacheSlot<{ rows: PowerBoardRow[]; myRank: MyPowerRank | null }> | null>(
+  const powerCache = ref<CacheSlot<{
+    rows: PowerBoardRow[];
+    myRank: MyPowerRank | null;
+    /** 还有多少人的战力等着按新公式重算 —— 过渡期榜变短时给玩家一个解释。 */
+    pendingRecalc: number;
+  }> | null>(
     null,
   );
   const boardsLoading = ref(false);
@@ -357,10 +363,16 @@ export const useLeaderboardStore = defineStore('leaderboard', () => {
           ? Promise.all([
               fetchPowerTop(client, userId.value),
               fetchMyPowerRank(client, userId.value, game.cp).catch(() => null),
+              // 取不到就当 0：这个数只用于解释「榜为什么短」，失败不该让整块榜挂掉
+              countStaleFormulaProfiles(client).catch(() => 0),
             ])
               .then(
-                ([rows, myRank]) =>
-                  (powerCache.value = { at: Date.now(), key: 'power', value: { rows, myRank } }),
+                ([rows, myRank, pendingRecalc]) =>
+                  (powerCache.value = {
+                    at: Date.now(),
+                    key: 'power',
+                    value: { rows, myRank, pendingRecalc },
+                  }),
               )
               .catch((error) => (lastError.value = String((error as Error).message ?? error)))
           : Promise.resolve(),
