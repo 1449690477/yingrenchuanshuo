@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
-import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import process from 'node:process';
 import sharp from 'sharp';
@@ -135,24 +134,134 @@ function ensureParent(path) {
   mkdirSync(dirname(abs(path)), { recursive: true });
 }
 
-function sha(buffer) {
-  return createHash('sha256').update(buffer).digest('hex');
-}
-
-async function pixelSha(input) {
-  const { data, info } = await sharp(input)
+async function decodedRgba(input) {
+  return sharp(input)
     .ensureAlpha()
     .raw()
     .toBuffer({ resolveWithObject: true });
-  for (let index = 0; index < info.width * info.height; index += 1) {
-    const offset = index * info.channels;
-    if ((data[offset + 3] ?? 255) === 0) {
-      data[offset] = 0;
-      data[offset + 1] = 0;
-      data[offset + 2] = 0;
+}
+
+function alphaBounds(data, info, threshold = 20) {
+  let left = info.width;
+  let top = info.height;
+  let right = -1;
+  let bottom = -1;
+  for (let y = 0; y < info.height; y += 1) {
+    for (let x = 0; x < info.width; x += 1) {
+      if (data[(y * info.width + x) * info.channels + 3] <= threshold) continue;
+      left = Math.min(left, x);
+      top = Math.min(top, y);
+      right = Math.max(right, x);
+      bottom = Math.max(bottom, y);
     }
   }
-  return sha(Buffer.concat([Buffer.from(`${info.width}x${info.height}:`), data]));
+  return right < 0 ? null : { left, top, right, bottom };
+}
+
+function visibleMeanAbsoluteError(left, right, includePixel = () => true) {
+  if (left.data.length !== right.data.length) return Number.POSITIVE_INFINITY;
+  let total = 0;
+  let comparedChannels = 0;
+  for (let index = 0; index < left.data.length; index += 4) {
+    const pixel = index / 4;
+    const x = pixel % left.info.width;
+    const y = Math.floor(pixel / left.info.width);
+    if (!includePixel(x, y)) continue;
+    const leftAlpha = left.data[index + 3] / 255;
+    const rightAlpha = right.data[index + 3] / 255;
+    total += Math.abs(left.data[index] * leftAlpha - right.data[index] * rightAlpha);
+    total += Math.abs(left.data[index + 1] * leftAlpha - right.data[index + 1] * rightAlpha);
+    total += Math.abs(left.data[index + 2] * leftAlpha - right.data[index + 2] * rightAlpha);
+    total += Math.abs(left.data[index + 3] - right.data[index + 3]);
+    comparedChannels += 4;
+  }
+  return comparedChannels === 0 ? 0 : total / comparedChannels;
+}
+
+function boundsDelta(left, right) {
+  if (left === null || right === null) return left === right ? 0 : Number.POSITIVE_INFINITY;
+  return Math.max(
+    Math.abs(left.left - right.left),
+    Math.abs(left.top - right.top),
+    Math.abs(left.right - right.right),
+    Math.abs(left.bottom - right.bottom),
+  );
+}
+
+async function assertVisualEquivalent(
+  actualInput,
+  rebuiltInput,
+  label,
+  { maxVisibleMae = 0.1, maxBoundsDelta = 2, includePixel } = {},
+) {
+  // sharp/libvips 的调色板量化在 Windows 与 Linux 上会产生肉眼不可见的取整差异。
+  // 因此跨平台门禁比较真正影响游戏画面的 RGBA、尺寸和锚点轮廓；0.1 与 2px
+  // 沿用 R6/R7 的非身体纸娃娃阈值，并由下方破坏样本证明能拒绝真实改色/错位。
+  const actual = await decodedRgba(actualInput);
+  const rebuilt = await decodedRgba(rebuiltInput);
+  if (actual.info.width !== rebuilt.info.width || actual.info.height !== rebuilt.info.height) {
+    throw new Error(
+      `[樱酱可穿资产] 重建尺寸不一致：${label}（${actual.info.width}×${actual.info.height} / ${rebuilt.info.width}×${rebuilt.info.height}）`,
+    );
+  }
+  const visibleMae = visibleMeanAbsoluteError(actual, rebuilt, includePixel);
+  const outlineDelta = boundsDelta(
+    alphaBounds(actual.data, actual.info),
+    alphaBounds(rebuilt.data, rebuilt.info),
+  );
+  if (visibleMae > maxVisibleMae || outlineDelta > maxBoundsDelta) {
+    throw new Error(
+      `[樱酱可穿资产] 非确定性或未重建：${label}（visibleMAE=${visibleMae.toFixed(3)}，bboxDelta=${outlineDelta}）`,
+    );
+  }
+}
+
+async function assertVisualRebuild(path, output, options) {
+  return assertVisualEquivalent(abs(path), output, path, options);
+}
+
+async function guardFixture({ width = 16, height = 16, left = 4, top = 4, color }) {
+  const data = Buffer.alloc(width * height * 4);
+  for (let y = top; y < Math.min(top + 8, height); y += 1) {
+    for (let x = left; x < Math.min(left + 8, width); x += 1) {
+      const offset = (y * width + x) * 4;
+      data[offset] = color[0];
+      data[offset + 1] = color[1];
+      data[offset + 2] = color[2];
+      data[offset + 3] = 255;
+    }
+  }
+  return sharp(data, { raw: { width, height, channels: 4 } }).png().toBuffer();
+}
+
+async function expectVisualGuardRejects(name, actual, rebuilt) {
+  let rejected = false;
+  try {
+    await assertVisualEquivalent(actual, rebuilt, `门禁破坏样本/${name}`);
+  } catch {
+    rejected = true;
+  }
+  if (!rejected) throw new Error(`[樱酱可穿资产] 可见等价门禁未拒绝破坏样本：${name}`);
+}
+
+async function verifyVisualComparisonGuard() {
+  const base = await guardFixture({ color: [255, 64, 96] });
+  await assertVisualEquivalent(base, base, '门禁同图自检');
+  await expectVisualGuardRejects(
+    '明显改色',
+    base,
+    await guardFixture({ color: [64, 96, 255] }),
+  );
+  await expectVisualGuardRejects(
+    '明显位移',
+    base,
+    await guardFixture({ left: 7, top: 4, color: [255, 64, 96] }),
+  );
+  await expectVisualGuardRejects(
+    '尺寸变化',
+    base,
+    await guardFixture({ width: 17, color: [255, 64, 96] }),
+  );
 }
 
 async function canonicalPng(buffer) {
@@ -173,10 +282,7 @@ async function writeOrCheck(path, buffer) {
     if (!existsSync(abs(path))) {
       throw new Error(`[樱酱可穿资产] 缺少运行时文件：${path}`);
     }
-    const actual = readFileSync(abs(path));
-    if ((await pixelSha(actual)) !== (await pixelSha(output))) {
-      throw new Error(`[樱酱可穿资产] 非确定性或未重建：${path}`);
-    }
+    await assertVisualRebuild(path, output);
     return;
   }
   ensureParent(path);
@@ -443,9 +549,17 @@ async function buildContactSheet() {
     .toBuffer();
   const path = 'art-source/qa/kenshi-wearables-contact.png';
   if (CHECK) {
-    if (!existsSync(abs(path)) || (await pixelSha(abs(path))) !== (await pixelSha(output))) {
+    if (!existsSync(abs(path))) {
       throw new Error(`[樱酱可穿资产] 试穿联系图未更新：${path}`);
     }
+    // SVG 文本依赖系统字体，Windows 与 Linux 的字形栅格不可能逐像素相同。
+    // 联系图的生产门禁只比较每张卡片上方的试穿预览区；底部 70px 文本由同一份
+    // entry 清单生成，不参与跨平台像素判定。运行时各独立层仍由 writeOrCheck 严格校验。
+    await assertVisualRebuild(path, output, {
+      maxVisibleMae: 0.1,
+      maxBoundsDelta: 0,
+      includePixel: (_x, y) => y % 410 < 340,
+    });
     return;
   }
   ensureParent(path);
@@ -464,10 +578,7 @@ async function writeIcon(path, buffer) {
     .toBuffer();
   if (CHECK) {
     if (!existsSync(abs(path))) throw new Error(`[樱酱可穿资产] 缺少图标：${path}`);
-    const actual = readFileSync(abs(path));
-    if ((await pixelSha(actual)) !== (await pixelSha(canonical))) {
-      throw new Error(`[樱酱可穿资产] 图标未由独立层重建：${path}`);
-    }
+    await assertVisualRebuild(path, canonical);
     return;
   }
   ensureParent(path);
@@ -514,6 +625,7 @@ if (!REBUILD && !CHECK) {
   throw new Error('用法：node scripts/build-kenshi-wearables.mjs [--rebuild|--check]');
 }
 
+if (CHECK) await verifyVisualComparisonGuard();
 await build();
 console.log(
   CHECK
