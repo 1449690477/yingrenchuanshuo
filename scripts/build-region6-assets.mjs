@@ -391,9 +391,8 @@ if (CHECK_KENSHI_REBUILD) {
       `✓ ${entry.family}-${entry.slot} dry-run：${encoded.length} bytes，bbox=${rebuiltBounds.left},${rebuiltBounds.top},${rebuiltBounds.right},${rebuiltBounds.bottom}，byteExact=${byteExact}，visibleMAE=${visibleMae.toFixed(3)}`,
     );
   }
-  process.exit(0);
-}
-
+} else {
+// 检查分支必须自然退出，让 sharp/libuv 完成句柄清理；禁止 process.exit 强杀。
 if (CONTACT_ONLY) {
   const lock = JSON.parse(await readFile(LOCK_PATH, 'utf8'));
   for (const asset of REGION6_ALL_ASSETS) {
@@ -567,3 +566,4 @@ console.log(
     ? `✓ 区域 6 全资产联系表已从 ${runtimeRecords.length} 张既有运行时资源重建。`
     : `✓ 区域 6 全资产构建完成：${runtimeRecords.length} 张运行时资源，来源锁与联系表已更新。`,
 );
+}
