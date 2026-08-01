@@ -66,7 +66,7 @@ export type { EquipmentCodexLedger } from '@/core/equipmentCodex';
 export type { EquipmentPresetState } from '@/core/equipmentPresets';
 
 /** 当前存档版本。加字段就 +1。 */
-export const SAVE_VERSION = 19;
+export const SAVE_VERSION = 20;
 
 export const SAVE_KEY = 'main';
 
@@ -152,6 +152,8 @@ export interface TrialBest {
   weekIndex: number;
   bracketId: string;
   classId: ClassId;
+  /** 算出这条伤害的试炼公式版本；不同版本的纪录不能互相压制。 */
+  formulaVersion: number;
   /** 60 秒总伤害（本地挑战与服务端复算逐点一致的确定性成绩） */
   damage: number;
   /** 达成时刻（毫秒时间戳） */
@@ -712,6 +714,7 @@ const trialBestSchema = z
     weekIndex: nonNegativeInteger,
     bracketId: z.string().refine((id) => trialBracketIds.has(id), '试炼分段不存在'),
     classId: classIdSchema,
+    formulaVersion: z.number().int().positive(),
     damage: nonNegativeInteger,
     at: timestamp,
     submitted: z.boolean(),

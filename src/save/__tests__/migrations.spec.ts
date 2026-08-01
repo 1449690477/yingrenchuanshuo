@@ -273,6 +273,18 @@ function v10Save(): Record<string, unknown> {
 }
 
 describe('save migrations', () => {
+  it('从最老 v0 逐级执行到当前 v20，每一步只前进一个版本且迁移链无缺口', () => {
+    let raw = v0Save();
+    for (let from = 0; from < SAVE_VERSION; from += 1) {
+      expect(raw.version, `进入 v${from} → v${from + 1} 前版本必须匹配`).toBe(from);
+      const migration = migrations[from];
+      expect(migration, `缺少 v${from} → v${from + 1} 迁移`).toBeTypeOf('function');
+      raw = migration!(raw);
+      expect(raw.version, `v${from} → v${from + 1} 必须只前进一级`).toBe(from + 1);
+    }
+    expect(migrate(raw)).toEqual(raw);
+  });
+
   it('v0 依次迁移到当前版本且不丢旧数据', () => {
     const migrated = migrate(v0Save());
 
@@ -1377,6 +1389,37 @@ describe('save migrations', () => {
     expect(migrated.progress).toEqual(current.progress);
     expect(migrated.affection.characters.catkin).toEqual(current.affection.characters.catkin);
     expect(migrated.affection.characters.kenshi).toEqual(current.affection.characters.kenshi);
+  });
+
+  it('v19 → v20 把历史试炼纪录标为公式 v1，不改伤害与提交事实', () => {
+    const current = createSave('试炼换尺前旧档', 'kenshi', 20, 1_800_000_000_000);
+    const historical = {
+      seasonId: 's1',
+      weekIndex: 30,
+      bracketId: 'feiying',
+      classId: 'kenshi',
+      damage: 1_489_904,
+      at: 1_799_000_000_000,
+      submitted: true,
+    };
+    const raw = structuredClone(current) as unknown as Record<string, unknown>;
+    raw.version = 19;
+    (raw.trial as { bests: unknown[] }).bests = [historical];
+
+    const migrated = migrate(raw);
+
+    expect(migrated.version).toBe(SAVE_VERSION);
+    expect(migrated.trial.bests).toEqual([{ ...historical, formulaVersion: 1 }]);
+  });
+
+  it('v19 → v20 缺失试炼成绩簿时明确拒绝，不伪造空历史', () => {
+    const raw = structuredClone(
+      createSave('损坏的试炼旧档', 'swordsman', 21, 1_800_000_000_000),
+    ) as unknown as Record<string, unknown>;
+    raw.version = 19;
+    delete (raw.trial as { bests?: unknown }).bests;
+
+    expect(() => migrate(raw)).toThrow('trial.bests 缺失或格式错误');
   });
 
   it('当前版本可创建并严格校验 kenshi 职业档', () => {

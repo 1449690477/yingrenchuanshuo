@@ -15,6 +15,7 @@ import { clearSave } from '@/save/storage';
 import { createSave, type TrialBest } from '@/save/schema';
 import { TRIAL_BEST_KEEP, TRIAL_BRACKETS, TRIAL_SEASON_ID } from '@/data/trialRules';
 import { trialBracketFor, trialWeekIndex } from '@/core/trial';
+import { TRIAL_FORMULA_VERSION } from '@/core/trialFormulaVersion';
 import { useGameStore } from '../game';
 import { useLeaderboardStore } from '../leaderboard';
 
@@ -77,7 +78,12 @@ describe('challengeTrial / 本地挑战', () => {
     expect(lb.myBestThisWeek?.damage).toBe(best.damage);
 
     // 更高的纪录：覆盖且 submitted 复位，等待重新上传
-    game.markTrialBestSubmitted(best.seasonId, best.weekIndex, best.bracketId);
+    game.markTrialBestSubmitted(
+      best.seasonId,
+      best.weekIndex,
+      best.bracketId,
+      best.formulaVersion,
+    );
     expect(lb.myBestThisWeek?.submitted).toBe(true);
     game.recordTrialBest({ ...best, damage: best.damage + 1000 });
     expect(lb.myBestThisWeek?.damage).toBe(best.damage + 1000);
@@ -93,6 +99,7 @@ describe('challengeTrial / 本地挑战', () => {
         weekIndex: week - i,
         bracketId: DEFAULT_BRACKET,
         classId: 'swordsman',
+        formulaVersion: TRIAL_FORMULA_VERSION,
         damage: 1000 + i,
         at: NOW - i * 86_400_000,
         submitted: true,
@@ -105,11 +112,39 @@ describe('challengeTrial / 本地挑战', () => {
       weekIndex: week,
       bracketId: DEFAULT_BRACKET,
       classId: 'swordsman',
+      formulaVersion: TRIAL_FORMULA_VERSION,
       damage: 999_999,
       at: NOW,
       submitted: false,
     });
     expect(game.save!.trial.bests.length).toBeLessThanOrEqual(TRIAL_BEST_KEEP);
+  });
+
+  it('同周旧公式高分不压住当前公式纪录，两个版本各自只升不降', async () => {
+    const game = await setupGame();
+    const lb = useLeaderboardStore();
+    const week = trialWeekIndex(NOW);
+    game.save!.trial.bests.unshift({
+      seasonId: TRIAL_SEASON_ID,
+      weekIndex: week,
+      bracketId: DEFAULT_BRACKET,
+      classId: 'swordsman',
+      formulaVersion: TRIAL_FORMULA_VERSION - 1,
+      damage: Number.MAX_SAFE_INTEGER,
+      at: NOW - 1,
+      submitted: true,
+    });
+
+    const { best, improved } = lb.challengeTrial();
+
+    expect(improved).toBe(true);
+    expect(best.formulaVersion).toBe(TRIAL_FORMULA_VERSION);
+    expect(game.save!.trial.bests).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ formulaVersion: TRIAL_FORMULA_VERSION - 1 }),
+        expect.objectContaining({ formulaVersion: TRIAL_FORMULA_VERSION }),
+      ]),
+    );
   });
 });
 
@@ -127,6 +162,7 @@ describe('weekOverWeekGain / 环比箭头', () => {
       weekIndex: week - 1,
       bracketId: DEFAULT_BRACKET,
       classId: 'swordsman',
+      formulaVersion: TRIAL_FORMULA_VERSION,
       damage: 10_000,
       at: NOW - 7 * 86_400_000,
       submitted: true,
@@ -136,6 +172,7 @@ describe('weekOverWeekGain / 环比箭头', () => {
       weekIndex: week,
       bracketId: DEFAULT_BRACKET,
       classId: 'swordsman',
+      formulaVersion: TRIAL_FORMULA_VERSION,
       damage: 11_800,
       at: NOW,
       submitted: false,
@@ -195,6 +232,7 @@ describe('本周上下文', () => {
       weekIndex: week - 1,
       bracketId: trialBracketFor(1).id, // 上周还在最低段
       classId: 'swordsman',
+      formulaVersion: TRIAL_FORMULA_VERSION,
       damage: 1,
       at: NOW - 7 * 86_400_000,
       submitted: true,

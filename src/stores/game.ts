@@ -3313,7 +3313,8 @@ export const useGameStore = defineStore('game', () => {
       (b) =>
         b.seasonId === record.seasonId &&
         b.weekIndex === record.weekIndex &&
-        b.bracketId === record.bracketId,
+        b.bracketId === record.bracketId &&
+        b.formulaVersion === record.formulaVersion,
     );
     if (index >= 0) {
       if (list[index]!.damage >= record.damage) return;
@@ -3326,10 +3327,19 @@ export const useGameStore = defineStore('game', () => {
   }
 
   /** 服务端复核通过后标记本周成绩已入榜，之后不再提示上传。 */
-  function markTrialBestSubmitted(seasonId: string, weekIndex: number, bracketId: string): void {
+  function markTrialBestSubmitted(
+    seasonId: string,
+    weekIndex: number,
+    bracketId: string,
+    formulaVersion: number,
+  ): void {
     if (!save.value) return;
     const entry = save.value.trial.bests.find(
-      (b) => b.seasonId === seasonId && b.weekIndex === weekIndex && b.bracketId === bracketId,
+      (b) =>
+        b.seasonId === seasonId &&
+        b.weekIndex === weekIndex &&
+        b.bracketId === bracketId &&
+        b.formulaVersion === formulaVersion,
     );
     if (!entry || entry.submitted) return;
     entry.submitted = true;

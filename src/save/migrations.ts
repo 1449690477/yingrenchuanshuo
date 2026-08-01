@@ -321,6 +321,29 @@ export const migrations: Record<number, Migration> = {
       },
     };
   },
+  /**
+   * v20：试炼纪录增加公式版本。
+   *
+   * 五职业真实技能把试炼公式从 v1 升到 v2；同一周里两把尺算出的 damage
+   * 不能直接比较。历史本地纪录只能确认为旧公式 v1，不能猜成当前版本。
+   */
+  19: (save) => {
+    const trial = asObject(save.trial, 19, 'trial');
+    if (!Array.isArray(trial.bests)) {
+      throw new MigrationError(19, 'trial.bests 缺失或格式错误');
+    }
+    return {
+      ...save,
+      version: 20,
+      trial: {
+        ...trial,
+        bests: trial.bests.map((entry, index) => ({
+          ...asObject(entry, 19, `trial.bests.${index}`),
+          formulaVersion: 1,
+        })),
+      },
+    };
+  },
 };
 
 function migrateV10Save(
