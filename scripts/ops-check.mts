@@ -116,6 +116,30 @@ const CHECKS: Check[] = [
       '旧客户端直写会静默失败（详见该迁移的文件头注释）',
   },
   {
+    // 客户端和 Edge 的 CLASS_IDS 即使已经包含 kenshi，也不能证明生产库的旧 CHECK
+    // 已经扩容。漏跑 050000 时，两张表都会在真正写入处拒绝第五职业；这是单测和
+    // 类型检查都看不到的线上状态，所以必须直接读取数据库里的约束定义。
+    name: '第五职业已进入 profiles / trial_scores 数据库白名单',
+    sql: `select conname, pg_get_constraintdef(oid) as definition
+            from pg_constraint
+           where conrelid in ('public.profiles'::regclass, 'public.trial_scores'::regclass)
+             and conname in ('profiles_class_id_check', 'trial_scores_class_id_check')`,
+    verdict: (rows) => {
+      const expected = ['profiles_class_id_check', 'trial_scores_class_id_check'];
+      const definitions = new Map(
+        rows.map((row) => [String(row.conname), String(row.definition ?? '')]),
+      );
+      const missing = expected.filter((name) => !definitions.has(name));
+      if (missing.length > 0) return `缺少职业约束：${missing.join(', ')}`;
+      const withoutKenshi = expected.filter((name) => !definitions.get(name)!.includes('kenshi'));
+      return withoutKenshi.length === 0
+        ? null
+        : `职业约束仍未包含 kenshi：${withoutKenshi.join(', ')}`;
+    },
+    remedy:
+      '先执行 20260801050000_kenshi_class_constraints.sql，再部署 Edge Function 与客户端',
+  },
+  {
     // 这一条守的是**顺序**，方向与上一条正好相反，别照上一条的直觉理解。
     // 上一条（收权限）晚做才安全；这一条（加列）**早做才安全**：
     // 新客户端的 fetchPowerTop 会 select 并 eq 这一列，列不存在时 PostgREST
