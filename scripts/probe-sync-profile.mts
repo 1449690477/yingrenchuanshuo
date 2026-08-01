@@ -33,6 +33,7 @@ import {
   SLOT_ORDER,
 } from '../src/data/constants';
 import { affixValueRange, itemBaseValue, REGIONAL_BLANK_ID } from '../src/core/equipment';
+import { buildTrialCombatant } from '../src/core/trial';
 import type { Affix, AffixKey, ClassId, EquipmentInstance, EquipSlot } from '../src/core/types';
 
 const PROJECT_REF = 'rwtuhwizoohvwerqkhgb';
@@ -54,7 +55,9 @@ const CLASS: ClassId = 'swordsman';
  * 所以合法的多键组合**比单键堆叠更强**（实测高 7% 左右）。
  * 也就是说单键构造既非法、又偏弱，两头都不对。
  */
-const AFFIX_KEYS: readonly AffixKey[] = ['spd', 'atk', 'critDmg', 'critRate', 'hp', 'def'];
+const AFFIX_KEYS: readonly AffixKey[] = [
+  'spd', 'atk', 'critDmg', 'critRate', 'hp', 'def', 'eva', 'acc',
+];
 
 function strongestDef(slot: EquipSlot, level: number, classId: ClassId) {
   let floor = Number.POSITIVE_INFINITY;
@@ -74,8 +77,8 @@ function strongestDef(slot: EquipSlot, level: number, classId: ClassId) {
   return best?.def ?? null;
 }
 
-/** 该等级该职业**物理上能穿到的最强一套 + 满词条** —— 一个合法但极限的真人。 */
-function maxedRealBuild(): (EquipmentInstance | null)[] {
+/** 用给定的键顺序造一套；键不足时按可填数截断。 */
+function buildWith(order: readonly AffixKey[]): (EquipmentInstance | null)[] {
   return SLOT_ORDER.map((slot, i) => {
     const def = strongestDef(slot, LEVEL, CLASS);
     if (!def) return null;
@@ -84,7 +87,7 @@ function maxedRealBuild(): (EquipmentInstance | null)[] {
     // 「随机词条超过品质剩余容量」而被 400 拒 —— 我连撞两次才查清这一条。
     const fixedKeys = new Set((def.fixedAffixes ?? []).map((a) => a.key));
     const room = QUALITY_AFFIX_COUNT[def.quality] - fixedKeys.size;
-    const affixes: Affix[] = AFFIX_KEYS.filter((k) => !fixedKeys.has(k))
+    const affixes: Affix[] = order.filter((k) => !fixedKeys.has(k))
       .slice(0, Math.max(0, room))
       .map((key) => ({
         key,
@@ -104,6 +107,33 @@ function maxedRealBuild(): (EquipmentInstance | null)[] {
       locked: false,
     };
   });
+}
+
+/**
+ * **贪心选出 CP 最大的那套合法词条组合**，而不是拍一个固定顺序。
+ *
+ * 探针的意义是「**最强的合法真人**会不会被拦」。用固定顺序造出来的只是
+ * 「某一个合法真人」——它可能恰好比上界低，于是探针绿了、而真正的最强 build
+ * 仍然被拦。那种绿比红更坏。
+ *
+ * 每轮把尚未选中的键各试一次，取让整套 CP 增长最多的那个，直到填满最大容量。
+ */
+function greedyOrder(): AffixKey[] {
+  const chosen: AffixKey[] = [];
+  const cpOf = (order: readonly AffixKey[]) =>
+    buildTrialCombatant({ name: 'p', classId: CLASS, level: LEVEL, equipped: buildWith(order) })
+      .combatPower;
+  while (chosen.length < AFFIX_KEYS.length) {
+    let best: { key: AffixKey; cp: number } | null = null;
+    for (const key of AFFIX_KEYS) {
+      if (chosen.includes(key)) continue;
+      const cp = cpOf([...chosen, key]);
+      if (!best || cp > best.cp) best = { key, cp };
+    }
+    if (!best) break;
+    chosen.push(best.key);
+  }
+  return chosen;
 }
 
 function anonKey(): string {
@@ -135,12 +165,17 @@ try {
   console.log(`  构造：Lv${LEVEL} ${CLASS}，每槽最强件 + 全 +${ENHANCE_MAX} + 满掷 ${EQUIPMENT_BASE_ROLL_MAX} + 每件 T5 多键不重复 ${AFFIX_KEYS.slice(0,3).join('/')}…`);
   console.log(`  探针 user = ${userId}\n`);
 
+  const order = greedyOrder();
+  console.log(`  贪心选出的最优合法键序：${order.join(' > ')}`);
+  console.log(`  本地复算 CP = ${buildTrialCombatant({ name: 'p', classId: CLASS, level: LEVEL, equipped: buildWith(order) }).combatPower.toFixed(0)}
+`);
+
   const { data, error } = await client.functions.invoke('sync-profile', {
     body: {
       displayName: PROBE_NAME,
       classId: CLASS,
       level: LEVEL,
-      equipped: maxedRealBuild(),
+      equipped: buildWith(order),
     },
   });
 
