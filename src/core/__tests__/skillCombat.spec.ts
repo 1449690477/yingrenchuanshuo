@@ -147,6 +147,7 @@ describe('通用技能战斗状态机', () => {
       attackMultiplier: 0.1,
       attackIntervalSec: 10,
       element: 'none',
+      targeting: 'primary-enemy',
       damageable: true,
       maxHpRatio: 0.01,
       defenseRatio: 0.1,
@@ -210,6 +211,7 @@ describe('通用技能战斗状态机', () => {
       attackMultiplier: 0.1,
       attackIntervalSec: 10,
       element: 'none',
+      targeting: 'primary-enemy',
       damageable: true,
       maxHpRatio: 1,
       defenseRatio: 1,
@@ -234,6 +236,100 @@ describe('通用技能战斗状态机', () => {
     const periodicHits = result.events.filter((event) => event.event.kind === 'periodic-damage');
     expect(periodicHits.some((event) => event.targetSummonId === undefined)).toBe(true);
     expect(periodicHits.some((event) => event.targetSummonId === 'wall')).toBe(true);
+  });
+
+  it('lowest-hp-enemy 召唤严格攻击当前生命最低目标，不退化成权重随机', () => {
+    const summonSkill = (id: string, summonId: string, classId: 'shaman' | 'kenshi'): Skill => ({
+      id,
+      name: id,
+      class: classId,
+      type: 'active',
+      element: 'none',
+      unlockLevel: 1,
+      cooldownSec: 60,
+      priority: 10,
+      effects: [{ kind: 'summon', summonId, durationSec: 60 }],
+      icon: '',
+      desc: '',
+    });
+    const hunter: SkillSummonDefinition = {
+      id: 'hunter',
+      attackMultiplier: 0.1,
+      attackIntervalSec: 0.5,
+      element: 'none',
+      targeting: 'lowest-hp-enemy',
+      damageable: false,
+      maxConcurrent: 1,
+    };
+    const wall: SkillSummonDefinition = {
+      id: 'low-hp-wall',
+      attackMultiplier: 0.1,
+      attackIntervalSec: 10,
+      element: 'none',
+      targeting: 'primary-enemy',
+      damageable: true,
+      maxHpRatio: 0.01,
+      defenseRatio: 0.1,
+      targetWeight: 1,
+      maxConcurrent: 1,
+    };
+    const result = simulateFight(
+      fighter('猎手主人', { atk: 100, hp: 100_000, spd: 1 }),
+      fighter('壁垒主人', { atk: 100, hp: 100_000, spd: 1 }),
+      new Rng(0x10ae57),
+      {
+        maxSeconds: 1.2,
+        playerSkillKit: createSkillCombatKit(
+          [summonSkill('summon-hunter', 'hunter', 'shaman')],
+          1,
+          { summons: [hunter] },
+        ),
+        monsterSkillKit: createSkillCombatKit(
+          [summonSkill('summon-wall', 'low-hp-wall', 'kenshi')],
+          1,
+          { summons: [wall] },
+        ),
+      },
+    );
+    const hunterHits = result.events.filter(
+      (event) =>
+        event.source === 'player' &&
+        event.event.kind === 'direct-damage' &&
+        event.event.skillId === 'hunter',
+    );
+    expect(hunterHits.length).toBeGreaterThan(0);
+    expect(hunterHits.every((event) => event.targetSummonId === 'low-hp-wall')).toBe(true);
+  });
+
+  it('同 ID 多召唤尚无 instanceId 时硬拒绝 maxConcurrent>1，不静默联动扣血', () => {
+    const summon: Skill = {
+      id: 'summon-double',
+      name: '双召唤',
+      class: 'shaman',
+      type: 'active',
+      element: 'none',
+      unlockLevel: 1,
+      cooldownSec: 10,
+      priority: 1,
+      effects: [{ kind: 'summon', summonId: 'double', durationSec: 10 }],
+      icon: '',
+      desc: '',
+    };
+    expect(() =>
+      createSkillCombatKit([summon], 1, {
+        summons: [
+          {
+            id: 'double',
+            attackMultiplier: 1,
+            attackIntervalSec: 1,
+            element: 'none',
+            targeting: 'primary-enemy',
+            damageable: false,
+            maxConcurrent: 2,
+          },
+        ],
+      }),
+    ).toThrow('当前只支持 maxConcurrent=1');
   });
 
   it('挂机估算跨目标保留技能冷却，开场击杀后仍会轮到低优先级召唤技', () => {
@@ -270,6 +366,7 @@ describe('通用技能战斗状态机', () => {
       attackMultiplier: 10,
       attackIntervalSec: 0.5,
       element: 'none',
+      targeting: 'primary-enemy',
       damageable: false,
       maxConcurrent: 1,
     };

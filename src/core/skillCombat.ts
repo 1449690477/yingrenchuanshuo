@@ -42,6 +42,7 @@ export interface SkillSummonDefinition {
   attackMultiplier: number;
   attackIntervalSec: number;
   element: Element;
+  targeting: 'primary-enemy' | 'lowest-hp-enemy';
   damageable?: boolean;
   maxHpRatio?: number;
   defenseRatio?: number;
@@ -652,13 +653,10 @@ export function addSkillSummon(
     skillState: createSkillCombatState({ active: [], passives: [] }),
     periodicDamage: createPeriodicDamageState(),
   };
-  const maxConcurrent = definition.maxConcurrent ?? 1;
   const others = state.summons.filter((entry) => entry.definition.id !== summonId);
-  const same = state.summons.filter((entry) => entry.definition.id === summonId);
-  const nextSame = maxConcurrent <= 1 ? [summon] : [...same, summon].slice(-maxConcurrent);
   return {
     ...state,
-    summons: [...others, ...nextSame],
+    summons: [...others, summon],
   };
 }
 
@@ -948,6 +946,9 @@ function validateSummon(summon: SkillSummonDefinition): void {
   if (!Number.isFinite(summon.attackMultiplier) || summon.attackMultiplier <= 0) {
     throw new Error(`召唤物攻击倍率非法：${summon.id}`);
   }
+  if (summon.targeting !== 'primary-enemy' && summon.targeting !== 'lowest-hp-enemy') {
+    throw new Error(`召唤物 targeting 非法：${summon.id}`);
+  }
   if (summon.damageable) {
     for (const [label, value] of [
       ['maxHpRatio', summon.maxHpRatio],
@@ -959,11 +960,8 @@ function validateSummon(summon: SkillSummonDefinition): void {
       }
     }
   }
-  if (
-    summon.maxConcurrent !== undefined &&
-    (!Number.isSafeInteger(summon.maxConcurrent) || summon.maxConcurrent < 1)
-  ) {
-    throw new Error(`召唤物 maxConcurrent 非法：${summon.id}`);
+  if (summon.maxConcurrent !== undefined && summon.maxConcurrent !== 1) {
+    throw new Error(`召唤物当前只支持 maxConcurrent=1：${summon.id}`);
   }
   summonIntervalMs(summon);
 }

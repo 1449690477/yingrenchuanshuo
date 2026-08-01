@@ -518,10 +518,32 @@ export function simulateFight(
     );
   };
 
-  const liveSummonRefs = (side: 'player' | 'monster'): CombatUnitRef[] =>
+  const liveSummonRefs = (
+    side: 'player' | 'monster',
+    damageableOnly = false,
+  ): CombatUnitRef[] =>
     getSkillState(side).summons
-      .filter((summon) => summon.currentHp > 0)
+      .filter(
+        (summon) =>
+          summon.currentHp > 0 && (!damageableOnly || summon.definition.damageable === true),
+      )
       .map((summon) => ({ side, summonId: summon.definition.id }));
+
+  const lowestHpSummonTarget = (side: 'player' | 'monster'): string | undefined => {
+    let lowestHp = combatantOf(side).currentHp;
+    let summonId: string | undefined;
+    for (const summon of getSkillState(side).summons) {
+      if (
+        summon.definition.damageable === true &&
+        summon.currentHp > 0 &&
+        summon.currentHp < lowestHp
+      ) {
+        lowestHp = summon.currentHp;
+        summonId = summon.definition.id;
+      }
+    }
+    return summonId;
+  };
 
   const effectTargets = (
     source: 'player' | 'monster',
@@ -550,7 +572,10 @@ export function simulateFight(
           ? [{ side: enemy, summonId: cast.primarySummonId }]
           : [];
       case 'enemies': {
-        const targets = [{ side: enemy } satisfies CombatUnitRef, ...liveSummonRefs(enemy)];
+        const targets = [
+          { side: enemy } satisfies CombatUnitRef,
+          ...liveSummonRefs(enemy, true),
+        ];
         return targetSpec.count === 'all' ? targets : targets.slice(0, targetSpec.count);
       }
     }
@@ -1356,11 +1381,15 @@ export function simulateFight(
     for (const summon of due.attacks) {
       if (combatantOf(opposite(source)).currentHp <= 0) break;
       const target = opposite(source);
+      const primarySummonId =
+        summon.targeting === 'lowest-hp-enemy'
+          ? lowestHpSummonTarget(target)
+          : selectWeightedSummonTarget(getSkillState(target), rng) ?? undefined;
       const cast: CastProgress = {
         hitTarget: false,
         hitAny: false,
         hitSummonIds: new Set(),
-        primarySummonId: selectWeightedSummonTarget(getSkillState(target), rng) ?? undefined,
+        primarySummonId,
       };
       const applied = resolveDirectDamage(
         source,
