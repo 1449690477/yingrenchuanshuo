@@ -230,8 +230,12 @@ const EXPECTED_GROUP_COUNTS = {
 const CONTRACT_ASSETS = Object.values(contractGroups).flat();
 const STANDALONE_REQUIRED = [icon('assets/items/sigil_kenshi.png')];
 const HAND_ANCHORS = [
-  [145, 375, 120, 130],
-  [435, 250, 145, 180],
+  [145, 445, 60, 80],
+  [440, 440, 65, 85],
+];
+const THEME_LAYER_PATHS = (slot) => [
+  ...BOUTIQUE_THEMES.map((theme) => `assets/characters/modular/shop/${theme}/kenshi-${slot}.png`),
+  ...DUNGEON_TIERS.map((tier) => `assets/characters/modular/dungeon/${tier}/kenshi-${slot}.png`),
 ];
 
 const errors = [];
@@ -246,12 +250,12 @@ const CLEAN_COMPONENT_ICONS = new Set([
   'assets/equipment/affection/kenshi/white-feather-guardian-kimono.png',
 ]);
 const SLOT_RECTS = {
-  head: [295, 65, 210, 190],
-  necklace: [225, 205, 190, 205],
-  bracelet: [70, 325, 180, 220],
-  ring: [395, 325, 185, 220],
-  belt: [175, 340, 290, 220],
-  shoes: [135, 715, 370, 230],
+  head: [245, 0, 195, 195],
+  necklace: [280, 250, 80, 90],
+  bracelet: [135, 382, 60, 70],
+  ring: [440, 390, 50, 55],
+  belt: [250, 385, 140, 100],
+  shoes: [240, 790, 170, 130],
 };
 
 function fail(message) {
@@ -268,7 +272,42 @@ function validateContractShape() {
   }
   const paths = CONTRACT_ASSETS.map((entry) => entry.path);
   if (new Set(paths).size !== paths.length) {
-    fail('[合同数量] 143 项运行时路径中存在重复');
+    fail('[合同数量] 157 项运行时路径中存在重复');
+  }
+}
+
+async function alphaMask(path) {
+  const { data, info } = await sharp(resolve(PUBLIC_ROOT, path))
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const mask = new Uint8Array(info.width * info.height);
+  for (let index = 0; index < mask.length; index += 1) {
+    mask[index] = (data[index * info.channels + 3] ?? 0) > 20 ? 1 : 0;
+  }
+  return mask;
+}
+
+async function validateThemeSilhouetteSeparation() {
+  for (const slot of ['head', 'weapon']) {
+    const paths = THEME_LAYER_PATHS(slot);
+    const masks = await Promise.all(paths.map((path) => alphaMask(path)));
+    for (let left = 0; left < masks.length; left += 1) {
+      for (let right = left + 1; right < masks.length; right += 1) {
+        let intersection = 0;
+        let union = 0;
+        for (let index = 0; index < masks[left].length; index += 1) {
+          if (masks[left][index] && masks[right][index]) intersection += 1;
+          if (masks[left][index] || masks[right][index]) union += 1;
+        }
+        const overlap = union === 0 ? 1 : intersection / union;
+        if (overlap >= 0.9) {
+          fail(
+            `[主题轮廓] ${paths[left]} 与 ${paths[right]} 的 alpha IoU=${overlap.toFixed(3)}，要求 <0.900`,
+          );
+        }
+      }
+    }
   }
 }
 
@@ -559,6 +598,7 @@ validateSourceWiring();
 for (const entry of [...CONTRACT_ASSETS, ...STANDALONE_REQUIRED]) {
   await validateAsset(entry);
 }
+await validateThemeSilhouetteSeparation();
 validateNoDuplicatePixels();
 
 if (errors.length > 0) {
@@ -566,5 +606,8 @@ if (errors.length > 0) {
   for (const error of errors) console.error(`- ${error}`);
   process.exitCode = 1;
 } else {
-  console.log('樱酱资产门禁通过：157 项角色运行时资产 + 1 枚独立职业徽记，RGBA/轮廓零复用。');
+  console.log(
+    '樱酱资产门禁通过：157 项角色运行时资产 + 1 枚独立职业徽记，' +
+      'RGBA/轮廓零复用、主题 alpha IoU < 0.900、武器与掌心相交。',
+  );
 }

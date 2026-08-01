@@ -11,6 +11,7 @@ const CHECK = process.argv.includes('--check');
 const REBUILD = process.argv.includes('--rebuild') || !CHECK;
 const CANVAS = { width: 640, height: 960 };
 const SOURCE_ROOT = 'art-source/characters/kenshi/wearables';
+const THEME_ATLAS = `${SOURCE_ROOT}/theme-equipment-atlas-alpha.png`;
 
 const transparentCanvas = () => ({
   create: {
@@ -87,76 +88,52 @@ const variantFamilies = [
   {
     kind: 'boutique',
     id: 'berry-cream',
-    sourceFamily: 'r3',
-    color: '#ff79b8',
-    accent: '#fff0f8',
-    hue: 332,
-    motif: 'sakura',
   },
   {
     kind: 'boutique',
     id: 'moon-sugar',
-    sourceFamily: 'r6',
-    color: '#6aaeff',
-    accent: '#f4fbff',
-    hue: 208,
-    motif: 'moon',
   },
   {
     kind: 'boutique',
     id: 'rose-night',
-    sourceFamily: 'r6-shadow',
-    color: '#b93482',
-    accent: '#ffd4eb',
-    hue: 316,
-    motif: 'rose',
   },
   {
     kind: 'dungeon',
     id: 'azure',
-    sourceFamily: 'r2',
-    color: '#24d7ff',
-    accent: '#effeff',
-    hue: 188,
-    motif: 'crystal',
   },
   {
     kind: 'dungeon',
     id: 'violet',
-    sourceFamily: 'r6-shadow',
-    color: '#9d61ff',
-    accent: '#f0e7ff',
-    hue: 270,
-    motif: 'diamond',
   },
   {
     kind: 'dungeon',
     id: 'auric',
-    sourceFamily: 'r7-bloodmoon',
-    color: '#ffd15c',
-    accent: '#fff9d9',
-    hue: 0,
-    motif: 'sun',
   },
   {
     kind: 'dungeon',
     id: 'crimson',
-    sourceFamily: 'r5-crimson',
-    color: '#ff4c6b',
-    accent: '#fff0f2',
-    hue: 350,
-    motif: 'flame',
   },
 ];
 
+const variantRuntimeWearables = variantFamilies.flatMap((family) =>
+  ['head', 'weapon'].map((slot) => ({
+    label: `${family.id}-${slot}`,
+    output:
+      family.kind === 'boutique'
+        ? `public/assets/characters/modular/shop/${family.id}/kenshi-${slot}.png`
+        : `public/assets/characters/modular/dungeon/${family.id}/kenshi-${slot}.png`,
+    slot,
+  })),
+);
+
 const placements = {
-  weapon: { left: 245, top: 280, width: 310, height: 350 },
-  head: { left: 370, top: 96, width: 96, height: 96 },
-  necklace: { left: 260, top: 255, width: 120, height: 120 },
-  bracelet: { left: 116, top: 392, width: 94, height: 94 },
-  ring: { left: 448, top: 402, width: 78, height: 78 },
-  belt: { left: 230, top: 390, width: 180, height: 112 },
-  shoes: { left: 210, top: 777, width: 220, height: 155 },
+  weapon: { left: 255, top: 322, width: 250, height: 300 },
+  head: { left: 356, top: 108, width: 70, height: 70 },
+  necklace: { left: 294, top: 266, width: 52, height: 52 },
+  bracelet: { left: 144, top: 392, width: 42, height: 42 },
+  ring: { left: 449, top: 397, width: 26, height: 26 },
+  belt: { left: 270, top: 402, width: 100, height: 64 },
+  shoes: { left: 266, top: 818, width: 108, height: 82 },
 };
 
 function abs(path) {
@@ -272,72 +249,49 @@ async function cleanLargestComponent(input) {
     .toBuffer();
 }
 
-function motifSvg(family, slot) {
-  const { color, accent, motif } = family;
-  const core =
-    motif === 'moon'
-      ? `<path d="M73 24a31 31 0 1 0 27 51A37 37 0 1 1 73 24Z" fill="${color}"/><circle cx="91" cy="29" r="5" fill="${accent}"/>`
-      : motif === 'rose'
-        ? `<path d="M62 22c18 2 29 18 20 31 14 1 20 17 11 27-13 15-47 14-59-2-10-13-1-27 13-28-9-11-1-26 15-28Z" fill="${color}"/><path d="M40 83c18-5 32-17 42-36" stroke="${accent}" stroke-width="5" fill="none"/>`
-        : motif === 'crystal'
-          ? `<path d="M64 14 98 52 64 108 30 52Z" fill="${color}" stroke="${accent}" stroke-width="5"/><path d="M64 14v94M30 52h68" stroke="${accent}" stroke-width="3" opacity=".8"/>`
-          : motif === 'diamond'
-            ? `<path d="M64 13 105 45 88 103H40L23 45Z" fill="${color}" stroke="${accent}" stroke-width="5"/><path d="m23 45 41 58 41-58-41 17Z" fill="${accent}" opacity=".45"/>`
-            : motif === 'sun'
-              ? `<circle cx="64" cy="60" r="27" fill="${color}" stroke="${accent}" stroke-width="6"/><path d="M64 8v17M64 95v17M12 60h17M99 60h17M27 23l12 12M89 85l12 12M101 23 89 35M39 85 27 97" stroke="${color}" stroke-width="7" stroke-linecap="round"/>`
-              : motif === 'flame'
-                ? `<path d="M68 10c14 27-1 34 12 48 8 9 20 1 20-11 18 31 1 68-34 68-29 0-48-28-34-53 3 20 18 19 22 5 5-17-8-23 14-57Z" fill="${color}"/><path d="M67 55c12 14 11 34-3 45-15-8-18-29 3-45Z" fill="${accent}"/>`
-                : `<g fill="${color}" stroke="${accent}" stroke-width="3"><ellipse cx="64" cy="32" rx="13" ry="26"/><ellipse cx="64" cy="88" rx="13" ry="26"/><ellipse cx="36" cy="60" rx="26" ry="13"/><ellipse cx="92" cy="60" rx="26" ry="13"/></g><circle cx="64" cy="60" r="12" fill="${accent}"/>`;
-  const tassel =
-    slot === 'weapon'
-      ? `<path d="M66 92c3 14-4 22-1 34M82 86c8 14 2 25 9 35" stroke="${color}" stroke-width="5" stroke-linecap="round"/><path d="m56 121 12 22 10-23m5-1 11 22 10-24" fill="${color}"/>`
-      : '';
-  return Buffer.from(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="128" height="160" viewBox="0 0 128 160"><defs><filter id="g"><feGaussianBlur stdDeviation="2"/></filter></defs><circle cx="64" cy="60" r="45" fill="${color}" opacity=".22" filter="url(#g)"/>${core}${tassel}</svg>`,
-  );
-}
+async function buildVariantMaster(familyIndex, slot) {
+  const metadata = await sharp(abs(THEME_ATLAS)).metadata();
+  if (!metadata.width || !metadata.height || metadata.width < 1700 || metadata.height < 850) {
+    throw new Error(
+      `[樱酱可穿资产] 主题装备图集尺寸异常：${metadata.width}×${metadata.height}`,
+    );
+  }
 
-async function buildVariantMaster(family, slot) {
-  const source = `public/assets/characters/modular/kenshi/${family.sourceFamily}-${slot}.png`;
-  const sourceBuffer = await sharp(abs(source))
-    .ensureAlpha()
-    .modulate({ hue: family.hue, saturation: 1.12, brightness: 1.02 })
-    .png()
-    .toBuffer();
-  const motif = await sharp(motifSvg(family, slot))
-    .resize(slot === 'head' ? 88 : 112, slot === 'head' ? 110 : 140, {
-      fit: 'contain',
+  const left = Math.round((familyIndex * metadata.width) / variantFamilies.length);
+  const right = Math.round(((familyIndex + 1) * metadata.width) / variantFamilies.length);
+  const rowBreak = Math.round(metadata.height / 2);
+  const top = slot === 'head' ? 0 : rowBreak;
+  const bottom = slot === 'head' ? rowBreak : metadata.height;
+
+  const cellCrop = await sharp(abs(THEME_ATLAS))
+    .extract({
+      left,
+      top,
+      width: right - left,
+      height: bottom - top,
     })
     .png()
     .toBuffer();
-  const composited = await sharp(sourceBuffer)
-    .composite([
-      {
-        input: motif,
-        left: slot === 'head' ? 326 : 406,
-        top: slot === 'head' ? 104 : 334,
-      },
-    ])
-    .png({ compressionLevel: 9, palette: true, quality: 92 })
-    .toBuffer();
-  const { data, info } = await sharp(composited)
+  const isolated = await cleanLargestComponent(cellCrop);
+  const cell = await sharp(isolated)
     .ensureAlpha()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-  for (let index = 0; index < info.width * info.height; index += 1) {
-    const offset = index * info.channels;
-    const alpha = data[offset + 3] ?? 255;
-    const red = data[offset] ?? 0;
-    const green = data[offset + 1] ?? 0;
-    const blue = data[offset + 2] ?? 0;
-    if (alpha > 32 && green > 126 && green > red * 1.38 && green > blue * 1.38) {
-      data[offset + 1] = Math.min(255, Math.round(Math.max(red, blue) * 1.2));
-    }
-  }
-  return sharp(data, {
-    raw: { width: info.width, height: info.height, channels: info.channels },
-  })
-    .png({ compressionLevel: 9, palette: true, quality: 92 })
+    .trim({ background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .toBuffer();
+  const placement =
+    slot === 'head'
+      ? { left: 250, top: 2, width: 140, height: 103 }
+      : { left: 246, top: 426, width: 285, height: 430 };
+  const item = await sharp(cell)
+    .resize(placement.width, placement.height, {
+      fit: 'contain',
+      position: 'centre',
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+    })
+    .png()
+    .toBuffer();
+  return sharp(transparentCanvas())
+    .composite([{ input: item, left: placement.left, top: placement.top }])
+    .png({ compressionLevel: 9, palette: true, quality: 94 })
     .toBuffer();
 }
 
@@ -423,7 +377,7 @@ async function wearablePreview(entry) {
           .composite([{ input: abs(entry.output) }])
           .png()
           .toBuffer();
-  const slug = entry.output.split('/').pop().replace('.png', '');
+  const slug = entry.label ?? entry.output.split('/').pop().replace('.png', '');
   const label = Buffer.from(
     `<svg xmlns="http://www.w3.org/2000/svg" width="280" height="410"><rect width="280" height="410" rx="24" fill="#f5f1fb"/><rect x="10" y="10" width="260" height="330" rx="18" fill="#eaf4ff"/><text x="140" y="366" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#352d50">${slug}</text><text x="140" y="390" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" fill="#7d6f98">${entry.slot}</text></svg>`,
   );
@@ -443,7 +397,9 @@ async function wearablePreview(entry) {
 
 async function buildContactSheet() {
   const cards = [];
-  for (const entry of runtimeWearables) cards.push(await wearablePreview(entry));
+  for (const entry of [...variantRuntimeWearables, ...runtimeWearables]) {
+    cards.push(await wearablePreview(entry));
+  }
   const columns = 4;
   const rows = Math.ceil(cards.length / columns);
   const canvas = sharp({
@@ -505,10 +461,10 @@ async function build() {
     }
   }
 
-  for (const family of variantFamilies) {
+  for (const [familyIndex, family] of variantFamilies.entries()) {
     for (const slot of ['head', 'weapon']) {
       const masterPath = `${SOURCE_ROOT}/${family.kind}/${family.id}-${slot}-alpha.png`;
-      const master = await buildVariantMaster(family, slot);
+      const master = await buildVariantMaster(familyIndex, slot);
       await writeOrCheck(masterPath, master);
       const runtimePath =
         family.kind === 'boutique'
