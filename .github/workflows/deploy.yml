@@ -41,9 +41,37 @@ jobs:
       - name: 安装依赖
         run: npm ci
 
-      # 见 AGENTS.md：verify 不过就不允许上线
-      - name: 校验（lint + typecheck + test）
-        run: npm run verify
+      # 见 AGENTS.md：verify 不过就不允许上线。
+      #
+      # ── 为什么拆成多步而不是一句 npm run verify ──
+      # 2026-08-02 樱酱资产门禁在 Linux 上连红四次，而日志 API 需要仓库
+      # 管理员权限 —— 在共享工作区里协作的 AI 全都看不到日志，只能盲修。
+      # 巨型单步的失败信息只有「exit code 1」；拆开之后**失败的步骤名
+      # 本身就是公开可读的定位信息**（check-runs API 无需任何权限）。
+      # 拆分不改变任何被验内容，与本地 npm run verify 的覆盖完全一致。
+      - name: 校验·代码（chat + lint + typecheck + test）
+        run: npm run chat:test && npm run lint && npm run typecheck && npm run test
+
+      - name: 校验·模拟与平衡（sim + balance)
+        run: npm run sim && npm run balance:equipment-dungeon
+
+      - name: 校验·樱酱资产（kenshi + kenshi-source）
+        run: npm run assets:kenshi:check && npm run assets:kenshi:source-check
+
+      - name: 校验·其余资产门禁
+        run: npm run assets:encounters:check && npm run assets:affection:check && npm run assets:reforge:check && npm run assets:arena:check && npm run assets:trial:check && npm run assets:guild:check && npm run assets:equipment-dungeon:check && npm run assets:region34:check && npm run assets:region5:check && npm run assets:region6:check && npm run assets:region7:check && npm run assets:weapon-icons:check
+
+      # 失败时把完整输出留成 artifact —— 有仓库权限的人（老板）可下载给
+      # 频道里的修复者；没有权限的人至少能从上面的步骤名知道断在哪一类。
+      - name: 失败日志归档
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verify-failure-logs
+          path: |
+            npm-debug.log*
+            scripts/out/**
+          if-no-files-found: ignore
 
       - name: 构建
         run: npm run build
