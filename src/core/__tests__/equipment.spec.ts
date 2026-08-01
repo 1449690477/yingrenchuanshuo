@@ -203,6 +203,8 @@ describe('强化与实例属性', () => {
       damageReduction: 2,
       lifesteal: 3,
       elementDamage: { fire: 6, ice: 5, thunder: 0 },
+      skillDamage: 0,
+      armorPenetration: 0,
     });
     expect(
       totalEquipCombatBonuses(
@@ -214,6 +216,8 @@ describe('强化与实例属性', () => {
       damageReduction: 8,
       lifesteal: 3,
       elementDamage: { fire: 12, ice: 5, thunder: 0 },
+      skillDamage: 0,
+      armorPenetration: 0,
     });
   });
 
@@ -233,30 +237,36 @@ describe('强化与实例属性', () => {
       damageReduction: 2,
       lifesteal: 0,
       elementDamage: { fire: 0, ice: 0, thunder: 7 },
+      skillDamage: 0,
+      armorPenetration: 0,
     });
     expect(empty).toEqual(zeroCombatBonuses());
   });
 
-  it('九条职业专属词条全部进入对应的基础属性或战斗修正管线', () => {
+  it('十五条职业专属词条全部进入对应的基础属性或战斗修正管线', () => {
     let stats = zeroStats();
     for (const [key, value] of [
       ['swd_guard', 5.9],
       ['swd_heavy', 9.1],
       ['wit_power', 7.8],
+      ['wit_veil', 6.1],
       ['sha_vitality', 78],
+      ['sha_spirit', 7.3],
       ['cat_swift', 0.039],
       ['cat_nimble', 9.1],
+      ['kenshi_blade', 8.1],
+      ['kenshi_honor', 81],
     ] as const) {
       stats = applyAffix(stats, { key, value });
     }
     expect(stats).toEqual({
-      atk: 7.8,
+      atk: 15.1,
       def: 5.9,
-      hp: 78,
+      hp: 159,
       acc: 0,
-      eva: 9.1,
+      eva: 15.2,
       critRate: 0,
-      critDmg: 9.1,
+      critDmg: 17.2,
       spd: 0.039,
     });
 
@@ -268,10 +278,14 @@ describe('强化与实例属性', () => {
     });
     bonuses = applyCombatAffix(bonuses, { key: 'sha_drain', value: 1.6 });
     bonuses = applyCombatAffix(bonuses, { key: 'sha_ward', value: 2 });
+    bonuses = applyCombatAffix(bonuses, { key: 'kenshi_iai', value: 4.3 });
+    bonuses = applyCombatAffix(bonuses, { key: 'kenshi_bushido', value: 2.4 });
     expect(bonuses).toEqual({
-      damageReduction: 2,
+      damageReduction: 4.4,
       lifesteal: 1.6,
       elementDamage: { fire: 0, ice: 0, thunder: 8.5 },
+      skillDamage: 0,
+      armorPenetration: 4.3,
     });
   });
 
@@ -450,10 +464,10 @@ describe('随机词条', () => {
       kenshi: [
         {
           key: 'kenshi_iai',
-          min: 0.59,
-          max: 0.59,
+          min: 4.3,
+          max: 4.3,
           weight: 30,
-          scalesWithLevel: true,
+          scalesWithLevel: false,
           decimals: 1,
           label: '破甲',
         },
@@ -796,7 +810,6 @@ describe('随机词条', () => {
       'sha_vitality',
       'sha_spirit',
       'cat_nimble',
-      'kenshi_iai',
       'kenshi_honor',
     ]);
 
@@ -835,9 +848,9 @@ describe('随机词条', () => {
       expect(affix.key).toBe(key);
       expect(affix.value).toBeGreaterThan(0);
     }
-    expect(() => rollAffixForKey('kenshi_iai', 20, new Rng(42))).toThrow(
-      '[词条未开放] kenshi_iai',
-    );
+    const iai = rollAffixForKey('kenshi_iai', 20, new Rng(42));
+    expect(iai.value).toBeGreaterThanOrEqual(2.5);
+    expect(iai.value).toBeLessThanOrEqual(7.3);
   });
 
   it('掉落胚子始终位于 100%~120%，并能掷出精工与奇迹档', () => {

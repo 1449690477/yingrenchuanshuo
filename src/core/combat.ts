@@ -590,9 +590,7 @@ export function simulateFight(
     return {
       ...(element ? { element } : {}),
       defenseIgnoreRatio:
-        (effect?.defenseIgnoreRatio ?? 0) +
-        (views.attacker.combatant.combatBonuses?.armorPenetration ?? 0) / 100 +
-        views.attacker.modifiers.defenseIgnoreRatio,
+        (effect?.defenseIgnoreRatio ?? 0) + views.attacker.modifiers.defenseIgnoreRatio,
       damageDoneRatio: views.attacker.modifiers.damageDoneRatio + skillBonus,
       damageTakenRatio: views.defender.modifiers.damageTakenRatio,
       damageTakenFromSourceRatio: views.defender.modifiers.damageTakenFromSourceRatio,

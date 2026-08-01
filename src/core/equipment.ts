@@ -255,7 +255,6 @@ export function applyAffix(stats: Stats, affix: FixedAffix): Stats {
       return addStats(stats, { critDmg: affix.value });
     case 'kenshi_honor':
       return addStats(stats, { hp: affix.value });
-    // kenshi_iai（破甲）在 M3-4 前保持 deferred，不进入任何结算分支。
     default:
       // 独立战斗词条不能混入八项基础属性。
       return stats;
@@ -268,6 +267,8 @@ export function zeroCombatBonuses(): CombatBonuses {
     damageReduction: 0,
     lifesteal: 0,
     elementDamage: { fire: 0, ice: 0, thunder: 0 },
+    skillDamage: 0,
+    armorPenetration: 0,
   };
 }
 
@@ -286,6 +287,8 @@ export function addCombatBonuses(
       ice: a.elementDamage.ice + (b.elementDamage?.ice ?? 0),
       thunder: a.elementDamage.thunder + (b.elementDamage?.thunder ?? 0),
     },
+    skillDamage: (a.skillDamage ?? 0) + (b.skillDamage ?? 0),
+    armorPenetration: (a.armorPenetration ?? 0) + (b.armorPenetration ?? 0),
   };
 }
 
@@ -300,6 +303,10 @@ export function applyCombatAffix(bonuses: CombatBonuses, affix: FixedAffix): Com
     case 'lifesteal':
     case 'sha_drain':
       return addCombatBonuses(bonuses, { lifesteal: affix.value });
+    case 'skillMul':
+      return addCombatBonuses(bonuses, { skillDamage: affix.value });
+    case 'kenshi_iai':
+      return addCombatBonuses(bonuses, { armorPenetration: affix.value });
     case 'elemDmg':
     case 'wit_elem': {
       if (!affix.element || affix.element === 'none') {

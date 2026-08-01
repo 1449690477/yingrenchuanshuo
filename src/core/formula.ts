@@ -361,7 +361,12 @@ function damageAfterConfirmedHit(
   options: DamageFormulaOptions = {},
 ): number {
   const base = attacker.stats.atk * atkMultiplier;
-  const ignore = clamp(options.defenseIgnoreRatio ?? 0, 0, DEFENSE_IGNORE_RATIO_CAP);
+  const equipmentIgnore = (attacker.combatBonuses?.armorPenetration ?? 0) / 100;
+  const ignore = clamp(
+    (options.defenseIgnoreRatio ?? 0) + equipmentIgnore,
+    0,
+    DEFENSE_IGNORE_RATIO_CAP,
+  );
   const reduction = damageReduction(defender.stats.def * (1 - ignore), attacker.level);
   const bonusDamageMul = combatBonusDamageMultiplier(defender);
   const elemMul = effectiveElementMultiplierFor(

@@ -48,6 +48,8 @@ const bonuses = (
     ice: o.elementDamage?.ice ?? 0,
     thunder: o.elementDamage?.thunder ?? 0,
   },
+  skillDamage: o.skillDamage ?? 0,
+  armorPenetration: o.armorPenetration ?? 0,
 });
 
 describe('clamp', () => {
@@ -260,16 +262,22 @@ describe('持续伤害单跳', () => {
 
 describe('calcDamage', () => {
   it('技能与装备破甲在同一公式相加，并统一封顶 80%', () => {
-    const attacker = makePlayer('攻击者', 60, stats({ atk: 1_000, acc: 999_999 }));
+    const attacker = makePlayer(
+      '攻击者',
+      60,
+      stats({ atk: 1_000, acc: 999_999 }),
+      'none',
+      bonuses({ armorPenetration: 30 }),
+    );
     const defender = makePlayer('目标', 60, stats({ def: 6_000, eva: 0 }));
     const capped = calcDamage(attacker, defender, 1, new Rng(9527), {
-      defenseIgnoreRatio: 0.8,
+      defenseIgnoreRatio: 0.5,
     }).damage;
     const overflow = calcDamage(attacker, defender, 1, new Rng(9527), {
       defenseIgnoreRatio: 1.4,
     }).damage;
     const partial = calcDamage(attacker, defender, 1, new Rng(9527), {
-      defenseIgnoreRatio: 0.3,
+      defenseIgnoreRatio: 0,
     }).damage;
     expect(overflow).toBeCloseTo(capped, 10);
     expect(capped).toBeGreaterThan(partial);
