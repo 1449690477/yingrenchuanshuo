@@ -31,7 +31,7 @@ import {
   TRIAL_SEASON_ID,
 } from '@/data/trialRules';
 import { estimateDps } from '../combat';
-import { addStats } from '../formula';
+import { addStats, combatPowerValue } from '../formula';
 import { applyClassMods, averageSkillMultiplier, baseStatsFor, makePlayer } from '../progression';
 import { expectedGearStats, typicalQualityAt } from '@/data/expectedPower';
 import { createInstance } from '../equipment';
@@ -202,13 +202,15 @@ describe('buildTrialCombatant / 搭配构建', () => {
       equipped: [weapon, null, null, null, null, null, null, null],
     });
     expect(build.combatant.element).toBe(firstWeaponDef().element);
-    expect(build.combatPower).toBeGreaterThan(
-      buildTrialCombatant({
-        name: '测试',
-        classId: 'swordsman',
-        level: 20,
-        equipped: EMPTY_EQUIPPED,
-      }).combatPower,
+    // 用未取整值比较：Lv20 单件武器的边际战力 ~0.6，展示取整后都是 21（docs/73 批 3 取整语义）。
+    const empty = buildTrialCombatant({
+      name: '测试',
+      classId: 'swordsman',
+      level: 20,
+      equipped: EMPTY_EQUIPPED,
+    });
+    expect(combatPowerValue(build.combatant.stats)).toBeGreaterThan(
+      combatPowerValue(empty.combatant.stats),
     );
   });
 });

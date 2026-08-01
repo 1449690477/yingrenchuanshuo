@@ -33,18 +33,35 @@ import { expectedBuildCp } from '../data/expectedPower';
 import { EQUIPMENT } from '../data/equipment';
 import { ENHANCE_GAIN_MAX, ENHANCE_MAX, SLOT_ORDER } from '../data/constants';
 import { buildTrialCombatant } from './trial';
+import { isStructurallyPossibleLevel } from './levelCap';
 import { itemBaseValue, REGIONAL_BLANK_ID } from './equipment';
 import type { ClassId, EquipmentInstance, EquipSlot } from './types';
 
 /**
- * 词条与套装效果的余量。
+ * 词条与套装效果的余量（2026-08-01 随 CP 乘法尺重定，1.5 → 3.0）。
  *
- * 结构上界那套探针**不带词条**（词条值域按品阶随机，不适合塞进一个
- * 「最强」构造里），而全 T5 词条相对新掉落词条最多再 +25%
- * （见 TYPICAL_AFFIX_CP_MUL 的注释与洗练验收实测）。取 1.5 留出
- * 词条 + 将来新套装静态加成的空间。
+ * 探针**不带词条**，词条全走这个系数。3.0 的推导链（四方两侧夹出来的，
+ * 改这个数之前先把这段读完）：
+ *
+ *   - 下界 2.547：**合法**满词条构造实测（小库，贪心混键、每件键不重复，
+ *     Lv10 魔女最难兜；四职业 Lv10/16/45/81 全表 2.16~2.55）。
+ *     贪心不是穷举，真实最大可能略高于它。
+ *   - 全等级扫描 3.0（小督）：抽样会漏 —— Lv20/45/78 三点抽样读到的
+ *     最差是 2.22/2.40，全等级扫出来 Lv10 才是最难兜的那格。
+ *   - 上方余量 18%：3.0 ÷ 2.547。
+ *
+ * ⚠ 三个曾被否掉的口径，别再走回去：
+ *   ① 「纯键取最大」（每件塞满同一种词条）：**schema 禁止同件重复键**
+ *      （save/schema.ts 随机词条键查重），那种装备任何玩家都不可能拥有，
+ *      而且**混键在几何平均尺下能打败纯键**（2.547 > 纯键解析 2.40）——
+ *      拿它标定会从下方漏风。小库用线上探针实证：那种构造被 sync-profile
+ *      判 400「快照不合法」，根本到不了上界那一步。
+ *   ② 词条塞进探针（A 版，11dfe94，已撤回）：同样建立在 ① 的非法构造上，
+ *      且验收抽样同样漏了 Lv10。
+ *   ③ 按 2.5 附近「贴边」定数：将来有人重测得 2.5x 就会想调小 ——
+ *      真边界是 2.547 的**下界**，贴边定数会在下一次被错误地推翻。
  */
-export const COMBAT_POWER_HEADROOM = 1.5;
+export const COMBAT_POWER_HEADROOM = 3.0;
 
 /** 该槽位在该等级能穿到的最强定义：按真实基准值排序，不按名字或品质猜。 */
 function strongestDefFor(slot: EquipSlot, level: number, classId: ClassId) {
@@ -77,7 +94,12 @@ function maxedInstance(defId: string, uid: string): EquipmentInstance {
     uid,
     defId,
     enhance: ENHANCE_MAX,
-    baseRollPermille: 1000,
+    // ⚠ 满掷是 1200（EQUIPMENT_BASE_ROLL_MAX 的「奇迹」档 1121~1200‰），
+    // 不是 1000。旧值让真实的奇迹掷装备越过探针，上界从下方漏风 ——
+    // 这与换尺无关，是一直就错的。抬探针只会让上界更松，方向安全；
+    // 上面 HEADROOM 的 2.547/3.0 是对着 1000 探针量的，探针抬高后
+    // 实际余量比注释里写的更大。
+    baseRollPermille: 1200,
     // 每级都掷「奇迹」档上限，累计会撞上 ENHANCE_TOTAL_GAIN_CAP_PERMILLE，
     // 也就是强化倍率的结构性天花板 ×2.35
     enhanceGainPermille: Array<number>(ENHANCE_MAX).fill(ENHANCE_GAIN_MAX),
@@ -136,7 +158,9 @@ export function isPlausibleCombatPower(
   classId: ClassId,
 ): boolean {
   if (!Number.isFinite(combatPower) || combatPower < 0) return false;
-  if (!Number.isInteger(level) || level < 1 || level > 120) return false;
+  // 等级守卫走结构上限（levelCap.ts），不写死 120 —— 玩家实际只能到内容顶+3，
+  // 写死 120 留了 39 级空档，线上那两行 Lv100 僵尸档就是从这钻进来的。
+  if (!isStructurallyPossibleLevel(level)) return false;
   return combatPower <= combatPowerCeiling(level, classId);
 }
 

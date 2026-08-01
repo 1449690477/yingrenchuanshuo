@@ -18,7 +18,8 @@ import {
   typicalQualityAt,
   TYPICAL_ENHANCE_MUL,
 } from '../src/data/expectedPower';
-import { CRIT_RATE_CAP, CP_WEIGHTS } from '../src/data/constants';
+import { CRIT_RATE_CAP } from '../src/data/constants';
+import { combatPowerValue, REFERENCE_MONSTER_LEVEL } from '../src/core/formula';
 
 const LEVELS = [1, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120];
 
@@ -38,24 +39,17 @@ function typicalStats(cls: ClassId, level: number): Stats {
   };
 }
 
-/** 未取整的战力（combatPower 的取整会抹掉小步长的导数，这里用原始加权和） */
+/** 未取整的战力（取整会抹掉小步长的导数，用公式层导出的未取整版本） */
 function cpValue(stats: Stats): number {
-  const base =
-    stats.atk * CP_WEIGHTS.atk +
-    stats.def * CP_WEIGHTS.def +
-    stats.hp * CP_WEIGHTS.hp +
-    stats.acc * CP_WEIGHTS.acc +
-    stats.eva * CP_WEIGHTS.eva +
-    (stats.critRate / 100) * CP_WEIGHTS.critRate +
-    (stats.critDmg / 100) * CP_WEIGHTS.critDmg;
-  return base * stats.spd;
+  return combatPowerValue(stats);
 }
 
-function refMonster(level: number): Combatant {
+/** 锚点参考怪（批 3-1：与 combatPowerValue 同一固定锚点，N2 两侧同战场自洽） */
+function refMonster(): Combatant {
   return makeMonster({
     id: 'ref',
     name: 'ref',
-    level,
+    level: REFERENCE_MONSTER_LEVEL,
     type: 'normal',
     element: 'none',
     lootTableId: 'ref',
@@ -69,12 +63,12 @@ function playerOf(cls: ClassId, level: number, stats: Stats): Combatant {
 
 /** 输出侧真实度量：单次期望伤害 × 攻速（combat.ts:346 的真实 DPS 口径） */
 function offenseReal(cls: ClassId, level: number, stats: Stats): number {
-  return expectedDamage(playerOf(cls, level, stats), refMonster(level), 1) * stats.spd;
+  return expectedDamage(playerOf(cls, level, stats), refMonster(), 1) * stats.spd;
 }
 
 /** 生存侧真实度量：EHP = hp ÷ 怪物单次期望伤害 */
 function defenseReal(cls: ClassId, level: number, stats: Stats): number {
-  const perHit = expectedDamage(refMonster(level), playerOf(cls, level, stats), 1);
+  const perHit = expectedDamage(refMonster(), playerOf(cls, level, stats), 1);
   return perHit > 0 ? stats.hp / perHit : Number.POSITIVE_INFINITY;
 }
 
@@ -96,21 +90,17 @@ const MAX_RATIO_SPREAD = 1.2;
 // 批 1 形态：初始红项具名登记 + 带燃尽期限；清单内 → 黄牌，清单外新红 → 硬拦。
 // ──────────────────────────────────────────────────────────
 
-const N2_CLEARANCE = {
-  owner: '小数',
-  deadline: '批 3',
-  action: 'P0-4 乘法形重定价（小督小项：crit/spd 权重从玩家自身攻击派生，eva 按收益饱和点定价）',
-} as const;
+
 
 /**
  * 已知红项属性集合（docs/73 批 1 清单 L2：eva/critRate/critDmg）。
  * 清单内 → 黄牌；**清单外出现新属性违规 → 立即硬拦**（「清单外新红即失败」）。
  *
- * 2026-07-31 批 1 实测（A3 可得口径合入后）：atk / def / hp / eva / critRate /
- * critDmg 六个属性全部超带（跨度 1.15×~1764×）。其中 eva/critRate/critDmg 是
- * 修订稿 L2 原始登记（A2 暴击错价 ~40 倍）；atk/def/hp 同属 A2/A5 的 CP 定价
- * 失真（手册 §一.2：x/(x+A) 超线性、线性固定价），并入批 3 P0-4 一起重定价。
- * spd 当前恒 1.00×（✔），不在清单内 —— 若将来 spd 超带即为清单外新红。
+ * 2026-07-31 批 1 实测（A3 可得口径合入后）：atk/def/hp/eva/critRate/critDmg
+ * 六个属性全部超带（跨度最大 3310×：eva 35×、critRate 1341×、critDmg 3310×）。
+ * 2026-08-01 批 3（P0-4 乘法形重定价）已清偿：combatPowerValue 改为
+ * 「真实 DPS × 真实 EHP 几何投影」，全部属性跨度 ≤1.02×（见 docs/73 批 3 快照）。
+ * 清单清空；若将来某属性再超带即为清单外新红，立即硬拦。
  */
 const N2_KNOWN_AFFIXES = new Set(['atk', 'def', 'hp', 'eva', 'critRate', 'critDmg']);
 

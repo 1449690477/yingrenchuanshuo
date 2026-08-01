@@ -12,6 +12,8 @@ import { EQUIPMENT } from '@/data/equipment';
 import { LEVEL_SOFT_CAP_MARGIN } from '@/data/constants';
 import { levelSoftCap } from '../progression';
 import { isStructurallyPossibleLevel, STRUCTURAL_MAX_LEVEL } from '../levelCap';
+import { isPlausibleCombatPower } from '../combatPowerBound';
+import { isPlausibleTrialDamage } from '../trialBound';
 
 const highestStageLevel = STAGE_LIST.reduce((max, s) => (s.level > max ? s.level : max), 1);
 
@@ -79,5 +81,22 @@ describe('等级结构上限', () => {
     // 万一将来内容扩到 Lv120 以上，这条会红 —— 那时请连同本注释一起重写，
     // 因为那时「120」不再是一个空档，而是真实内容。
     expect(STRUCTURAL_MAX_LEVEL).toBeLessThan(120);
+  });
+});
+
+describe('守卫接线：两条上界的等级入口都走结构上限', () => {
+  // 这两条是「等级守卫两行」的验收（2026-08-01 发车条件之一）。
+  // 结构上限当前 = 内容顶 78 + 3 = 81；区域 8 上线后它自动变，
+  // 断言故意用 STRUCTURAL_MAX_LEVEL 而不写死 81/100。
+  it('战力上界拒绝结构上不可能的等级（线上 Lv100 僵尸档的形态）', () => {
+    expect(isPlausibleCombatPower(10_000, STRUCTURAL_MAX_LEVEL, 'swordsman')).toBe(true);
+    expect(isPlausibleCombatPower(10_000, STRUCTURAL_MAX_LEVEL + 1, 'swordsman')).toBe(false);
+    expect(isPlausibleCombatPower(13_123, 100, 'swordsman')).toBe(
+      STRUCTURAL_MAX_LEVEL >= 100,
+    );
+  });
+  it('试炼伤害上界同样拒绝', () => {
+    expect(isPlausibleTrialDamage(1, STRUCTURAL_MAX_LEVEL, 'swordsman', 1)).toBe(true);
+    expect(isPlausibleTrialDamage(1, STRUCTURAL_MAX_LEVEL + 1, 'swordsman', 1)).toBe(false);
   });
 });

@@ -74,19 +74,26 @@ describe('稳定装备双评分', () => {
 
   it('职业词条只进入适用职业评分，评分接口不接受玩家当前等级或穿戴上下文', () => {
     const def = definition('body');
-    const item = instance({
+    const withAffix = instance({
       defId: 'score-body',
       affixes: [{ key: 'swd_guard', tier: 3, value: 75 }],
     });
+    const withoutAffix = instance({ defId: 'score-body' });
 
-    expect(equipmentBaseScore(def, item, 'swordsman')).toBeGreaterThan(
-      equipmentBaseScore(def, item, 'witch'),
+    // 词条按归属过滤：swd_guard 只进剑姬评分；对魔女带不带词条必须完全一致。
+    // 不做「剑姬总分 > 魔女总分」的断言：乘法投影下同件防装对低基础职业（魔女）
+    // 的相对边际提升更高，那是真实战力语义，不是词条漏过滤（docs/73 批 3）。
+    expect(equipmentBaseScore(def, withAffix, 'swordsman')).toBeGreaterThan(
+      equipmentBaseScore(def, withoutAffix, 'swordsman'),
     );
-    expect(equipmentScores(def, item, 'swordsman')).toEqual({
-      current: equipmentCurrentScore(def, item, 'swordsman'),
-      base: equipmentBaseScore(def, item, 'swordsman'),
+    expect(equipmentBaseScore(def, withAffix, 'witch')).toBe(
+      equipmentBaseScore(def, withoutAffix, 'witch'),
+    );
+    expect(equipmentScores(def, withAffix, 'swordsman')).toEqual({
+      current: equipmentCurrentScore(def, withAffix, 'swordsman'),
+      base: equipmentBaseScore(def, withAffix, 'swordsman'),
     });
-    expect(EQUIPMENT_SCORE_VERSION).toBe(1);
+    expect(EQUIPMENT_SCORE_VERSION).toBe(2);
   });
 
   it('基础评分不会读取掉级后保留或尚未再次生效的强化成长', () => {

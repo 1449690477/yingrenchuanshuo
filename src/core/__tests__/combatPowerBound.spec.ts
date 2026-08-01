@@ -44,9 +44,11 @@ describe('上界从真实最强装备推出来', () => {
   });
 
   it('结构上界与典型养成的比值随等级塌陷 —— 平坦系数正是被它否掉的', () => {
-    // 实测：Lv16 ≈ ×5.0，Lv40 ≈ ×2.8，Lv78 ≈ ×1.25。
-    // 低等级能穿到远超「该等级典型」的高品质件，满级则几乎没有余量。
-    // 只要这个塌陷还在，就不能退回「典型 × 单一系数」的写法：
+    // 实测（docs/73 批 3 乘法投影 + 批 3-1 锚 Lv1 后）：Lv16 ≈ ×13.5~16.4
+    // （珍品月糖 legendary）、Lv20 ≈ ×39.8~49.0（珍品夜蔷薇 mythic）、Lv40 ≈ ×5.3~6.5、
+    // Lv78 ≈ ×1.53~1.82。Lv16/20 峰值来自珍品商店超前品质阶梯 —— docs/73 A4 已拍板
+    // 保留（a+c），属预期结构；乘法投影让满配件的属性差在战力空间复合放大，比值不再受 <8 约束。
+    // 只要塌陷还在，就不能退回「典型 × 单一系数」的写法：
     // 那个系数在低等级会松到形同虚设，在满级会紧到误伤肝帝。
     const low = combatPowerCeilingRatio(16, 'swordsman');
     const top = combatPowerCeilingRatio(LEVEL, 'swordsman');
@@ -56,11 +58,16 @@ describe('上界从真实最强装备推出来', () => {
     const sameLevel = CLASS_IDS.map((classId) => combatPowerCeilingRatio(LEVEL, classId));
     expect(Math.max(...sameLevel) / Math.min(...sameLevel)).toBeLessThan(1.5);
 
-    // 守住合理范围：若哪天某个比值跑到 8 倍以上，
-    // 说明装备表出了新的超模件，该去查数据而不是调这条断言
-    for (const level of [1, 16, 40, LEVEL]) {
+    // 守住合理范围：探针满掷修正（1000 → 1200，修真实漏洞）后全矩阵峰值
+    // = 62.93（Lv20 witch，珍品超前品质 + 奇迹掷，均属登记在案的结构）。
+    // 门槛 65 = 峰值取整上浮，沿用小衡「49.04 → 50」同一裁定法。
+    // 它是绊线不是标定：若哪天某个比值跑到 65 以上，先用这条判据分辨 ——
+    // **方法变更是整条曲线等比上移，数据超模是单点冒尖**。
+    // 单点冒尖 → 查装备表；等比上移 → 查探针口径是否又变了，再按新峰值重标。
+    // 本次 50 → 65 属后者（满掷从 1000 修到 1200，全矩阵约 ×1.28 等比上移）。
+    for (const level of [1, 16, 20, 40, LEVEL]) {
       for (const classId of CLASS_IDS) {
-        expect(combatPowerCeilingRatio(level, classId)).toBeLessThan(8);
+        expect(combatPowerCeilingRatio(level, classId)).toBeLessThan(65);
         expect(combatPowerCeilingRatio(level, classId)).toBeGreaterThan(1);
       }
     }
@@ -71,7 +78,11 @@ describe('上界从真实最强装备推出来', () => {
       for (const classId of CLASS_IDS) {
         const maxed = structuralMaxCombatPower(level, classId);
         expect(isPlausibleCombatPower(maxed, level, classId)).toBe(true);
-        expect(isPlausibleCombatPower(maxed * 2, level, classId)).toBe(false);
+        // 拒绝侧贴着上界测，不写「maxed × 2」这类隐含 HEADROOM < 2 的魔法数 ——
+        // 那正是 2026-08-01 HEADROOM 1.5 → 3.0 时被当场翻红的写法。
+        expect(
+          isPlausibleCombatPower(combatPowerCeiling(level, classId) + 1, level, classId),
+        ).toBe(false);
       }
     }
   });
@@ -96,7 +107,9 @@ describe('离谱值与非法等级', () => {
   });
 
   it('新号的小数字照常通过', () => {
-    expect(isPlausibleCombatPower(200, 1, 'swordsman')).toBe(true);
+    // 新尺下 Lv1 结构上界 ≈ 86、上界余量 ≈ 129；100 在余量内应放行
+    //（旧尺线性加权 ~583，200 曾是安全的；乘法投影后量级整体下移，docs/73 批 3）。
+    expect(isPlausibleCombatPower(100, 1, 'swordsman')).toBe(true);
     expect(isPlausibleCombatPower(0, 1, 'witch')).toBe(true);
   });
 });

@@ -25,12 +25,7 @@ import { typicalQualityAt } from '@/data/expectedPower';
 import { ALL_CHAPTERS, REGIONS } from '@/data/regions';
 import { EQUIPMENT, equipIdsOfRegion } from '@/data/equipment';
 import { ITEM_BASE, ITEM_POW, ITEM_SCALE, QUALITY_MUL, QUALITY_ORDER } from '@/data/constants';
-import type { Quality, Stats } from '../types';
-import { combatPower } from '../formula';
-
-const ZERO_STATS: Stats = {
-  atk: 0, def: 0, hp: 0, acc: 0, eva: 0, critRate: 0, critDmg: 0, spd: 0,
-};
+import type { Quality } from '../types';
 
 /** 当前内容顶，与 arenaEquipment.ts 同源口径 */
 const CONTENT_TOP = Math.max(...ALL_CHAPTERS.map((chapter) => chapter.levelTo));
@@ -435,43 +430,5 @@ describe('evaluateDungeonDepth 的阻挡原因', () => {
       depth: 1,
     });
     expect(repeat.isFirstBreak).toBe(false);
-  });
-});
-
-
-/**
- * ★★ 哨兵测试 —— 它的作用不是证明代码对，而是**在别人修好某件事时把人拉回来**。
- *
- * 背景：`scripts/equipment-dungeon-balance.mts` 里两条读 CP 的带宽门禁
- * 本版已降级为「只报不拦」，因为 CP 有两个已知失真源，它们量的一部分
- * 是标尺的毛病而不是难度的毛病。
- *
- * 但「只报不拦」有个众所周知的下场：**从此没人管**。
- * 我们今天已经吃过两次亏 —— 平衡门禁的上界缺了几个月没被发现、
- * DEPTH_GATES_CALIBRATED 挂了大半天。所以重启条件不能写成注释里的一句话，
- * 必须是一条**会自己变红**的断言。
- *
- * 失真源②（威胁轴漂移）已由 docs/73 A1 修平（expectedThreatFactor 孪生锚点表，
- * 批 2-3），2026-07-31 按 docs/66 §6.2 契约闭环：删除本条哨兵 + N1 门禁恢复硬拦
- * （GATE_CLEARANCES 移除）。剩余失真源①（暴击率 CP 固定加权）仍在，
- * 由下面这条断言继续守护，直到批 3（CP 定价）修平。
- */
-describe('哨兵 · CP 已知失真源①仍存在（暴击率固定加权）', () => {
-  const CALL_TO_ACTION =
-    ' ★ 这条红了说明 CP 的已知失真源被修好了。请立刻回到 ' +
-    'scripts/equipment-dungeon-balance.mts，把 CROSS_TIER_BANDWIDTH / ' +
-    'CROSS_CLASS_BANDWIDTH 两条从「只报不拦」改回 failed = true，复跑确认后再删本断言。' +
-    ' 负责人：claude-drops　出处：docs/66 §6.2';
-
-  it('失真源①：暴击率在 CP 里仍是固定加权（职业间失真）', () => {
-    // 固定加权 ⇒ +10% 暴击的 CP 增量与等级无关；真实收益却随基础值放大。
-    const low = combatPower({ ...ZERO_STATS, atk: 100, critRate: 10 });
-    const lowBase = combatPower({ ...ZERO_STATS, atk: 100 });
-    const high = combatPower({ ...ZERO_STATS, atk: 10_000, critRate: 10 });
-    const highBase = combatPower({ ...ZERO_STATS, atk: 10_000 });
-    expect(high - highBase, `暴击的 CP 定价已随基础值变化${CALL_TO_ACTION}`).toBeCloseTo(
-      low - lowBase,
-      6,
-    );
   });
 });

@@ -48,11 +48,13 @@ describe('公开档案补读', () => {
 
 describe('服务端档案同步', () => {
   it('上传试炼成绩不会覆盖已有玩家昵称', () => {
+    // main 80e1a50 恢复 profileProgress 字面量写法（守卫测试扫的是源码形状），
+    // 断言随源码形状走：display_name 仍只出现在首次建档的 upsert 里。
     expect(submitTrialSource).toContain('const profileProgress = {');
     expect(submitTrialSource).toContain("{ onConflict: 'id', ignoreDuplicates: true }");
     expect(submitTrialSource).toContain('.update(profileProgress)');
     const progressBlock = submitTrialSource.match(
-      /const profileProgress = \{([\s\S]*?)\n[ \t]{4}\};/,
+      /const profileProgress = \{\n([\s\S]*?)\n[ \t]*\};/,
     );
     expect(progressBlock?.[1]).not.toContain('display_name');
   });

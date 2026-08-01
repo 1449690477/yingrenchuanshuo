@@ -14,10 +14,10 @@ import type { EquipSlot, MonsterDef, Quality } from './types';
 import { typicalQualityAt, expectedFullGearCp } from '@/data/expectedPower';
 import { REGIONS } from '@/data/regions';
 import { selectStrongestDefinition } from './equipment';
-import { monsterHp, monsterAtk } from './progression';
+import { monsterHp, expectedThreatFactor } from './progression';
 
 import type { EquipmentDungeonTierId } from '@/data/equipmentDungeonGear';
-import { QUALITY_ORDER } from '@/data/constants';
+import { MONSTER_ATK_POW, QUALITY_ORDER } from '@/data/constants';
 import {
   DEPTH_BLANK_CHANCE,
   DEPTH_TARGET_MULTIPLIER,
@@ -213,12 +213,67 @@ export function depthScaledMonster(
   depth: number,
 ): MonsterDef {
   const k = depthDifficultyK(tierId, depth);
+  const level = Math.max(1, depthNominalLevel(tierId, depth) - (base.type === 'boss' ? 0 : 2));
   return {
     ...base,
-    level: Math.max(1, depthNominalLevel(tierId, depth) - (base.type === 'boss' ? 0 : 2)),
+    level,
     hpMul: (base.hpMul ?? 1) * DEPTH_ENCOUNTER_BASE.hp * k,
-    atkMul: (base.atkMul ?? 1) * DEPTH_ENCOUNTER_BASE.atk * depthAtkFactor(tierId, depth),
+    // 批 3（2026-08-01）：深度副本攻击与主线威胁曲线解耦 —— monsterAtk 内含
+    // expectedThreatFactor（主线「玩家 EHP 品质爬升」孪生表），深度副本有自己的
+    // 两轴标定旋钮（DEPTH_ENCOUNTER_BASE / DEPTH_ATK_TARGET），不该被主线曲线
+    // 牵着走。批 3 重标威胁锚点后实测：violet 段威胁 +17%、auric 段 -31~36%，
+    // 胜率带因此反向漂移（violet d4 破下限、auric d4/d5 破上限）——威胁曲线是
+    // 主线成长节奏的量具，深度难度必须只由 DEPTH 旋钮决定（docs/66 §3.2）。
+    atkMul:
+      (((base.atkMul ?? 1) *
+        DEPTH_ENCOUNTER_BASE.atk *
+        depthAtkFactor(tierId, depth)) /
+        expectedThreatFactor(level)) *
+      threatBaselineAt(level),
   };
+}
+
+/**
+ * ★ 批 2 威胁因子基线（2026-08-01 批 3 冻结快照）。
+ *
+ * 深度副本的 atkMul 需要除以「当前威胁因子」再乘「本基线」——把主线
+ * THREAT_ANCHORS 的重标影响从深度副本里隔离掉。为什么必须隔离：
+ * THREAT_ANCHORS 是「玩家 EHP 品质爬升」的孪生表，批 2 标定深度副本时
+ * 它的档间爬升（Lv16 0.4 → Lv81 2.03）恰好充当深度各档的绝对难度校准；
+ * 批 3 按 N6 品质档内成长重标后曲线变平坦（35~85 段平台），校准失效，
+ * 实测 violet 段怪物攻击 +17%（d4 破胜率下限）、auric 段 -31~36%
+ * （d4/d5 破上限）——深度难度被主线成长节奏的量具牵着走。
+ *
+ * 本表 = 批 2 版 THREAT_ANCHORS 的原值（2026-07-31 定稿），深度副本的
+ * 难度标定冻结在批 2 已验证的基线上；将来若重新反标定深度副本
+ * （docs/66），在 balance:equipment-dungeon 全绿的前提下可整体替换本表。
+ */
+const THREAT_BASELINE_ANCHORS: readonly (readonly [number, number])[] = [
+  [1, 0.4],
+  [15, 0.4],
+  [25, 0.49],
+  [35, 0.6],
+  [45, 1.19],
+  [55, 1.19],
+  [65, 1.77],
+  [75, 2.03],
+  [120, 2.4],
+];
+
+/** 批 2 威胁基线插值（与 expectedThreatFactor 同法，线性插值）。 */
+function threatBaselineAt(level: number): number {
+  const lv = Math.max(1, level);
+  let mul = THREAT_BASELINE_ANCHORS[THREAT_BASELINE_ANCHORS.length - 1]![1];
+  for (let i = 0; i < THREAT_BASELINE_ANCHORS.length - 1; i++) {
+    const [l0, q0] = THREAT_BASELINE_ANCHORS[i]!;
+    const [l1, q1] = THREAT_BASELINE_ANCHORS[i + 1]!;
+    if (lv <= l1) {
+      const t = l1 === l0 ? 0 : (lv - l0) / (l1 - l0);
+      mul = q0 + (q1 - q0) * t;
+      break;
+    }
+  }
+  return mul;
 }
 
 /**
@@ -240,9 +295,13 @@ export function depthAtkFactor(tierId: EquipmentDungeonTierId, depth: number): n
   if (target === undefined) {
     throw new Error(`[配置错误] DEPTH_ATK_TARGET 缺少第 ${depth} 层（docs/66 §3.2）`);
   }
-  // 等级本身带来的攻击涨幅，按档归一后换成上面那条作者曲线
+  // 等级本身带来的攻击涨幅（按批 2 威胁基线评估，见 THREAT_BASELINE_ANCHORS
+  // 的冻结说明 —— 档内相对难度同样冻结在批 2 基线），按档归一后换成作者曲线
   const levelContribution =
-    monsterAtk(depthNominalLevel(tierId, depth)) / monsterAtk(depthNominalLevel(tierId, 1));
+    (Math.pow(depthNominalLevel(tierId, depth), MONSTER_ATK_POW) *
+      threatBaselineAt(depthNominalLevel(tierId, depth))) /
+    (Math.pow(depthNominalLevel(tierId, 1), MONSTER_ATK_POW) *
+      threatBaselineAt(depthNominalLevel(tierId, 1)));
   if (!(levelContribution > 0)) {
     throw new Error(`[配置错误] ${tierId} 第 ${depth} 层攻击等级贡献非正：${levelContribution}`);
   }

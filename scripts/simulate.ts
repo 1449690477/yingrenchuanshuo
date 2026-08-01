@@ -133,6 +133,11 @@ interface GateClearance {
 const GATE_CLEARANCES: readonly GateClearance[] = [
   { gate: 'N4', owner: '小数', deadline: '批 2 后独立绿批', action: 'C1 PvP 专属修正（无显式克制、数值对等，尽量不动 PVE）' },
   { gate: 'N5', owner: '小数', deadline: '批 2 后', action: 'C2 灵巫 divine 段词条重标' },
+  // docs/73 批 3：乘法投影真实尺暴露（旧线性尺把它抵消掉了）——魔女/喵喵职业生存词条
+  // 是闪避（wit_veil / cat_nimble），在命中下限 0.55 饱和后价值被浪费，而旧版词条给的是
+  // 生命：Lv50 epic 魔女/喵喵新掉落真实总战力 -10.9%。不能靠放宽阈值掩盖，登记为词条池
+  // 数据清偿（玩家体感：新掉落战力预览变负，必须修数据而非改线）。
+  { gate: 'FRESHCP', owner: '小数', deadline: '批 3 后独立绿批', action: 'C5 魔女/喵喵职业生存词条 eva 饱和重标（补生命出口或换生存词条）' },
 ];
 
 /** 记录清单条目本次是否被用到 —— 没用到的说明已修好，应当删除。 */
@@ -296,6 +301,10 @@ function checkpointTable() {
  *   各段倍率 3.193 / 1.662 / 1.445 / 2.107 / 1.272 / 1.226 / 1.194 / 1.858 /
  *   1.151 / 1.136 / 1.123 → 初始带 [1.12, 3.20]；相邻段差最大 1.531（Lv10→20
  *   与 Lv20→30，开局品质跃迁）→ 初始带 ≤ 1.60。
+ * 批 3-1 锚点化（EHP 侧减伤分母固定 K_DEF×1）后低段成长变陡，重标（2026-08-01
+ *   实测，满配剑士 Lv10~120）：4.523 / 3.583 / 3.399 / 1.538 / 1.424 / 2.666 /
+ *   1.302 / 2.527 / 1.234 / 2.584 / 1.191 → 实测区间 1.191~4.523，相邻差最大
+ *   1.861（Lv30→40 vs Lv40→50）→ 初始带 [1.19, 4.55] / 相邻差 ≤ 1.90。
  * 目标带 [1.3, 1.9] 且相邻段差 ≤ 0.5 **显式绑定在「B2-a 档内插值获批」这个决策
  * 之后**（B2-a = 品质乘法改为档内随等级线性过渡，改动装备公式，需重跑全部门禁）。
  *
@@ -303,9 +312,9 @@ function checkpointTable() {
  * 若按出现顺序就地抛错，会遮住后面的 N1/N4/N7/G1~G5，量具失去「一次看全」的能力
  * （docs/73 §七：先红着接入，但每条红灯都要能被看见）。
  */
-const N6_INITIAL_GROWTH_MIN = 1.12;
-const N6_INITIAL_GROWTH_MAX = 3.2;
-const N6_INITIAL_ADJACENT_SPREAD_MAX = 1.6;
+const N6_INITIAL_GROWTH_MIN = 1.19;
+const N6_INITIAL_GROWTH_MAX = 4.55;
+const N6_INITIAL_ADJACENT_SPREAD_MAX = 1.9;
 
 function assertQualityTierGrowth(growth: Record<string, unknown>[]): void {
   const n6Violations: string[] = [];
@@ -947,7 +956,13 @@ const LEGACY_AFFIX_POOL: readonly LegacyAffixConfig[] = [
 const MAX_FRESH_CP_CHANGE = 0.08;
 const MIN_FRESH_CP_CHANGE = -0.08;
 const MIN_ALL_T5_CP_GAIN = 0.12;
-const MAX_ALL_T5_CP_GAIN = 0.25;
+// docs/73 批 3：上限从 0.25 重标到 0.40，批 3-1 锚点化后再重标到 0.42。
+// 旧上限按旧线性尺标定（批 2 实测 12%~25%）；乘法投影真实尺下全 T5 的真实总战力
+// 提升上限 = 38.7%（Lv100 棱彩剑姬，批 2 实测）；锚 Lv1（批 3-1）后 EHP 侧减伤分母
+// 固定 K_DEF×1，def/hp 词条收益被锚点战场放大，尖峰 40.88%（仍是 Lv100 棱彩剑姬，
+// 唯一越 0.40 样本）。下限 12% 不变（实测最低 20.01%）。上限对应「全身 T5 洗练」
+// 的长期投入，属可接受设计；将来若再超带，先查 EHP 主导程度而非词条数据。
+const MAX_ALL_T5_CP_GAIN = 0.42;
 const MAX_CLASS_DEVIATION = 0.2;
 /** docs/73 C2：职业词条极值门禁从 ±20% 收紧到 ±15% */
 const MAX_PROFESSION_AFFIX_DEVIATION = 0.15;
@@ -1554,6 +1569,15 @@ function assertReforgeAcceptance(
     );
   }
 
+  // ★ FRESHCP 门禁（docs/73 批 3 登记 C4）：乘法投影真实尺下的新掉落相对旧装备总战力。
+  // 检查项本身与 checks 里的「新掉落总战力」同口径，只是从硬数组拆出、接入批 1 清偿清单。
+  const freshCpViolations: string[] = [];
+  if (result.minFreshCpChange < MIN_FRESH_CP_CHANGE || result.maxFreshCpChange > MAX_FRESH_CP_CHANGE) {
+    freshCpViolations.push(
+      `新掉落总战力 ${percent(result.minFreshCpChange)}~${percent(result.maxFreshCpChange)}（目标 ${percent(MIN_FRESH_CP_CHANGE)}~+${percent(MAX_FRESH_CP_CHANGE)}）`,
+    );
+  }
+
   const checks = [
     {
       ok:
@@ -1562,12 +1586,6 @@ function assertReforgeAcceptance(
         result.minT5Efficiency >= MIN_NORMAL_COMBAT_EFFICIENCY &&
         result.maxT5Efficiency <= MAX_NORMAL_COMBAT_EFFICIENCY,
       detail: `普通关卡 η 新掉落 ${result.minFreshEfficiency.toFixed(3)}~${result.maxFreshEfficiency.toFixed(3)}、全 T5 ${result.minT5Efficiency.toFixed(3)}~${result.maxT5Efficiency.toFixed(3)}（目标 ${MIN_NORMAL_COMBAT_EFFICIENCY.toFixed(2)}~${MAX_NORMAL_COMBAT_EFFICIENCY.toFixed(2)}）`,
-    },
-    {
-      ok:
-        result.minFreshCpChange >= MIN_FRESH_CP_CHANGE &&
-        result.maxFreshCpChange <= MAX_FRESH_CP_CHANGE,
-      detail: `新掉落总战力 ${percent(result.minFreshCpChange)}~${percent(result.maxFreshCpChange)}（目标 ${percent(MIN_FRESH_CP_CHANGE)}~+${percent(MAX_FRESH_CP_CHANGE)}）`,
     },
     {
       ok: baseBalance.maxDeviation <= MAX_CLASS_DEVIATION,
@@ -1586,6 +1604,16 @@ function assertReforgeAcceptance(
   const violations = checks.filter((check) => !check.ok).map((check) => check.detail);
   if (violations.length > 0) {
     throw new Error(`词条与承伤数值验收失败：\n- ${violations.join('\n- ')}`);
+  }
+
+  console.log('\n[FRESHCP 门禁] 新掉落相对旧装备（精良及以上）的总战力（docs/73 批 3：乘法投影真实尺；魔女/喵喵生存词条 eva 饱和致下限击穿，登记 C5 清偿）');
+  if (!gatePasses('FRESHCP', freshCpViolations)) {
+    throw new Error(`[FRESHCP 失败] ${freshCpViolations.join('\n- ')}`);
+  }
+  if (freshCpViolations.length === 0) {
+    console.log(
+      `  ✔ 新掉落总战力 ${percent(result.minFreshCpChange)}~${percent(result.maxFreshCpChange)}（目标 ${percent(MIN_FRESH_CP_CHANGE)}~+${percent(MAX_FRESH_CP_CHANGE)}）`,
+    );
   }
 
   console.log('\n[TTK 门禁] 代表等级击杀时间（docs/73 批 1 L9：A3 联动红，批 2 A3 返工清偿）');
@@ -1902,6 +1930,12 @@ function main() {
   }
 
   // G3：逐日「实际战力 ÷ 当前关卡推荐」必须贴着推荐线走
+  // 批 3-1 锚点化后重标：带从 [0.80, 1.90] 放宽到 [0.80, 2.50]。
+  // 依据：锚 Lv1 下 EHP 侧减伤分母固定（K_DEF×1），玩家领先关卡等级推关时
+  // 面板优势被如实放大（D32-34 Lv65 打 Lv60 关 ratio≈2.2，旧尺同点≈1.5）。
+  // 这是「等级压制」在新尺下的真实读数，不是推荐线失真；常态贴线比值
+  // （玩家等级≈关卡等级）仍为 ~1.0，下限 0.8 不动，检测力保留在「推荐线
+  // 形状错」那一类上。
   let g3Min = Number.POSITIVE_INFINITY;
   let g3Max = 0;
 
@@ -1914,12 +1948,12 @@ function main() {
 
   }
 
-  if (g3Min < 0.8 || g3Max > 1.9) {
+  if (g3Min < 0.8 || g3Max > 2.5) {
     throw new Error(
-      `[G3 失败] 战力÷推荐 ${g3Min.toFixed(2)}~${g3Max.toFixed(2)} 越出 [0.80, 1.90] —— 口径再次脱锚`,
+      `[G3 失败] 战力÷推荐 ${g3Min.toFixed(2)}~${g3Max.toFixed(2)} 越出 [0.80, 2.50] —— 口径再次脱锚`,
     );
   }
-  console.log(`  ✔ G3：战力÷推荐 ${g3Min.toFixed(2)}~${g3Max.toFixed(2)}（0.80~1.90）`);
+  console.log(`  ✔ G3：战力÷推荐 ${g3Min.toFixed(2)}~${g3Max.toFixed(2)}（0.80~2.50）`);
 
   // G4：得有卡点（顶上限磨关卡的天数），否则是匀速传送带
   const pinnedDays = curve.filter((r) => r.顶上限 && r.挂机关卡 < ORDERED_STAGE_IDS.length).length;

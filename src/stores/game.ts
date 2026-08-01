@@ -23,7 +23,7 @@ import type {
   Stats,
 } from '@/core/types';
 import { Rng } from '@/core/rng';
-import { addStats, combatPower, zeroStats } from '@/core/formula';
+import { addStats, combatPower, combatPowerValue, zeroStats } from '@/core/formula';
 import {
   affectionDayKey,
   affectionInteractionsRemaining as calcAffectionInteractionsRemaining,
@@ -686,7 +686,12 @@ export const useGameStore = defineStore('game', () => {
     );
   });
 
-  const cp = computed(() => combatPower(finalStats.value));
+  /** 未取整的真实战力投影：排序、门禁与增量计算用它（取整会抹掉小步长导数，docs/73 批 3）。 */
+  const cpValue = computed(() =>
+    combatPowerValue(finalStats.value),
+  );
+  /** 取整后的展示战力。 */
+  const cp = computed(() => Math.round(cpValue.value));
 
   const currentStage = computed(() => {
     const id = save.value?.progress.currentStageId ?? FIRST_STAGE_ID;
@@ -1047,7 +1052,7 @@ export const useGameStore = defineStore('game', () => {
     });
     if (!plan.ok) return plan;
 
-    const beforeCp = cp.value;
+    const beforeCp = cpValue.value;
     // idleCarrySec 是旧职业需要的秒数。换职业后按当前怪物掉血比例重算，
     // 防止玩家通过反复切换快慢职业凭空刷出一只怪。
     const preservedBattleProgress = battleProgress.value;
@@ -1063,7 +1068,7 @@ export const useGameStore = defineStore('game', () => {
     battleProgress.value = preservedBattleProgress;
     battleVisualCursor.value = preservedBattleVisualCursor;
 
-    const delta = cp.value - beforeCp;
+    const delta = Math.round(cpValue.value - beforeCp);
     noteCpDelta(beforeCp);
     await persist();
     return {
@@ -1729,7 +1734,7 @@ export const useGameStore = defineStore('game', () => {
     }
 
     if (automaticPlan?.status === 'ready') {
-      const beforeCp = cp.value;
+      const beforeCp = cpValue.value;
       s.equipped = automaticPlan.plan.equipped;
       s.bag.equipment = automaticPlan.plan.bagEquipment;
       noteCpDelta(beforeCp);
@@ -2129,10 +2134,10 @@ export const useGameStore = defineStore('game', () => {
     });
     if (!plan.ok) return plan;
 
-    const beforeCp = cp.value;
+    const beforeCp = cpValue.value;
     s.equipped = plan.equipped;
     s.bag.equipment = plan.bagEquipment;
-    const cpChange = cp.value - beforeCp;
+    const cpChange = Math.round(cpValue.value - beforeCp);
     noteCpDelta(beforeCp);
     void persist();
     return {
@@ -2175,7 +2180,7 @@ export const useGameStore = defineStore('game', () => {
     if (s.player.level < def.level) return false;
     if (def.classId && def.classId !== s.player.classId) return false;
 
-    const before = cp.value;
+    const before = cpValue.value;
     const old = s.equipped[def.slot];
     s.bag.equipment.splice(idx, 1);
     s.equipped[def.slot] = inst;
@@ -2192,7 +2197,7 @@ export const useGameStore = defineStore('game', () => {
     const inst = s.equipped[slot];
     if (!inst) return false;
 
-    const before = cp.value;
+    const before = cpValue.value;
     s.equipped[slot] = null;
     s.bag.equipment.push(inst);
     noteCpDelta(before);
@@ -2203,7 +2208,7 @@ export const useGameStore = defineStore('game', () => {
   /** 一键穿戴：每个槽位挑战力最高的那件 */
   function equipBest(): number {
     if (!save.value) return 0;
-    const before = cp.value;
+    const before = cpValue.value;
     let changed = 0;
 
     for (const slot of SLOT_ORDER) {
@@ -2538,7 +2543,7 @@ export const useGameStore = defineStore('game', () => {
     const previousDefId = located.instance.defId;
     const previousRngState = rng.getState();
     const previousSavedRngState = save.value.rngState;
-    const beforeCp = cp.value;
+    const beforeCp = cpValue.value;
     const resumeRealtime = rafId !== 0;
 
     paidPersistencePending = true;
@@ -2549,7 +2554,7 @@ export const useGameStore = defineStore('game', () => {
       save.value.player.gold = result.wallet.gold;
       save.value.bag.items = { ...result.wallet.items };
       located.instance.defId = result.targetDefId;
-      const cpChange = cp.value - beforeCp;
+      const cpChange = Math.round(cpValue.value - beforeCp);
 
       try {
         await persistStrict();
@@ -2755,7 +2760,7 @@ export const useGameStore = defineStore('game', () => {
       return { ok: false, reason: 'no-pending-result' };
     }
 
-    const beforeCp = cp.value;
+    const beforeCp = cpValue.value;
     const result = resolvePendingAffixChange(located.instance, decision);
     const previousInstance = cloneEquipmentInstance(located.instance);
     const resumeRealtime = rafId !== 0;
@@ -2764,7 +2769,7 @@ export const useGameStore = defineStore('game', () => {
     stopLoop();
     try {
       commitAffixState(located.instance, result.instance);
-      const delta = cp.value - beforeCp;
+      const delta = Math.round(cpValue.value - beforeCp);
       try {
         await persistStrict();
       } catch (error) {
@@ -2852,7 +2857,7 @@ export const useGameStore = defineStore('game', () => {
     if (!located) return { ok: false, reason: 'not-found' };
 
     const s = save.value;
-    const beforeCp = cp.value;
+    const beforeCp = cpValue.value;
     const txRng = new Rng(1);
     txRng.setState(rng.getState());
     const result = attemptEnhance(
@@ -2904,7 +2909,7 @@ export const useGameStore = defineStore('game', () => {
       s.equipped[located.slot] = nextInstance;
     }
 
-    const cpChange = cp.value - beforeCp;
+    const cpChange = Math.round(cpValue.value - beforeCp);
     noteCpDelta(beforeCp);
     void persist();
     return {
@@ -2952,7 +2957,7 @@ export const useGameStore = defineStore('game', () => {
       ...(maxAttempts === undefined ? {} : { maxAttempts }),
     });
 
-    const beforeCp = cp.value;
+    const beforeCp = cpValue.value;
     if (batch.attempts.length > 0) {
       const nextInstance = batch.instances[0]!;
       rng.setState(batch.nextRngState);
@@ -2972,7 +2977,7 @@ export const useGameStore = defineStore('game', () => {
       blocked: batch.blocked,
       stopReason: batch.stopReason,
       instances: batch.instances,
-      cpDelta: cp.value - beforeCp,
+      cpDelta: Math.round(cpValue.value - beforeCp),
     };
   }
 
@@ -3017,7 +3022,7 @@ export const useGameStore = defineStore('game', () => {
       ...(maxAttempts === undefined ? {} : { maxAttempts }),
     });
 
-    const beforeCp = cp.value;
+    const beforeCp = cpValue.value;
     if (batch.attempts.length > 0) {
       rng.setState(batch.nextRngState);
       save.value.player.gold = batch.wallet.gold;
@@ -3037,7 +3042,7 @@ export const useGameStore = defineStore('game', () => {
       blocked: batch.blocked,
       stopReason: batch.stopReason,
       instances: batch.instances,
-      cpDelta: cp.value - beforeCp,
+      cpDelta: Math.round(cpValue.value - beforeCp),
     };
   }
 
@@ -3235,7 +3240,7 @@ export const useGameStore = defineStore('game', () => {
       s.bag.items[plan.cost.coreId] = (s.bag.items[plan.cost.coreId] ?? 0) - plan.cost.cores;
     }
     inst.imprintSetId = setId;
-    const before = cp.value;
+    const before = cpValue.value;
     noteCpDelta(before);
     void persist();
     return true;
@@ -3321,7 +3326,8 @@ export const useGameStore = defineStore('game', () => {
   }
 
   function noteCpDelta(before: number): void {
-    const d = cp.value - before;
+    // before 必须取未取整的 cpValue：取整差会抹掉小步长（强化 +0.9 战力显示 +0）。
+    const d = Math.round(cpValue.value - before);
     if (d !== 0) cpDelta.value = { value: d, at: Date.now() };
   }
 
