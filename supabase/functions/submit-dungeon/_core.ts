@@ -275,14 +275,12 @@ function hitChance(acc, eva) {
 function critMultiplier(critDmg) {
   return CRIT_BASE + critDmg / 100;
 }
-function combatPowerValue(stats, level) {
-  if (!Number.isInteger(level) || level < 1) {
-    throw new Error(`combatPower: \u7B49\u7EA7\u5FC5\u987B >= 1 \u7684\u6574\u6570\uFF0C\u6536\u5230 ${level}`);
-  }
+var REFERENCE_MONSTER_LEVEL = 1;
+function combatPowerValue(stats) {
   const m = makeMonster({
     id: "ref",
     name: "ref",
-    level,
+    level: REFERENCE_MONSTER_LEVEL,
     type: "normal",
     element: "none",
     lootTableId: "ref",
@@ -291,15 +289,15 @@ function combatPowerValue(stats, level) {
   const critAvgP = 1 + clamp(stats.critRate / 100, 0, 1) * (critMultiplier(stats.critDmg) - 1);
   const critAvgM = 1 + clamp(m.critRate / 100, 0, 1) * (critMultiplier(m.critDmg) - 1);
   const avgVariance = (DAMAGE_VARIANCE_MIN + DAMAGE_VARIANCE_MAX) / 2;
-  const dps = stats.spd * hitChance(stats.acc, m.eva) * avgVariance * stats.atk * (1 - damageReduction(m.def, level)) * critAvgP;
-  const perHit = hitChance(m.acc, stats.eva) * avgVariance * m.atk * (1 - damageReduction(stats.def, level)) * critAvgM;
+  const dps = stats.spd * hitChance(stats.acc, m.eva) * avgVariance * stats.atk * (1 - damageReduction(m.def, REFERENCE_MONSTER_LEVEL)) * critAvgP;
+  const perHit = hitChance(m.acc, stats.eva) * avgVariance * m.atk * (1 - damageReduction(stats.def, REFERENCE_MONSTER_LEVEL)) * critAvgM;
   if (stats.hp <= 0) return 0;
   const ehp = perHit > 0 ? stats.hp / perHit : Number.POSITIVE_INFINITY;
   const value = Math.sqrt(dps * ehp);
   return Number.isFinite(value) ? value : 0;
 }
-function combatPower(stats, level) {
-  return Math.round(combatPowerValue(stats, level));
+function combatPower(stats) {
+  return Math.round(combatPowerValue(stats));
 }
 function zeroStats() {
   return { atk: 0, def: 0, hp: 0, acc: 0, eva: 0, critRate: 0, critDmg: 0, spd: 0 };
@@ -2663,7 +2661,7 @@ function expectedGearStatsFromDefinitions(level) {
   return out;
 }
 function expectedFullGearCp(level, classId = "swordsman") {
-  return combatPower(addStats(baseStatsFor(classId, level), expectedGearStatsFromDefinitions(level)), level);
+  return combatPower(addStats(baseStatsFor(classId, level), expectedGearStatsFromDefinitions(level)));
 }
 
 // src/data/imprintRules.ts
