@@ -10,6 +10,7 @@ const ITEM_IDS = [
   'sigil_witch',
   'sigil_shaman',
   'sigil_catkin',
+  'sigil_kenshi',
   'crystal_resonance',
 ];
 const EFFECT_IDS = ['reforge-swirl', 'tier-up-burst', 'lock-seal'];
@@ -22,7 +23,11 @@ const itemFiles = ITEM_IDS.map((id) => `public/assets/items/${id}.png`);
 const effectFiles = EFFECT_IDS.map((id) => `public/assets/effects/reforge/${id}.png`);
 const opIconFiles = OP_ICON_IDS.map((id) => `public/assets/effects/reforge/${id}.png`);
 const sourceFiles = [
-  ...[...ITEM_IDS, ...EFFECT_IDS].map((id) => `art-source/reforge/${id}-chroma.png`),
+  ...[...ITEM_IDS.filter((id) => id !== 'sigil_kenshi'), ...EFFECT_IDS].map(
+    (id) => `art-source/reforge/${id}-chroma.png`,
+  ),
+  // 樱酱徽记来自角色系统物品母版；不得伪造一张不存在的 reforge 绿幕源。
+  'art-source/characters/kenshi/atlases/system-items-alpha.png',
   // 操作图标与横幅是直接产出的透明图/底图，没有绿幕中间态
   ...OP_ICON_IDS.map((id) => `art-source/reforge/${id}.png`),
   'art-source/reforge/studio-banner.png',
@@ -48,8 +53,8 @@ async function filesUnder(directory) {
 }
 
 async function assertManifest() {
-  if (itemFiles.length !== 7 || effectFiles.length !== 3) {
-    throw new Error('洗练资产清单必须严格为 7 张材料图标和 3 张特效图');
+  if (itemFiles.length !== 8 || effectFiles.length !== 3) {
+    throw new Error('洗练资产清单必须严格为 8 张材料图标和 3 张特效图');
   }
   const actualEffects = await filesUnder('public/assets/effects/reforge');
   const declared = [...effectFiles, ...opIconFiles, BANNER_FILE];

@@ -1,17 +1,47 @@
 import { describe, expect, it } from 'vitest';
 import { buildDefaultPlayerSkillKit } from '../playerSkillKit';
 import { CLASS_IDS } from '../types';
+import { DEFAULT_ACTIVE_SKILL_ORDER, skillsFor } from '@/data/skills';
 
 describe('玩家默认技能栏生产入口', () => {
   it.each(CLASS_IDS)('%s 在各等级只装载已解锁的本职业技能', (classId) => {
     for (const level of [1, 30, 60, 90, 120]) {
       const kit = buildDefaultPlayerSkillKit(classId, level);
       expect(kit.active.length).toBeLessThanOrEqual(4);
+      const unlockedActive = new Set(
+        skillsFor(classId)
+          .filter((skill) => skill.type === 'active' && skill.unlockLevel <= level)
+          .map((skill) => skill.id),
+      );
+      expect(kit.active.map((entry) => entry.skill.id)).toEqual(
+        DEFAULT_ACTIVE_SKILL_ORDER[classId]
+          .filter((skillId) => unlockedActive.has(skillId))
+          .slice(0, 4),
+      );
       for (const entry of [...kit.active, ...kit.passives]) {
         expect(entry.skill.class).toBe(classId);
         expect(entry.skill.unlockLevel).toBeLessThanOrEqual(level);
       }
     }
+  });
+
+  it('高等级灵巫不再携带双治疗，樱酱保留低冷却与破甲循环', () => {
+    expect(buildDefaultPlayerSkillKit('shaman', 120).active.map((entry) => entry.skill.id)).toEqual(
+      [
+        'skill_shaman_heal',
+        'skill_shaman_divine_beast',
+        'skill_shaman_all_spirits',
+        'skill_shaman_group_poison',
+      ],
+    );
+    expect(buildDefaultPlayerSkillKit('kenshi', 120).active.map((entry) => entry.skill.id)).toEqual(
+      [
+        'skill_kenshi_thousand_sakura',
+        'skill_kenshi_iai_flash',
+        'skill_kenshi_armor_break',
+        'skill_kenshi_iai_draw',
+      ],
+    );
   });
 
   it('召唤定义只进入所属灵巫技能栏，其他职业没有隐式召唤', () => {

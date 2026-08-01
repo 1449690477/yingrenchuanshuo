@@ -9,16 +9,18 @@ const CHROMA_HELPER =
   'C:\\Users\\Administrator\\.codex\\skills\\.system\\imagegen\\scripts\\remove_chroma_key.py';
 
 const TIERS = ['azure', 'violet', 'auric', 'crimson'];
-const CLASSES = ['swordsman', 'witch', 'shaman', 'catkin'];
+const CLASSES = ['swordsman', 'witch', 'shaman', 'catkin', 'kenshi'];
 const ICON_KEYS = [
   'weapon-swordsman',
   'weapon-witch',
   'weapon-shaman',
   'weapon-catkin',
+  'weapon-kenshi',
   'body-swordsman',
   'body-witch',
   'body-shaman',
   'body-catkin',
+  'body-kenshi',
   'head-starlace',
   'head-dreamhat',
   'necklace-heart',
@@ -40,6 +42,12 @@ const REFERENCE_THEME = {
   violet: 'moon-sugar',
   auric: 'rose-night',
   crimson: 'rose-night',
+};
+const KENSHI_DUNGEON_APPEARANCE = {
+  azure: 'r2',
+  violet: 'r6-shadow',
+  auric: 'r7-bloodmoon',
+  crimson: 'r5-crimson',
 };
 
 function run(command, args) {
@@ -89,9 +97,10 @@ async function buildTransparentAsset({
   innerWidth,
   innerHeight,
   format,
+  sourceHasAlpha = false,
 }) {
   await mkdir(dirname(output), { recursive: true });
-  const keyed = await removeChroma(source);
+  const keyed = sourceHasAlpha ? source : await removeChroma(source);
   try {
     const subject = await sharp(keyed)
       .ensureAlpha()
@@ -115,8 +124,40 @@ async function buildTransparentAsset({
         : pipeline.png({ compressionLevel: 9, palette: true, quality: 94 });
     await pipeline.toFile(output);
   } finally {
-    await rm(keyed, { force: true });
+    if (!sourceHasAlpha) await rm(keyed, { force: true });
   }
+}
+
+function equipmentIconSource(tier, iconKey) {
+  if (iconKey === 'body-kenshi') {
+    return {
+      source: resolve(`art-source/characters/kenshi/dungeon/${tier}-body-alpha.png`),
+      sourceHasAlpha: true,
+    };
+  }
+  if (iconKey === 'weapon-kenshi') {
+    const appearance = KENSHI_DUNGEON_APPEARANCE[tier];
+    return {
+      source: resolve(`art-source/characters/kenshi/regions/${appearance}-weapon-alpha.png`),
+      sourceHasAlpha: true,
+    };
+  }
+  return {
+    source: resolve(`art-source/equipment/dungeon/${tier}/${iconKey}-chroma.png`),
+    sourceHasAlpha: false,
+  };
+}
+
+async function buildRegisteredKenshiLayer(tier, slot) {
+  const family =
+    slot === 'body' ? `dungeon/${tier}-body` : `regions/${KENSHI_DUNGEON_APPEARANCE[tier]}-${slot}`;
+  const source = resolve(`art-source/characters/kenshi/${family}-alpha.png`);
+  const output = resolve(`public/assets/characters/modular/dungeon/${tier}/kenshi-${slot}.png`);
+  await mkdir(dirname(output), { recursive: true });
+  await sharp(source)
+    .resize(640, 960, { fit: 'fill', kernel: sharp.kernel.lanczos3 })
+    .png({ compressionLevel: 9, palette: true, quality: 96 })
+    .toFile(output);
 }
 
 async function alphaBounds(file) {
@@ -148,12 +189,14 @@ async function alphaBounds(file) {
 }
 
 async function buildCharacterBody(tier, classId) {
+  if (classId === 'kenshi') {
+    await buildRegisteredKenshiLayer(tier, 'body');
+    return;
+  }
   const source = resolve(
     `art-source/characters/modular/dungeon/${tier}/${classId}-body-chroma.png`,
   );
-  const output = resolve(
-    `public/assets/characters/modular/dungeon/${tier}/${classId}-body.png`,
-  );
+  const output = resolve(`public/assets/characters/modular/dungeon/${tier}/${classId}-body.png`);
   await mkdir(dirname(output), { recursive: true });
   const keyed = await removeChroma(source);
   try {
@@ -180,19 +223,17 @@ async function buildCharacterBody(tier, classId) {
 }
 
 async function buildCharacterAccessory(tier, classId, slot) {
+  if (classId === 'kenshi' && (slot === 'head' || slot === 'weapon')) {
+    await buildRegisteredKenshiLayer(tier, slot);
+    return;
+  }
   const iconKey =
-    slot === 'weapon'
-      ? `weapon-${classId}`
-      : slot === 'head'
-        ? 'head-starlace'
-        : 'shoes-stardust';
+    slot === 'weapon' ? `weapon-${classId}` : slot === 'head' ? 'head-starlace' : 'shoes-stardust';
   const icon = resolve(`public/assets/equipment/dungeon/${tier}/${iconKey}.png`);
   const reference = resolve(
     `public/assets/characters/modular/shop/${REFERENCE_THEME[tier]}/${classId}-${slot}.png`,
   );
-  const output = resolve(
-    `public/assets/characters/modular/dungeon/${tier}/${classId}-${slot}.png`,
-  );
+  const output = resolve(`public/assets/characters/modular/dungeon/${tier}/${classId}-${slot}.png`);
   if (slot === 'shoes') {
     // 整身礼服已经画有同档鞋型；这里仅叠一个小型足下徽光。
     // 直接按旧商店鞋层包围盒放大“鞋图标”会产生悬浮巨鞋，属于不可用素材。
@@ -255,9 +296,7 @@ async function runPool(tasks, concurrency = 4) {
       await tasks[taskIndex]();
     }
   }
-  await Promise.all(
-    Array.from({ length: Math.min(concurrency, tasks.length) }, () => worker()),
-  );
+  await Promise.all(Array.from({ length: Math.min(concurrency, tasks.length) }, () => worker()));
 }
 
 await runPool(
@@ -274,46 +313,40 @@ await runPool(
 
 await runPool(
   SLOTS.flatMap((slot) =>
-    MONSTER_KINDS.map((kind) => () =>
-      buildTransparentAsset({
-      source: resolve(
-        `art-source/monsters/equipment-dungeon/${slot}-${kind}-chroma.png`,
-      ),
-      output: resolve(
-        `public/assets/monsters/equipment-dungeon/${slot}-${kind}.webp`,
-      ),
-      width: 512,
-      height: 512,
-      innerWidth: 476,
-      innerHeight: 476,
-      format: 'webp',
-      }),
+    MONSTER_KINDS.map(
+      (kind) => () =>
+        buildTransparentAsset({
+          source: resolve(`art-source/monsters/equipment-dungeon/${slot}-${kind}-chroma.png`),
+          output: resolve(`public/assets/monsters/equipment-dungeon/${slot}-${kind}.webp`),
+          width: 512,
+          height: 512,
+          innerWidth: 476,
+          innerHeight: 476,
+          format: 'webp',
+        }),
     ),
   ),
 );
 
 await runPool(
   TIERS.flatMap((tier) =>
-    ICON_KEYS.map((iconKey) => () =>
-      buildTransparentAsset({
-      source: resolve(
-        `art-source/equipment/dungeon/${tier}/${iconKey}-chroma.png`,
-      ),
-      output: resolve(`public/assets/equipment/dungeon/${tier}/${iconKey}.png`),
-      width: 256,
-      height: 256,
-      innerWidth: 224,
-      innerHeight: 224,
-      format: 'png',
-      }),
-    ),
+    ICON_KEYS.map((iconKey) => () => {
+      const source = equipmentIconSource(tier, iconKey);
+      return buildTransparentAsset({
+        ...source,
+        output: resolve(`public/assets/equipment/dungeon/${tier}/${iconKey}.png`),
+        width: 256,
+        height: 256,
+        innerWidth: 224,
+        innerHeight: 224,
+        format: 'png',
+      });
+    }),
   ),
 );
 
 await runPool(
-  TIERS.flatMap((tier) =>
-    CLASSES.map((classId) => () => buildCharacterBody(tier, classId)),
-  ),
+  TIERS.flatMap((tier) => CLASSES.map((classId) => () => buildCharacterBody(tier, classId))),
 );
 
 await runPool(
@@ -326,6 +359,4 @@ await runPool(
   ),
 );
 
-console.log(
-  '装备副本资产构建完成：8 张地图、16 个怪物、80 个装备图标、64 个纸娃娃外观。',
-);
+console.log('装备副本资产构建完成：8 张地图、16 个怪物、88 个装备图标、80 个纸娃娃外观。');

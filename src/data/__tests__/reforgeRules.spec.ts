@@ -26,7 +26,7 @@ describe('洗练配置完整性', () => {
     ]);
   });
 
-  it('四职业徽记和三种公共洗练材料都指向正式物品', () => {
+  it('五职业徽记和三种公共洗练材料都指向正式物品', () => {
     for (const classId of CLASS_IDS) {
       expect(ITEMS[CLASS_SIGIL_IDS[classId]], `${classId} 徽记不存在`).toBeDefined();
     }

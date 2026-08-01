@@ -2,7 +2,7 @@ import { stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import sharp from 'sharp';
 
-const CLASS_IDS = ['swordsman', 'witch', 'shaman', 'catkin'];
+const CLASS_IDS = ['swordsman', 'witch', 'shaman', 'catkin', 'kenshi'];
 const APPEARANCE_IDS = [
   'r1-weapon',
   'r2-weapon',
@@ -22,11 +22,7 @@ for (const appearanceId of APPEARANCE_IDS) {
     const relative = `assets/equipment/weapons/${appearanceId}/${classId}.png`;
     const path = resolve('public', relative);
     const metadata = await sharp(path).metadata();
-    if (
-      metadata.width !== 256 ||
-      metadata.height !== 256 ||
-      metadata.channels !== 4
-    ) {
+    if (metadata.width !== 256 || metadata.height !== 256 || metadata.channels !== 4) {
       throw new Error(
         `${relative} 规格错误：${metadata.width}×${metadata.height}×${metadata.channels}`,
       );

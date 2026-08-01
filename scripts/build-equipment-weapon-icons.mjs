@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const CLASS_IDS = ['swordsman', 'witch', 'shaman', 'catkin'];
+const CLASS_IDS = ['swordsman', 'witch', 'shaman', 'catkin', 'kenshi'];
 const FAMILIES = [
   { appearanceId: 'r1-weapon', layerName: 'r1-weapon' },
   { appearanceId: 'r2-weapon', layerName: 'r2-weapon' },
@@ -101,12 +101,8 @@ async function pairedCatkinComposite(input) {
     .composite(
       fitted.map((buffer, index) => ({
         input: buffer,
-        left:
-          placements[index].x +
-          Math.round((142 - (sizes[index].width ?? 142)) / 2),
-        top:
-          placements[index].y +
-          Math.round((142 - (sizes[index].height ?? 142)) / 2),
+        left: placements[index].x + Math.round((142 - (sizes[index].width ?? 142)) / 2),
+        top: placements[index].y + Math.round((142 - (sizes[index].height ?? 142)) / 2),
       })),
     )
     .png()
@@ -144,9 +140,7 @@ for (const family of FAMILIES) {
       `${classId}.png`,
     );
     const composed =
-      classId === 'catkin'
-        ? await pairedCatkinComposite(source)
-        : await centeredComposite(source);
+      classId === 'catkin' ? await pairedCatkinComposite(source) : await centeredComposite(source);
     await mkdir(dirname(output), { recursive: true });
     await sharp(await encodeIcon(composed)).toFile(output);
     console.log(`✓ ${output}`);

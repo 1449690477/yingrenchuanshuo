@@ -3,16 +3,18 @@ import { join, relative, resolve } from 'node:path';
 import sharp from 'sharp';
 
 const TIERS = ['azure', 'violet', 'auric', 'crimson'];
-const CLASSES = ['swordsman', 'witch', 'shaman', 'catkin'];
+const CLASSES = ['swordsman', 'witch', 'shaman', 'catkin', 'kenshi'];
 const ICON_KEYS = [
   'weapon-swordsman',
   'weapon-witch',
   'weapon-shaman',
   'weapon-catkin',
+  'weapon-kenshi',
   'body-swordsman',
   'body-witch',
   'body-shaman',
   'body-catkin',
+  'body-kenshi',
   'head-starlace',
   'head-dreamhat',
   'necklace-heart',
@@ -30,13 +32,9 @@ const SLOTS = ['weapon', 'head', 'body', 'necklace', 'bracelet', 'ring', 'belt',
 const MONSTER_KINDS = ['minion', 'boss'];
 const DOLL_SLOTS = ['body', 'head', 'shoes', 'weapon'];
 
-const mapFiles = SLOTS.map(
-  (slot) => `public/assets/dungeons/equipment/${slot}-battle.webp`,
-);
+const mapFiles = SLOTS.map((slot) => `public/assets/dungeons/equipment/${slot}-battle.webp`);
 const monsterFiles = SLOTS.flatMap((slot) =>
-  MONSTER_KINDS.map(
-    (kind) => `public/assets/monsters/equipment-dungeon/${slot}-${kind}.webp`,
-  ),
+  MONSTER_KINDS.map((kind) => `public/assets/monsters/equipment-dungeon/${slot}-${kind}.webp`),
 );
 const iconFiles = TIERS.flatMap((tier) =>
   ICON_KEYS.map((key) => `public/assets/equipment/dungeon/${tier}/${key}.png`),
@@ -44,8 +42,7 @@ const iconFiles = TIERS.flatMap((tier) =>
 const characterFiles = TIERS.flatMap((tier) =>
   CLASSES.flatMap((classId) =>
     DOLL_SLOTS.map(
-      (slot) =>
-        `public/assets/characters/modular/dungeon/${tier}/${classId}-${slot}.png`,
+      (slot) => `public/assets/characters/modular/dungeon/${tier}/${classId}-${slot}.png`,
     ),
   ),
 );
@@ -55,14 +52,14 @@ function assertExactManifest() {
   if (monsterFiles.length !== 16) {
     throw new Error(`怪物清单应为 16，当前 ${monsterFiles.length}`);
   }
-  if (iconFiles.length !== 80) {
-    throw new Error(`装备图标清单应为 80，当前 ${iconFiles.length}`);
+  if (iconFiles.length !== 88) {
+    throw new Error(`装备图标清单应为 88，当前 ${iconFiles.length}`);
   }
-  if (characterFiles.length !== 64) {
-    throw new Error(`纸娃娃外观清单应为 64，当前 ${characterFiles.length}`);
+  if (characterFiles.length !== 80) {
+    throw new Error(`纸娃娃外观清单应为 80，当前 ${characterFiles.length}`);
   }
   const all = [...mapFiles, ...monsterFiles, ...iconFiles, ...characterFiles];
-  if (new Set(all).size !== 168) throw new Error('装备副本资产清单存在重复路径');
+  if (new Set(all).size !== 192) throw new Error('装备副本资产清单存在重复路径');
 }
 
 async function filesUnder(directory) {
@@ -84,18 +81,13 @@ async function assertNoUnexpectedRuntimeFiles() {
     'public/assets/equipment/dungeon',
     'public/assets/characters/modular/dungeon',
   ];
-  const expected = new Set([
-    ...mapFiles,
-    ...monsterFiles,
-    ...iconFiles,
-    ...characterFiles,
-  ]);
+  const expected = new Set([...mapFiles, ...monsterFiles, ...iconFiles, ...characterFiles]);
   const actual = (await Promise.all(roots.map(filesUnder))).flat();
   const unexpected = actual.filter((file) => !expected.has(file));
   const missing = [...expected].filter((file) => !actual.includes(file));
   if (unexpected.length > 0 || missing.length > 0) {
     throw new Error(
-      `装备副本运行时目录必须严格等于 168 项清单；` +
+      `装备副本运行时目录必须严格等于 192 项清单；` +
         `多余：${unexpected.join('、') || '无'}；缺失：${missing.join('、') || '无'}`,
     );
   }
@@ -211,9 +203,7 @@ async function validateTransparent(file, width, height, maxBytes, safeMargin) {
     maxX >= width - safeMargin ||
     maxY >= height - safeMargin
   ) {
-    throw new Error(
-      `${file} 主体越过 ${safeMargin}px 安全边距：[${minX},${minY},${maxX},${maxY}]`,
-    );
+    throw new Error(`${file} 主体越过 ${safeMargin}px 安全边距：[${minX},${minY},${maxX},${maxY}]`);
   }
 }
 
@@ -228,6 +218,4 @@ for (const file of iconFiles) {
 }
 for (const file of characterFiles) await validateCharacter(file);
 
-console.log(
-  '装备副本资产审计通过：8 张地图 + 16 个怪物 + 80 个装备图标 + 64 个纸娃娃外观。',
-);
+console.log('装备副本资产审计通过：8 张地图 + 16 个怪物 + 88 个装备图标 + 80 个纸娃娃外观。');

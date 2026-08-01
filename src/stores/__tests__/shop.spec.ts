@@ -20,6 +20,7 @@ import { createSave } from '@/save/schema';
 import { clearSave } from '@/save/storage';
 import { useGameStore } from '../game';
 import { useShopStore } from '../shop';
+import { CLASS_IDS, type ClassId } from '@/core/types';
 
 const NOW = 1_800_000_000_000;
 
@@ -32,7 +33,7 @@ afterEach(async () => {
   await clearSave();
 });
 
-function bootShop(classId: 'swordsman' | 'witch' | 'shaman' | 'catkin') {
+function bootShop(classId: ClassId) {
   const game = useGameStore();
   game.loadFrom(createSave('商店', classId, 77, NOW));
   return useShopStore();
@@ -40,7 +41,7 @@ function bootShop(classId: 'swordsman' | 'witch' | 'shaman' | 'catkin') {
 
 describe('商店预览不能抛错（线上事故回归测试）', () => {
   it('每个职业的商店列表都能构建出来', () => {
-    for (const classId of ['swordsman', 'witch', 'shaman', 'catkin'] as const) {
+    for (const classId of CLASS_IDS) {
       setActivePinia(createPinia());
       const shop = bootShop(classId);
       expect(() => shop.offers).not.toThrow();

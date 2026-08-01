@@ -9,6 +9,7 @@ import {
 import { trialBracketFor, trialWeekIndex, weeklyTrialBoss } from '../trial';
 import { TRIAL_SEASON_ID, TRIAL_BRACKETS } from '../../data/trialRules';
 import { judgeCheatEvidence } from '../cheatEvidence';
+import { CLASS_IDS } from '../types';
 
 /** 用一个固定周次，避免读数随真实时间漂移。 */
 const WEEK = trialWeekIndex(Date.parse('2026-07-30T12:00:00Z'));
@@ -29,8 +30,8 @@ describe('试炼伤害上界 · 不许误伤真实玩家', () => {
     }
   });
 
-  it('四职业在同一等级都有非零上界 —— 任一职业算不出上界都会变成系统性误伤', () => {
-    for (const c of ['swordsman', 'witch', 'shaman', 'catkin'] as const) {
+  it('五职业在同一等级都有非零上界 —— 任一职业算不出上界都会变成系统性误伤', () => {
+    for (const c of CLASS_IDS) {
       expect(maxPlausibleTrialDamage(65, c, WEEK)).toBeGreaterThan(0);
     }
   });
