@@ -19,6 +19,22 @@ import { judgeCheatEvidence, buildCheatEvidenceRow } from '../src/core/cheatEvid
 import { TRIAL_FORMULA_VERSION } from '../src/core/trialFormulaVersion';
 import type { ClassId } from '../src/core/types';
 
+interface AuditProfile {
+  display_name: string | null;
+  level: number | null;
+}
+
+interface AuditTrialScoreRow {
+  id: string;
+  user_id: string;
+  class_id: ClassId;
+  damage: number;
+  week_index: number;
+  verified: boolean;
+  trial_formula_version: number;
+  profiles: AuditProfile | AuditProfile[] | null;
+}
+
 const url = process.env.SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 if (!url || !serviceKey) {
@@ -33,7 +49,8 @@ const { data, error } = await admin
   .select(
     'id, user_id, class_id, damage, week_index, verified, trial_formula_version, profiles(display_name, level)',
   )
-  .order('damage', { ascending: false });
+  .order('damage', { ascending: false })
+  .overrideTypes<AuditTrialScoreRow[]>({ merge: false });
 if (error) {
   console.error('读取失败：', error.message);
   process.exit(1);
@@ -53,7 +70,7 @@ console.log(
 let flagged = 0;
 let checked = 0;
 let legacySkipped = 0;
-for (const row of (data ?? []) as any[]) {
+for (const row of data ?? []) {
   const p = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
   if (!p || typeof p.level !== 'number') continue;
   if (row.trial_formula_version !== TRIAL_FORMULA_VERSION) {
