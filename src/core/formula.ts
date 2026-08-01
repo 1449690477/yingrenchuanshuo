@@ -24,6 +24,26 @@ import {
   MIN_DAMAGE_RATIO,
 } from '@/data/constants';
 
+/**
+ * 单个伤害段的动态修正。
+ *
+ * 所有 ratio 字段都使用小数语义（0.2 = 20%）。装备上的百分点在调用前统一
+ * 换算，避免同一条公式同时猜测两种单位。破甲只改变防御项，不绕过减伤词条。
+ */
+export interface DamageFormulaOptions {
+  element?: Element;
+  defenseIgnoreRatio?: number;
+  damageDoneRatio?: number;
+  damageTakenRatio?: number;
+  damageTakenFromSourceRatio?: number;
+  hitChancePoints?: number;
+  dodgeChancePoints?: number;
+  dotDamageRatio?: number;
+}
+
+/** 技能与装备破甲共用的硬上限，防止高阶组合把防御属性直接抹成废值。 */
+export const DEFENSE_IGNORE_RATIO_CAP = 0.8;
+
 export function clamp(v: number, min: number, max: number): number {
   return v < min ? min : v > max ? max : v;
 }
@@ -106,8 +126,16 @@ export function calcDamage(
   defender: Combatant,
   skillMultiplier: number,
   rng: Rng,
+  options: DamageFormulaOptions = {},
 ): DamageResult {
-  const hit = rng.chance(hitChance(attacker.stats.acc, defender.stats.eva));
+  const hit = rng.chance(
+    clamp(
+      hitChance(attacker.stats.acc, defender.stats.eva) +
+        ((options.hitChancePoints ?? 0) - (options.dodgeChancePoints ?? 0)) / 100,
+      HIT_MIN,
+      HIT_MAX,
+    ),
+  );
   if (!hit) return { damage: 0, hit: false, crit: false };
 
   const crit = rng.chance(clamp(attacker.stats.critRate / 100, 0, 1));
@@ -120,9 +148,10 @@ export function calcDamage(
       attacker,
       defender,
       skillMultiplier,
-      attacker.element,
+      options.element ?? attacker.element,
       variance,
       critMul,
+      options,
     ),
     hit: true,
     crit,
@@ -138,8 +167,14 @@ export function expectedDamage(
   attacker: Combatant,
   defender: Combatant,
   skillMultiplier: number,
+  options: DamageFormulaOptions = {},
 ): number {
-  const hitP = hitChance(attacker.stats.acc, defender.stats.eva);
+  const hitP = clamp(
+    hitChance(attacker.stats.acc, defender.stats.eva) +
+      ((options.hitChancePoints ?? 0) - (options.dodgeChancePoints ?? 0)) / 100,
+    HIT_MIN,
+    HIT_MAX,
+  );
   const critP = clamp(attacker.stats.critRate / 100, 0, 1);
 
   const avgVariance = (DAMAGE_VARIANCE_MIN + DAMAGE_VARIANCE_MAX) / 2;
@@ -150,9 +185,10 @@ export function expectedDamage(
       attacker,
       defender,
       skillMultiplier,
-      attacker.element,
+      options.element ?? attacker.element,
       avgVariance,
       avgCritMul,
+      options,
     )
   );
 }
@@ -169,9 +205,10 @@ export function calcConfirmedElementalDamage(
   atkMultiplier: number,
   element: Exclude<Element, 'none'>,
   rng: Rng,
+  options: DamageFormulaOptions = {},
 ): number {
   const variance = rng.float(DAMAGE_VARIANCE_MIN, DAMAGE_VARIANCE_MAX);
-  return damageAfterConfirmedHit(attacker, defender, atkMultiplier, element, variance, 1);
+  return damageAfterConfirmedHit(attacker, defender, atkMultiplier, element, variance, 1, options);
 }
 
 /** calcConfirmedElementalDamage 的无随机期望值版本，供挂机与实战共用同一数学。 */
@@ -180,9 +217,18 @@ export function expectedConfirmedElementalDamage(
   defender: Combatant,
   atkMultiplier: number,
   element: Exclude<Element, 'none'>,
+  options: DamageFormulaOptions = {},
 ): number {
   const avgVariance = (DAMAGE_VARIANCE_MIN + DAMAGE_VARIANCE_MAX) / 2;
-  return damageAfterConfirmedHit(attacker, defender, atkMultiplier, element, avgVariance, 1);
+  return damageAfterConfirmedHit(
+    attacker,
+    defender,
+    atkMultiplier,
+    element,
+    avgVariance,
+    1,
+    options,
+  );
 }
 
 /**
@@ -196,12 +242,16 @@ export function calcPeriodicDamage(
   defender: Combatant,
   atkMultiplier: number,
   element: Element = attacker.element,
+  options: DamageFormulaOptions = {},
 ): number {
   if (!Number.isFinite(atkMultiplier) || atkMultiplier < 0) {
     throw new Error(`持续伤害攻击倍率必须是非负有限数：${atkMultiplier}`);
   }
   if (atkMultiplier === 0 || attacker.stats.atk <= 0) return 0;
-  return damageAfterConfirmedHit(attacker, defender, atkMultiplier, element, 1, 1);
+  return damageAfterConfirmedHit(attacker, defender, atkMultiplier, element, 1, 1, {
+    ...options,
+    damageDoneRatio: (options.damageDoneRatio ?? 0) + (options.dotDamageRatio ?? 0),
+  });
 }
 
 /**
@@ -301,16 +351,29 @@ function damageAfterConfirmedHit(
   element: Element,
   variance: number,
   critMul: number,
+  options: DamageFormulaOptions = {},
 ): number {
   const base = attacker.stats.atk * atkMultiplier;
-  const reduction = damageReduction(defender.stats.def, attacker.level);
+  const ignore = clamp(options.defenseIgnoreRatio ?? 0, 0, DEFENSE_IGNORE_RATIO_CAP);
+  const reduction = damageReduction(defender.stats.def * (1 - ignore), attacker.level);
   const bonusDamageMul = combatBonusDamageMultiplier(defender);
   const elemMul = effectiveElementMultiplierFor(
     element,
     defender.element,
     attacker.combatBonuses?.elementDamage,
   );
-  const raw = base * (1 - reduction) * bonusDamageMul * variance * critMul * elemMul;
-  const floor = attacker.stats.atk * MIN_DAMAGE_RATIO;
+  const dynamicDamageMul =
+    Math.max(0, 1 + (options.damageDoneRatio ?? 0)) *
+    Math.max(0, 1 + (options.damageTakenRatio ?? 0)) *
+    Math.max(0, 1 + (options.damageTakenFromSourceRatio ?? 0));
+  const raw =
+    base *
+    (1 - reduction) *
+    bonusDamageMul *
+    variance *
+    critMul *
+    elemMul *
+    dynamicDamageMul;
+  const floor = attacker.stats.atk * MIN_DAMAGE_RATIO * dynamicDamageMul;
   return Math.max(floor, raw);
 }

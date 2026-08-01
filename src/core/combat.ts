@@ -9,8 +9,14 @@
  * 只有玩家正在看的那一场才需要 simulateFight。
  */
 
-import type { Combatant, CombatResult } from './types';
-import type { Rng } from './rng';
+import type {
+  Combatant,
+  CombatResult,
+  MonsterType,
+  SkillEffect,
+  SkillTarget,
+} from './types';
+import { Rng } from './rng';
 import {
   calcConfirmedElementalDamage,
   calcDamage,
@@ -18,7 +24,43 @@ import {
   expectedConfirmedElementalDamage,
   expectedDamage,
   hitChance,
+  type DamageFormulaOptions,
 } from './formula';
+import {
+  damageHitMultipliers,
+  conditionSatisfied,
+  levelScalarAt,
+  type SkillConditionContext,
+} from './skills';
+import {
+  absorbDamageWithSkillShields,
+  addSkillAvoidance,
+  addSkillControl,
+  addSkillShield,
+  addSkillSummon,
+  addTimedSkillModifier,
+  applySkillStatus,
+  consumeDamageScalingStatus,
+  consumeSkillAvoidance,
+  consumeSkillStatus,
+  createSkillCombatState,
+  dispatchSkillTriggers,
+  dispelSkillState,
+  effectiveSkillCombatant,
+  expireSkillCombatState,
+  registerRuntimeTrigger,
+  runtimeSummon,
+  selectWeightedSummonTarget,
+  selectSkillForAction,
+  skillConditionContext,
+  skillControlBlockUntil,
+  skillSlowRatio,
+  statusScalingMultiplier,
+  takeDueSummonAttacks,
+  updateRuntimeSummon,
+  type SkillCombatKit,
+  type SkillCombatState,
+} from './skillCombat';
 import {
   assertOnCritPeriodicDamageTrigger,
   assertOnLethalRecoveryTrigger,
@@ -42,12 +84,21 @@ const MAX_FIGHT_SECONDS = 300;
 /** 模拟步长（秒）。0.1 秒足够精确，且 300 秒战斗只要 3000 步。 */
 const TICK = 0.1;
 const TICK_MS = 100;
+const EMPTY_SKILL_KIT: SkillCombatKit = { active: [], passives: [] };
 
 export interface FightOptions {
   /** 玩家平均技能倍率。默认 1.0（普攻） */
   playerSkillMultiplier?: number;
   /** 怪物平均技能倍率 */
   monsterSkillMultiplier?: number;
+  /** 玩家真实技能栏；存在时替代平均技能倍率。 */
+  playerSkillKit?: SkillCombatKit;
+  /** PvP 防守方等可使用同一真实技能栏。 */
+  monsterSkillKit?: SkillCombatKit;
+  /** 玩家技能条件看到的目标类型。 */
+  playerTargetType?: MonsterType;
+  /** 怪物 / PvP 对手技能条件看到的目标类型。 */
+  monsterTargetType?: MonsterType;
   /** 玩家每个直接伤害段命中后独立判定的触发。 */
   playerOnHitTriggers?: readonly OnHitElementalDamageTrigger[];
   /** 为未来怪物机制预留的同一逐击接口。 */
@@ -70,13 +121,16 @@ export interface DirectDamageSegmentEvent {
   hit: boolean;
   crit: boolean;
   element: Combatant['element'];
+  skillId?: string;
+  hitIndex?: number;
+  hitCount?: number;
 }
 
 export interface OnHitElementalDamageEvent {
   kind: 'on-hit-elemental-damage';
   damage: number;
   triggerId: string;
-  element: Exclude<Combatant['element'], 'none'>;
+  element: Combatant['element'];
 }
 
 export type DamageSegmentEvent = DirectDamageSegmentEvent | OnHitElementalDamageEvent;
@@ -119,17 +173,24 @@ export interface CombatTimelineEvent {
   sequence: number;
   source: 'player' | 'monster';
   target: 'player' | 'monster';
+  /** 目标方的可受击召唤物；未填写表示命中角色本人。 */
+  targetSummonId?: string;
   event: DamageSegmentEvent | RecoveryEvent | PeriodicDamageEvent;
 }
 
 export interface SimulatedFightResult extends CombatResult {
   /** 已按目标剩余生命截断为实际伤害，可直接供表现层消费。 */
   events: readonly CombatTimelineEvent[];
+  /** 被动生命修正后的真实战斗上限；没有技能栏时等于 Combatant.stats.hp。 */
+  playerMaxHp: number;
+  monsterMaxHp: number;
 }
 
 export interface CombatEstimateOptions {
   playerOnHitTriggers?: readonly OnHitElementalDamageTrigger[];
   monsterOnHitTriggers?: readonly OnHitElementalDamageTrigger[];
+  playerSkillKit?: SkillCombatKit;
+  playerTargetType?: MonsterType;
 }
 
 /**
@@ -144,17 +205,19 @@ export function resolveDamageSegment(
   skillMultiplier: number,
   rng: Rng,
   onHitTriggers: readonly OnHitElementalDamageTrigger[] = [],
+  formulaOptions: DamageFormulaOptions = {},
+  onHitFormulaOptions: DamageFormulaOptions = formulaOptions,
 ): DamageSegmentResolution {
   for (const trigger of onHitTriggers) {
     assertOnHitElementalDamageTrigger(trigger);
   }
-  const directResult = calcDamage(attacker, defender, skillMultiplier, rng);
+  const directResult = calcDamage(attacker, defender, skillMultiplier, rng, formulaOptions);
   const direct: DirectDamageSegmentEvent = {
     kind: 'direct-damage',
     damage: directResult.damage,
     hit: directResult.hit,
     crit: directResult.crit,
-    element: attacker.element,
+    element: formulaOptions.element ?? attacker.element,
   };
   const events: DamageSegmentEvent[] = [direct];
   if (!direct.hit) return { direct, events };
@@ -171,6 +234,7 @@ export function resolveDamageSegment(
         trigger.atkMultiplier,
         trigger.element,
         rng,
+        onHitFormulaOptions,
       ),
     });
   }
@@ -183,15 +247,29 @@ export function expectedDamageSegment(
   defender: Combatant,
   skillMultiplier: number,
   onHitTriggers: readonly OnHitElementalDamageTrigger[] = [],
+  formulaOptions: DamageFormulaOptions = {},
 ): number {
-  let total = expectedDamage(attacker, defender, skillMultiplier);
-  const directHitChance = hitChance(attacker.stats.acc, defender.stats.eva);
+  let total = expectedDamage(attacker, defender, skillMultiplier, formulaOptions);
+  const directHitChance = Math.min(
+    1,
+    Math.max(
+      0,
+      hitChance(attacker.stats.acc, defender.stats.eva) +
+        ((formulaOptions.hitChancePoints ?? 0) - (formulaOptions.dodgeChancePoints ?? 0)) / 100,
+    ),
+  );
   for (const trigger of onHitTriggers) {
     assertOnHitElementalDamageTrigger(trigger);
     total +=
       directHitChance *
       trigger.chance *
-      expectedConfirmedElementalDamage(attacker, defender, trigger.atkMultiplier, trigger.element);
+      expectedConfirmedElementalDamage(
+        attacker,
+        defender,
+        trigger.atkMultiplier,
+        trigger.element,
+        formulaOptions,
+      );
   }
   return total;
 }
@@ -226,6 +304,35 @@ export function simulateFight(
   const monsterLethalUses = createLethalTriggerUses(opts.monsterOnLethalTriggers);
   let playerPeriodicDamage = createPeriodicDamageState();
   let monsterPeriodicDamage = createPeriodicDamageState();
+  let playerSkillState = createSkillCombatState(opts.playerSkillKit ?? EMPTY_SKILL_KIT);
+  let monsterSkillState = createSkillCombatState(opts.monsterSkillKit ?? EMPTY_SKILL_KIT);
+
+  const initialPlayerContext: SkillConditionContext = {
+    selfHpRatio: 1,
+    targetHpRatio: 1,
+    monsterType: opts.playerTargetType ?? 'normal',
+    statusStacks: {},
+  };
+  const initialMonsterContext: SkillConditionContext = {
+    selfHpRatio: 1,
+    targetHpRatio: 1,
+    monsterType: opts.monsterTargetType ?? 'normal',
+    statusStacks: {},
+  };
+  const playerMaxHp = effectiveSkillCombatant(
+    player,
+    opts.playerSkillKit,
+    playerSkillState,
+    initialPlayerContext,
+  ).combatant.stats.hp;
+  const monsterMaxHp = effectiveSkillCombatant(
+    monster,
+    opts.monsterSkillKit,
+    monsterSkillState,
+    initialMonsterContext,
+  ).combatant.stats.hp;
+  if (opts.playerSkillKit && player.currentHp === player.stats.hp) player.currentHp = playerMaxHp;
+  if (opts.monsterSkillKit && monster.currentHp === monster.stats.hp) monster.currentHp = monsterMaxHp;
 
   for (const trigger of opts.playerOnCritTriggers ?? []) {
     assertOnCritPeriodicDamageTrigger(trigger);
@@ -234,14 +341,1078 @@ export function simulateFight(
     assertOnCritPeriodicDamageTrigger(trigger);
   }
 
-  const playerInterval = 1 / Math.max(0.01, player.stats.spd);
-  const monsterInterval = 1 / Math.max(0.01, monster.stats.spd);
+  const contextFor = (
+    source: 'player' | 'monster',
+    primarySummonId?: string,
+  ): SkillConditionContext => {
+    const targetSide = source === 'player' ? 'monster' : 'player';
+    const targetSummon = primarySummonId
+      ? runtimeSummon(
+          targetSide === 'player' ? playerSkillState : monsterSkillState,
+          primarySummonId,
+        )
+      : undefined;
+    const target = targetSummon ? summonCombatantFor(targetSummon) : combatantOf(targetSide);
+    const targetMaxHp = targetSummon ? targetSummon.maxHp : maxHpOf(targetSide);
+    const targetState = targetSummon
+      ? targetSummon.skillState
+      : targetSide === 'player'
+        ? playerSkillState
+        : monsterSkillState;
+    return skillConditionContext(
+      combatantOf(source),
+      maxHpOf(source),
+      target,
+      targetMaxHp,
+      source === 'player'
+        ? opts.playerTargetType ?? 'normal'
+        : opts.monsterTargetType ?? 'normal',
+      source === 'player' ? playerSkillState : monsterSkillState,
+      targetState,
+    );
+  };
+
+  const viewsFor = (source: 'player' | 'monster', primarySummonId?: string) => {
+    const sourceContext = contextFor(source, primarySummonId);
+    const targetContext = contextFor(source === 'player' ? 'monster' : 'player');
+    if (source === 'player') {
+      return {
+        attacker: effectiveSkillCombatant(
+          player,
+          opts.playerSkillKit,
+          playerSkillState,
+          sourceContext,
+        ),
+        defender: effectiveSkillCombatant(
+          monster,
+          opts.monsterSkillKit,
+          monsterSkillState,
+          targetContext,
+          'player',
+        ),
+      };
+    }
+    return {
+      attacker: effectiveSkillCombatant(
+        monster,
+        opts.monsterSkillKit,
+        monsterSkillState,
+        sourceContext,
+      ),
+      defender: effectiveSkillCombatant(
+        player,
+        opts.playerSkillKit,
+        playerSkillState,
+        targetContext,
+        'monster',
+      ),
+    };
+  };
+
+  const setSkillState = (source: 'player' | 'monster', state: SkillCombatState): void => {
+    if (source === 'player') playerSkillState = state;
+    else monsterSkillState = state;
+  };
+  const getSkillState = (source: 'player' | 'monster'): SkillCombatState =>
+    source === 'player' ? playerSkillState : monsterSkillState;
+  const combatantOf = (source: 'player' | 'monster'): Combatant =>
+    source === 'player' ? player : monster;
+  const maxHpOf = (source: 'player' | 'monster'): number =>
+    source === 'player' ? playerMaxHp : monsterMaxHp;
+  const kitOf = (source: 'player' | 'monster'): SkillCombatKit | undefined =>
+    source === 'player' ? opts.playerSkillKit : opts.monsterSkillKit;
+  const opposite = (source: 'player' | 'monster'): 'player' | 'monster' =>
+    source === 'player' ? 'monster' : 'player';
+
+  interface CastProgress {
+    hitTarget: boolean;
+    hitAny: boolean;
+    hitSummonIds: Set<string>;
+    primarySummonId?: string;
+  }
+
+  interface CombatUnitRef {
+    side: 'player' | 'monster';
+    summonId?: string;
+  }
+
+  const summonCombatantFor = (summon: NonNullable<ReturnType<typeof runtimeSummon>>): Combatant => ({
+    name: summon.definition.id,
+    level: 1,
+    element: 'none',
+    stats: {
+      atk: 0,
+      def: summon.defense,
+      hp: summon.maxHp,
+      acc: 0,
+      eva: 0,
+      critRate: 0,
+      critDmg: 0,
+      spd: 0.01,
+    },
+    currentHp: summon.currentHp,
+  });
+
+  const unitState = (ref: CombatUnitRef): SkillCombatState => {
+    if (!ref.summonId) return getSkillState(ref.side);
+    const summon = runtimeSummon(getSkillState(ref.side), ref.summonId);
+    if (!summon) throw new Error(`[战斗状态错误] 找不到存活召唤物：${ref.summonId}`);
+    return summon.skillState;
+  };
+
+  const setUnitState = (ref: CombatUnitRef, state: SkillCombatState): void => {
+    if (!ref.summonId) {
+      setSkillState(ref.side, state);
+      return;
+    }
+    setSkillState(
+      ref.side,
+      updateRuntimeSummon(getSkillState(ref.side), ref.summonId, (summon) => ({
+        ...summon,
+        skillState: state,
+      })),
+    );
+  };
+
+  const unitHpRatio = (ref: CombatUnitRef): number => {
+    if (!ref.summonId) {
+      return combatantOf(ref.side).currentHp / Math.max(1, maxHpOf(ref.side));
+    }
+    const summon = runtimeSummon(getSkillState(ref.side), ref.summonId);
+    return summon ? summon.currentHp / Math.max(1, summon.maxHp) : 0;
+  };
+
+  const unitCombatant = (ref: CombatUnitRef): Combatant => {
+    if (!ref.summonId) return combatantOf(ref.side);
+    const summon = runtimeSummon(getSkillState(ref.side), ref.summonId);
+    if (!summon) throw new Error(`[战斗状态错误] 找不到存活召唤物：${ref.summonId}`);
+    const combatant = summonCombatantFor(summon);
+    combatant.level = combatantOf(ref.side).level;
+    return combatant;
+  };
+
+  const unitMaxHp = (ref: CombatUnitRef): number => {
+    if (!ref.summonId) return maxHpOf(ref.side);
+    return runtimeSummon(getSkillState(ref.side), ref.summonId)?.maxHp ?? 0;
+  };
+
+  const setUnitHp = (ref: CombatUnitRef, currentHp: number): void => {
+    if (!ref.summonId) {
+      combatantOf(ref.side).currentHp = currentHp;
+      return;
+    }
+    setSkillState(
+      ref.side,
+      updateRuntimeSummon(getSkillState(ref.side), ref.summonId, (summon) => ({
+        ...summon,
+        currentHp,
+      })),
+    );
+  };
+
+  const liveSummonRefs = (side: 'player' | 'monster'): CombatUnitRef[] =>
+    getSkillState(side).summons
+      .filter((summon) => summon.currentHp > 0)
+      .map((summon) => ({ side, summonId: summon.definition.id }));
+
+  const effectTargets = (
+    source: 'player' | 'monster',
+    targetSpec: SkillTarget,
+    cast: CastProgress,
+    eventSource?: 'player' | 'monster',
+  ): CombatUnitRef[] => {
+    const enemy = opposite(source);
+    switch (targetSpec.kind) {
+      case 'self':
+        return [{ side: source }];
+      case 'all-allies':
+        return [{ side: source }, ...liveSummonRefs(source)];
+      case 'event-source':
+        return [{ side: eventSource ?? enemy }];
+      case 'hit-enemies':
+        return [
+          ...(cast.hitTarget ? [{ side: enemy } satisfies CombatUnitRef] : []),
+          ...[...cast.hitSummonIds]
+            .filter((summonId) => runtimeSummon(getSkillState(enemy), summonId))
+            .map((summonId) => ({ side: enemy, summonId })),
+        ];
+      case 'primary-enemy':
+        if (!cast.primarySummonId) return [{ side: enemy }];
+        return runtimeSummon(getSkillState(enemy), cast.primarySummonId)
+          ? [{ side: enemy, summonId: cast.primarySummonId }]
+          : [];
+      case 'enemies': {
+        const targets = [{ side: enemy } satisfies CombatUnitRef, ...liveSummonRefs(enemy)];
+        return targetSpec.count === 'all' ? targets : targets.slice(0, targetSpec.count);
+      }
+    }
+  };
+
+  const formulaOptionsFor = (
+    source: 'player' | 'monster',
+    effect: Extract<SkillEffect, { kind: 'damage' }> | null,
+    skillDamage: boolean,
+    element?: Combatant['element'],
+    primarySummonId?: string,
+  ): DamageFormulaOptions => {
+    const views = viewsFor(source, primarySummonId);
+    const kit = kitOf(source);
+    const skillBonus = skillDamage
+      ? (views.attacker.combatant.combatBonuses?.skillDamage ?? 0) / 100 +
+        (kit?.skillDamageBonusRatio ?? 0)
+      : 0;
+    return {
+      ...(element ? { element } : {}),
+      defenseIgnoreRatio:
+        (effect?.defenseIgnoreRatio ?? 0) +
+        (views.attacker.combatant.combatBonuses?.armorPenetration ?? 0) / 100 +
+        views.attacker.modifiers.defenseIgnoreRatio,
+      damageDoneRatio: views.attacker.modifiers.damageDoneRatio + skillBonus,
+      damageTakenRatio: views.defender.modifiers.damageTakenRatio,
+      damageTakenFromSourceRatio: views.defender.modifiers.damageTakenFromSourceRatio,
+      hitChancePoints: views.attacker.modifiers.hitChancePoints,
+      dodgeChancePoints: views.defender.modifiers.dodgeChancePoints,
+      dotDamageRatio: views.attacker.modifiers.dotDamageRatio,
+    };
+  };
+
+  const absorbResolution = (
+    target: 'player' | 'monster',
+    resolution: DamageSegmentResolution,
+  ): DamageSegmentResolution => {
+    let state = getSkillState(target);
+    const absorbedEvents = resolution.events.map((event) => {
+      const absorbed = absorbDamageWithSkillShields(state, event.damage);
+      state = absorbed.state;
+      return { ...event, damage: absorbed.hpDamage };
+    });
+    setSkillState(target, state);
+    return {
+      direct: absorbedEvents[0] as DirectDamageSegmentEvent,
+      events: absorbedEvents,
+    };
+  };
+
+  const dispatchRuntimeEvent = (
+    owner: 'player' | 'monster',
+    target: 'player' | 'monster',
+    event: Parameters<typeof dispatchSkillTriggers>[1],
+    cast: CastProgress,
+    eventSource?: 'player' | 'monster',
+    triggerDamage = 0,
+  ): void => {
+    const primarySummonId =
+      cast.primarySummonId && runtimeSummon(getSkillState(target), cast.primarySummonId)
+        ? cast.primarySummonId
+        : undefined;
+    const dispatched = dispatchSkillTriggers(
+      getSkillState(owner),
+      event,
+      contextFor(owner, primarySummonId),
+      rng,
+    );
+    setSkillState(owner, dispatched.state);
+    for (const triggered of dispatched.effects) {
+      executeEffect(
+        owner,
+        target,
+        triggered.effect,
+        triggered.skillLevel,
+        triggered.sourceSkillId,
+        cast,
+        eventSource,
+        false,
+        triggerDamage,
+      );
+    }
+  };
+
+  const applyDirectResolution = (
+    source: 'player' | 'monster',
+    rawResolution: DamageSegmentResolution,
+    cast: CastProgress,
+    skillId?: string,
+    hitIndex?: number,
+    hitCount?: number,
+    allowTriggers = true,
+  ): { damage: number; directCrit: boolean } => {
+    const target = opposite(source);
+    const decorated: DamageSegmentResolution = {
+      direct: { ...rawResolution.direct, ...(skillId ? { skillId, hitIndex, hitCount } : {}) },
+      events: rawResolution.events.map((event, index) =>
+        index === 0 && event.kind === 'direct-damage'
+          ? { ...event, ...(skillId ? { skillId, hitIndex, hitCount } : {}) }
+          : event,
+      ),
+    };
+    const resolution = absorbResolution(target, decorated);
+    const sourceView = viewsFor(source).attacker.combatant;
+    sourceView.currentHp = combatantOf(source).currentHp;
+    const applied = applyDamageSegment(
+      sourceView,
+      combatantOf(target),
+      resolution,
+      source,
+      events,
+      target === 'player' ? opts.playerOnLethalTriggers : opts.monsterOnLethalTriggers,
+      target === 'player' ? playerLethalUses : monsterLethalUses,
+    );
+    combatantOf(source).currentHp = sourceView.currentHp;
+    if (resolution.direct.hit) {
+      cast.hitTarget = true;
+      cast.hitAny = true;
+    }
+    if (allowTriggers) {
+      if (resolution.direct.hit) {
+        dispatchRuntimeEvent(source, target, 'on-hit', cast);
+        if (resolution.direct.crit) dispatchRuntimeEvent(source, target, 'on-crit', cast);
+      } else {
+        dispatchRuntimeEvent(target, source, 'on-dodge', cast, source);
+      }
+      if (applied.damage > 0) {
+        dispatchRuntimeEvent(target, source, 'on-damage-taken', cast, source, applied.damage);
+        dispatchRuntimeEvent(target, source, 'on-low-hp', cast, source);
+      }
+    }
+    return applied;
+  };
+
+  const resolveDirectDamage = (
+    source: 'player' | 'monster',
+    multiplier: number,
+    formulaOptions: DamageFormulaOptions,
+    cast: CastProgress,
+    skillId?: string,
+    hitIndex?: number,
+    hitCount?: number,
+    allowTriggers = true,
+    onHitFormulaOptions: DamageFormulaOptions = formulaOptions,
+    targetSummonId?: string,
+  ): { damage: number; directCrit: boolean; targetSummonId?: string } => {
+    const target = opposite(source);
+    const resolvedTargetSummonId = targetSummonId
+    const targetSummon = resolvedTargetSummonId
+      ? runtimeSummon(getSkillState(target), resolvedTargetSummonId)
+      : undefined;
+    if (targetSummon) {
+      let summonState = targetSummon.skillState;
+      const avoidance = consumeSkillAvoidance(summonState);
+      summonState = avoidance.state;
+      const summonCombatant = summonCombatantFor(targetSummon);
+      summonCombatant.level = combatantOf(target).level;
+      const sourceView = viewsFor(source, resolvedTargetSummonId).attacker.combatant;
+      sourceView.currentHp = combatantOf(source).currentHp;
+      const summonContext = skillConditionContext(
+        summonCombatant,
+        targetSummon.maxHp,
+        sourceView,
+        maxHpOf(source),
+        'normal',
+        summonState,
+        getSkillState(source),
+      );
+      const summonView = effectiveSkillCombatant(
+        summonCombatant,
+        undefined,
+        summonState,
+        summonContext,
+        source,
+      );
+      const summonFormulaOptions: DamageFormulaOptions = {
+        ...formulaOptions,
+        damageTakenRatio: summonView.modifiers.damageTakenRatio,
+        damageTakenFromSourceRatio: summonView.modifiers.damageTakenFromSourceRatio,
+        dodgeChancePoints: summonView.modifiers.dodgeChancePoints,
+      };
+      const raw: DamageSegmentResolution = avoidance.avoided
+        ? {
+            direct: {
+              kind: 'direct-damage',
+              damage: 0,
+              hit: false,
+              crit: false,
+              element: summonFormulaOptions.element ?? sourceView.element,
+            },
+            events: [
+              {
+                kind: 'direct-damage',
+                damage: 0,
+                hit: false,
+                crit: false,
+                element: summonFormulaOptions.element ?? sourceView.element,
+              },
+            ],
+          }
+        : resolveDamageSegment(
+            sourceView,
+            summonView.combatant,
+            multiplier,
+            rng,
+            source === 'player' ? opts.playerOnHitTriggers : opts.monsterOnHitTriggers,
+            summonFormulaOptions,
+            onHitFormulaOptions,
+          );
+      const shieldedEvents = raw.events.map((event) => {
+        const shielded = absorbDamageWithSkillShields(summonState, event.damage);
+        summonState = shielded.state;
+        return { ...event, damage: shielded.hpDamage };
+      });
+      const resolution: DamageSegmentResolution = {
+        direct: {
+          ...(shieldedEvents[0] as DirectDamageSegmentEvent),
+          ...(skillId ? { skillId, hitIndex, hitCount } : {}),
+        },
+        events: shieldedEvents.map((event, index) =>
+          index === 0 && event.kind === 'direct-damage'
+            ? { ...event, ...(skillId ? { skillId, hitIndex, hitCount } : {}) }
+            : event,
+        ),
+      };
+      const timelineStart = events.length;
+      const applied = applyDamageSegment(
+        sourceView,
+        summonCombatant,
+        resolution,
+        source,
+        events,
+      );
+      combatantOf(source).currentHp = sourceView.currentHp;
+      for (let index = timelineStart; index < events.length; index++) {
+        events[index] = { ...events[index]!, targetSummonId: resolvedTargetSummonId };
+      }
+      setSkillState(
+        target,
+        updateRuntimeSummon(getSkillState(target), resolvedTargetSummonId!, (summon) => ({
+          ...summon,
+          currentHp: summonCombatant.currentHp,
+          skillState: summonState,
+        })),
+      );
+      if (resolution.direct.hit) {
+        cast.hitAny = true;
+        cast.hitSummonIds.add(resolvedTargetSummonId!);
+        if (allowTriggers) {
+          dispatchRuntimeEvent(source, target, 'on-hit', cast);
+          if (resolution.direct.crit) dispatchRuntimeEvent(source, target, 'on-crit', cast);
+        }
+      }
+      return { ...applied, targetSummonId: resolvedTargetSummonId };
+    }
+    const avoidance = consumeSkillAvoidance(getSkillState(target));
+    setSkillState(target, avoidance.state);
+    if (avoidance.avoided) {
+      const miss: DamageSegmentResolution = {
+        direct: {
+          kind: 'direct-damage',
+          damage: 0,
+          hit: false,
+          crit: false,
+          element: formulaOptions.element ?? combatantOf(source).element,
+        },
+        events: [
+          {
+            kind: 'direct-damage',
+            damage: 0,
+            hit: false,
+            crit: false,
+            element: formulaOptions.element ?? combatantOf(source).element,
+          },
+        ],
+      };
+      return applyDirectResolution(
+        source,
+        miss,
+        cast,
+        skillId,
+        hitIndex,
+        hitCount,
+        allowTriggers,
+      );
+    }
+    const views = viewsFor(source);
+    const resolution = resolveDamageSegment(
+      views.attacker.combatant,
+      views.defender.combatant,
+      multiplier,
+      rng,
+      source === 'player' ? opts.playerOnHitTriggers : opts.monsterOnHitTriggers,
+      formulaOptions,
+      onHitFormulaOptions,
+    );
+    return applyDirectResolution(
+      source,
+      resolution,
+      cast,
+      skillId,
+      hitIndex,
+      hitCount,
+      allowTriggers,
+    );
+  };
+
+  const applyEquipmentCritTriggers = (
+    source: 'player' | 'monster',
+    targetRef: CombatUnitRef,
+  ): void => {
+    const triggers =
+      source === 'player' ? opts.playerOnCritTriggers : opts.monsterOnCritTriggers;
+    if (!triggers?.length) return;
+    const attacker = viewsFor(source, targetRef.summonId).attacker.combatant;
+    attacker.currentHp = combatantOf(source).currentHp;
+    if (targetRef.summonId) {
+      const summon = runtimeSummon(getSkillState(targetRef.side), targetRef.summonId);
+      if (!summon) return;
+      const periodicDamage = resolveOnCritTriggers(
+        attacker,
+        summonCombatantFor(summon),
+        triggers,
+        source,
+        ticks * TICK_MS,
+        summon.periodicDamage,
+        events,
+      );
+      combatantOf(source).currentHp = attacker.currentHp;
+      setSkillState(
+        targetRef.side,
+        updateRuntimeSummon(getSkillState(targetRef.side), targetRef.summonId, (current) => ({
+          ...current,
+          periodicDamage,
+        })),
+      );
+      return;
+    }
+    if (targetRef.side === 'player') {
+      playerPeriodicDamage = resolveOnCritTriggers(
+        attacker,
+        player,
+        triggers,
+        source,
+        ticks * TICK_MS,
+        playerPeriodicDamage,
+        events,
+      );
+    } else {
+      monsterPeriodicDamage = resolveOnCritTriggers(
+        attacker,
+        monster,
+        triggers,
+        source,
+        ticks * TICK_MS,
+        monsterPeriodicDamage,
+        events,
+      );
+    }
+    combatantOf(source).currentHp = attacker.currentHp;
+  };
+
+  function executeEffect(
+    source: 'player' | 'monster',
+    target: 'player' | 'monster',
+    effect: SkillEffect,
+    skillLevel: number,
+    sourceSkillId: string,
+    cast: CastProgress,
+    eventSource?: 'player' | 'monster',
+    allowTriggers = true,
+    triggerDamage = 0,
+  ): void {
+    switch (effect.kind) {
+      case 'damage': {
+        if (effect.statusScaling && !effect.statusScaling.statusTarget) {
+          throw new Error(`[配置错误] statusScaling 缺少 statusTarget：${sourceSkillId}`);
+        }
+        const targets = effectTargets(source, effect.target, cast, eventSource).filter(
+          (ref) => ref.side !== source || ref.summonId !== undefined,
+        );
+        if (targets.length === 0) return;
+        const selfScalingSnapshot = getSkillState(source);
+        const passiveIds = new Set(kitOf(source)?.passives.map(({ skill }) => skill.id) ?? []);
+        const execute =
+          effect.execute?.upgrade && passiveIds.has(effect.execute.upgrade.passiveSkillId)
+            ? effect.execute.upgrade
+            : effect.execute;
+        const hits = damageHitMultipliers(effect, skillLevel);
+        for (const targetRef of targets) {
+          if (combatantOf(targetRef.side).currentHp <= 0) break;
+          if (targetRef.summonId && !runtimeSummon(getSkillState(targetRef.side), targetRef.summonId)) {
+            continue;
+          }
+          const targetScalingSnapshot = unitState(targetRef);
+          const scalingSnapshot =
+            effect.statusScaling?.statusTarget === 'self'
+              ? selfScalingSnapshot
+              : targetScalingSnapshot;
+          const scaling = statusScalingMultiplier(scalingSnapshot, effect);
+          const executeMultiplier =
+            execute && unitHpRatio(targetRef) <= execute.targetHpRatioAtMost
+              ? 1 + levelScalarAt(execute.bonusDamageRatio, skillLevel)
+              : 1;
+          for (const [index, hitMultiplier] of hits.entries()) {
+            if (unitHpRatio(targetRef) <= 0) break;
+            const applied = resolveDirectDamage(
+              source,
+              hitMultiplier * scaling * executeMultiplier,
+              formulaOptionsFor(source, effect, true, effect.element, targetRef.summonId),
+              cast,
+              sourceSkillId,
+              index + 1,
+              hits.length,
+              allowTriggers,
+              formulaOptionsFor(source, null, false, undefined, targetRef.summonId),
+              targetRef.summonId,
+            );
+            if (source === 'player') damageDealt += applied.damage;
+            else damageTaken += applied.damage;
+            if (applied.directCrit) applyEquipmentCritTriggers(source, targetRef);
+          }
+          if (
+            effect.statusScaling?.statusTarget === 'damage-target' &&
+            (!targetRef.summonId || runtimeSummon(getSkillState(targetRef.side), targetRef.summonId))
+          ) {
+            setUnitState(
+              targetRef,
+              consumeDamageScalingStatus(unitState(targetRef), effect),
+            );
+          }
+        }
+        if (effect.statusScaling?.statusTarget === 'self') {
+          setSkillState(source, consumeDamageScalingStatus(getSkillState(source), effect));
+        }
+        return;
+      }
+      case 'periodic-damage': {
+        const ticksCount = effect.ticks;
+        if (!Number.isSafeInteger(ticksCount) || ticksCount < 1) {
+          throw new Error(`[配置错误] 持续伤害跳数非法：${sourceSkillId}`);
+        }
+        const durationMs = effect.durationSec * 1_000;
+        if (!Number.isSafeInteger(durationMs) || durationMs <= 0 || durationMs % ticksCount !== 0) {
+          throw new Error(`[配置错误] 持续伤害时长必须按跳数整除：${sourceSkillId}`);
+        }
+        const attackerView = viewsFor(source).attacker.combatant;
+        for (const targetRef of effectTargets(source, effect.target, cast, eventSource)) {
+          if (targetRef.side === source && !targetRef.summonId) continue;
+          if (targetRef.summonId && !runtimeSummon(getSkillState(targetRef.side), targetRef.summonId)) {
+            continue;
+          }
+          const baseOptions = formulaOptionsFor(
+            source,
+            null,
+            true,
+            effect.element,
+            targetRef.summonId,
+          );
+          let defenderView = viewsFor(source).defender;
+          if (targetRef.summonId) {
+            const defender = unitCombatant(targetRef);
+            const context = skillConditionContext(
+              defender,
+              unitMaxHp(targetRef),
+              attackerView,
+              maxHpOf(source),
+              'normal',
+              unitState(targetRef),
+              getSkillState(source),
+            );
+            defenderView = effectiveSkillCombatant(
+              defender,
+              undefined,
+              unitState(targetRef),
+              context,
+              source,
+            );
+          }
+          const options: DamageFormulaOptions = {
+            ...baseOptions,
+            damageTakenRatio: defenderView.modifiers.damageTakenRatio,
+            damageTakenFromSourceRatio: defenderView.modifiers.damageTakenFromSourceRatio,
+            dodgeChancePoints: defenderView.modifiers.dodgeChancePoints,
+          };
+          const input = {
+            statusId: `${sourceSkillId}:periodic`,
+            triggerId: sourceSkillId,
+            source,
+            element: effect.element ?? attackerView.element,
+            damagePerTick: calcPeriodicDamage(
+              attackerView,
+              defenderView.combatant,
+              levelScalarAt(effect.totalMultiplier, skillLevel) / ticksCount,
+              effect.element ?? attackerView.element,
+              options,
+            ),
+            stacks: 1,
+            maxStacks: effect.maxStacks ?? 1,
+            durationMs,
+            tickIntervalMs: durationMs / ticksCount,
+            refresh: 'duration' as const,
+          };
+          if (targetRef.summonId) {
+            setSkillState(
+              targetRef.side,
+              updateRuntimeSummon(
+                getSkillState(targetRef.side),
+                targetRef.summonId,
+                (summon) => ({
+                  ...summon,
+                  periodicDamage: applyPeriodicDamage(
+                    summon.periodicDamage,
+                    input,
+                    ticks * TICK_MS,
+                  ),
+                }),
+              ),
+            );
+          } else if (targetRef.side === 'player') {
+            playerPeriodicDamage = applyPeriodicDamage(playerPeriodicDamage, input, ticks * TICK_MS);
+          } else {
+            monsterPeriodicDamage = applyPeriodicDamage(monsterPeriodicDamage, input, ticks * TICK_MS);
+          }
+        }
+        return;
+      }
+      case 'heal': {
+        for (const targetRef of effectTargets(source, effect.target, cast, eventSource)) {
+          const unit = unitCombatant(targetRef);
+          const maxHp = unitMaxHp(targetRef);
+          const healing = Math.min(
+            Math.max(0, maxHp - unit.currentHp),
+            maxHp * levelScalarAt(effect.maxHpRatio, skillLevel),
+          );
+          setUnitHp(targetRef, unit.currentHp + healing);
+        }
+        return;
+      }
+      case 'shield': {
+        for (const targetRef of effectTargets(source, effect.target, cast, eventSource)) {
+          const amount = unitMaxHp(targetRef) * levelScalarAt(effect.maxHpRatio, skillLevel);
+          setUnitState(
+            targetRef,
+            addSkillShield(unitState(targetRef), amount, effect.durationSec, ticks * TICK_MS),
+          );
+        }
+        return;
+      }
+      case 'modifier': {
+        if (effect.durationSec === undefined) {
+          throw new Error(`[配置错误] 主动/触发修正必须声明持续时间：${sourceSkillId}`);
+        }
+        for (const targetRef of effectTargets(source, effect.target, cast, eventSource)) {
+          setUnitState(
+            targetRef,
+            addTimedSkillModifier(
+              unitState(targetRef),
+              effect.modifier,
+              effect.durationSec,
+              ticks * TICK_MS,
+              source,
+              skillLevel,
+            ),
+          );
+        }
+        return;
+      }
+      case 'apply-status': {
+        for (const targetRef of effectTargets(source, effect.target, cast, eventSource)) {
+          setUnitState(
+            targetRef,
+            applySkillStatus(unitState(targetRef), effect, ticks * TICK_MS, source, skillLevel),
+          );
+        }
+        return;
+      }
+      case 'consume-status': {
+        for (const targetRef of effectTargets(source, effect.target, cast, eventSource)) {
+          setUnitState(
+            targetRef,
+            consumeSkillStatus(unitState(targetRef), effect.statusId, effect.stacks),
+          );
+        }
+        return;
+      }
+      case 'control': {
+        for (const targetRef of effectTargets(source, effect.target, cast, eventSource)) {
+          if (!rng.chance(effect.chance)) continue;
+          setUnitState(
+            targetRef,
+            addSkillControl(unitState(targetRef), effect, ticks * TICK_MS),
+          );
+        }
+        return;
+      }
+      case 'trigger':
+        setSkillState(
+          source,
+          registerRuntimeTrigger(
+            getSkillState(source),
+            effect,
+            skillLevel,
+            sourceSkillId,
+            ticks * TICK_MS,
+            effect.durationSec === undefined,
+          ),
+        );
+        return;
+      case 'conditional':
+        if (conditionSatisfied(effect.when, contextFor(source, cast.primarySummonId))) {
+          for (const nested of effect.effects) {
+            executeEffect(
+              source,
+              target,
+              nested,
+              skillLevel,
+              sourceSkillId,
+              cast,
+              eventSource,
+              allowTriggers,
+              triggerDamage,
+            );
+          }
+        }
+        return;
+      case 'avoid-next-hit':
+        setSkillState(
+          source,
+          addSkillAvoidance(
+            getSkillState(source),
+            effect.count,
+            effect.durationSec,
+            ticks * TICK_MS,
+          ),
+        );
+        return;
+      case 'summon': {
+        const kit = kitOf(source);
+        if (!kit) throw new Error(`[配置错误] 没有技能栏却执行召唤：${sourceSkillId}`);
+        setSkillState(
+          source,
+          addSkillSummon(
+            getSkillState(source),
+            kit,
+            effect.summonId,
+            effect.durationSec,
+            ticks * TICK_MS,
+            viewsFor(source).attacker.combatant,
+          ),
+        );
+        return;
+      }
+      case 'dispel': {
+        for (const targetRef of effectTargets(source, effect.target, cast, eventSource)) {
+          setUnitState(
+            targetRef,
+            dispelSkillState(unitState(targetRef), effect.polarity, effect.count),
+          );
+        }
+        return;
+      }
+      case 'reflect-trigger-damage': {
+        if (triggerDamage <= 0) return;
+        const reflected =
+          triggerDamage * Math.max(0, levelScalarAt(effect.damageRatio, skillLevel));
+        for (const targetRef of effectTargets(source, effect.target, cast, eventSource)) {
+          if (targetRef.side === source && !targetRef.summonId) continue;
+          const shielded = absorbDamageWithSkillShields(unitState(targetRef), reflected);
+          setUnitState(targetRef, shielded.state);
+          const targetUnit = unitCombatant(targetRef);
+          const applied = applyDamageOnly(
+            targetUnit,
+            shielded.hpDamage,
+            targetRef.summonId
+              ? []
+              : targetRef.side === 'player'
+                ? opts.playerOnLethalTriggers
+                : opts.monsterOnLethalTriggers,
+            targetRef.summonId
+              ? new Map()
+              : targetRef.side === 'player'
+                ? playerLethalUses
+                : monsterLethalUses,
+          );
+          setUnitHp(targetRef, targetUnit.currentHp);
+          if (source === 'player') damageDealt += applied.damage;
+          else damageTaken += applied.damage;
+          events.push({
+            sequence: events.length + 1,
+            source,
+            target: targetRef.side,
+            ...(targetRef.summonId ? { targetSummonId: targetRef.summonId } : {}),
+            event: {
+              kind: 'on-hit-elemental-damage',
+              damage: applied.damage,
+              triggerId: sourceSkillId,
+              element: combatantOf(source).element,
+            },
+          });
+        }
+        return;
+      }
+    }
+  }
+
+  const castSkill = (
+    source: 'player' | 'monster',
+    primarySummonId: string | undefined,
+  ): boolean => {
+    const kit = kitOf(source);
+    if (!kit) return false;
+    const selected = selectSkillForAction(
+      kit,
+      getSkillState(source),
+      ticks * TICK_MS,
+      contextFor(source, primarySummonId),
+    );
+    if (!selected) return false;
+    setSkillState(source, selected.state);
+    const target = opposite(source);
+    const cast: CastProgress = {
+      hitTarget: false,
+      hitAny: false,
+      hitSummonIds: new Set(),
+      primarySummonId,
+    };
+    // 同一次施法内的 on-hit / on-crit 契约必须在第一段伤害前挂上；配置表的书写
+    // 顺序只控制结算效果，不得让“伤害写在触发器前面”悄悄吃掉本次触发。
+    for (const effect of selected.entry.skill.effects) {
+      if (effect.kind !== 'trigger') continue;
+      executeEffect(
+        source,
+        target,
+        effect,
+        selected.entry.level,
+        selected.entry.skill.id,
+        cast,
+      );
+    }
+    for (const effect of selected.entry.skill.effects) {
+      if (effect.kind === 'trigger') continue;
+      executeEffect(
+        source,
+        target,
+        effect,
+        selected.entry.level,
+        selected.entry.skill.id,
+        cast,
+      );
+      if (combatantOf(target).currentHp <= 0) break;
+    }
+    if (cast.hitAny) {
+      dispatchRuntimeEvent(source, target, 'after-skill-resolved', cast);
+    }
+    return true;
+  };
+
+  const basicAttack = (
+    source: 'player' | 'monster',
+    multiplier: number,
+    primarySummonId: string | undefined,
+  ): void => {
+    const cast: CastProgress = {
+      hitTarget: false,
+      hitAny: false,
+      hitSummonIds: new Set(),
+      primarySummonId,
+    };
+    const applied = resolveDirectDamage(
+      source,
+      multiplier,
+      formulaOptionsFor(source, null, false, undefined, primarySummonId),
+      cast,
+      undefined,
+      undefined,
+      undefined,
+      true,
+      formulaOptionsFor(source, null, false, undefined, primarySummonId),
+      cast.primarySummonId,
+    );
+    if (source === 'player') damageDealt += applied.damage;
+    else damageTaken += applied.damage;
+    if (applied.directCrit) {
+      applyEquipmentCritTriggers(source, {
+        side: opposite(source),
+        ...(applied.targetSummonId ? { summonId: applied.targetSummonId } : {}),
+      });
+    }
+  };
+
+  const advanceSummons = (source: 'player' | 'monster'): void => {
+    const due = takeDueSummonAttacks(getSkillState(source), ticks * TICK_MS);
+    setSkillState(source, due.state);
+    for (const summon of due.attacks) {
+      if (combatantOf(opposite(source)).currentHp <= 0) break;
+      const target = opposite(source);
+      const cast: CastProgress = {
+        hitTarget: false,
+        hitAny: false,
+        hitSummonIds: new Set(),
+        primarySummonId: selectWeightedSummonTarget(getSkillState(target), rng) ?? undefined,
+      };
+      const applied = resolveDirectDamage(
+        source,
+        summon.attackMultiplier,
+        formulaOptionsFor(source, null, false, summon.element, cast.primarySummonId),
+        cast,
+        summon.id,
+        1,
+        1,
+        true,
+        formulaOptionsFor(source, null, false, undefined, cast.primarySummonId),
+        cast.primarySummonId,
+      );
+      if (source === 'player') damageDealt += applied.damage;
+      else damageTaken += applied.damage;
+      if (applied.directCrit) {
+        applyEquipmentCritTriggers(source, {
+          side: target,
+          ...(applied.targetSummonId ? { summonId: applied.targetSummonId } : {}),
+        });
+      }
+    }
+  };
+
+  const advanceSummonPeriodics = (
+    owner: 'player' | 'monster',
+    elapsedMs: number,
+  ): void => {
+    const summonIds = getSkillState(owner).summons.map((summon) => summon.definition.id);
+    for (const summonId of summonIds) {
+      const summon = runtimeSummon(getSkillState(owner), summonId);
+      if (!summon) continue;
+      const summonCombatant = summonCombatantFor(summon);
+      summonCombatant.level = combatantOf(owner).level;
+      const timelineStart = events.length;
+      const advanced = applyPeriodicDamageAdvance(
+        summonCombatant,
+        summon.periodicDamage,
+        elapsedMs,
+        events,
+        [],
+        new Map(),
+        summon.skillState,
+      );
+      for (let index = timelineStart; index < events.length; index++) {
+        events[index] = { ...events[index]!, targetSummonId: summonId };
+      }
+      if (owner === 'monster') damageDealt += advanced.damage;
+      else damageTaken += advanced.damage;
+      setSkillState(
+        owner,
+        updateRuntimeSummon(getSkillState(owner), summonId, (current) => ({
+          ...current,
+          currentHp: summonCombatant.currentHp,
+          periodicDamage: advanced.state,
+          skillState: advanced.skillState,
+        })),
+      );
+    }
+  };
 
   while (ticks < maxTicks && player.currentHp > 0 && monster.currentHp > 0) {
     ticks++;
     const elapsedMs = ticks * TICK_MS;
     playerCd -= TICK;
     monsterCd -= TICK;
+    playerSkillState = expireSkillCombatState(playerSkillState, elapsedMs);
+    monsterSkillState = expireSkillCombatState(monsterSkillState, elapsedMs);
 
     const monsterPeriodicAdvance = applyPeriodicDamageAdvance(
       monster,
@@ -250,9 +1421,23 @@ export function simulateFight(
       events,
       opts.monsterOnLethalTriggers,
       monsterLethalUses,
+      monsterSkillState,
     );
     monsterPeriodicDamage = monsterPeriodicAdvance.state;
+    monsterSkillState = monsterPeriodicAdvance.skillState;
     damageDealt += monsterPeriodicAdvance.damage;
+    if (monsterPeriodicAdvance.damage > 0) {
+      const cast: CastProgress = { hitTarget: true, hitAny: true, hitSummonIds: new Set() };
+      dispatchRuntimeEvent(
+        'monster',
+        'player',
+        'on-damage-taken',
+        cast,
+        'player',
+        monsterPeriodicAdvance.damage,
+      );
+      dispatchRuntimeEvent('monster', 'player', 'on-low-hp', cast, 'player');
+    }
     if (monster.currentHp <= 0) break;
 
     const playerPeriodicAdvance = applyPeriodicDamageAdvance(
@@ -262,62 +1447,47 @@ export function simulateFight(
       events,
       opts.playerOnLethalTriggers,
       playerLethalUses,
+      playerSkillState,
     );
     playerPeriodicDamage = playerPeriodicAdvance.state;
+    playerSkillState = playerPeriodicAdvance.skillState;
     damageTaken += playerPeriodicAdvance.damage;
+    if (playerPeriodicAdvance.damage > 0) {
+      const cast: CastProgress = { hitTarget: true, hitAny: true, hitSummonIds: new Set() };
+      dispatchRuntimeEvent(
+        'player',
+        'monster',
+        'on-damage-taken',
+        cast,
+        'monster',
+        playerPeriodicAdvance.damage,
+      );
+      dispatchRuntimeEvent('player', 'monster', 'on-low-hp', cast, 'monster');
+    }
     if (player.currentHp <= 0) break;
 
-    if (playerCd <= 0) {
-      playerCd += playerInterval;
-      const segment = resolveDamageSegment(player, monster, pMul, rng, opts.playerOnHitTriggers);
-      const applied = applyDamageSegment(
-        player,
-        monster,
-        segment,
-        'player',
-        events,
-        opts.monsterOnLethalTriggers,
-        monsterLethalUses,
-      );
-      damageDealt += applied.damage;
-      if (applied.directCrit) {
-        monsterPeriodicDamage = resolveOnCritTriggers(
-          player,
-          monster,
-          opts.playerOnCritTriggers,
-          'player',
-          elapsedMs,
-          monsterPeriodicDamage,
-          events,
-        );
-      }
+    advanceSummonPeriodics('player', elapsedMs);
+    advanceSummonPeriodics('monster', elapsedMs);
+    advanceSummons('player');
+    if (monster.currentHp <= 0) break;
+    advanceSummons('monster');
+    if (player.currentHp <= 0) break;
+
+    if (playerCd <= 0 && skillControlBlockUntil(playerSkillState) <= elapsedMs) {
+      const view = viewsFor('player').attacker.combatant;
+      playerCd += 1 / (Math.max(0.01, view.stats.spd) * (1 - skillSlowRatio(playerSkillState)));
+      const primarySummonId =
+        selectWeightedSummonTarget(monsterSkillState, rng) ?? undefined;
+      if (!castSkill('player', primarySummonId)) basicAttack('player', pMul, primarySummonId);
       if (monster.currentHp <= 0) break;
     }
 
-    if (monsterCd <= 0) {
-      monsterCd += monsterInterval;
-      const segment = resolveDamageSegment(monster, player, mMul, rng, opts.monsterOnHitTriggers);
-      const applied = applyDamageSegment(
-        monster,
-        player,
-        segment,
-        'monster',
-        events,
-        opts.playerOnLethalTriggers,
-        playerLethalUses,
-      );
-      damageTaken += applied.damage;
-      if (applied.directCrit) {
-        playerPeriodicDamage = resolveOnCritTriggers(
-          monster,
-          player,
-          opts.monsterOnCritTriggers,
-          'monster',
-          elapsedMs,
-          playerPeriodicDamage,
-          events,
-        );
-      }
+    if (monsterCd <= 0 && skillControlBlockUntil(monsterSkillState) <= elapsedMs) {
+      const view = viewsFor('monster').attacker.combatant;
+      monsterCd += 1 / (Math.max(0.01, view.stats.spd) * (1 - skillSlowRatio(monsterSkillState)));
+      const primarySummonId =
+        selectWeightedSummonTarget(playerSkillState, rng) ?? undefined;
+      if (!castSkill('monster', primarySummonId)) basicAttack('monster', mMul, primarySummonId);
     }
   }
 
@@ -330,6 +1500,8 @@ export function simulateFight(
     damageTaken,
     kills: win ? 1 : 0,
     events,
+    playerMaxHp,
+    monsterMaxHp,
   };
 }
 
@@ -342,7 +1514,12 @@ export function estimateDps(
   monster: Combatant,
   skillMultiplier = 1.0,
   onHitTriggers: readonly OnHitElementalDamageTrigger[] = [],
+  skillKit?: SkillCombatKit,
+  targetType: MonsterType = 'normal',
 ): number {
+  if (skillKit) {
+    return estimateRealSkillDps(player, monster, skillKit, onHitTriggers, targetType);
+  }
   return expectedDamageSegment(player, monster, skillMultiplier, onHitTriggers) * player.stats.spd;
 }
 
@@ -355,8 +1532,10 @@ export function timeToKill(
   monster: Combatant,
   skillMultiplier = 1.0,
   onHitTriggers: readonly OnHitElementalDamageTrigger[] = [],
+  skillKit?: SkillCombatKit,
+  targetType: MonsterType = 'normal',
 ): number {
-  const dps = estimateDps(player, monster, skillMultiplier, onHitTriggers);
+  const dps = estimateDps(player, monster, skillMultiplier, onHitTriggers, skillKit, targetType);
   if (dps <= 0) return Infinity;
   return monster.stats.hp / dps;
 }
@@ -379,12 +1558,15 @@ export function estimateLifestealPerSecond(
   player: Combatant,
   monster: Combatant,
   skillMultiplier = 1.0,
+  skillKit?: SkillCombatKit,
+  targetType: MonsterType = 'normal',
 ): number {
   const lifestealPoints = player.combatBonuses?.lifesteal ?? 0;
   // on-hit 追加段明确不吸血，因此这里只取直接伤害段期望，不能复用含触发的 estimateDps。
   return (
-    expectedDamage(player, monster, skillMultiplier) *
-    player.stats.spd *
+    (skillKit
+      ? estimateRealSkillDps(player, monster, skillKit, [], targetType)
+      : expectedDamage(player, monster, skillMultiplier) * player.stats.spd) *
     (Math.max(0, lifestealPoints) / 100)
   );
 }
@@ -420,9 +1602,22 @@ export function combatPressure(
   skillMultiplier = 1.0,
   options: CombatEstimateOptions = {},
 ): CombatPressure {
-  const playerDps = estimateDps(player, monster, skillMultiplier, options.playerOnHitTriggers);
+  const playerDps = estimateDps(
+    player,
+    monster,
+    skillMultiplier,
+    options.playerOnHitTriggers,
+    options.playerSkillKit,
+    options.playerTargetType,
+  );
   const incomingDps = estimateIncomingDps(player, monster, 1, options.monsterOnHitTriggers);
-  const lifestealPerSecond = estimateLifestealPerSecond(player, monster, skillMultiplier);
+  const lifestealPerSecond = estimateLifestealPerSecond(
+    player,
+    monster,
+    skillMultiplier,
+    options.playerSkillKit,
+    options.playerTargetType,
+  );
   const fightSeconds =
     playerDps > 0 && monster.stats.hp > 0 ? monster.stats.hp / playerDps : Infinity;
   const netIncomingDps = Math.max(0, incomingDps - lifestealPerSecond);
@@ -472,6 +1667,58 @@ export function canSustain(
   return (
     combatEfficiency(player, monster, skillMultiplier, options) >= IDLE_SUSTAIN_HINT_EFFICIENCY
   );
+}
+
+/**
+ * 挂机期望不再另写一套“平均倍率”：用同一真实解释器跑两个固定种子样本，
+ * 再取单位时间伤害。目标保留真实生命 / 防御 / 血线，所以斩杀、状态消费、
+ * 冷却竞争和多段命中都会进入结果；只把目标攻击置 0，避免输出估算混入生存失败。
+ */
+function estimateRealSkillDps(
+  player: Combatant,
+  monster: Combatant,
+  skillKit: SkillCombatKit,
+  onHitTriggers: readonly OnHitElementalDamageTrigger[],
+  targetType: MonsterType,
+): number {
+  const sampleSeeds = [0x51a7e11, 0x7b3d902] as const;
+  let total = 0;
+  for (const seed of sampleSeeds) {
+    const source: Combatant = {
+      ...player,
+      stats: { ...player.stats },
+      currentHp: player.stats.hp,
+      ...(player.combatBonuses
+        ? {
+            combatBonuses: {
+              ...player.combatBonuses,
+              elementDamage: { ...player.combatBonuses.elementDamage },
+            },
+          }
+        : {}),
+    };
+    const target: Combatant = {
+      ...monster,
+      stats: { ...monster.stats, atk: 0, critRate: 0 },
+      currentHp: monster.stats.hp,
+      ...(monster.combatBonuses
+        ? {
+            combatBonuses: {
+              ...monster.combatBonuses,
+              elementDamage: { ...monster.combatBonuses.elementDamage },
+            },
+          }
+        : {}),
+    };
+    const result = simulateFight(source, target, new Rng(seed), {
+      maxSeconds: MAX_FIGHT_SECONDS,
+      playerSkillKit: skillKit,
+      playerTargetType: targetType,
+      playerOnHitTriggers: onHitTriggers,
+    });
+    total += result.duration > 0 ? result.damageDealt / result.duration : 0;
+  }
+  return total / sampleSeeds.length;
 }
 
 /**
@@ -631,14 +1878,18 @@ function applyPeriodicDamageAdvance(
   timeline: CombatTimelineEvent[],
   defenderLethalTriggers: readonly OnLethalRecoveryTrigger[] = [],
   defenderLethalUses: Map<string, number> = new Map(),
-): { state: PeriodicDamageState; damage: number } {
+  skillState: SkillCombatState = createSkillCombatState(EMPTY_SKILL_KIT),
+): { state: PeriodicDamageState; skillState: SkillCombatState; damage: number } {
   const advanced = advancePeriodicDamage(state, elapsedMs);
   let damage = 0;
+  let nextSkillState = skillState;
   for (const tick of advanced.ticks) {
     if (defender.currentHp <= 0) break;
+    const shielded = absorbDamageWithSkillShields(nextSkillState, tick.damage);
+    nextSkillState = shielded.state;
     const applied = applyDamageOnly(
       defender,
-      tick.damage,
+      shielded.hpDamage,
       defenderLethalTriggers,
       defenderLethalUses,
     );
@@ -653,7 +1904,7 @@ function applyPeriodicDamageAdvance(
       });
     }
   }
-  return { state: advanced.state, damage };
+  return { state: advanced.state, skillState: nextSkillState, damage };
 }
 
 function pushPeriodicDamageEvent(

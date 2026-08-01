@@ -6,10 +6,18 @@
  * 手机浏览器切后台会节流定时器，累加出来的时间是错的。
  */
 
-import type { ClassId, Combatant, IdleYield, LootResult, LootTable } from './types';
+import type {
+  ClassId,
+  Combatant,
+  IdleYield,
+  LootResult,
+  LootTable,
+  MonsterType,
+} from './types';
 import type { Rng } from './rng';
 import { combatEfficiency, estimateDps } from './combat';
 import type { OnHitElementalDamageTrigger } from './equipmentSets';
+import type { SkillCombatKit } from './skillCombat';
 import { expectedLoot, rollLoot, type PityCounters } from './loot';
 import {
   DEFAULT_MAX_KILLS_PER_SEC,
@@ -35,6 +43,9 @@ export interface IdleContext {
   maxKillsPerSec?: number;
   /** 玩家平均技能倍率 */
   skillMultiplier?: number;
+  /** M3-4 真实技能栏；存在时完全替代 skillMultiplier。 */
+  skillKit?: SkillCombatKit;
+  monsterType?: MonsterType;
   /** 每个直接真实命中独立判定的追加伤害；与前台逐击模拟共用定义。 */
   onHitTriggers?: readonly OnHitElementalDamageTrigger[];
 }
@@ -46,7 +57,14 @@ export interface IdleContext {
  * 没有这个上限，Lv90 玩家去打 Lv10 的图会得到荒谬的产出。
  */
 export function killsPerSecond(ctx: IdleContext): number {
-  const dps = estimateDps(ctx.player, ctx.monster, ctx.skillMultiplier ?? 1.0, ctx.onHitTriggers);
+  const dps = estimateDps(
+    ctx.player,
+    ctx.monster,
+    ctx.skillMultiplier ?? 1.0,
+    ctx.onHitTriggers,
+    ctx.skillKit,
+    ctx.monsterType,
+  );
   if (dps <= 0 || ctx.monster.stats.hp <= 0) return 0;
 
   const raw = dps / ctx.monster.stats.hp;
@@ -59,6 +77,8 @@ export function killsPerSecond(ctx: IdleContext): number {
 export function idleCombatEfficiency(ctx: IdleContext): number {
   return combatEfficiency(ctx.player, ctx.monster, ctx.skillMultiplier ?? 1.0, {
     playerOnHitTriggers: ctx.onHitTriggers,
+    playerSkillKit: ctx.skillKit,
+    playerTargetType: ctx.monsterType,
   });
 }
 
