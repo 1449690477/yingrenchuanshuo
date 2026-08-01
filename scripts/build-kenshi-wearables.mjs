@@ -22,15 +22,6 @@ const transparentCanvas = () => ({
   },
 });
 
-const iconCleanupPaths = [
-  'public/assets/equipment/arena/kenshi/blinkbloom-snowear-crown.png',
-  'public/assets/equipment/arena/kenshi/blinkbloom-whitefeather-garb.png',
-  'public/assets/equipment/arena/kenshi/blinkbloom-return-ring.png',
-  'public/assets/equipment/affection/kenshi/homeward-sakura-ring.png',
-  'public/assets/equipment/affection/kenshi/moonblue-lantern-date-kimono.png',
-  'public/assets/equipment/affection/kenshi/white-feather-guardian-kimono.png',
-];
-
 const runtimeWearables = [
   {
     source: 'public/assets/equipment/arena/kenshi/blinkbloom-boundary-katana.png',
@@ -484,13 +475,6 @@ async function writeIcon(path, buffer) {
 }
 
 async function build() {
-  for (const path of iconCleanupPaths) {
-    if (!CHECK) {
-      const cleaned = await cleanLargestComponent(path);
-      await writeIcon(path, cleaned);
-    }
-  }
-
   for (const [familyIndex, family] of variantFamilies.entries()) {
     for (const slot of ['head', 'weapon']) {
       const masterPath = `${SOURCE_ROOT}/${family.kind}/${family.id}-${slot}-alpha.png`;
@@ -533,6 +517,6 @@ if (!REBUILD && !CHECK) {
 await build();
 console.log(
   CHECK
-    ? '✓ 樱酱 28 张独立层、7 张派生图标与 6 张图标连通域清理均可确定性重建'
+    ? '✓ 樱酱 28 张独立层与 7 张派生图标均可确定性重建'
     : '✓ 樱酱可穿资产与独立精品/副本变体已重建',
 );
