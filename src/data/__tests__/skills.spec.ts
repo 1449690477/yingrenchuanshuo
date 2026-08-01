@@ -227,6 +227,31 @@ describe('five-class skill roster', () => {
       count: 'all',
     });
   });
+
+  it('喵喵的九命与炸毛使用真实必闪，不被最低命中率吞掉身份收益', () => {
+    const bristle = requireSkill(CATKIN_SKILLS, 'skill_catkin_bristle_counter');
+    expect(bristle.effects).toContainEqual({
+      kind: 'avoid-next-hit',
+      durationSec: 4,
+      count: 1,
+    });
+
+    const spin = requireSkill(CATKIN_SKILLS, 'skill_catkin_nine_life_spin');
+    expect(spin.effects).toContainEqual({
+      kind: 'avoid-next-hit',
+      durationSec: 4,
+      count: 3,
+    });
+  });
+
+  it('樱酱白刃步落实文档约定的轻量减伤而非只堆闪避', () => {
+    const whiteBlade = requireSkill(KENSHI_SKILLS, 'skill_kenshi_white_blade');
+    expect(whiteBlade.effects).toContainEqual({
+      kind: 'modifier',
+      target: { kind: 'self' },
+      modifier: { unit: 'ratio', stat: 'damageTaken', ratio: { base: -0.05 } },
+    });
+  });
 });
 
 describe('catkin visual timing', () => {

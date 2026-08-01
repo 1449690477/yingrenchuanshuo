@@ -901,6 +901,7 @@ export const CATKIN_SKILLS: readonly Skill[] = [
         },
         durationSec: 4,
       },
+      { kind: 'avoid-next-hit', durationSec: 4, count: 1 },
       {
         kind: 'trigger',
         event: 'on-dodge',
@@ -910,7 +911,7 @@ export const CATKIN_SKILLS: readonly Skill[] = [
       },
     ],
     icon: 'assets/icons/skills/catkin-bristle-counter.png',
-    desc: '生命低于 65% 时炸毛，4 秒内闪避率 +20 点；首次闪避立刻雷爪反击。',
+    desc: '生命低于 65% 时炸毛，4 秒内闪避率 +20 点并必闪下一击；首次闪避立刻雷爪反击。',
   },
   {
     id: 'skill_catkin_claw_mark',
@@ -1011,19 +1012,10 @@ export const CATKIN_SKILLS: readonly Skill[] = [
         element: 'ice',
         hitWeights: [1, 1, 1],
       }),
-      {
-        kind: 'modifier',
-        target: SELF,
-        modifier: {
-          unit: 'percentage-points',
-          stat: 'dodgeChance',
-          points: { base: 15 },
-        },
-        durationSec: 2,
-      },
+      { kind: 'avoid-next-hit', durationSec: 4, count: 3 },
     ],
     icon: 'assets/icons/skills/catkin-nine-life-spin.png',
-    desc: '三重尾影回旋攻击最多 3 名敌人，并在 2 秒内提高 15 点闪避率。',
+    desc: '三重尾影回旋攻击最多 3 名敌人，4 秒内依次闪过接下来的 3 次攻击。',
   },
   {
     id: 'skill_catkin_hunting_instinct',
@@ -1200,9 +1192,14 @@ export const KENSHI_SKILLS: readonly Skill[] = [
           points: { base: 5, perLevel: 0.15, max: 10 },
         },
       },
+      {
+        kind: 'modifier',
+        target: SELF,
+        modifier: { unit: 'ratio', stat: 'damageTaken', ratio: { base: -0.05 } },
+      },
     ],
     icon: 'assets/icons/skills/kenshi-white-blade.png',
-    desc: '白刃出鞘的步法：攻速提高 4%，闪避率提高 5 个百分点。',
+    desc: '白刃出鞘的步法：攻速提高 4%、闪避率提高 5 个百分点，受到的伤害降低 5%。',
   },
   {
     id: 'skill_kenshi_sakura_blizzard',
