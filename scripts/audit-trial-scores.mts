@@ -16,6 +16,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { isPlausibleTrialDamage, trialBracketDamageCeiling } from '../src/core/trialBound';
 import { judgeCheatEvidence, buildCheatEvidenceRow } from '../src/core/cheatEvidence';
+import { TRIAL_FORMULA_VERSION } from '../src/core/trialFormulaVersion';
 import type { ClassId } from '../src/core/types';
 
 const url = process.env.SUPABASE_URL;
@@ -29,7 +30,9 @@ const admin = createClient(url, serviceKey);
 
 const { data, error } = await admin
   .from('trial_scores')
-  .select('id, user_id, damage, week_index, verified, profiles(display_name, level, class_id)')
+  .select(
+    'id, user_id, class_id, damage, week_index, verified, trial_formula_version, profiles(display_name, level)',
+  )
   .order('damage', { ascending: false });
 if (error) {
   console.error('读取失败：', error.message);
@@ -48,11 +51,27 @@ console.log(
 );
 
 let flagged = 0;
+let checked = 0;
+let legacySkipped = 0;
 for (const row of (data ?? []) as any[]) {
   const p = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
   if (!p || typeof p.level !== 'number') continue;
+  if (row.trial_formula_version !== TRIAL_FORMULA_VERSION) {
+    legacySkipped += 1;
+    console.log(
+      String(p.display_name).slice(0, 11).padEnd(12),
+      String(p.level).padStart(6),
+      String(row.damage).padStart(10),
+      '-'.padStart(10),
+      '-'.padStart(8),
+      ` 历史 v${String(row.trial_formula_version)}，保留且不按 v${TRIAL_FORMULA_VERSION} 反判`,
+    );
+    continue;
+  }
+  checked += 1;
   const level: number = p.level;
-  const classId: ClassId = p.class_id;
+  // 必须使用成绩行自己的职业；玩家之后切换当前职业，不应改变旧成绩的审计尺。
+  const classId: ClassId = row.class_id;
   const damage = Number(row.damage);
   const ceiling = trialBracketDamageCeiling(level, classId, row.week_index);
   const ok = isPlausibleTrialDamage(damage, level, classId, row.week_index);
@@ -102,5 +121,7 @@ for (const row of (data ?? []) as any[]) {
   );
 }
 
-console.log(`\n物理不可能的成绩：${flagged} 条`);
+console.log(
+  `\n当前公式 v${TRIAL_FORMULA_VERSION} 已审计：${checked} 条；历史版本跳过：${legacySkipped} 条；物理不可能：${flagged} 条`,
+);
 if (flagged > 0 && !apply) console.log('确认无误后加 --apply 落地。');

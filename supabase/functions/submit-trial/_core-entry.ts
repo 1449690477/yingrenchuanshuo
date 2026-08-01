@@ -28,6 +28,7 @@ export { TRIAL_SEASON_ID } from '@/data/trialRules';
 export { SLOT_ORDER } from '@/data/constants';
 export { CLASS_IDS } from '@/core/types';
 export type { ClassId, EquipmentInstance } from '@/core/types';
+export { buildTrialFormulaStamp, TRIAL_FORMULA_VERSION } from '@/core/trialFormulaVersion';
 
 // 试炼伤害物理上界（docs/78 §六）。**必须用权威等级（profiles.level）判**，
 // 不能用本次提交自报的等级 —— 那正是 2026-07-30 被伪造的那个值。
