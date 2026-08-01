@@ -24,11 +24,25 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import { writeFileSync, rmSync } from 'node:fs';
+import { readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { CP_FORMULA_VERSION } from '../src/core/cpFormulaVersion.ts';
+import { TRIAL_FORMULA_VERSION } from '../src/core/trialFormulaVersion.ts';
+
+const PROJECT_REF = 'rwtuhwizoohvwerqkhgb';
+
+function assertLinkedProject(): void {
+  const linkedRef = readFileSync('supabase/.temp/project-ref', 'utf8').trim();
+  if (linkedRef !== PROJECT_REF) {
+    throw new Error(
+      `Supabase 链接目标错误：期望 ${PROJECT_REF}，实际 ${linkedRef || '未链接'}`,
+    );
+  }
+}
+
+assertLinkedProject();
 
 interface Check {
   name: string;
@@ -44,7 +58,7 @@ const SYNC_PROFILE_DEPLOYED_MS = (() => {
   try {
     const raw = execFileSync(
       'npx',
-      ['supabase', 'functions', 'list', '-o', 'json'],
+      ['supabase', 'functions', 'list', '--project-ref', PROJECT_REF, '-o', 'json'],
       { encoding: 'utf8', shell: true, stdio: ['ignore', 'pipe', 'pipe'] },
     );
     const fns = JSON.parse(raw.slice(raw.indexOf('['), raw.lastIndexOf(']') + 1)) as {
@@ -147,6 +161,65 @@ const CHECKS: Check[] = [
     remedy:
       '先查 information_schema.column_privileges 确认玩家写不了这一列；' +
       '再确认 12 个 Edge Function 都用当前 core 重打包并部署过（npm run edge:build）',
+  },
+  {
+    name: '试炼公式版本戳列已就位（必须早于新版榜单）',
+    sql: `select column_name, column_default, is_nullable
+            from information_schema.columns
+           where table_schema='public' and table_name='trial_scores'
+             and column_name='trial_formula_version'`,
+    verdict: (rows) => {
+      if (rows.length === 0) return '列不存在 —— 新旧试炼成绩仍会混在同一榜单';
+      if (rows[0]!.is_nullable !== 'NO') return '列可空 —— 无法可靠隔离历史公式成绩';
+      return null;
+    },
+    remedy:
+      '依次执行 20260801060000_trial_formula_version.sql 与 ' +
+      '20260801070000_trial_formula_version_isolation.sql，再部署 submit-trial 和客户端',
+  },
+  {
+    name: '试炼榜唯一键包含公式版本',
+    sql: `select pg_get_constraintdef(oid) as definition
+            from pg_constraint
+           where conrelid='public.trial_scores'::regclass
+             and conname='trial_scores_user_season_week_bracket_formula_key'`,
+    verdict: (rows) => {
+      if (rows.length !== 1) return '缺少版本化唯一约束 —— v1 成绩仍可能阻止新版成绩写入';
+      const definition = String(rows[0]!.definition ?? '');
+      return definition.includes('trial_formula_version')
+        ? null
+        : `唯一约束未含 trial_formula_version：${definition}`;
+    },
+    remedy: '执行 20260801070000_trial_formula_version_isolation.sql',
+  },
+  {
+    name: '新旧试炼邻域榜 RPC 均存在',
+    sql: `select proname from pg_proc
+           where pronamespace='public'::regnamespace
+             and proname in ('trial_neighborhood','trial_neighborhood_versioned')`,
+    verdict: (rows) => {
+      const names = new Set(rows.map((row) => String(row.proname)));
+      const missing = ['trial_neighborhood', 'trial_neighborhood_versioned'].filter(
+        (name) => !names.has(name),
+      );
+      return missing.length === 0 ? null : `缺少 RPC：${missing.join(', ')}`;
+    },
+    remedy: '执行 20260801070000_trial_formula_version_isolation.sql',
+  },
+  {
+    name: 'trial_scores 里没有比服务端更新的公式版本号',
+    sql: `select max((to_jsonb(t) ->> 'trial_formula_version')::int) as v
+            from public.trial_scores t`,
+    verdict: (rows) => {
+      const raw = rows[0]?.v;
+      if (raw === null || raw === undefined) return null;
+      const max = Number(raw);
+      return max > TRIAL_FORMULA_VERSION
+        ? `出现版本 ${max}，而服务端当前是 ${TRIAL_FORMULA_VERSION}`
+        : null;
+    },
+    remedy:
+      '停止发布并核对 submit-trial 的真实部署版本；成绩版本由服务端生成，不能出现未来值',
   },
   {
     // ★ 版本戳的写入点不止一个，这一条抓「写了值却没更新戳」的那些。

@@ -41,7 +41,9 @@
  * 判断是人的事，它只保证你做判断时手里有完整的名单。
  */
 
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
+
+const PROJECT_REF = 'rwtuhwizoohvwerqkhgb';
 
 /** 打包进 _core.ts 的源码目录（见文件头「为什么整个算进来」）。 */
 const CORE_DIRS = ['src/core', 'src/data', 'src/save'];
@@ -58,8 +60,33 @@ function sh(cmd: string, args: string[]): string {
   return execFileSync(cmd, args, { encoding: 'utf8', shell: true, stdio: ['ignore', 'pipe', 'pipe'] });
 }
 
+/** 发布只能来自包含最新 main 的干净提交，绝不把工作树半成品送上生产。 */
+function assertReleaseHead(): void {
+  const dirty = sh('git', ['status', '--porcelain=v1', '--untracked-files=all']).trim();
+  if (dirty) {
+    throw new Error(`工作树不是干净提交，拒绝生成部署清单：\n${dirty}`);
+  }
+
+  const containsMain = spawnSync(
+    'git',
+    ['merge-base', '--is-ancestor', 'origin/main', 'HEAD'],
+    { shell: true, stdio: 'ignore' },
+  );
+  if (containsMain.status !== 0) {
+    throw new Error('当前 HEAD 未包含 origin/main，拒绝部署过期基线');
+  }
+}
+
 function listDeployed(): DeployedFn[] {
-  const raw = sh('npx', ['supabase', 'functions', 'list', '-o', 'json']);
+  const raw = sh('npx', [
+    'supabase',
+    'functions',
+    'list',
+    '--project-ref',
+    PROJECT_REF,
+    '-o',
+    'json',
+  ]);
   const json = JSON.parse(raw.slice(raw.indexOf('['), raw.lastIndexOf(']') + 1)) as {
     slug: string;
     version: number;
@@ -80,14 +107,21 @@ function commitsSince(sinceIso: string, paths: string[]): string[] {
     'log',
     '--oneline',
     `--since="${sinceIso}"`,
-    'origin/main',
+    'HEAD',
     '--',
     ...paths,
   ]);
   return out.split('\n').map((l) => l.trim()).filter(Boolean);
 }
 
-const only = process.argv[2];
+assertReleaseHead();
+
+if (process.argv.includes('--preflight-only')) {
+  console.log(`部署前置通过：干净 HEAD 已包含 origin/main，目标项目 ${PROJECT_REF}`);
+  process.exit(0);
+}
+
+const only = process.argv.slice(2).find((arg) => !arg.startsWith('--'));
 const fns = listDeployed()
   .filter((f) => !only || f.slug === only)
   .sort((a, b) => a.slug.localeCompare(b.slug));
