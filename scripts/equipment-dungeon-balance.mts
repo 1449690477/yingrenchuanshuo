@@ -7,9 +7,9 @@ import {
 } from '../src/core/equipmentSets';
 import { Rng } from '../src/core/rng';
 import { simulateFight } from '../src/core/combat';
+import { buildDefaultPlayerSkillKit } from '../src/core/playerSkillKit';
 import {
   applyClassMods,
-  averageSkillMultiplier,
   baseStatsFor,
   makeMonster,
   makePlayer,
@@ -142,7 +142,11 @@ function playerFor(
   return {
     combatant: makePlayer(classId, atLevel, stats),
     cp: combatPower(stats),
-    skillMultiplier: averageSkillMultiplier(atLevel) + setResolution.skillMultiplierBonus,
+    skillKit: buildDefaultPlayerSkillKit(
+      classId,
+      atLevel,
+      setResolution.skillMultiplierBonus,
+    ),
   };
 }
 
@@ -312,7 +316,7 @@ for (const tier of EQUIPMENT_DUNGEON_TIERS) {
           pity: {},
           player: player.combatant,
           classId,
-          playerSkillMultiplier: player.skillMultiplier,
+          playerSkillKit: player.skillKit,
           rngState: 10_000 + run * 73 + stage.id.length * 101,
           now: NOW,
         });
@@ -570,7 +574,8 @@ for (const tier of EQUIPMENT_DUNGEON_TIERS) {
         for (const encounter of stage.encounters) {
           const monster = makeMonster(depthScaledMonster(encounter.monster, tier.id, depth));
           const result = simulateFight(unit, monster, rng, {
-            playerSkillMultiplier: leveled.skillMultiplier,
+            playerSkillKit: leveled.skillKit,
+            playerTargetType: encounter.monster.type,
             maxSeconds: EQUIPMENT_DUNGEON_RULES.maxFightSeconds,
           });
           ms += result.duration * 1000;

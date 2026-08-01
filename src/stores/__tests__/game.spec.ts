@@ -71,6 +71,21 @@ describe('game store persistence', () => {
     expect(loaded?.player.classId).toBe('catkin');
   });
 
+  it('樱酱存档加载后由唯一生产入口生成真实技能栏', () => {
+    const game = useGameStore();
+    const save = createSave('樱酱', 'kenshi', 20260801, Date.now());
+    save.player.level = 120;
+    game.loadFrom(save);
+
+    expect(game.playerSkillKit?.active).toHaveLength(4);
+    expect(game.playerSkillKit?.passives.length).toBeGreaterThan(0);
+    expect(
+      [...(game.playerSkillKit?.active ?? []), ...(game.playerSkillKit?.passives ?? [])].every(
+        (entry) => entry.skill.class === 'kenshi',
+      ),
+    ).toBe(true);
+  });
+
   it('四个领域 store 读取同一份响应式存档', async () => {
     const game = useGameStore();
     game.loadFrom(createSave('领域测试', 'witch', 7, Date.now()));

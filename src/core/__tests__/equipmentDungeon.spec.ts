@@ -12,6 +12,7 @@ import {
 import { requireEquipmentDungeonStage } from '@/data/equipmentDungeons';
 import { REGION_CRIMSON_SET } from '@/data/regionEquipmentSets';
 import type { Stats } from '../types';
+import { buildDefaultPlayerSkillKit } from '../playerSkillKit';
 import {
   EQUIPMENT_DUNGEON_CORE_PITY,
   EQUIPMENT_DUNGEON_CRYSTAL_MAX,
@@ -41,7 +42,7 @@ function input(
   overrides: Partial<EquipmentDungeonChallengeInput> = {},
 ): EquipmentDungeonChallengeInput {
   const stage = requireEquipmentDungeonStage('equipment_weapon_azure');
-  return {
+  const result: EquipmentDungeonChallengeInput = {
     stage,
     depth: 1,
     contentTopLevel: 78,
@@ -54,9 +55,26 @@ function input(
     now: NOW,
     ...overrides,
   };
+  if (result.playerSkillKit && overrides.playerSkillMultiplier === undefined) {
+    delete result.playerSkillMultiplier;
+  }
+  return result;
 }
 
 describe('装备副本业务日期与次数', () => {
+  it('真实技能栏与旧平均倍率不能双传或双缺', () => {
+    const legacy = input();
+    expect(() =>
+      resolveEquipmentDungeonChallenge({
+        ...legacy,
+        playerSkillKit: buildDefaultPlayerSkillKit('witch', 90),
+      }),
+    ).toThrow(/必须且只能提供一种/);
+    const neither = { ...legacy };
+    delete neither.playerSkillMultiplier;
+    expect(() => resolveEquipmentDungeonChallenge(neither)).toThrow(/必须且只能提供一种/);
+  });
+
   it('北京时间 04:00 才切换业务日期', () => {
     const before = Date.parse('2026-07-28T03:59:59+08:00');
     const after = Date.parse('2026-07-28T04:00:00+08:00');
@@ -255,6 +273,35 @@ describe('装备副本解锁与战斗事务', () => {
         8,
       );
     }
+  });
+
+  it('副本把职业真实技能栏转发给每一波战斗', () => {
+    const result = resolveEquipmentDungeonChallenge(
+      input({
+        classId: 'kenshi',
+        player: makePlayer('樱酱', 90, stats()),
+        playerSkillKit: buildDefaultPlayerSkillKit('kenshi', 90),
+      }),
+    );
+
+    expect(result.ok && result.win).toBe(true);
+    if (!result.ok || !result.win) return;
+    const skillEvents = result.waves
+      .flatMap((wave) => wave.result.events)
+      .filter(
+        (event) =>
+          event.source === 'player' &&
+          event.event.kind === 'direct-damage' &&
+          event.event.skillId,
+      );
+    expect(skillEvents.length).toBeGreaterThan(0);
+    expect(
+      skillEvents.every(
+        (event) =>
+          event.event.kind === 'direct-damage' &&
+          event.event.skillId?.startsWith('skill_kenshi_'),
+      ),
+    ).toBe(true);
   });
 
   it('星纹核保底达成时强制掉出，并把计数清回阈值以下', () => {

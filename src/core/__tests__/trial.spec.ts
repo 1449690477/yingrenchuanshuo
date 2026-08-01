@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { CLASS_IDS, type EquipmentDef } from '../types';
+import { CLASS_IDS, type ClassId, type EquipmentDef } from '../types';
 import {
   buildTrialCombatant,
   canonicalBuildHash,
@@ -37,6 +37,8 @@ import { expectedGearStats, typicalQualityAt } from '@/data/expectedPower';
 import { createInstance } from '../equipment';
 import { EQUIPMENT } from '@/data/equipment';
 import { Rng } from '../rng';
+import { buildDefaultPlayerSkillKit } from '../playerSkillKit';
+import { SLOT_ORDER } from '@/data/constants';
 
 const SEASON = TRIAL_SEASON_ID;
 // 从分段表取而不是写死 id：分段会随内容曲线重划（docs/64 §一）
@@ -49,6 +51,24 @@ function firstWeaponDef(): EquipmentDef {
   const def = Object.values(EQUIPMENT).find((d) => d.slot === 'weapon');
   if (!def) throw new Error('装备表里没有武器');
   return def;
+}
+
+function levelAppropriateEquipment(classId: ClassId, level: number) {
+  const rng = new Rng(7);
+  return SLOT_ORDER.map((slot, index) => {
+    const definition = Object.values(EQUIPMENT)
+      .filter(
+        (candidate) =>
+          candidate.slot === slot &&
+          candidate.level <= level &&
+          (!candidate.classId || candidate.classId === classId),
+      )
+      .sort(
+        (left, right) => right.level - left.level || left.id.localeCompare(right.id),
+      )[0];
+    if (!definition) throw new Error(`没有 ${classId} Lv${level} 可用的 ${slot} 装备`);
+    return createInstance(definition, rng, `trial-${slot}-${index}`, classId);
+  });
 }
 
 describe('trialWeekIndex / 周切边界', () => {
@@ -148,7 +168,14 @@ describe('weeklyTrialBoss / 每周 Boss 生成', () => {
         ),
       );
       const reference = makePlayer('基准', bracket.bossLevel, referenceStats);
-      const dps = estimateDps(reference, boss, averageSkillMultiplier(bracket.bossLevel));
+      const dps = estimateDps(
+        reference,
+        boss,
+        averageSkillMultiplier(bracket.bossLevel),
+        [],
+        buildDefaultPlayerSkillKit('swordsman', bracket.bossLevel),
+        'boss',
+      );
       // 允许取整误差：血量 ≥ 基准输出 × 时长 × (余量-1)
       expect(boss.stats.hp).toBeGreaterThanOrEqual(
         dps * TRIAL_DURATION_SEC * (TRIAL_BOSS_HP_HEADROOM - 1),
@@ -175,6 +202,28 @@ describe('buildTrialCombatant / 搭配构建', () => {
     expect(build.skillMultiplier).toBeCloseTo(averageSkillMultiplier(20), 6);
     expect(build.combatant.element).toBe('none');
     expect(build.onHitTriggers).toEqual([]);
+    expect(build.skillKit.active.length).toBeGreaterThan(0);
+    expect(
+      [...build.skillKit.active, ...build.skillKit.passives].every(
+        (entry) => entry.skill.class === 'swordsman' && entry.skill.unlockLevel <= 20,
+      ),
+    ).toBe(true);
+  });
+
+  it('樱酱试炼构建会装载真实四主动与全部已解锁被动', () => {
+    const build = buildTrialCombatant({
+      name: '樱酱',
+      classId: 'kenshi',
+      level: 120,
+      equipped: EMPTY_EQUIPPED,
+    });
+    expect(build.skillKit.active).toHaveLength(4);
+    expect(build.skillKit.passives.length).toBeGreaterThan(0);
+    expect(
+      [...build.skillKit.active, ...build.skillKit.passives].every(
+        (entry) => entry.skill.class === 'kenshi',
+      ),
+    ).toBe(true);
   });
 
   it('槽位数不对直接抛错', () => {
@@ -298,30 +347,27 @@ describe('runTrial / 试炼模拟', () => {
   });
 
   it('更强的搭配打出更高的成绩（胜任感：我在变强）', () => {
-    const rng = new Rng(7);
+    const equipped = levelAppropriateEquipment('witch', 45);
     const weak = buildTrialCombatant({
       name: 'a',
       classId: 'witch',
       level: 45,
-      equipped: EMPTY_EQUIPPED,
+      equipped: [null, ...equipped.slice(1)],
     });
-    const strongWeapon = createInstance(firstWeaponDef(), rng, 'uid-strong', 'witch');
     const strong = buildTrialCombatant({
       name: 'b',
       classId: 'witch',
       level: 45,
-      equipped: [strongWeapon, null, null, null, null, null, null, null],
+      equipped,
     });
     // 打**自己等级对应的分段**：拿 Lv45 的角色去打低段 Boss 本身就不符合玩法，
     // 而且功率差被压小时，「成绩种子依赖搭配哈希」带来的方差会盖过强弱差异。
     const bracket = trialBracketFor(45).id;
     const boss = weeklyTrialBoss(SEASON, 30, bracket).combatant;
-    const weakScore = runTrial(weak, boss, trialScoreSeed(SEASON, 30, bracket, weak.buildHash));
-    const strongScore = runTrial(
-      strong,
-      boss,
-      trialScoreSeed(SEASON, 30, bracket, strong.buildHash),
-    );
+    // 用同一战斗随机序列隔离“装备变强”这一变量；线上成绩仍按各自 buildHash 取种子。
+    const comparisonSeed = trialScoreSeed(SEASON, 30, bracket, weak.buildHash);
+    const weakScore = runTrial(weak, boss, comparisonSeed);
+    const strongScore = runTrial(strong, boss, comparisonSeed);
     expect(strongScore.damage).toBeGreaterThan(weakScore.damage);
   });
 });

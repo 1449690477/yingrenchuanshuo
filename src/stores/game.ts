@@ -156,14 +156,14 @@ import {
 } from '@/core/battleRhythm';
 import {
   accumulateIdle,
-  idleCombatEfficiency,
-  killsPerSecond,
+  idleCombatRates,
   recoverStamina,
   spendStamina,
   settleOffline,
 } from '@/core/idle';
 import { trimBag } from '@/core/bag';
 import type { IdleContext } from '@/core/idle';
+import { buildDefaultPlayerSkillKit } from '@/core/playerSkillKit';
 
 import {
   CRIT_RATE_CAP,
@@ -646,6 +646,20 @@ export const useGameStore = defineStore('game', () => {
     );
   });
 
+  /**
+   * 挂机、装备副本与联机玩法共用的真实技能栏。平均技能倍率只保留给旧表现层，
+   * 生产结算一旦拿到 skillKit 就不会再读取它。
+   */
+  const playerSkillKit = computed(() => {
+    const currentPlayer = player.value;
+    if (!currentPlayer) return null;
+    return buildDefaultPlayerSkillKit(
+      currentPlayer.classId,
+      currentPlayer.level,
+      equipmentSetResolution.value.skillMultiplierBonus,
+    );
+  });
+
   const affectionState = computed(() => save.value?.affection ?? null);
   const affectionProgress = computed(() => {
     if (!save.value) return null;
@@ -811,6 +825,8 @@ export const useGameStore = defineStore('game', () => {
     if (!save.value) return null;
     const stage = currentStage.value;
     const p = save.value.player;
+    const skillKit = playerSkillKit.value;
+    if (!skillKit) throw new Error('[技能栏状态错误] 存档已加载但玩家技能栏不存在');
 
     // 取该关第一波第一种小怪作为代表性怪物
     const firstMonId = stage.waves[0]?.monsters[0]?.id;
@@ -832,19 +848,20 @@ export const useGameStore = defineStore('game', () => {
       goldPerKill: monsterGold(monDef.level, monDef.type),
       lootTable: requireLootTable(stage.lootTableId),
       maxKillsPerSec: stage.maxKillsPerSec,
-      skillMultiplier: playerSkillMultiplier.value,
+      skillKit,
+      monsterType: monDef.type,
       onHitTriggers: equipmentSetResolution.value.onHitTriggers,
     };
   }
 
-  const kps = computed(() => {
+  const currentIdleRates = computed(() => {
     const ctx = buildIdleContext();
-    return ctx ? killsPerSecond(ctx) : 0;
+    return ctx
+      ? idleCombatRates(ctx)
+      : { playerDps: 0, efficiency: 0, killsPerSecond: 0 };
   });
-  const battleEfficiency = computed(() => {
-    const ctx = buildIdleContext();
-    return ctx ? idleCombatEfficiency(ctx) : 0;
-  });
+  const kps = computed(() => currentIdleRates.value.killsPerSecond);
+  const battleEfficiency = computed(() => currentIdleRates.value.efficiency);
 
   // ─────────── 生命周期 ───────────
 
@@ -1268,7 +1285,7 @@ export const useGameStore = defineStore('game', () => {
     const monsterStats = ctx.monster.stats;
     const playerInterval = 1 / Math.max(0.2, playerStats.spd);
     // 展示伤害取「一次普攻的期望值」量级，让飘字和血条掉速看起来自洽
-    const perHit = Math.max(1, playerStats.atk * (ctx.skillMultiplier ?? 1) * 0.6);
+    const perHit = Math.max(1, playerStats.atk * playerSkillMultiplier.value * 0.6);
 
     const advance = advanceRhythm(
       rhythmState,
@@ -1329,16 +1346,23 @@ export const useGameStore = defineStore('game', () => {
     if (canIdle.value) {
       const ctx = buildIdleContext();
       if (!ctx) return;
+      const rates = currentIdleRates.value;
       advanceBattleRhythm(dt, ctx);
       advanceEncounters(dt);
-      const acc = accumulateIdle(ctx, dt, idleCarrySec, {
-        mode: 'roll',
-        rng,
-        pity: save.value.progress.pity,
-      });
+      const acc = accumulateIdle(
+        ctx,
+        dt,
+        idleCarrySec,
+        {
+          mode: 'roll',
+          rng,
+          pity: save.value.progress.pity,
+        },
+        rates,
+      );
       idleCarrySec = acc.carrySec;
-      trackDefeat(idleCombatEfficiency(ctx), dt);
-      battleProgress.value = Math.min(0.99, idleCarrySec * killsPerSecond(ctx));
+      trackDefeat(rates.efficiency, dt);
+      battleProgress.value = Math.min(0.99, idleCarrySec * rates.killsPerSecond);
       const y = acc.yield;
       if (y.kills > 0) {
         const visualCursor =
@@ -1916,6 +1940,8 @@ export const useGameStore = defineStore('game', () => {
     if (!stage) return { ok: false, reason: 'unknown-stage' };
 
     const s = save.value;
+    const skillKit = playerSkillKit.value;
+    if (!skillKit) throw new Error('[技能栏状态错误] 存档已加载但玩家技能栏不存在');
     const previousDayKey = s.equipmentDungeon.dayKey;
     const planned = resolveEquipmentDungeonChallenge({
       stage,
@@ -1931,7 +1957,7 @@ export const useGameStore = defineStore('game', () => {
         equipCombatBonuses.value,
       ),
       classId: s.player.classId,
-      playerSkillMultiplier: playerSkillMultiplier.value,
+      playerSkillKit: skillKit,
       playerOnHitTriggers: equipmentSetResolution.value.onHitTriggers,
       playerOnLethalTriggers: equipmentSetResolution.value.onLethalTriggers,
       playerOnCritTriggers: equipmentSetResolution.value.onCritTriggers,
@@ -3420,6 +3446,7 @@ export const useGameStore = defineStore('game', () => {
     equipCombatBonuses,
     playerCombatElement,
     playerSkillMultiplier,
+    playerSkillKit,
     equipmentSetResolution,
     equipmentPresets,
     affectionState,

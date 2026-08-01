@@ -83,17 +83,18 @@ import {
 import { EQUIPMENT } from '../src/data/equipment';
 import { EQUIPMENT_DUNGEON_TIERS } from '../src/data/equipmentDungeonGear';
 import { QUALITY_FIRST_AVAILABLE_LEVEL, REGION_QUALITY_SCHEDULE } from '../src/data/qualitySchedule';
-import { idleCombatEfficiency, killsPerSecond } from '../src/core/idle';
+import { idleCombatRates, killsPerSecond } from '../src/core/idle';
 import { ALL_CHAPTERS, regionIdForChapterId } from '../src/data/regions';
 import { LEVEL_SOFT_CAP_MARGIN } from '../src/data/constants';
 import { ORDERED_STAGE_IDS, STAGES, stageClearTarget } from '../src/data/stages';
 import { MONSTERS } from '../src/data/monsters';
 import { evaluateChapterGate } from '../src/core/stageProgress';
 import { expectedGearStatsFromDefinitions, typicalQualityAt, TYPICAL_ENHANCE_MUL } from '../src/data/expectedPower';
-import { timeToKill } from '../src/core/combat';
 import { estimateDuelWinChance, type DuelSide } from '../src/core/duel';
 import type { IdleContext } from '../src/core/idle';
 import { Rng } from '../src/core/rng';
+import { buildDefaultPlayerSkillKit } from '../src/core/playerSkillKit';
+import { stratifiedSampleIndices } from '../src/core/sampling';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = resolve(__dirname, 'out');
@@ -245,7 +246,7 @@ function buildContext(cls: ClassId, level: number, stageLevel: number): IdleCont
     expPerKill: monsterExp(stageLevel),
     goldPerKill: monsterGold(stageLevel),
     lootTable: { id: 'sim', rolls: 1, entries: [] },
-    skillMultiplier: averageSkillMultiplier(level),
+    skillKit: buildDefaultPlayerSkillKit(cls, level),
   };
 }
 
@@ -608,9 +609,11 @@ const N7_LONG_TERM_CONTENT_STAGES: readonly number[] = [ORDERED_STAGE_IDS.length
  * 手感按最保守玩家校准，节奏必须按典型玩家 —— 章节门槛与推荐战力都以
  * expectedBuildCp 为锚，节奏模拟不含强化会被自己的门槛卡死，测出假卡点。
  */
-function withTypicalBuild(cls: ClassId, level: number): Stats {
+function withTypicalBuild(cls: ClassId, level: number, equipmentLevel = level): Stats {
   const base = baseStatsFor(cls, level);
-  const gear = expectedGearStatsFromDefinitions(level);
+  // 逐关模拟不能因为角色先涨到下一装备档等级，就凭空穿上尚未推进到的区域装备。
+  // 装备锚点受当前关卡等级约束；同级横向门禁省略第三参，仍保持原口径。
+  const gear = expectedGearStatsFromDefinitions(Math.min(level, equipmentLevel));
   return {
     atk: base.atk + gear.atk * TYPICAL_ENHANCE_MUL,
     def: base.def + gear.def * TYPICAL_ENHANCE_MUL,
@@ -624,7 +627,7 @@ function withTypicalBuild(cls: ClassId, level: number): Stats {
 }
 
 function typicalBuildContext(cls: ClassId, level: number, stageLevel: number): IdleContext {
-  const stats = withTypicalBuild(cls, level);
+  const stats = withTypicalBuild(cls, level, stageLevel);
   const player: Combatant = makePlayer('sim', level, stats);
   const monster = makeMonster({
     id: 'sim_mon',
@@ -642,8 +645,26 @@ function typicalBuildContext(cls: ClassId, level: number, stageLevel: number): I
     expPerKill: monsterExp(stageLevel),
     goldPerKill: monsterGold(stageLevel),
     lootTable: { id: 'sim', rolls: 1, entries: [] },
-    skillMultiplier: averageSkillMultiplier(level),
+    skillKit: buildDefaultPlayerSkillKit(cls, level),
   };
+}
+
+// 逐日模拟会在同一等级、同一关卡上按小时重复结算。真实技能轮转一次要跑
+// 两个固定种子的 120 秒战斗，因此必须缓存这个纯函数结果；否则只是把同一场
+// 标定战重复演算数千遍，并不会增加任何统计精度。
+const typicalBuildKpsCache = new Map<string, number>();
+
+function typicalBuildKillsPerSecond(
+  cls: ClassId,
+  level: number,
+  stageLevel: number,
+): number {
+  const key = `${cls}:${level}:${stageLevel}`;
+  const cached = typicalBuildKpsCache.get(key);
+  if (cached !== undefined) return cached;
+  const value = killsPerSecond(typicalBuildContext(cls, level, stageLevel));
+  typicalBuildKpsCache.set(key, value);
+  return value;
 }
 
 /**
@@ -675,7 +696,7 @@ function simulateDays(cls: ClassId, days: number): DayRecord[] {
       const softCap = Math.min(stage.level + LEVEL_SOFT_CAP_MARGIN, CONTENT_SOFT_CAP);
 
       const ctx = typicalBuildContext(cls, level, stage.level);
-      const kps = killsPerSecond(ctx);
+      const kps = typicalBuildKillsPerSecond(cls, level, stage.level);
       lastKps = kps;
       if (kps <= 0) break; // 完全打不动：这天剩余时间白挂（真实行为是效率归零）
 
@@ -705,7 +726,7 @@ function simulateDays(cls: ClassId, days: number): DayRecord[] {
       if (!isLastStage && killsInStage >= target) {
         const next = stageAt(stageIndex + 1);
         if (next.chapterId !== stage.chapterId) {
-          const cp = combatPower(withTypicalBuild(cls, level));
+          const cp = combatPower(withTypicalBuild(cls, level, stage.level));
           const gate = evaluateChapterGate(cp, level, next.chapterId);
           if (!gate.ok) continue; // 下一轮进入原地刷分支，时间照常消耗
         }
@@ -717,7 +738,7 @@ function simulateDays(cls: ClassId, days: number): DayRecord[] {
     records.push({
       天: day,
       等级: level,
-      战力: Math.round(combatPower(withTypicalBuild(cls, level))),
+      战力: Math.round(combatPower(withTypicalBuild(cls, level, stageAt(stageIndex).level))),
       当日经验: dayExp,
       挂机关卡: stageIndex + 1,
       每秒击杀: lastKps.toFixed(2),
@@ -895,6 +916,12 @@ function equipmentRandomHealth() {
 // ──────────────────────────────────────────────────────────
 
 const REFORGE_SAMPLE_SIZE = 2_000;
+// 词条分布与战力仍完整采 2,000 套；真实技能战斗用遍布完整样本流的固定分层子样本。
+// 128 套/档/职业面对 ±20% 门禁仍有充足分辨率，同时避免 verify 演算百万场战斗。
+const REFORGE_COMBAT_SAMPLE_SIZE = 128;
+const REFORGE_COMBAT_SAMPLE_INDICES = new Set(
+  stratifiedSampleIndices(REFORGE_SAMPLE_SIZE, REFORGE_COMBAT_SAMPLE_SIZE),
+);
 const REFORGE_SAMPLE_SEED = 0x43af_f1a5;
 const REFORGE_ACCEPTANCE_CASES = [
   { level: 10, quality: 'common' },
@@ -1116,6 +1143,20 @@ function playerWithProfile(cls: ClassId, level: number, profile: AffixProfile): 
   );
 }
 
+const simulatedSkillKitCache = new Map<
+  string,
+  ReturnType<typeof buildDefaultPlayerSkillKit>
+>();
+
+function simulatedSkillKit(cls: ClassId, level: number) {
+  const key = `${cls}:${level}`;
+  const cached = simulatedSkillKitCache.get(key);
+  if (cached) return cached;
+  const kit = buildDefaultPlayerSkillKit(cls, level);
+  simulatedSkillKitCache.set(key, kit);
+  return kit;
+}
+
 function idleMetricsWithProfile(
   cls: ClassId,
   level: number,
@@ -1128,14 +1169,18 @@ function idleMetricsWithProfile(
     expPerKill: monsterExp(level),
     goldPerKill: monsterGold(level),
     lootTable: { id: 'sim_reforge', rolls: 1, entries: [] },
-    skillMultiplier: averageSkillMultiplier(level),
+    skillKit: simulatedSkillKit(cls, level),
   };
+  const rates = idleCombatRates(context);
   return {
     // docs/45 把 TTK 定义为“怪物血量 / 玩家 DPS”；承伤恢复造成的减速由 η
     // 单独验收。1 / killsPerSecond 已经再次除过 η，是有效秒/杀，不是 TTK。
-    ttk: timeToKill(context.player, context.monster, context.skillMultiplier),
-    efficiency: idleCombatEfficiency(context),
-    kps: killsPerSecond(context),
+    ttk:
+      rates.playerDps > 0
+        ? context.monster.stats.hp / rates.playerDps
+        : Number.POSITIVE_INFINITY,
+    efficiency: rates.efficiency,
+    kps: rates.killsPerSecond,
   };
 }
 
@@ -1265,6 +1310,7 @@ function offenseExtremeAcceptance() {
       魔女: `${strongest.witch.build} · ${strongest.witch.kps.toFixed(4)}`,
       灵巫: `${strongest.shaman.build} · ${strongest.shaman.kps.toFixed(4)}`,
       喵喵: `${strongest.catkin.build} · ${strongest.catkin.kps.toFixed(4)}`,
+      樱酱: `${strongest.kenshi.build} · ${strongest.kenshi.kps.toFixed(4)}`,
       最大偏离: percent(deviation),
       rawDeviation: deviation,
     };
@@ -1283,6 +1329,13 @@ function offenseExtremeAcceptance() {
 }
 
 function reforgeAcceptance() {
+  if (
+    !Number.isSafeInteger(REFORGE_COMBAT_SAMPLE_SIZE) ||
+    REFORGE_COMBAT_SAMPLE_SIZE < 1 ||
+    REFORGE_COMBAT_SAMPLE_SIZE > REFORGE_SAMPLE_SIZE
+  ) {
+    throw new Error('[词条验收配置错误] 真实战斗子样本数必须位于 1..总样本数');
+  }
   for (const quality of Object.keys(LEGACY_QUALITY_AFFIX_COUNT) as Quality[]) {
     const expected =
       quality === 'common'
@@ -1362,25 +1415,28 @@ function reforgeAcceptance() {
         legacyCp += combatPower(statsWithProfile(cls, level, legacy));
         freshCp += combatPower(statsWithProfile(cls, level, fresh));
         t5Cp += combatPower(statsWithProfile(cls, level, t5));
-        const freshMetrics = idleMetricsWithProfile(cls, level, fresh);
-        const t5Metrics = idleMetricsWithProfile(cls, level, t5);
-        freshTtk += freshMetrics.ttk;
-        t5Ttk += t5Metrics.ttk;
-        freshEfficiency += freshMetrics.efficiency;
-        t5Efficiency += t5Metrics.efficiency;
-        freshKps += freshMetrics.kps;
-        t5Kps += t5Metrics.kps;
+        // 系统抽样而非只取前 128 套：把真实战斗样本均匀铺在 2,000 套固定随机流上。
+        if (REFORGE_COMBAT_SAMPLE_INDICES.has(sample)) {
+          const freshMetrics = idleMetricsWithProfile(cls, level, fresh);
+          const t5Metrics = idleMetricsWithProfile(cls, level, t5);
+          freshTtk += freshMetrics.ttk;
+          t5Ttk += t5Metrics.ttk;
+          freshEfficiency += freshMetrics.efficiency;
+          t5Efficiency += t5Metrics.efficiency;
+          freshKps += freshMetrics.kps;
+          t5Kps += t5Metrics.kps;
+        }
       }
 
       legacyCp /= REFORGE_SAMPLE_SIZE;
       freshCp /= REFORGE_SAMPLE_SIZE;
       t5Cp /= REFORGE_SAMPLE_SIZE;
-      freshTtk /= REFORGE_SAMPLE_SIZE;
-      t5Ttk /= REFORGE_SAMPLE_SIZE;
-      freshEfficiency /= REFORGE_SAMPLE_SIZE;
-      t5Efficiency /= REFORGE_SAMPLE_SIZE;
-      freshKps /= REFORGE_SAMPLE_SIZE;
-      t5Kps /= REFORGE_SAMPLE_SIZE;
+      freshTtk /= REFORGE_COMBAT_SAMPLE_SIZE;
+      t5Ttk /= REFORGE_COMBAT_SAMPLE_SIZE;
+      freshEfficiency /= REFORGE_COMBAT_SAMPLE_SIZE;
+      t5Efficiency /= REFORGE_COMBAT_SAMPLE_SIZE;
+      freshKps /= REFORGE_COMBAT_SAMPLE_SIZE;
+      t5Kps /= REFORGE_COMBAT_SAMPLE_SIZE;
       classMetrics.push({
         level,
         quality,
@@ -1415,7 +1471,9 @@ function reforgeAcceptance() {
   }
 
   console.log(
-    `\n【词条与洗练数值验收】固定种子 0x${REFORGE_SAMPLE_SEED.toString(16)}，每档每职业 ${REFORGE_SAMPLE_SIZE.toLocaleString()} 套八件装备\n`,
+    `\n【词条与洗练数值验收】固定种子 0x${REFORGE_SAMPLE_SEED.toString(16)}，` +
+      `每档每职业 ${REFORGE_SAMPLE_SIZE.toLocaleString()} 套词条/战力样本，` +
+      `${REFORGE_COMBAT_SAMPLE_SIZE} 套均匀分层真实技能战斗样本\n`,
   );
   console.table(rows);
 
@@ -1439,11 +1497,12 @@ function reforgeAcceptance() {
       魔女KPS: levelMetrics.witch.freshKps.toFixed(4),
       灵巫KPS: levelMetrics.shaman.freshKps.toFixed(4),
       喵喵KPS: levelMetrics.catkin.freshKps.toFixed(4),
+      樱酱KPS: levelMetrics.kenshi.freshKps.toFixed(4),
       新掉落最大偏离: percent(freshDeviation),
       全T5最大偏离: percent(t5Deviation),
     };
   });
-  console.log('新鲜掉落词条下的四职业真实 KPS：');
+  console.log('新鲜掉落词条下的五职业真实 KPS：');
   console.table(classRows);
 
   /*
@@ -1503,7 +1562,7 @@ function reforgeAcceptance() {
     `  全 T5 相对新掉落：${percent(minT5Gain)} ~ ${percent(maxT5Gain)}（目标 ${percent(MIN_ALL_T5_CP_GAIN)} ~ ${percent(MAX_ALL_T5_CP_GAIN)}）`,
   );
   console.log(
-    `  四职业最大有效击杀率偏离：新掉落 ${percent(maxFreshClassDeviation)}，全 T5 ${percent(maxT5ClassDeviation)}（目标均 ≤ ${percent(MAX_CLASS_DEVIATION)}）`,
+    `  五职业最大有效击杀率偏离：新掉落 ${percent(maxFreshClassDeviation)}，全 T5 ${percent(maxT5ClassDeviation)}（目标均 ≤ ${percent(MAX_CLASS_DEVIATION)}）`,
   );
   console.log(
     `  Lv${REPRESENTATIVE_TTK_LEVEL} TTK：${Math.min(...representativeTtks).toFixed(2)} ~ ${Math.max(...representativeTtks).toFixed(2)} 秒（目标 ${MIN_REPRESENTATIVE_TTK} ~ ${MAX_REPRESENTATIVE_TTK} 秒）`,
@@ -1686,6 +1745,7 @@ function pvpSide(cls: ClassId, level: number): DuelSide {
   return {
     combatant: makePlayer(`pvp-${cls}-${level}`, level, withGear(cls, level)),
     skillMultiplier: averageSkillMultiplier(level),
+    skillKit: buildDefaultPlayerSkillKit(cls, level),
   };
 }
 

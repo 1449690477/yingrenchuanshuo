@@ -125,7 +125,8 @@ export interface EquipmentDungeonChallengeInput {
   pity: PityCounters;
   player: Combatant;
   classId: ClassId;
-  playerSkillMultiplier: number;
+  /** 旧调用兼容：没有真实技能栏时才允许传平均技能倍率。 */
+  playerSkillMultiplier?: number;
   playerSkillKit?: SkillCombatKit;
   playerOnHitTriggers?: readonly OnHitElementalDamageTrigger[];
   playerOnLethalTriggers?: readonly OnLethalRecoveryTrigger[];
@@ -223,6 +224,11 @@ export function isEquipmentDungeonDepthUnlocked(
 export function resolveEquipmentDungeonChallenge(
   input: EquipmentDungeonChallengeInput,
 ): EquipmentDungeonChallengeResult {
+  const hasSkillKit = input.playerSkillKit !== undefined;
+  const hasLegacyMultiplier = input.playerSkillMultiplier !== undefined;
+  if (hasSkillKit === hasLegacyMultiplier) {
+    throw new Error('[装备副本] 真实技能栏与旧平均技能倍率必须且只能提供一种');
+  }
   const state = refreshEquipmentDungeonDay(input.state, input.now);
 
   if (!isDepthOpen(input.stage.tierId, input.depth)) {
@@ -262,8 +268,9 @@ export function resolveEquipmentDungeonChallenge(
     );
     const playerHpBefore = player.currentHp;
     const result = simulateFight(player, monster, challengeRng, {
-      playerSkillMultiplier: input.playerSkillMultiplier,
-      playerSkillKit: input.playerSkillKit,
+      ...(input.playerSkillKit
+        ? { playerSkillKit: input.playerSkillKit }
+        : { playerSkillMultiplier: input.playerSkillMultiplier! }),
       playerTargetType: encounter.monster.type,
       playerOnHitTriggers: input.playerOnHitTriggers,
       playerOnLethalTriggers: input.playerOnLethalTriggers,

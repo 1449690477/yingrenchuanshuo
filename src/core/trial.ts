@@ -18,6 +18,7 @@ import { Rng } from './rng';
 import { addStats, combatPower } from './formula';
 import { estimateDps, simulateFight, type CombatTimelineEvent } from './combat';
 import type { SkillCombatKit } from './skillCombat';
+import { buildDefaultPlayerSkillKit } from './playerSkillKit';
 import type {
   OnCritPeriodicDamageTrigger,
   OnHitElementalDamageTrigger,
@@ -209,7 +210,23 @@ export function weeklyTrialBoss(
     addStats(baseStatsFor('swordsman', level), expectedGearStats(level, quality)),
   );
   const reference = makePlayer('基准玩家', level, referenceStats);
-  const referenceDps = estimateDps(reference, proto, averageSkillMultiplier(level));
+  // 技能轮转会按目标剩余生命截断过量伤害。若直接拿 hp=1 的原型标定，
+  // 每次命中最多只记 1 点伤害，最终会把周常 Boss 的血量反推到几百点。
+  // 标定阶段使用不会在 60 秒内死亡的同属性目标，最终再把算出的血量写回真实 Boss。
+  const calibrationHp = Number.MAX_SAFE_INTEGER;
+  const calibrationTarget: Combatant = {
+    ...proto,
+    stats: { ...protoStats, hp: calibrationHp },
+    currentHp: calibrationHp,
+  };
+  const referenceDps = estimateDps(
+    reference,
+    calibrationTarget,
+    1,
+    [],
+    buildDefaultPlayerSkillKit('swordsman', level),
+    'boss',
+  );
   const hp = Math.max(1, Math.ceil(referenceDps * TRIAL_DURATION_SEC * TRIAL_BOSS_HP_HEADROOM));
 
   return {
@@ -248,7 +265,7 @@ export interface TrialBuild {
   combatant: Combatant;
   skillMultiplier: number;
   /** M3-4 真实技能栏；服务端与客户端必须由同一职业 / 等级重建。 */
-  skillKit?: SkillCombatKit;
+  skillKit: SkillCombatKit;
   onHitTriggers: readonly OnHitElementalDamageTrigger[];
   onLethalTriggers: readonly OnLethalRecoveryTrigger[];
   onCritTriggers: readonly OnCritPeriodicDamageTrigger[];
@@ -387,10 +404,16 @@ export function buildTrialCombatant(input: TrialBuildInput): TrialBuild {
   );
   const weapon = input.equipped[0];
   const element = weapon ? weaponElementOf(requireEquipment(weapon.defId)) : 'none';
+  const skillKit = buildDefaultPlayerSkillKit(
+    input.classId,
+    input.level,
+    setResolution.skillMultiplierBonus,
+  );
 
   return {
     combatant: makePlayer(input.name, input.level, stats, element, bonuses),
     skillMultiplier: averageSkillMultiplier(input.level) + setResolution.skillMultiplierBonus,
+    skillKit,
     onHitTriggers: setResolution.onHitTriggers,
     onLethalTriggers: setResolution.onLethalTriggers,
     onCritTriggers: setResolution.onCritTriggers,
@@ -457,7 +480,6 @@ export function runTrial(build: TrialBuild, boss: Combatant, seed: number): Tria
   const target: Combatant = { ...boss, stats: { ...boss.stats }, currentHp: boss.stats.hp };
   const result = simulateFight(player, target, new Rng(seed), {
     maxSeconds: TRIAL_DURATION_SEC,
-    playerSkillMultiplier: build.skillMultiplier,
     playerSkillKit: build.skillKit,
     playerTargetType: 'boss',
     playerOnHitTriggers: build.onHitTriggers,
