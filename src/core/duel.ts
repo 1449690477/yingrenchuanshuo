@@ -22,6 +22,7 @@
  */
 
 import { simulateFight, type CombatTimelineEvent } from './combat';
+import type { SkillCombatKit } from './skillCombat';
 import { Rng } from './rng';
 import { businessDayKey } from './dayKey';
 import { buildTrialCombatant, fnv1a32, type TrialBuildInput } from './trial';
@@ -56,6 +57,8 @@ import {
 export interface DuelSide {
   combatant: Combatant;
   skillMultiplier: number;
+  /** M3-4 真实技能栏；存在时优先于旧平均倍率。 */
+  skillKit?: SkillCombatKit;
   onHitTriggers?: readonly OnHitElementalDamageTrigger[];
   onLethalTriggers?: readonly OnLethalRecoveryTrigger[];
   onCritTriggers?: readonly OnCritPeriodicDamageTrigger[];
@@ -95,8 +98,10 @@ export function buildArenaDuelSide(input: TrialBuildInput, role: DuelRole): Aren
   return {
     combatant,
     skillMultiplier: build.skillMultiplier,
+    ...(build.skillKit ? { skillKit: build.skillKit } : {}),
     onHitTriggers: build.onHitTriggers,
     onLethalTriggers: build.onLethalTriggers,
+    onCritTriggers: build.onCritTriggers,
     combatPower: build.combatPower,
     buildHash: build.buildHash,
     arenaSetPieces: pieces,
@@ -208,6 +213,8 @@ export function simulateDuelWithFirst(
     maxSeconds,
     playerSkillMultiplier: first.skillMultiplier,
     monsterSkillMultiplier: second.skillMultiplier,
+    playerSkillKit: first.skillKit,
+    monsterSkillKit: second.skillKit,
     playerOnHitTriggers: first.onHitTriggers,
     monsterOnHitTriggers: second.onHitTriggers,
     playerOnLethalTriggers: first.onLethalTriggers,
@@ -216,8 +223,8 @@ export function simulateDuelWithFirst(
     monsterOnCritTriggers: second.onCritTriggers,
   });
 
-  const pPct = Math.max(0, p.currentHp) / p.stats.hp;
-  const mPct = Math.max(0, m.currentHp) / m.stats.hp;
+  const pPct = Math.max(0, p.currentHp) / result.playerMaxHp;
+  const mPct = Math.max(0, m.currentHp) / result.monsterMaxHp;
   const attackerPct = attackerFirst ? pPct : mPct;
   const defenderPct = attackerFirst ? mPct : pPct;
 
@@ -243,8 +250,10 @@ export function simulateDuelWithFirst(
     const target: DuelRole =
       (ev.target === 'player') === attackerFirst ? 'attacker' : 'defender';
     if (ev.event.kind === 'direct-damage') {
-      if (source === 'attacker') attackerActions++;
-      else defenderActions++;
+      if (ev.event.skillId === undefined || ev.event.hitIndex === 1) {
+        if (source === 'attacker') attackerActions++;
+        else defenderActions++;
+      }
       return {
         sequence: ev.sequence,
         source,

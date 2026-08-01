@@ -52,20 +52,20 @@ function instance(defId: string, uid: string): EquipmentInstance {
 }
 
 const SLOTS = ['weapon', 'head', 'body', 'ring'] as const;
-const ARENA_EQUIPMENT_CLASS_IDS = CLASS_IDS.filter((classId) => classId !== 'kenshi');
+const ARENA_EQUIPMENT_CLASS_IDS = CLASS_IDS;
 
 function arenaIdsFor(classId: (typeof CLASS_IDS)[number]): string[] {
   return ARENA_EQUIPMENT_LIST.filter((d) => d.classId === classId).map((d) => d.id);
 }
 
 describe('圣痕装备定义', () => {
-  it('16 件：4 职业 × 武器/头冠/衣装/戒指，品质跟随主线同期', () => {
-    expect(ARENA_EQUIPMENT_LIST).toHaveLength(16);
+  it('20 件：5 职业 × 武器/头冠/衣装/戒指，品质跟随主线同期', () => {
+    expect(ARENA_EQUIPMENT_LIST).toHaveLength(20);
     for (const classId of ARENA_EQUIPMENT_CLASS_IDS) {
       const pieces = ARENA_EQUIPMENT_LIST.filter((d) => d.classId === classId);
       expect(pieces.map((d) => d.slot).sort()).toEqual([...SLOTS].sort());
     }
-    expect(arenaIdsFor('kenshi')).toEqual([]);
+    expect(arenaIdsFor('kenshi')).toHaveLength(4);
     for (const def of ARENA_EQUIPMENT_LIST) {
       // 品质跟随当期主线顶（2026-07-30 品质平衡）：竞技场的回报是外观与
       // 场内套装效果，不是裸数值 —— docs/53 §零.3。等主线出圣器自然变 divine。
@@ -97,14 +97,14 @@ describe('圣痕装备定义', () => {
     }
   });
 
-  it('图标文件全部存在且互不重复（codex 已交付 16 张）', () => {
+  it('图标文件全部存在且互不重复（五职业共 20 张）', () => {
     const icons = new Set<string>();
     for (const def of ARENA_EQUIPMENT_LIST) {
       expect(icons.has(def.icon)).toBe(false);
       icons.add(def.icon);
       expect(existsSync(resolve('public', def.icon))).toBe(true);
     }
-    expect(icons.size).toBe(16);
+    expect(icons.size).toBe(20);
   });
 
   it('四槽外观全部注册（当前 slot-only，立绘不崩）', () => {

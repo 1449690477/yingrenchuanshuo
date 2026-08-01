@@ -81,7 +81,7 @@ async function alphaCountInRect(
 }
 
 describe('装备职业表现与手部对位', () => {
-  it('所有全职业通用武器都完整登记四职业名称与真实图标', async () => {
+  it('所有全职业通用武器都完整登记五职业名称与真实图标', async () => {
     const sharedWeapons = Object.values(EQUIPMENT).filter(
       (definition) => definition.slot === 'weapon' && !definition.classId,
     );

@@ -218,7 +218,53 @@ export const AFFECTION_GIFTS: Readonly<
       ],
     }),
   ],
-  kenshi: [],
+  kenshi: [
+    gift({
+      id: 'gift_kenshi_moonwhite_whetstone_case',
+      classId: 'kenshi',
+      name: '月白磨刀石匣',
+      preference: 'favorite',
+      points: 18,
+      mood: 'moved',
+      shortDescription: '粒度、规格与退换方式写得清楚，不替她擅自试磨。',
+      requiredStoryId: 'aff_kenshi_06_second_lantern',
+      cost: { itemId: 'crystal_altar', count: 1 },
+      responseLines: [
+        '规格很合适，更重要的是封条还完整；最终判断仍由我来做。',
+        '谢谢。等我想试磨时，会主动叫你来看第一道刀光。',
+      ],
+    }),
+    gift({
+      id: 'gift_kenshi_twin_sakura_tassel_case',
+      classId: 'kenshi',
+      name: '双结樱穗盒',
+      preference: 'liked',
+      points: 14,
+      mood: 'bright',
+      shortDescription: '湖蓝与樱粉两枚可拆刀穗，松紧由她亲自确认。',
+      requiredStoryId: 'aff_kenshi_06_second_lantern',
+      cost: { itemId: 'bell_wood', count: 2 },
+      responseLines: [
+        '两枚都留了可解的松结，颜色也是我真正喜欢的顺序。',
+        '我会选一枚系刀鞘；另一枚先留给下一次共同决定。',
+      ],
+    }),
+    gift({
+      id: 'gift_kenshi_sakura_blade_care_paper',
+      classId: 'kenshi',
+      name: '樱香养刀纸',
+      preference: 'regular',
+      points: 10,
+      mood: 'calm',
+      shortDescription: '气味清淡的日常养护纸，实用且不替代她的专业判断。',
+      requiredStoryId: 'aff_kenshi_06_second_lantern',
+      cost: { itemId: 'petal_sakura', count: 4 },
+      responseLines: [
+        '香味很轻，擦完不会盖住刀油本来的气息。很实用。',
+        '礼物收下。下次保养时，你仍然先替我数归鞘声。',
+      ],
+    }),
+  ],
 };
 
 export const AFFECTION_GIFT_LIST: readonly AffectionGiftDefinition[] =

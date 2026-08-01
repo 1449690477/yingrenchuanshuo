@@ -35,9 +35,15 @@ export const ARENA_SHOP_PRICES: Readonly<Record<ArenaShopEntry['slot'], number>>
 } as const;
 
 const ARENA_SHOP_SLOTS = ['weapon', 'head', 'body', 'ring'] as const;
-const ARENA_SHOP_CLASSES: readonly ClassId[] = ['swordsman', 'witch', 'shaman', 'catkin'];
+const ARENA_SHOP_CLASSES: readonly ClassId[] = [
+  'swordsman',
+  'witch',
+  'shaman',
+  'catkin',
+  'kenshi',
+];
 
-/** 全部 16 个货架（4 职业 × 4 部位）。 */
+/** 全部 20 个货架（5 职业 × 4 部位）。 */
 export const ARENA_SHOP_ENTRIES: readonly ArenaShopEntry[] = ARENA_SHOP_CLASSES.flatMap(
   (classId) =>
     ARENA_SHOP_SLOTS.map((slot) => ({

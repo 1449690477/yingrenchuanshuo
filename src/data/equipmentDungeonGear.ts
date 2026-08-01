@@ -2,9 +2,9 @@
  * 装备副本专属装备。
  *
  * 数量设计：
- *   4 个品质档 ×（4 职业武器 + 4 职业礼服 + 6 个通用部位 × 2 款）= 80 件。
+ *   4 个品质档 ×（5 职业武器 + 5 职业礼服 + 6 个通用部位 × 2 款）= 88 件。
  *
- * 武器与礼服做职业专属，保证四名角色都有贴合职业气质的核心外观；
+ * 武器与礼服做职业专属，保证五名角色都有贴合职业气质的核心外观；
  * 其余部位提供「星辉 / 守护」两条搭配路线，让同品质也有取舍。
  */
 
@@ -147,9 +147,8 @@ const CLASS_GEAR: Readonly<
   kenshi: {
     weaponNoun: '落樱居合刀',
     dressNoun: '白樱羽织礼裙',
-    // P1 只登记数据，显式复用现有猫耳素材；P2 再替换专属视觉键。
-    weaponVisualKey: 'weapon-catkin',
-    bodyVisualKey: 'body-catkin',
+    weaponVisualKey: 'weapon-kenshi',
+    bodyVisualKey: 'body-kenshi',
     weaponAffix: 'critDmg',
     bodyAffix: 'hp',
     attackCopy: '蓝白刀光穿过樱瓣后瞬间归鞘',

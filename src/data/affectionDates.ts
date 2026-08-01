@@ -744,12 +744,178 @@ const CATKIN_DATES: readonly AffectionDateDefinition[] = [
   },
 ] as const;
 
+const KENSHI_DATES: readonly AffectionDateDefinition[] = [
+  {
+    slot: 'morning',
+    story: {
+      id: 'aff_kenshi_10_tassel_market',
+      classId: 'kenshi',
+      episode: 10,
+      title: '晨市挑一枚刀穗',
+      episodeLabel: '第十幕 · 晨市刀穗',
+      unlockPoints: 3_000,
+      requiredStoryIds: ['aff_kenshi_09_route_map'],
+      completionPoints: 60,
+      backgroundAsset: 'assets/affection/scenes/kenshi-tassel-market-morning.webp',
+      openingDialogue: [
+        { text: '晨市刚开，白、湖蓝与樱粉三色刀穗在风里轻轻晃动，她把自己的偏好清单铺在摊前。' },
+        { speaker: '樱酱', mood: 'bright', text: '今天不说“都可以”。我要亲自挑一枚《真正喜欢、也真正顺手》的。' },
+      ],
+      choices: [
+        {
+          id: 'test_balance',
+          label: '“先系临时结试三次归鞘，顺手才作数。”',
+          mood: 'bright',
+          responseDialogue: [
+            { speaker: '樱酱', mood: 'bright', text: '第三次最稳。好看和实用终于没有打架。' },
+            { text: '她亲自解开临时结，选定长度后才请摊主完成正式缝制。' },
+          ],
+        },
+        {
+          id: 'follow_palette',
+          label: '“按白、蓝、粉的顺序摆出来，最后由你拿起那枚。”',
+          mood: 'moved',
+          responseDialogue: [
+            { speaker: '樱酱', mood: 'moved', text: '你记得顺序，也记得把最后的选择留给我。' },
+            { text: '她从三枚候选中取走湖蓝结那一枚，笑意比晨光更快亮起来。' },
+          ],
+        },
+        {
+          id: 'leave_without_buying',
+          label: '“若今天没有合适的，就空手喝茶；约会已经成立。”',
+          mood: 'shy',
+          responseDialogue: [
+            { speaker: '樱酱', mood: 'shy', text: '那我反而更敢慢慢挑了。谢谢你不把购买当作任务。' },
+            { text: '她又看了一圈，最后只记下尺寸，与你轻松走向茶摊。' },
+          ],
+        },
+      ],
+      memoryCallbacks: [
+        {
+          fromStoryId: 'aff_kenshi_07_gift',
+          choiceId: 'keep_receipt',
+          dialogue: [{ speaker: '樱酱', text: '那张磨石票据还在。今天的刀穗也要保留改变主意的余地。' }],
+        },
+      ],
+    },
+  },
+  {
+    slot: 'afternoon',
+    story: {
+      id: 'aff_kenshi_11_riverside_tea',
+      classId: 'kenshi',
+      episode: 11,
+      title: '樱川边的收刀午茶',
+      episodeLabel: '第十一幕 · 樱川午茶',
+      unlockPoints: 3_500,
+      requiredStoryIds: ['aff_kenshi_10_tassel_market'],
+      completionPoints: 60,
+      backgroundAsset: 'assets/affection/scenes/kenshi-riverside-tea-afternoon.webp',
+      openingDialogue: [
+        { text: '午后的樱川风很轻，她完成约定的三次归鞘便把刀稳稳放回架上，没有再给自己追加训练。' },
+        { speaker: '樱酱', mood: 'calm', text: '以前停下来会觉得输给了自己。现在我想试试，把《休息也算进今天的练习》。' },
+      ],
+      choices: [
+        {
+          id: 'pour_two_cups',
+          label: '“一人倒一杯，谁都不用负责照顾完整桌。”',
+          mood: 'moved',
+          responseDialogue: [
+            { speaker: '樱酱', mood: 'moved', text: '那我倒茶，你摆点心；完成后都坐下。' },
+            { text: '两只杯子同时冒起热气，没有一人留在桌边忙个不停。' },
+          ],
+        },
+        {
+          id: 'listen_to_river',
+          label: '“今天不复盘剑招，只听一会儿水声。”',
+          mood: 'calm',
+          responseDialogue: [
+            { speaker: '樱酱', mood: 'calm', text: '好。若我又开始数节拍，你就提醒我是在约会。' },
+            { text: '她靠着自己的坐垫闭上眼，刀与责任都安静留在触手可及、却无需握紧的位置。' },
+          ],
+        },
+        {
+          id: 'name_a_preference',
+          label: '“轮流说一件今天真正想要的事，不用客气。”',
+          mood: 'shy',
+          responseDialogue: [
+            { speaker: '樱酱', mood: 'shy', text: '我想让午茶再久一点，也想让你明天还来。两件都是真话。' },
+            { text: '她说完没有用武士礼掩饰，只坦然等待你自己的答案。' },
+          ],
+        },
+      ],
+      memoryCallbacks: [
+        {
+          fromStoryId: 'aff_kenshi_08_preference',
+          choiceId: 'invite_dislike',
+          dialogue: [{ speaker: '樱酱', text: '你允许我说不喜欢什么，所以今天我也能直接说：不想加练。' }],
+        },
+      ],
+    },
+  },
+  {
+    slot: 'night',
+    story: {
+      id: 'aff_kenshi_12_lantern_sign',
+      classId: 'kenshi',
+      episode: 12,
+      title: '灯牌写着下一次归来',
+      episodeLabel: '第十二幕 · 双钥刀匣',
+      unlockPoints: 4_100,
+      requiredStoryIds: ['aff_kenshi_11_riverside_tea'],
+      completionPoints: 60,
+      backgroundAsset: 'assets/affection/scenes/kenshi-dojo-lantern-night.webp',
+      cgAsset: 'assets/affection/cg/kenshi-dojo-keyplate.webp',
+      openingDialogue: [
+        { text: '夜色中的道场门前，两把各自生效的钥匙、一只双层刀匣和一块可擦写灯牌并排放好。' },
+        { speaker: '樱酱', mood: 'moved', text: '刀匣不合并我们的刀，钥匙也不代表永久入住。灯牌只写一句——《下一次归来，再一起决定》。' },
+      ],
+      choices: [
+        {
+          id: 'keep_two_sheaths',
+          label: '“两层刀匣各有锁，愿意展示时再打开。”',
+          mood: 'moved',
+          responseDialogue: [
+            { speaker: '樱酱', mood: 'moved', text: '并肩不需要交出全部边界。这样我会更愿意一次次打开。' },
+            { text: '两把钥匙分别收好，刀匣中央只留下双方共同使用的养护布。' },
+          ],
+        },
+        {
+          id: 'write_next_return',
+          label: '“灯牌不写永远，只写明天是否方便一起喝茶。”',
+          mood: 'bright',
+          responseDialogue: [
+            { speaker: '樱酱', mood: 'bright', text: '那我先写今天的答案：明天方便，而且期待。' },
+            { text: '她落下清楚的字，又把笔递给你，让下一行保持双向。' },
+          ],
+        },
+        {
+          id: 'choose_routes_again',
+          label: '“保留各自道路；每次相遇都重新选择同行。”',
+          mood: 'shy',
+          responseDialogue: [
+            { speaker: '樱酱', mood: 'shy', text: '我会继续练自己的刀，也会认真走向每一次与你约好的会合点。' },
+            { text: '归鞘铃轻响一次，两盏灯并列亮起，没有任何一条路被封住。' },
+          ],
+        },
+      ],
+      memoryCallbacks: [
+        {
+          fromStoryId: 'aff_kenshi_09_route_map',
+          choiceId: 'renew_each_trip',
+          dialogue: [{ speaker: '樱酱', text: '旧巡路图已经珍藏好；今晚这块灯牌，仍由现在的我们重新写。' }],
+        },
+      ],
+    },
+  },
+] as const;
+
 export const AFFECTION_DATES: Readonly<Record<ClassId, readonly AffectionDateDefinition[]>> = {
   swordsman: SWORDSMAN_DATES,
   witch: WITCH_DATES,
   shaman: SHAMAN_DATES,
   catkin: CATKIN_DATES,
-  kenshi: [],
+  kenshi: KENSHI_DATES,
 } as const;
 
 export const AFFECTION_DATE_STORIES: readonly AffectionStoryDefinition[] = Object.values(

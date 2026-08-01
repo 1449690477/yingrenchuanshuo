@@ -748,6 +748,66 @@
       "callId": "exec-28ff8ff2-5a9b-4ce1-a37d-e4ccd09679b3",
       "path": "modular/catkin/r6-shadow/weapon-alpha.png",
       "sha256": "b53d825710166669668968cd07d2200f8e25f23af89f361a0c7234e8da002b0a"
+    },
+    "layer:kenshi-r6-body:149": {
+      "callId": "contract-kenshi-r6-r6-body",
+      "path": "repo:art-source/characters/kenshi/regions/r6-body-chroma.png",
+      "sha256": "5d7c9ad42d8a7183dc14086077a6b1bb0122e7a735814d1317dd7ad62e35af93"
+    },
+    "layer:kenshi-r6-body:150": {
+      "callId": "contract-kenshi-r6-r6-body",
+      "path": "repo:art-source/characters/kenshi/regions/r6-body-alpha.png",
+      "sha256": "85f3cb5731b63102c947814ca7ee0d30e441d0c0dc639c2ddcb8e546c11be821"
+    },
+    "layer:kenshi-r6-head:151": {
+      "callId": "contract-kenshi-r6-r6-head",
+      "path": "repo:art-source/characters/kenshi/regions/r6-head-chroma.png",
+      "sha256": "10c90ff2207fa51acb9fb9a07e44d7a5656f4f4dbc3c169780e9490bb1746150"
+    },
+    "layer:kenshi-r6-head:152": {
+      "callId": "contract-kenshi-r6-r6-head",
+      "path": "repo:art-source/characters/kenshi/regions/r6-head-alpha.png",
+      "sha256": "a0849f2a955475d0d33cc0d15181c07f12c91f104eed1fc57fe107a379b8e136"
+    },
+    "layer:kenshi-r6-weapon:153": {
+      "callId": "contract-kenshi-r6-r6-weapon",
+      "path": "repo:art-source/characters/kenshi/regions/r6-weapon-chroma.png",
+      "sha256": "46ebd823c7cbe7be82f3e25f523012175bb1769010855ca975b2773c0c7721ee"
+    },
+    "layer:kenshi-r6-weapon:154": {
+      "callId": "contract-kenshi-r6-r6-weapon",
+      "path": "repo:art-source/characters/kenshi/regions/r6-weapon-alpha.png",
+      "sha256": "a604aeb3f2898b0118d694b1be6cf5cefde70322e96ad9b7f1262d0ad32c2a0f"
+    },
+    "set-layer:kenshi-r6-shadow-body:155": {
+      "callId": "contract-kenshi-r6-r6-shadow-body",
+      "path": "repo:art-source/characters/kenshi/regions/r6-shadow-body-chroma.png",
+      "sha256": "62ad74f9a133e7bf0777bb21db529430518ef72a7085868e3af40170722a1bdc"
+    },
+    "set-layer:kenshi-r6-shadow-body:156": {
+      "callId": "contract-kenshi-r6-r6-shadow-body",
+      "path": "repo:art-source/characters/kenshi/regions/r6-shadow-body-alpha.png",
+      "sha256": "19995a8de4de220d54a3e82a3846f109ebee5bc889fadd5f6a5a7255100d35dc"
+    },
+    "set-layer:kenshi-r6-shadow-head:157": {
+      "callId": "contract-kenshi-r6-r6-shadow-head",
+      "path": "repo:art-source/characters/kenshi/regions/r6-shadow-head-chroma.png",
+      "sha256": "06e55137ec795ecf1b0b23abd38c6ff8e9c5b508a1593a1d739f333e86b6748e"
+    },
+    "set-layer:kenshi-r6-shadow-head:158": {
+      "callId": "contract-kenshi-r6-r6-shadow-head",
+      "path": "repo:art-source/characters/kenshi/regions/r6-shadow-head-alpha.png",
+      "sha256": "ff30405b36c9136be634e9b43d2f8a6d2626249aaeb263bdb1378378354b7755"
+    },
+    "set-layer:kenshi-r6-shadow-weapon:159": {
+      "callId": "contract-kenshi-r6-r6-shadow-weapon",
+      "path": "repo:art-source/characters/kenshi/regions/r6-shadow-weapon-chroma.png",
+      "sha256": "185076bfeed7bbf91b8157828c19e9aedb0f278ecf466233df07ee7904678870"
+    },
+    "set-layer:kenshi-r6-shadow-weapon:160": {
+      "callId": "contract-kenshi-r6-r6-shadow-weapon",
+      "path": "repo:art-source/characters/kenshi/regions/r6-shadow-weapon-alpha.png",
+      "sha256": "85d57eb42650ba7b90fa1b6966df552b9b187c0dd7e88845117b5174ccb8b8f2"
     }
   },
   "runtime": {
@@ -1072,6 +1132,30 @@
     "set-layer:catkin-r6-shadow-weapon": {
       "path": "public/assets/characters/modular/catkin/r6-shadow-weapon.png",
       "sha256": "56128feb1211da0d25b228a57374ecb2b2b75c43acec2133a5a5347bf7cd3141"
+    },
+    "layer:kenshi-r6-body": {
+      "path": "public/assets/characters/modular/kenshi/r6-body.png",
+      "sha256": "4f91db73c9c032934e81e3bc12eb5914799005ba8f2ed562671b0a4b6c018d14"
+    },
+    "layer:kenshi-r6-head": {
+      "path": "public/assets/characters/modular/kenshi/r6-head.png",
+      "sha256": "6b34335b55104db411c4aa66d64a239d4859e101c437eed23d151db2256439b6"
+    },
+    "layer:kenshi-r6-weapon": {
+      "path": "public/assets/characters/modular/kenshi/r6-weapon.png",
+      "sha256": "4cf459fbe906e1b2068927b0fe535e1cb4fa77035d6271887dc9b3717b4608af"
+    },
+    "set-layer:kenshi-r6-shadow-body": {
+      "path": "public/assets/characters/modular/kenshi/r6-shadow-body.png",
+      "sha256": "74b2b0e3f5f26526012e25f240c51edd2939e00d7a4bcb38ca0dbfa39bb51507"
+    },
+    "set-layer:kenshi-r6-shadow-head": {
+      "path": "public/assets/characters/modular/kenshi/r6-shadow-head.png",
+      "sha256": "93fae7b8f26db027558e8b79a03fb42269ed167315a271b025af4e10017cffb4"
+    },
+    "set-layer:kenshi-r6-shadow-weapon": {
+      "path": "public/assets/characters/modular/kenshi/r6-shadow-weapon.png",
+      "sha256": "d135751d24aa74c0121445277c1a029873eb62abde0e6f34a7b53b1bd539d2ec"
     }
   }
 }

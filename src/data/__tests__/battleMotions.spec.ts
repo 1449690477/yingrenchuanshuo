@@ -16,7 +16,7 @@ import { MONSTERS } from '../monsters';
 import { MONSTER_VISUALS, requireMonsterVisual } from '../monsterVisuals';
 
 describe('职业挂机动作序列', () => {
-  it('四职业都有三个稳定轮换且不完全相同的普攻姿势', () => {
+  it('五职业都有三个稳定轮换且不完全相同的普攻姿势', () => {
     const signatures = CLASS_IDS.map((classId) => {
       const sequence = CLASS_BATTLE_MOTIONS[classId].basicSequence;
       expect(sequence).toHaveLength(3);
@@ -36,6 +36,20 @@ describe('职业挂机动作序列', () => {
       'attack',
     ]);
     expect(basicBattleAction('catkin', 17)).toBe(basicBattleAction('catkin', 17));
+  });
+
+  it('樱酱以突进、居合、蓄势三拍轮换，受击固定为刀鞘卸力', () => {
+    expect([1, 2, 3, 4].map((seq) => basicBattleAction('kenshi', seq))).toEqual([
+      'dash',
+      'attack',
+      'cast',
+      'dash',
+    ]);
+    expect(CLASS_BATTLE_MOTIONS.kenshi).toMatchObject({
+      reactStyle: 'parry',
+      reactMs: 280,
+      victoryMs: 1500,
+    });
   });
 
   it.each([0, -1, 1.5, Number.NaN])('非法拍子序号 %s 直接报错', (seq) => {
@@ -161,7 +175,7 @@ describe('IMPACT_FEEDBACK', () => {
   });
 });
 
-describe('四职业受击性格', () => {
+describe('五职业受击性格', () => {
   it('每个职业都有各自的受击风格，不共用同一套', () => {
     const styles = CLASS_IDS.map((id) => CLASS_BATTLE_MOTIONS[id].reactStyle);
     expect(new Set(styles).size).toBe(CLASS_IDS.length);

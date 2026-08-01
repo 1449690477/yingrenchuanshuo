@@ -13,13 +13,13 @@ import {
   requireAffectionEquipment,
 } from '../affectionEquipment';
 
-const AFFECTION_EQUIPMENT_CLASS_IDS = CLASS_IDS.filter((classId) => classId !== 'kenshi');
+const AFFECTION_EQUIPMENT_CLASS_IDS = CLASS_IDS;
 
 describe('心虹好感专属装备', () => {
-  it('四位角色各有十件，覆盖八个部位与两件替换款', () => {
-    expect(AFFECTION_EQUIPMENT_LIST).toHaveLength(40);
-    expect(new Set(AFFECTION_EQUIPMENT_LIST.map((entry) => entry.definition.id)).size).toBe(40);
-    expect(new Set(AFFECTION_EQUIPMENT_LIST.map((entry) => entry.definition.name)).size).toBe(40);
+  it('五位角色各有十件，覆盖八个部位与两件替换款', () => {
+    expect(AFFECTION_EQUIPMENT_LIST).toHaveLength(50);
+    expect(new Set(AFFECTION_EQUIPMENT_LIST.map((entry) => entry.definition.id)).size).toBe(50);
+    expect(new Set(AFFECTION_EQUIPMENT_LIST.map((entry) => entry.definition.name)).size).toBe(50);
 
     const requiredSlots = new Set<EquipSlot>([
       'weapon',
@@ -103,13 +103,13 @@ describe('心虹好感专属装备', () => {
     expect(() => eligibleAffectionEquipmentIds('witch', 0, 0)).toThrow('玩家等级');
   });
 
-  it('樱酱 P1 不伪造尚未制作的好感专属装备', () => {
-    expect(affectionEquipmentForClass('kenshi')).toEqual([]);
-    expect(affectionEquipmentIdsForClass('kenshi')).toEqual([]);
-    expect(eligibleAffectionEquipmentIds('kenshi', 9_999, 99)).toEqual([]);
+  it('樱酱具备完整十件心虹珍藏并按进度开放', () => {
+    expect(affectionEquipmentForClass('kenshi')).toHaveLength(10);
+    expect(affectionEquipmentIdsForClass('kenshi')).toHaveLength(10);
+    expect(eligibleAffectionEquipmentIds('kenshi', 1_100, 99)).toHaveLength(10);
   });
 
-  it('四十张运行时图标均存在、透明且尺寸统一', async () => {
+  it('五十张运行时图标均存在、透明且尺寸统一', async () => {
     for (const entry of AFFECTION_EQUIPMENT_LIST) {
       const asset = entry.definition.icon;
       const assetPath = resolve('public', asset);

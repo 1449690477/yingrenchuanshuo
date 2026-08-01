@@ -122,8 +122,7 @@ export const ITEMS: Record<string, ItemDef> = {
           420,
           '刻着樱与刀穗的徽章，唤出属于樱酱的居合剑意。',
         ),
-        // P1 显式复用同为猫耳职业的正式徽记图；P2 再替换专属刀穗图标。
-        icon: 'assets/items/sigil_catkin.png',
+        icon: 'assets/items/sigil_kenshi.png',
       },
       mat(
         'crystal_resonance',

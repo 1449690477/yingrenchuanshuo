@@ -25,10 +25,10 @@ import {
 } from '../imprintRules';
 
 describe('装备副本 88 件装备矩阵', () => {
-  it('精确生成 88 件，ID/名称唯一，樱酱 P1 只复用八张已登记图层', () => {
+  it('精确生成 88 件，ID、名称与五职业核心图标全部唯一', () => {
     expect(EQUIPMENT_DUNGEON_GEAR_LIST).toHaveLength(88);
     for (const field of ['id', 'name', 'icon'] as const) {
-      const expectedUniqueCount = field === 'icon' ? 80 : 88;
+      const expectedUniqueCount = 88;
       expect(new Set(EQUIPMENT_DUNGEON_GEAR_LIST.map((item) => item[field])).size).toBe(
         expectedUniqueCount,
       );
@@ -52,7 +52,7 @@ describe('装备副本 88 件装备矩阵', () => {
     }
   });
 
-  it('四职业在四档都能取得完整 8 槽，且不会混入其他职业专属件', () => {
+  it('五职业在四档都能取得完整 8 槽，且不会混入其他职业专属件', () => {
     for (const tier of EQUIPMENT_DUNGEON_TIERS) {
       for (const classId of CLASS_IDS) {
         for (const slot of SLOT_ORDER) {
@@ -236,7 +236,7 @@ describe('8 门户 × 4 档装备副本', () => {
     expect(highGear.some((item) => dropIds.has(item.id))).toBe(false);
   });
 
-  it('8 张地图、16 个怪物与 80 个独立装备图标均达到运行规格', async () => {
+  it('8 张地图、16 个怪物与 88 个独立装备图标均达到运行规格', async () => {
     const maps = [...new Set(EQUIPMENT_DUNGEON_PORTALS.map((portal) => portal.mapAsset))];
     const monsters = [
       ...new Set(
@@ -248,7 +248,7 @@ describe('8 门户 × 4 档装备副本', () => {
     const icons = [...new Set(EQUIPMENT_DUNGEON_GEAR_LIST.map((item) => item.icon))];
     expect(maps).toHaveLength(8);
     expect(monsters).toHaveLength(16);
-    expect(icons).toHaveLength(80);
+    expect(icons).toHaveLength(88);
 
     for (const asset of maps) {
       const path = resolve('public', asset);

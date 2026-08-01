@@ -5,7 +5,7 @@
  * 运行时压缩资源、可复现构建器、来源锁和 QA 联系表。
  */
 
-export const REGION6_CLASSES = ['swordsman', 'witch', 'shaman', 'catkin'];
+export const REGION6_CLASSES = ['swordsman', 'witch', 'shaman', 'catkin', 'kenshi'];
 export const REGION6_VISIBLE_SLOTS = ['body', 'head', 'weapon'];
 export const REGION6_SLOTS = [
   'weapon',
@@ -153,6 +153,18 @@ const modularCallIds = {
       weapon: 'exec-28ff8ff2-5a9b-4ce1-a37d-e4ccd09679b3',
     },
   },
+  kenshi: {
+    r6: {
+      body: 'contract-kenshi-r6-r6-body',
+      head: 'contract-kenshi-r6-r6-head',
+      weapon: 'contract-kenshi-r6-r6-weapon',
+    },
+    'r6-shadow': {
+      body: 'contract-kenshi-r6-r6-shadow-body',
+      head: 'contract-kenshi-r6-r6-shadow-head',
+      weapon: 'contract-kenshi-r6-r6-shadow-weapon',
+    },
+  },
 };
 
 export const REGION6_MODULAR_LAYERS = REGION6_CLASSES.flatMap((classId) =>
@@ -181,11 +193,11 @@ export const REGION6_COUNTS = Object.freeze({
   items: 5,
   equipment: 8,
   setEquipment: 8,
-  modularLayers: 12,
-  setModularLayers: 12,
+  modularLayers: 15,
+  setModularLayers: 15,
   regionContentRuntime: 55,
   regionSetRuntime: 20,
-  runtimeTotal: 80,
+  runtimeTotal: 86,
 });
 
 export const REGION6_ALL_ASSETS = [

@@ -35,6 +35,10 @@ scripts/out/
 tmp-*.png
 tmp-*.jpg
 
+# ImageGen 原始输出已保存在仓库外的 .codex/generated_images；仓内只登记规范化
+# chroma / alpha 母版，避免把同一批未经规格化的 raw 副本重复写入 Git 历史。
+art-source/characters/kenshi/**/raw/
+
 # Edge Function 打包产物（npm run edge:build 重新生成）
 #
 # 全部忽略，不再只忽略 submit-trial 一个。原先九个函数里只有它被忽略、

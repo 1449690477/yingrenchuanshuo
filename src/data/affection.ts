@@ -2055,6 +2055,297 @@ const CATKIN_STORIES: readonly AffectionStoryDefinition[] = [
   },
 ] as const;
 
+type KenshiChoiceSeed = readonly [
+  id: string,
+  label: string,
+  mood: AffectionMood,
+  spoken: string,
+  narration: string,
+];
+
+function kenshiStory(definition: {
+  id: string;
+  episode: number;
+  title: string;
+  episodeLabel: string;
+  unlockPoints: number;
+  requiredStoryIds: readonly string[];
+  completionPoints: number;
+  backgroundAsset: string;
+  cgAsset?: string;
+  opening: readonly [narration: string, spoken: string];
+  choices: readonly [KenshiChoiceSeed, KenshiChoiceSeed, KenshiChoiceSeed];
+  memoryCallbacks?: readonly AffectionMemoryCallback[];
+}): AffectionStoryDefinition {
+  const choices = definition.choices.map(
+    ([id, label, mood, spoken, narration]): AffectionStoryChoiceDefinition => ({
+      id,
+      label,
+      mood,
+      responseDialogue: [
+        { speaker: '樱酱', mood, text: spoken },
+        { text: narration },
+      ],
+    }),
+  ) as unknown as AffectionStoryDefinition['choices'];
+  return {
+    id: definition.id,
+    classId: 'kenshi',
+    episode: definition.episode,
+    title: definition.title,
+    episodeLabel: definition.episodeLabel,
+    unlockPoints: definition.unlockPoints,
+    requiredStoryIds: definition.requiredStoryIds,
+    completionPoints: definition.completionPoints,
+    backgroundAsset: definition.backgroundAsset,
+    ...(definition.cgAsset ? { cgAsset: definition.cgAsset } : {}),
+    openingDialogue: [
+      { text: definition.opening[0] },
+      { speaker: '樱酱', mood: 'calm', text: definition.opening[1] },
+    ],
+    choices,
+    ...(definition.memoryCallbacks ? { memoryCallbacks: definition.memoryCallbacks } : {}),
+  };
+}
+
+const KENSHI_STORIES: readonly AffectionStoryDefinition[] = [
+  kenshiStory({
+    id: 'aff_kenshi_01_permission',
+    episode: 1,
+    title: '先问，再出刀',
+    episodeLabel: '第一幕 · 落樱道场',
+    unlockPoints: 0,
+    requiredStoryIds: [],
+    completionPoints: 30,
+    backgroundAsset: 'assets/affection/scenes/kenshi-dojo-sakura-dawn.webp',
+    opening: [
+      '晨光穿过落樱道场，她将小太刀横放在膝前，刀穗与白羽织都一丝不乱。',
+      '刀可以借你看，但请先问清楚想碰哪里。《尊重边界，也是剑礼的一部分》。',
+    ],
+    choices: [
+      ['ask_scabbard', '“我能拿起刀鞘看纹样吗？刀柄和刀穗都不碰。”', 'moved', '可以。你问得很清楚，我也答得很放心。', '她主动将刀鞘转向你，刀锋始终安稳地留在自己身侧。'],
+      ['watch_only', '“今天先只看你演示；想让我帮忙时再开口。”', 'bright', '那就替我数十次归鞘。只看节奏，不替我纠正。', '十声轻响落在晨风里，她的肩线慢慢松下来。'],
+      ['set_signal', '“我们约一个停手信号，任何一方说了就立即暂停。”', 'calm', '很好。《收刀》就是今天的停止信号，双方都能说。', '她先示范了一次收刀，也认真等你复述规则。'],
+    ],
+  }),
+  kenshiStory({
+    id: 'aff_kenshi_02_rainstep',
+    episode: 2,
+    title: '雨声里慢半步',
+    episodeLabel: '第二幕 · 檐下同行',
+    unlockPoints: 80,
+    requiredStoryIds: ['aff_kenshi_01_permission'],
+    completionPoints: 45,
+    backgroundAsset: 'assets/affection/scenes/kenshi-rain-eaves-blue.webp',
+    opening: [
+      '骤雨落在道场外，她把湿透的刀袋护在怀里，却仍坚持按原定路线巡完石阶。',
+      '我不是走不动，只是……今天可以《慢半步》。别把这句话当成命令。',
+    ],
+    choices: [
+      ['match_pace', '“我配合你的速度；快慢都由你随时调整。”', 'moved', '那就并肩。不是你等我，也不是我追你。', '两人的脚步在檐下重新合成同一段安静节拍。'],
+      ['offer_dry_cloth', '“干布放在这里，你决定先擦刀袋还是先休息。”', 'calm', '先坐下，再处理刀袋。今天我想把人放在装备前面。', '她自己拿起干布，也给你留出长椅另一端。'],
+      ['share_umbrella', '“伞在中间，一人一半；谁都不用替谁淋雨。”', 'bright', '公平。若伞偏了，你要提醒我，不许逞强。', '蓝伞在两人正中撑开，雨线从两侧等距落下。'],
+    ],
+  }),
+  kenshiStory({
+    id: 'aff_kenshi_03_homebell',
+    episode: 3,
+    title: '收刀时有人等',
+    episodeLabel: '第三幕 · 归鞘铃',
+    unlockPoints: 240,
+    requiredStoryIds: ['aff_kenshi_02_rainstep'],
+    completionPoints: 60,
+    backgroundAsset: 'assets/affection/scenes/kenshi-moonlit-scabbard.webp',
+    cgAsset: 'assets/affection/cg/kenshi-bluebell-scabbard.webp',
+    memoryCallbacks: rememberedChoices('aff_kenshi_02_rainstep', '樱酱', [
+      ['match_pace', '雨里并肩的步速我还记得。今晚也不必赶在谁前面。'],
+      ['offer_dry_cloth', '你那天让我先照顾自己，所以今晚我也先把热茶放好了。'],
+      ['share_umbrella', '那把伞分得很公平；这枚铃也该由我们一起决定挂在哪里。'],
+    ]),
+    opening: [
+      '月光落在刀架上，一枚蓝白归鞘铃安静躺在刀鞘旁，没有被任何人擅自系上。',
+      '它不是护身命令，只提醒我战斗结束后也要回来。挂不挂、挂哪里，《我们现在一起决定》。',
+    ],
+    choices: [
+      ['tie_with_permission', '“你扶住刀鞘，我按你指定的位置系；不合适就立刻拆。”', 'shy', '可以。松一点……对，就是这里。谢谢你先等我点头。', '铃结保持可解，她亲自完成最后一次松紧确认。'],
+      ['keep_on_stand', '“也可以先放在刀架，不必为了纪念立刻佩戴。”', 'moved', '被珍惜不等于必须使用。那就让它先在这里等。', '蓝铃映着月光，安静守在属于它的位置。'],
+      ['ring_after_return', '“每次安全归来再摇一次，只庆祝结束，不催促出发。”', 'bright', '约定成立。《归来才响》，不把任何人推回战场。', '她轻摇一次铃，清脆声音停在已经收好的刀锋之外。'],
+    ],
+  }),
+  kenshiStory({
+    id: 'aff_kenshi_04_nick',
+    episode: 4,
+    title: '缺口也能被看见',
+    episodeLabel: '第四幕 · 刀锋小缺',
+    unlockPoints: 520,
+    requiredStoryIds: ['aff_kenshi_03_homebell'],
+    completionPoints: 60,
+    backgroundAsset: 'assets/affection/scenes/kenshi-workbench-afterglow.webp',
+    memoryCallbacks: [
+      ...rememberedChoices('aff_kenshi_01_permission', '樱酱', [
+        ['ask_scabbard', '你第一次就先问刀鞘，所以今天我也愿意让你看见刀锋的小缺口。'],
+        ['watch_only', '你愿意只看不接管，这次也请先听完我的判断。'],
+        ['set_signal', '我们的收刀信号仍有效；如果我不想继续讨论，随时可以停。'],
+      ]),
+      ...rememberedChoices('aff_kenshi_03_homebell', '樱酱', [
+        ['tie_with_permission', '归鞘铃的松结没有伤到刀鞘，你的手很稳。'],
+        ['keep_on_stand', '你允许纪念物休息，也会允许一把有缺口的刀休息。'],
+        ['ring_after_return', '铃只在归来时响。今天它提醒我：修整也算归来的一部分。'],
+      ]),
+    ],
+    opening: [
+      '夕光下的磨刀台上，刀锋有一道极浅缺口，她反复擦拭，却迟迟没有开始打磨。',
+      '我知道怎么修。只是让别人看见它，像承认自己没有一直完美。《但我想试一次》。',
+    ],
+    choices: [
+      ['observe_plan', '“你先说明修复方案；需要我时再分配步骤。”', 'moved', '好。判断权仍在我手里，协助也能是平等的。', '她摊开磨石和量尺，逐项说明，而不是独自遮住缺口。'],
+      ['normalize_wear', '“缺口说明刀真正保护过人，不等于你做错了。”', 'calm', '战斗留下痕迹，不代表我必须把自己也磨到无痕。', '她不再用布遮住刀锋，呼吸随着夕光平稳下来。'],
+      ['pause_repair', '“今天也可以不修；安全收好，明天再决定。”', 'bright', '暂停不是逃避。《明天的我》也有决定权。', '她给刀套上护套，第一次在未完成时坦然离开工作台。'],
+    ],
+  }),
+  kenshiStory({
+    id: 'aff_kenshi_05_nightwatch',
+    episode: 5,
+    title: '今夜不必独守',
+    episodeLabel: '第五幕 · 双人巡灯',
+    unlockPoints: 900,
+    requiredStoryIds: ['aff_kenshi_04_nick'],
+    completionPoints: 60,
+    backgroundAsset: 'assets/affection/scenes/kenshi-dojo-nightwatch.webp',
+    memoryCallbacks: [
+      ...rememberedChoices('aff_kenshi_02_rainstep', '樱酱', [
+        ['match_pace', '雨里我们调整过步速，今夜也能调整轮值。'],
+        ['offer_dry_cloth', '你那天把休息放在装备前面；今晚也该把人放在灯前面。'],
+        ['share_umbrella', '伞能一人一半，巡灯也能一人一半。'],
+      ]),
+      ...rememberedChoices('aff_kenshi_04_nick', '樱酱', [
+        ['observe_plan', '你会等我分配步骤，所以这次我想主动分给你一段巡路。'],
+        ['normalize_wear', '你说痕迹不等于错误；疲惫也不等于失职。'],
+        ['pause_repair', '那天我们允许明天再修，今天也可以允许天亮后再做。'],
+      ]),
+    ],
+    opening: [
+      '夜色落满回廊，她巡完最后一盏灯仍握着记录板，眼下却藏不住倦意。',
+      '我可以继续，但不代表必须继续。我想听一个《不把谁当作替班工具》的方案。',
+    ],
+    choices: [
+      ['split_route', '“路线对半分，完成后一起签字，也一起休息。”', 'bright', '不是谁替谁，是共同完成。这个方案我接受。', '两条巡灯路线被平等划开，终点落在同一张休息桌旁。'],
+      ['rest_together', '“剩下的灯明早再查；今晚我们都先停。”', 'moved', '原来守护道场，也包括允许守护者睡觉。', '她合上记录板，两盏床头灯同时熄灭。'],
+      ['quiet_company', '“我坐在门边做自己的事；你休息，不需要陪我说话。”', 'shy', '这样的陪伴很安静，也很可靠。等我醒来会告诉你。', '她把刀放回架上，放心走进帘后的独立休息间。'],
+    ],
+  }),
+  kenshiStory({
+    id: 'aff_kenshi_06_second_lantern',
+    episode: 6,
+    title: '落樱道场的第二盏灯',
+    episodeLabel: '第六幕 · 并列灯牌',
+    unlockPoints: 1_400,
+    requiredStoryIds: ['aff_kenshi_05_nightwatch'],
+    completionPoints: 60,
+    backgroundAsset: 'assets/affection/scenes/kenshi-dojo-homecoming-sunrise.webp',
+    cgAsset: 'assets/affection/cg/kenshi-paired-dojo-lanterns.webp',
+    memoryCallbacks: [
+      ...rememberedChoices('aff_kenshi_03_homebell', '樱酱', [
+        ['tie_with_permission', '那枚归鞘铃仍是松结，第二盏灯也不会把任何人绑住。'],
+        ['keep_on_stand', '蓝铃可以安静等待，灯也只负责欢迎，不负责催促。'],
+        ['ring_after_return', '归来时才响的铃，让我想做一盏归来时才亮的灯。'],
+      ]),
+      ...rememberedChoices('aff_kenshi_04_nick', '樱酱', [
+        ['observe_plan', '你尊重我的修刀方案，所以这盏灯的位置也该由我们共同规划。'],
+        ['normalize_wear', '有缺口的刀能被看见，疲惫的我也能在灯下被看见。'],
+        ['pause_repair', '暂停和离开都被允许，第二盏灯不会要求你永远留下。'],
+      ]),
+      ...rememberedChoices('aff_kenshi_05_nightwatch', '樱酱', [
+        ['split_route', '巡路能平分，照亮归途的灯也该并列。'],
+        ['rest_together', '那晚我们一起停下，所以今天能一起迎来真正休息后的晨光。'],
+        ['quiet_company', '你允许安静陪伴，这盏灯也只安静亮着，不追问归期。'],
+      ]),
+    ],
+    opening: [
+      '晨光照进道场门廊，两盏同样大小的灯牌并列挂好，中间留着能自由进出的空隙。',
+      '一盏写我的名字，另一盏留给你自己写。《不是入住证明》，只是回来时有光。',
+    ],
+    choices: [
+      ['equal_lanterns', '“灯牌同高、各自开关；谁都不替谁决定亮多久。”', 'moved', '正合我意。并列的光，不需要谁依附谁。', '两只独立开关被分别确认，晨光从中间自然穿过。'],
+      ['open_doorway', '“中间保留通路；想同行就同行，想独处也能离开。”', 'calm', '归处不是关住人的地方。《门一直能从里面打开》。', '她将门闩收进盒中，只保留夜间可由屋内主动使用的锁。'],
+      ['renew_welcome', '“每次回来都重新问一句‘今天方便吗’，不把欢迎永久默认。”', 'shy', '那我今天的答案是：方便，而且很高兴。', '两盏灯同时亮起，又各自由主人亲手调到舒适亮度。'],
+    ],
+  }),
+  kenshiStory({
+    id: 'aff_kenshi_07_gift',
+    episode: 7,
+    title: '礼物不替她决定',
+    episodeLabel: '第七幕 · 月白磨石',
+    unlockPoints: 1_700,
+    requiredStoryIds: ['aff_kenshi_06_second_lantern'],
+    completionPoints: 60,
+    backgroundAsset: 'assets/affection/scenes/kenshi-gift-whetstone-morning.webp',
+    memoryCallbacks: rememberedChoices('aff_kenshi_04_nick', '樱酱', [
+      ['observe_plan', '你看过我修刀的流程，所以这份礼物也没有替我规定磨法。'],
+      ['normalize_wear', '你不要求刀锋无痕，这块磨石也只是工具，不是催促。'],
+      ['pause_repair', '你允许明天再修，所以礼物当然也可以等我想用时再拆。'],
+    ]),
+    opening: [
+      '晨桌上放着未拆封的月白磨刀石匣，规格、粒度与退换方式都写得清楚。',
+      '你没有替我试磨，也没有说“这是最适合你的”。《这样的礼物让我很安心》。',
+    ],
+    choices: [
+      ['let_her_inspect', '“你先独立验货；需要第二双眼睛时再叫我。”', 'bright', '专业判断留给收礼的人。很好，我验完会主动告诉你。', '她打开检测布，只取出自己愿意当场确认的那一块。'],
+      ['keep_receipt', '“票据留着，不合适就换；心意不靠勉强使用证明。”', 'moved', '能退换的礼物，反而让我更愿意认真选择。', '她将票据收进匣侧，没有把任何决定视作辜负。'],
+      ['share_tea_first', '“先喝茶，礼物什么时候拆都由你。”', 'shy', '那就先用第二只杯子。礼物不会跑，今天的茶会凉。', '她把匣子安稳推到一旁，先为两人倒满热茶。'],
+    ],
+  }),
+  kenshiStory({
+    id: 'aff_kenshi_08_preference',
+    episode: 8,
+    title: '喜欢可以说，不必守礼',
+    episodeLabel: '第八幕 · 樱色早市',
+    unlockPoints: 2_100,
+    requiredStoryIds: ['aff_kenshi_07_gift'],
+    completionPoints: 60,
+    backgroundAsset: 'assets/affection/scenes/kenshi-sakura-market-rain.webp',
+    memoryCallbacks: rememberedChoices('aff_kenshi_07_gift', '樱酱', [
+      ['let_her_inspect', '你把验货权完整交给我，所以我也能更具体地告诉你喜欢什么。'],
+      ['keep_receipt', '不合适可以换，让“喜欢”不再像必须交出的礼貌答案。'],
+      ['share_tea_first', '那天先喝的茶不太甜，刚好是我真正喜欢的味道。'],
+    ]),
+    opening: [
+      '细雨中的早市挂满刀穗与羽织，她在三排蓝白饰物前停了许久，却习惯性说“都可以”。',
+      '其实不是都可以。我喜欢雪白底、湖蓝结，只要一点樱粉。《我想练习说具体》。',
+    ],
+    choices: [
+      ['ask_color_order', '“按你说的顺序挑；我只负责把三种颜色摆出来。”', 'bright', '白、蓝、粉。对，就是这个比例。谢谢你没有替我改成更华丽。', '她亲自排好色样，第一次没有用“随便”收尾。'],
+      ['invite_dislike', '“也可以先说不喜欢什么，拒绝同样是有效答案。”', 'moved', '我不喜欢太重的金饰，也不想要碰到耳尖的长流苏。说出来很轻松。', '摊主按她的边界收起两款，她的选择空间反而更清晰。'],
+      ['choose_no_purchase', '“今天只看看也可以；约会不靠买东西成立。”', 'shy', '那就再走一圈，记住喜欢的，不急着拥有。', '她与你并肩离开摊位，手里只有一张自己写下的偏好清单。'],
+    ],
+  }),
+  kenshiStory({
+    id: 'aff_kenshi_09_route_map',
+    episode: 9,
+    title: '回礼是一张并肩巡路图',
+    episodeLabel: '第九幕 · 双向路线',
+    unlockPoints: 2_600,
+    requiredStoryIds: ['aff_kenshi_08_preference'],
+    completionPoints: 60,
+    backgroundAsset: 'assets/affection/scenes/kenshi-route-map-sunset.webp',
+    cgAsset: 'assets/affection/cg/kenshi-shared-patrol-map.webp',
+    memoryCallbacks: rememberedChoices('aff_kenshi_06_second_lantern', '樱酱', [
+      ['equal_lanterns', '两盏灯各有开关，这张地图也给我们各自保留完整的路线。'],
+      ['open_doorway', '道场通路没有被堵住，巡路图上的每条线也都能自由改道。'],
+      ['renew_welcome', '欢迎需要重新确认，同行路线当然也每次重新选择。'],
+    ]),
+    opening: [
+      '夕阳下，她展开一张双层巡路图：两条独立路线在数个休息站交会，却没有强行汇成一条。',
+      '这是我的回礼。不是偿还磨石，也不是规定你跟着我。《会合点要由双方同意才生效》。',
+    ],
+    choices: [
+      ['keep_two_routes', '“保留两条路线；相遇是选择，不是默认。”', 'moved', '正因为各自能走，选择并肩才更珍贵。', '她用不同颜色描清两条线，只在共同确认的节点画上樱印。'],
+      ['add_rest_stops', '“先标休息站；任何一方想停，都不需要理由。”', 'bright', '这比标最快路线更重要。第一处就放在樱川边。', '数枚小灯符被贴在地图上，代表随时可以暂停的地点。'],
+      ['renew_each_trip', '“每次出发前重画一次，不让旧约替今天的我们做决定。”', 'shy', '那我会保存旧图，但只把它当回忆，不当命令。', '她将空白描图纸放在两人中间，等下一次共同落笔。'],
+    ],
+  }),
+] as const;
+
 export const AFFECTION_CHARACTERS: Readonly<Record<ClassId, AffectionCharacterDefinition>> = {
   swordsman: {
     classId: 'swordsman',
@@ -2325,7 +2616,7 @@ export const AFFECTION_CHARACTERS: Readonly<Record<ClassId, AffectionCharacterDe
     boundaries: ['触碰刀鞘、刀穗或手部前先询问', '不拿她的刀与身高开玩笑'],
     accent: '#7fb7e8',
     glow: '#d8ecff',
-    hubBackgroundAsset: 'assets/affection/scenes/swordsman-training-dawn.webp',
+    hubBackgroundAsset: 'assets/affection/scenes/kenshi-dojo-sakura-dawn.webp',
     interactions: [
       interaction(
         'morning',
@@ -2343,8 +2634,43 @@ export const AFFECTION_CHARACTERS: Readonly<Record<ClassId, AffectionCharacterDe
         'cast',
         ['可以。你问过了，所以可以。', '刀穗……麻烦你了。别系太紧。'],
       ),
+      interaction(
+        'tea',
+        '道场热茶',
+        '让收刀后的时间真正慢下来',
+        'calm',
+        'idle',
+        ['第二只杯子不是备用，是特意留给你的。', '今天的茶淡一点，刚好能听清院里的风。'],
+      ),
+      interaction(
+        'patrol',
+        '并肩巡灯',
+        '按彼此舒服的速度走完回廊',
+        'bright',
+        'victory',
+        ['不必走在我身后，并肩就好。', '最后一盏灯查完，我们一起收工。'],
+        'aff_kenshi_01_permission',
+      ),
+      interaction(
+        'tassel',
+        '重系刀穗',
+        '由她确认位置与松紧',
+        'shy',
+        'cast',
+        ['先等我扶稳刀鞘……现在可以。', '这个松结很好，想拆时也不会为难。'],
+        'aff_kenshi_02_rainstep',
+      ),
+      interaction(
+        'wind',
+        '听风收刀',
+        '用归鞘铃确认今天平安结束',
+        'moved',
+        'idle',
+        ['听见了吗？铃响代表今天已经结束。', '刀已归鞘，灯也亮着。我们可以休息了。'],
+        'aff_kenshi_03_homebell',
+      ),
     ],
-    stories: [],
+    stories: [...KENSHI_STORIES, ...affectionDateStories('kenshi')],
   },
 } as const;
 

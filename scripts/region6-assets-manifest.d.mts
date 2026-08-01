@@ -1,4 +1,4 @@
-export type Region6ClassId = 'swordsman' | 'witch' | 'shaman' | 'catkin';
+export type Region6ClassId = 'swordsman' | 'witch' | 'shaman' | 'catkin' | 'kenshi';
 export type Region6VisibleSlot = 'body' | 'head' | 'weapon';
 export type Region6Slot =
   | 'weapon'
@@ -20,6 +20,7 @@ export const REGION6_CLASSES: readonly [
   'witch',
   'shaman',
   'catkin',
+  'kenshi',
 ];
 export const REGION6_VISIBLE_SLOTS: readonly Region6VisibleSlot[];
 export const REGION6_SLOTS: readonly Region6Slot[];
@@ -59,11 +60,11 @@ export const REGION6_COUNTS: Readonly<{
   items: 5;
   equipment: 8;
   setEquipment: 8;
-  modularLayers: 12;
-  setModularLayers: 12;
+  modularLayers: 15;
+  setModularLayers: 15;
   regionContentRuntime: 55;
   regionSetRuntime: 20;
-  runtimeTotal: 80;
+  runtimeTotal: 86;
 }>;
 export const REGION6_ALL_ASSETS: readonly (CalledAsset & {
   category:

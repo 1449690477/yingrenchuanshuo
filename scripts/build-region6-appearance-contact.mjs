@@ -1,5 +1,5 @@
 /**
- * 区域 6 四职业普通装 / 幽影套纸娃娃合成验收图。
+ * 区域 6 五职业普通装 / 幽影套纸娃娃合成验收图。
  *
  * 这里复现 CharacterAppearance.vue 的关键叠层顺序：
  * 底模 → 身体 →（喵喵头饰）→ 安全脸 →（其余职业头饰）→ 武器。
@@ -19,6 +19,7 @@ const CLASSES = [
   { id: 'witch', label: '魔女', face: [50, 10, 18, 8.8] },
   { id: 'shaman', label: '巫祝', face: [50, 10, 17, 8.8] },
   { id: 'catkin', label: '喵喵', face: [50, 9.7, 18.5, 9.3] },
+  { id: 'kenshi', label: '樱酱', face: [50, 9.7, 18.5, 9.3] },
 ];
 const FAMILIES = [
   { id: 'r6', label: '幽塔普通装' },
@@ -50,11 +51,14 @@ async function renderAppearance(classInfo, family) {
   const body = assetPath(classInfo.id, `${family.id}-body.png`);
   const head = assetPath(classInfo.id, `${family.id}-head.png`);
   const weapon = assetPath(classInfo.id, `${family.id}-weapon.png`);
-  const face = await faceLayer(base, classInfo.face);
-  const layers = [{ input: base }, { input: body }];
-  if (classInfo.id === 'catkin') layers.push({ input: head });
+  const appearanceBase = classInfo.id === 'kenshi' ? body : base;
+  const face = await faceLayer(appearanceBase, classInfo.face);
+  const layers = [{ input: appearanceBase }];
+  if (classInfo.id !== 'kenshi') layers.push({ input: body });
+  const protectFace = classInfo.id === 'catkin' || classInfo.id === 'kenshi';
+  if (protectFace) layers.push({ input: head });
   layers.push({ input: face });
-  if (classInfo.id !== 'catkin') layers.push({ input: head });
+  if (!protectFace) layers.push({ input: head });
   layers.push({ input: weapon });
   return sharp({
     create: {

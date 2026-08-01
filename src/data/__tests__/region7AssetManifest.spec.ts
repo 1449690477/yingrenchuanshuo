@@ -21,7 +21,7 @@ import {
 } from '../region7';
 
 describe('区域 7 美术 manifest', () => {
-  it('锁定 81 项独立运行时资源和两组 PWA 容量边界', () => {
+  it('锁定 87 项独立运行时资源和两组 PWA 容量边界', () => {
     expect(REGION7_COUNTS).toEqual({
       maps: 6,
       battlefields: 5,
@@ -30,13 +30,13 @@ describe('区域 7 美术 manifest', () => {
       equipment: 8,
       setEquipment: 8,
       badges: 1,
-      modularLayers: 12,
-      setModularLayers: 12,
+      modularLayers: 15,
+      setModularLayers: 15,
       regionContentRuntime: 55,
       regionSetRuntime: 21,
-      runtimeTotal: 81,
+      runtimeTotal: 87,
     });
-    expect(REGION7_ALL_ASSETS).toHaveLength(81);
+    expect(REGION7_ALL_ASSETS).toHaveLength(87);
   });
 
   it('场景、怪物、材料与实际配置同源', () => {
@@ -68,13 +68,18 @@ describe('区域 7 美术 manifest', () => {
     expect(REGION7_BADGE.id).toBe('r7-bloodmoon-badge');
   });
 
-  it('四职业均有普通和套装三层，且每个独立资产使用唯一调用', () => {
-    expect(REGION7_CLASSES).toEqual(['swordsman', 'witch', 'shaman', 'catkin']);
-    expect(REGION7_MODULAR_LAYERS).toHaveLength(12);
-    expect(REGION7_SET_MODULAR_LAYERS).toHaveLength(12);
+  it('五职业均有普通和套装三层，且每个独立资产使用唯一来源键', () => {
+    expect(REGION7_CLASSES).toEqual(['swordsman', 'witch', 'shaman', 'catkin', 'kenshi']);
+    expect(REGION7_MODULAR_LAYERS).toHaveLength(15);
+    expect(REGION7_SET_MODULAR_LAYERS).toHaveLength(15);
     const callIds = REGION7_ALL_ASSETS.map(({ callId }) => callId);
-    expect(new Set(callIds)).toHaveLength(81);
-    expect(callIds.every((callId) => /^call_[A-Za-z0-9]+$/.test(callId))).toBe(true);
+    expect(new Set(callIds)).toHaveLength(87);
+    expect(
+      callIds.every(
+        (callId) =>
+          /^call_[A-Za-z0-9]+$/.test(callId) || /^contract-kenshi-r7-[a-z0-9-]+$/.test(callId),
+      ),
+    ).toBe(true);
     expect(
       REGION7_MONSTERS.find(({ id }) => id === 'mon_7-4_elite')?.subjectCount,
     ).toBe(3);

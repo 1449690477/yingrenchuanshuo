@@ -14,6 +14,7 @@ import {
 } from '../characterAppearance';
 import {
   CATKIN_VISUAL_SKILLS,
+  KENSHI_VISUAL_SKILLS,
   SHAMAN_VISUAL_SKILLS,
   SWORDSMAN_VISUAL_SKILLS,
   WITCH_VISUAL_SKILLS,
@@ -187,13 +188,38 @@ describe('区域 1–5 内容完整性', () => {
     }
   });
 
+  it('樱酱 14 个技能、9 套主动特效与 5 个被动图标完整且零猫灵别名', () => {
+    expect(KENSHI_VISUAL_SKILLS).toHaveLength(14);
+    expect(KENSHI_VISUAL_SKILLS.filter((skill) => skill.type === 'active')).toHaveLength(9);
+    expect(KENSHI_VISUAL_SKILLS.filter((skill) => skill.type === 'passive')).toHaveLength(5);
+    for (const skill of KENSHI_VISUAL_SKILLS) {
+      expect(skill.class).toBe('kenshi');
+      expect(skill.icon).toContain('assets/icons/skills/kenshi-');
+      expect(skill.effectAsset).not.toContain('catkin');
+      expect(existsSync(resolve('public', skill.icon)), `${skill.id} icon`).toBe(true);
+      expect(existsSync(resolve('public', skill.effectAsset)), `${skill.id} effect`).toBe(true);
+    }
+    expect(
+      KENSHI_VISUAL_SKILLS.find((skill) => skill.id === 'skill_kenshi_sakura_blizzard')
+        ?.hitOffsetsMs,
+    ).toEqual([0, 110, 220]);
+    expect(
+      KENSHI_VISUAL_SKILLS.find((skill) => skill.id === 'skill_kenshi_ice_heart')?.hitOffsetsMs,
+    ).toEqual([0, 180]);
+    expect(
+      KENSHI_VISUAL_SKILLS.find((skill) => skill.id === 'skill_kenshi_thousand_sakura')
+        ?.hitOffsetsMs,
+    ).toEqual([0, 75, 150, 225, 300]);
+  });
+
   it('数量达到区域 1–7 的内容目标', () => {
     expect(REGIONS).toHaveLength(7);
     expect(ALL_CHAPTERS).toHaveLength(35);
     expect(Object.keys(STAGES)).toHaveLength(210);
     expect(Object.keys(MONSTERS)).toHaveLength(168);
     // 既有 353 件 + 樱酱副本装备 8 件 + 三套珍品武器 3 件。
-    expect(Object.keys(EQUIPMENT)).toHaveLength(364);
+    // 原有 364 件 + 樱酱心虹好感装备 10 件 + 瞬樱竞技场装备 4 件。
+    expect(Object.keys(EQUIPMENT)).toHaveLength(378);
     expect(Object.keys(LOOT_TABLES)).toHaveLength(105);
   });
 
@@ -537,7 +563,7 @@ describe('区域 1–5 内容完整性', () => {
     }
   });
 
-  it('四职业纸娃娃底模、七区与装备副本外观全部透明对齐', async () => {
+  it('五职业纸娃娃底模、七区与装备副本外观全部透明对齐', async () => {
     const layerAssets = Object.values(EQUIPMENT_APPEARANCES)
       .filter((appearance) => appearance.renderMode !== 'slot-only')
       .flatMap((appearance) => Object.values(appearance.assets));
@@ -548,8 +574,8 @@ describe('区域 1–5 内容完整性', () => {
         ...layerAssets,
       ]),
     ];
-    // 既有 202 张 + R7 普通 / 血月套各 12 张职业分层。
-    expect(assets).toHaveLength(226);
+    // 五职业底模、七区、三套精品与四档副本的运行时可见纸娃娃资产均不得别名复用。
+    expect(assets).toHaveLength(282);
 
     for (const asset of assets) {
       const assetPath = resolve('public', asset);
@@ -620,9 +646,9 @@ describe('区域 1–5 内容完整性', () => {
     }
   });
 
-  it('珍品商品图标、纸娃娃换装层与十三套职业攻击特效符合移动端规格', async () => {
+  it('珍品商品图标、纸娃娃换装层与十六套职业攻击特效符合移动端规格', async () => {
     const iconAssets = [...new Set(SHOP_OFFERS.map((offer) => EQUIPMENT[offer.defId]!.icon))];
-    expect(iconAssets).toHaveLength(35);
+    expect(iconAssets).toHaveLength(38);
     for (const asset of iconAssets) {
       const path = resolve('public', asset);
       expect(existsSync(path), asset).toBe(true);
@@ -641,7 +667,7 @@ describe('区域 1–5 内容完整性', () => {
       .flatMap(([, appearance]) =>
         appearance.renderMode === 'slot-only' ? [] : Object.values(appearance.assets),
       );
-    expect(new Set(boutiqueAssets).size).toBe(50);
+    expect(new Set(boutiqueAssets).size).toBe(62);
     for (const asset of boutiqueAssets) {
       expect(asset).toBeDefined();
       const path = resolve('public', asset!);
@@ -655,7 +681,7 @@ describe('区域 1–5 内容完整性', () => {
     }
 
     const effects = BOUTIQUE_THEME_LIST.flatMap((theme) => Object.values(theme.attackEffects));
-    expect(new Set(effects).size).toBe(13);
+    expect(new Set(effects).size).toBe(16);
     for (const asset of effects) {
       const path = resolve('public', asset);
       expect(existsSync(path), asset).toBe(true);
@@ -697,8 +723,9 @@ describe('区域 1–5 内容完整性', () => {
       ...WITCH_VISUAL_SKILLS,
       ...SHAMAN_VISUAL_SKILLS,
       ...CATKIN_VISUAL_SKILLS,
+      ...KENSHI_VISUAL_SKILLS,
     ];
-    expect(skills).toHaveLength(23);
+    expect(skills).toHaveLength(37);
     for (const skill of skills) {
       const icon = await sharp(resolve('public', skill.icon)).metadata();
       const effect = await sharp(resolve('public', skill.effectAsset)).metadata();
@@ -734,12 +761,10 @@ describe('区域 1–5 内容完整性', () => {
 
   it('全部物品都引用真实存在的正式图标', () => {
     // 数量断言的作用是「加物品时逼人来看一眼图标」，不是锁死内容规模。
-    // 2026-08-01 加入樱酱专属印记后 55 → 56；P1 显式复用喵喵印记图标。
+    // 2026-08-01 加入樱酱专属印记后 55 → 56；五职业均使用独立正式图标。
     expect(Object.keys(ITEMS)).toHaveLength(56);
     for (const [id, item] of Object.entries(ITEMS)) {
-      const expectedIcon =
-        id === 'sigil_kenshi' ? 'assets/items/sigil_catkin.png' : `assets/items/${id}.png`;
-      expect(item.icon).toBe(expectedIcon);
+      expect(item.icon).toBe(`assets/items/${id}.png`);
       expect(existsSync(resolve('public', item.icon)), `${id} → ${item.icon}`).toBe(true);
     }
   });

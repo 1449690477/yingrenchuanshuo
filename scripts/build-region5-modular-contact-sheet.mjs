@@ -1,5 +1,5 @@
 /**
- * 区域 5 普通装 / 绯焰套四职业合成对比联系表。
+ * 区域 5 普通装 / 绯焰套五职业合成对比联系表。
  *
  * 联系表只读主仓运行时层，用于人工检查脸部遮挡、浮空、手位、尾巴通道与
  * 普通 / 套装的结构差异；不把外部母版复制回主仓。
@@ -14,17 +14,16 @@ const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(SCRIPT_DIR, '..');
 const OUTPUT = resolve(ROOT, 'art-source/qa/r5-modular-contact.webp');
 const CLASSES = [
-  ['swordsman', '剑士'],
-  ['witch', '魔女'],
-  ['shaman', '巫祝'],
-  ['catkin', '喵喵'],
+  { id: 'swordsman', label: '剑士', face: [52, 10, 19, 9] },
+  { id: 'witch', label: '魔女', face: [50, 10, 18, 8.8] },
+  { id: 'shaman', label: '巫祝', face: [50, 10, 17, 8.8] },
+  { id: 'catkin', label: '喵喵', face: [50, 9.7, 18.5, 9.3] },
+  { id: 'kenshi', label: '樱酱', face: [50, 9.7, 18.5, 9.3] },
 ];
 const FAMILIES = [
   ['r5', '普通熔晶装'],
   ['r5-crimson', '绯焰套'],
 ];
-const SLOTS = ['body', 'head', 'weapon'];
-
 const TILE = { width: 250, height: 390 };
 const MARGIN = 24;
 const GAP = 14;
@@ -50,19 +49,40 @@ function svgText(text, width, height, fontSize, color, y, weight = 700) {
   `);
 }
 
-async function compositeOutfit(classId, family) {
+async function faceLayer(basePath, [x, y, rx, ry]) {
+  const mask = Buffer.from(`
+    <svg width="640" height="960" xmlns="http://www.w3.org/2000/svg">
+      <ellipse cx="${(x / 100) * 640}" cy="${(y / 100) * 960}"
+        rx="${(rx / 100) * 640}" ry="${(ry / 100) * 960}" fill="white"/>
+    </svg>
+  `);
+  return sharp(basePath)
+    .ensureAlpha()
+    .composite([{ input: mask, blend: 'dest-in' }])
+    .png()
+    .toBuffer();
+}
+
+async function compositeOutfit(classInfo, family) {
+  const { id: classId } = classInfo;
   const classRoot = resolve(
     ROOT,
     'public/assets/characters/modular',
     classId,
   );
   const base = resolve(classRoot, 'base.png');
-  const full = await sharp(base)
-    .composite(
-      SLOTS.map((slot) => ({
-        input: resolve(classRoot, `${family}-${slot}.png`),
-      })),
-    )
+  const body = resolve(classRoot, `${family}-body.png`);
+  const appearanceBase = classId === 'kenshi' ? body : base;
+  const face = await faceLayer(appearanceBase, classInfo.face);
+  const head = resolve(classRoot, `${family}-head.png`);
+  const protectFace = classId === 'catkin' || classId === 'kenshi';
+  const layers = classId === 'kenshi' ? [] : [{ input: body }];
+  if (protectFace) layers.push({ input: head });
+  layers.push({ input: face });
+  if (!protectFace) layers.push({ input: head });
+  layers.push({ input: resolve(classRoot, `${family}-weapon.png`) });
+  const full = await sharp(appearanceBase)
+    .composite(layers)
     .png()
     .toBuffer();
   return sharp(full)
@@ -76,10 +96,10 @@ async function compositeOutfit(classId, family) {
     .toBuffer();
 }
 
-async function renderTile(classId, className, family, familyName) {
-  const outfit = await compositeOutfit(classId, family);
+async function renderTile(classInfo, family, familyName) {
+  const outfit = await compositeOutfit(classInfo, family);
   const label = svgText(
-    `${className} · ${familyName}`,
+    `${classInfo.label} · ${familyName}`,
     TILE.width,
     42,
     15,
@@ -133,7 +153,7 @@ async function renderTile(classId, className, family, familyName) {
 const composites = [
   {
     input: svgText(
-      'R5 熔岩神殿 · 四职业普通装 / 绯焰套合成对比',
+      'R5 熔岩神殿 · 五职业普通装 / 绯焰套合成对比',
       WIDTH,
       HEADER,
       26,
@@ -162,9 +182,9 @@ const composites = [
 for (let row = 0; row < FAMILIES.length; row += 1) {
   const [family, familyName] = FAMILIES[row];
   for (let column = 0; column < CLASSES.length; column += 1) {
-    const [classId, className] = CLASSES[column];
+    const classInfo = CLASSES[column];
     composites.push({
-      input: await renderTile(classId, className, family, familyName),
+      input: await renderTile(classInfo, family, familyName),
       left: MARGIN + column * (TILE.width + GAP),
       top: MARGIN + HEADER + row * (TILE.height + GAP),
     });

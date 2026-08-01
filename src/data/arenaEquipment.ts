@@ -106,6 +106,11 @@ const SPECS: readonly ArenaGearSpec[] = [
   { classId: 'catkin', slot: 'head', name: '圣痕·疾影·夜猎耳饰', slug: 'swiftshadow-nighthunt-ears', series: '疾影' },
   { classId: 'catkin', slot: 'body', name: '圣痕·疾影·潜行战衣', slug: 'swiftshadow-stalker-suit', series: '疾影' },
   { classId: 'catkin', slot: 'ring', name: '圣痕·疾影·迅捷指环', slug: 'swiftshadow-agile-ring', series: '疾影' },
+  // ── 樱酱 · 瞬樱 ──
+  { classId: 'kenshi', slot: 'weapon', name: '圣痕·瞬樱·断界太刀', slug: 'blinkbloom-boundary-katana', series: '瞬樱' },
+  { classId: 'kenshi', slot: 'head', name: '圣痕·瞬樱·雪耳剑冠', slug: 'blinkbloom-snowear-crown', series: '瞬樱' },
+  { classId: 'kenshi', slot: 'body', name: '圣痕·瞬樱·白羽战衣', slug: 'blinkbloom-whitefeather-garb', series: '瞬樱' },
+  { classId: 'kenshi', slot: 'ring', name: '圣痕·瞬樱·归鞘指环', slug: 'blinkbloom-return-ring', series: '瞬樱' },
 ] as const;
 
 /** 圣痕外观 id：四槽统一 slot-only，第二批换装层落地后再升级为 layer。 */

@@ -3,6 +3,7 @@ import type { EquipmentInstance, EquipSlot } from '@/core/types';
 import { ENHANCE_MAX } from '@/data/constants';
 import {
   REGION_34_EQUIPMENT_APPEARANCES,
+  requireEquipmentAppearance,
   resolveCharacterAppearance,
   type EquippedRecord,
 } from '../characterAppearance';
@@ -35,6 +36,41 @@ function instance(defId: string, enhance = 0): EquipmentInstance {
 }
 
 describe('角色换装外观解析', () => {
+  it('樱酱的区域整身图替换底模，头饰与武器仍按层叠加且不影响其他职业', () => {
+    const regionalBodies = [
+      'r1-body',
+      'r2-body',
+      'r3-body',
+      'r4-body',
+      'r5-body',
+      'r5-set-body',
+      'r6-body',
+      'r6-set-body',
+      'r7-body',
+      'r7-set-body',
+    ];
+    for (const id of regionalBodies) {
+      const appearance = requireEquipmentAppearance(id);
+      expect(appearance.renderMode).toBe('layer');
+      if (appearance.renderMode !== 'layer') continue;
+      expect(appearance.replacementClasses).toEqual(['kenshi']);
+    }
+
+    const equipped = emptyEquipped();
+    equipped.body = instance('eq_r1_body_rare');
+    equipped.head = instance('eq_r1_head_common');
+    equipped.weapon = instance('eq_r1_weapon_common');
+
+    const kenshi = resolveCharacterAppearance('kenshi', 20, equipped);
+    expect(kenshi.baseAsset).toBe('assets/characters/modular/kenshi/r1-body.png');
+    expect(kenshi.layers.map(({ slot }) => slot)).toEqual(['head', 'weapon']);
+    expect(kenshi.signature).toBe('body:r1-body|head:r1-head|weapon:r1-weapon');
+
+    const witch = resolveCharacterAppearance('witch', 20, equipped);
+    expect(witch.baseAsset).toBe('assets/characters/modular/witch/base.png');
+    expect(witch.layers.map(({ slot }) => slot)).toEqual(['body', 'head', 'weapon']);
+  });
+
   it('混穿两区装备时三个主要部位独立解析并按稳定层级排序', () => {
     const equipped = emptyEquipped();
     equipped.weapon = instance('eq_r1_weapon_common', 10);
@@ -125,6 +161,31 @@ describe('角色换装外观解析', () => {
     expect(appearance.boutiqueEffectAsset).toBe(
       'assets/effects/boutique/berry-cream-catkin.png',
     );
+  });
+
+  it('樱酱底模、区域装、精品与副本均只解析 kenshi 专属资产', () => {
+    const equipped = emptyEquipped();
+    equipped.weapon = instance('eq_shop_berry-cream_weapon_kenshi');
+    equipped.body = instance('eq_dungeon_azure_body_kenshi');
+    equipped.head = instance('eq_r2_head_fine');
+
+    const appearance = resolveCharacterAppearance('kenshi', 30, equipped);
+
+    expect(appearance.baseAsset).toBe(
+      'assets/characters/modular/dungeon/azure/kenshi-body.png',
+    );
+    expect(appearance.layers.map((layer) => layer.asset)).toEqual([
+      'assets/characters/modular/kenshi/r2-head.png',
+      'assets/characters/modular/shop/berry-cream/kenshi-weapon.png',
+    ]);
+    expect(appearance.boutiqueEffectAsset).toBe(
+      'assets/effects/boutique/berry-cream-kenshi.png',
+    );
+    expect(
+      [appearance.baseAsset, ...appearance.layers.map((layer) => layer.asset)].every(
+        (asset) => !asset.includes('catkin'),
+      ),
+    ).toBe(true);
   });
 
   it('纸箱键帽套使用喵喵专属整身替换并只叠加同画布双爪', () => {
@@ -219,7 +280,7 @@ describe('角色换装外观解析', () => {
     expect(appearance.equippedCount).toBe(2);
   });
 
-  it('区域 3/4 的八个部位都显式登记，三个可见槽为四职业独立图层', () => {    for (const regionId of ['r3', 'r4']) {
+  it('区域 3/4 的八个部位都显式登记，三个可见槽为五职业独立图层', () => {    for (const regionId of ['r3', 'r4']) {
       for (const slot of ['body', 'head', 'weapon'] as const) {
         const appearance = REGION_34_EQUIPMENT_APPEARANCES[`${regionId}-${slot}`];
         expect(appearance).toBeDefined();
@@ -227,6 +288,9 @@ describe('角色换装外观解析', () => {
         expect(appearance.renderMode).toBe('layer');
         if (appearance.renderMode !== 'layer') continue;
         expect(appearance.slot).toBe(slot);
+        expect(appearance.replacementClasses).toEqual(
+          slot === 'body' ? ['kenshi'] : undefined,
+        );
         expect(Object.keys(appearance.assets).sort()).toEqual([
           'catkin',
           'kenshi',
@@ -234,11 +298,10 @@ describe('角色换装外观解析', () => {
           'swordsman',
           'witch',
         ]);
-        expect(new Set(Object.values(appearance.assets)).size).toBe(4);
+        expect(new Set(Object.values(appearance.assets)).size).toBe(5);
         for (const [classId, asset] of Object.entries(appearance.assets)) {
-          const assetClassId = classId === 'kenshi' ? 'catkin' : classId;
           expect(asset).toBe(
-            `assets/characters/modular/${assetClassId}/${regionId}-${slot}.png`,
+            `assets/characters/modular/${classId}/${regionId}-${slot}.png`,
           );
         }
       }

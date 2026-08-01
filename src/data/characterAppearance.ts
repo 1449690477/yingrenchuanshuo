@@ -63,8 +63,13 @@ interface LayerAppearance {
   assets: Partial<Record<ClassId, string>>;
   transforms: Record<ClassId, LayerTransform>;
   /**
-   * 头部图层默认压在三职业安全脸层之上、喵喵安全脸层之下（保护猫耳与眼睛）。
-   * 置 true 时喵喵也提到脸层之上——只给「遮住头顶但不会盖眼睛」的帽饰使用。
+   * 少数职业的同路径素材是已经对位的完整人物，而不是透明衣物层。
+   * 命中的职业把该 body 当底模替换；未命中的职业仍按普通 layer 渲染。
+   */
+  replacementClasses?: readonly ClassId[];
+  /**
+   * 头部图层默认压在三职业安全脸层之上、两名猫耳职业安全脸层之下（保护猫耳与眼睛）。
+   * 置 true 时猫耳职业也提到脸层之上——只给「遮住头顶但不会盖眼睛」的帽饰使用。
    */
   aboveFace?: boolean;
 }
@@ -92,8 +97,7 @@ const classAssets = (fileName: string): Record<ClassId, string> => ({
   witch: `assets/characters/modular/witch/${fileName}.png`,
   shaman: `assets/characters/modular/shaman/${fileName}.png`,
   catkin: `assets/characters/modular/catkin/${fileName}.png`,
-  // P1 明确复用现有猫耳角色层，P2 资产齐后再原位替换为 kenshi 专属路径。
-  kenshi: `assets/characters/modular/catkin/${fileName}.png`,
+  kenshi: `assets/characters/modular/kenshi/${fileName}.png`,
 });
 
 const sameTransform = (transform: LayerTransform): Record<ClassId, LayerTransform> => ({
@@ -109,6 +113,7 @@ const sameTransform = (transform: LayerTransform): Record<ClassId, LayerTransfor
  * 运行时只做恒等叠加，避免手机浏览器重复缩放透明大图产生模糊边缘。
  */
 const alignedTransforms = sameTransform({ scale: 1, x: 0, y: 0 });
+const KENSHI_REGION_BODY_REPLACEMENT = ['kenshi'] as const satisfies readonly ClassId[];
 
 function boutiqueClassAssets(
   themeId: BoutiqueThemeId,
@@ -116,15 +121,14 @@ function boutiqueClassAssets(
   classId?: ClassId,
 ): Partial<Record<ClassId, string>> {
   if (classId) {
-    const assetClassId = classId === 'kenshi' ? 'catkin' : classId;
     return {
-      [classId]: `assets/characters/modular/shop/${themeId}/${assetClassId}-${slot}.png`,
+      [classId]: `assets/characters/modular/shop/${themeId}/${classId}-${slot}.png`,
     };
   }
   return Object.fromEntries(
     CLASS_IDS.map((candidate) => [
       candidate,
-      `assets/characters/modular/shop/${themeId}/${candidate === 'kenshi' ? 'catkin' : candidate}-${slot}.png`,
+      `assets/characters/modular/shop/${themeId}/${candidate}-${slot}.png`,
     ]),
   ) as Record<ClassId, string>;
 }
@@ -152,7 +156,7 @@ function buildBoutiqueAppearances(): Record<string, EquipmentAppearance> {
           renderMode: 'layer',
           assets: boutiqueClassAssets(theme.id, slot, item.classId),
           transforms: alignedTransforms,
-          // 精品店帽饰是戴在头顶的整帽，喵喵同样需要压过安全脸层，否则整顶被头发埋住。
+          // 精品店帽饰是戴在头顶的整帽，两名猫耳职业都要压过安全脸层，否则整顶会被头发埋住。
           ...(slot === 'head' ? { aboveFace: true } : {}),
         };
         continue;
@@ -172,7 +176,7 @@ function dungeonClassAssets(
     witch: `assets/characters/modular/dungeon/${tierId}/witch-${slot}.png`,
     shaman: `assets/characters/modular/dungeon/${tierId}/shaman-${slot}.png`,
     catkin: `assets/characters/modular/dungeon/${tierId}/catkin-${slot}.png`,
-    kenshi: `assets/characters/modular/dungeon/${tierId}/catkin-${slot}.png`,
+    kenshi: `assets/characters/modular/dungeon/${tierId}/kenshi-${slot}.png`,
   };
 }
 
@@ -216,6 +220,9 @@ function buildRegionAppearances(regionIds: readonly string[]): Record<string, Eq
         renderMode: 'layer',
         assets: classAssets(id),
         transforms: alignedTransforms,
+        ...(slot === 'body'
+          ? { replacementClasses: KENSHI_REGION_BODY_REPLACEMENT }
+          : {}),
       };
     }
     for (const slot of ['necklace', 'bracelet', 'ring', 'belt', 'shoes'] as const) {
@@ -247,10 +254,13 @@ function buildRegion5SetAppearances(): Record<string, EquipmentAppearance> {
       assets: Object.fromEntries(
         CLASS_IDS.map((classId) => [
           classId,
-          `assets/characters/modular/${classId === 'kenshi' ? 'catkin' : classId}/r5-crimson-${slot}.png`,
+          `assets/characters/modular/${classId}/r5-crimson-${slot}.png`,
         ]),
       ) as Record<ClassId, string>,
       transforms: alignedTransforms,
+      ...(slot === 'body'
+        ? { replacementClasses: KENSHI_REGION_BODY_REPLACEMENT }
+        : {}),
     };
   }
   for (const slot of ['necklace', 'bracelet', 'ring'] as const) {
@@ -271,10 +281,13 @@ function buildRegion6SetAppearances(): Record<string, EquipmentAppearance> {
       assets: Object.fromEntries(
         CLASS_IDS.map((classId) => [
           classId,
-          `assets/characters/modular/${classId === 'kenshi' ? 'catkin' : classId}/r6-shadow-${slot}.png`,
+          `assets/characters/modular/${classId}/r6-shadow-${slot}.png`,
         ]),
       ) as Record<ClassId, string>,
       transforms: alignedTransforms,
+      ...(slot === 'body'
+        ? { replacementClasses: KENSHI_REGION_BODY_REPLACEMENT }
+        : {}),
     };
   }
   for (const slot of ['necklace', 'bracelet', 'ring', 'belt', 'shoes'] as const) {
@@ -295,10 +308,13 @@ function buildRegion7SetAppearances(): Record<string, EquipmentAppearance> {
       assets: Object.fromEntries(
         CLASS_IDS.map((classId) => [
           classId,
-          `assets/characters/modular/${classId === 'kenshi' ? 'catkin' : classId}/r7-bloodmoon-${slot}.png`,
+          `assets/characters/modular/${classId}/r7-bloodmoon-${slot}.png`,
         ]),
       ) as Record<ClassId, string>,
       transforms: alignedTransforms,
+      ...(slot === 'body'
+        ? { replacementClasses: KENSHI_REGION_BODY_REPLACEMENT }
+        : {}),
     };
   }
   for (const slot of ['necklace', 'bracelet', 'ring', 'belt', 'shoes'] as const) {
@@ -380,6 +396,7 @@ export const EQUIPMENT_APPEARANCES: Readonly<Record<string, EquipmentAppearance>
     renderMode: 'layer',
     assets: classAssets('r1-body'),
     transforms: alignedTransforms,
+    replacementClasses: KENSHI_REGION_BODY_REPLACEMENT,
   },
   'r1-necklace': { id: 'r1-necklace', slot: 'necklace', renderMode: 'slot-only' },
   'r1-bracelet': { id: 'r1-bracelet', slot: 'bracelet', renderMode: 'slot-only' },
@@ -406,6 +423,7 @@ export const EQUIPMENT_APPEARANCES: Readonly<Record<string, EquipmentAppearance>
     renderMode: 'layer',
     assets: classAssets('r2-body'),
     transforms: alignedTransforms,
+    replacementClasses: KENSHI_REGION_BODY_REPLACEMENT,
   },
   'r2-necklace': { id: 'r2-necklace', slot: 'necklace', renderMode: 'slot-only' },
   'r2-bracelet': { id: 'r2-bracelet', slot: 'bracelet', renderMode: 'slot-only' },
@@ -424,6 +442,9 @@ export const EQUIPMENT_APPEARANCES: Readonly<Record<string, EquipmentAppearance>
           renderMode: 'layer' as const,
           assets: classAssets(`${regionId}-${slot}`),
           transforms: alignedTransforms,
+          ...(slot === 'body'
+            ? { replacementClasses: KENSHI_REGION_BODY_REPLACEMENT }
+            : {}),
         },
       ]),
       ...(['necklace', 'bracelet', 'ring', 'belt', 'shoes'] as const).map((slot) => [
@@ -446,7 +467,7 @@ export const CHARACTER_BASE_ASSETS: Readonly<Record<ClassId, string>> = {
   witch: 'assets/characters/modular/witch/base.png',
   shaman: 'assets/characters/modular/shaman/base.png',
   catkin: 'assets/characters/modular/catkin/base.png',
-  kenshi: 'assets/characters/modular/catkin/base.png',
+  kenshi: 'assets/characters/modular/kenshi/base.png',
 };
 
 /**
@@ -459,7 +480,7 @@ export const CHARACTER_BASE_NOSHOES_ASSETS: Readonly<Record<ClassId, string>> = 
   witch: 'assets/characters/modular/witch/base-noshoes.png',
   shaman: 'assets/characters/modular/shaman/base-noshoes.png',
   catkin: 'assets/characters/modular/catkin/base-noshoes.png',
-  kenshi: 'assets/characters/modular/catkin/base-noshoes.png',
+  kenshi: 'assets/characters/modular/kenshi/base-noshoes.png',
 };
 
 export const BASIC_ATTACK_EFFECTS: Readonly<Record<ClassId, string>> = {
@@ -467,7 +488,7 @@ export const BASIC_ATTACK_EFFECTS: Readonly<Record<ClassId, string>> = {
   witch: 'assets/effects/basic/witch-spark.png',
   shaman: 'assets/effects/basic/shaman-wisp.png',
   catkin: 'assets/effects/basic/catkin-paw.png',
-  kenshi: 'assets/effects/basic/catkin-paw.png',
+  kenshi: 'assets/effects/basic/kenshi-iai.png',
 };
 
 export interface ResolvedAppearanceLayer {
@@ -579,7 +600,10 @@ export function resolveCharacterAppearance(
       visibleEquippedCount += 1;
       const presentation = equipmentPresentation(equipment, classId);
       visibleNames.push(presentation.name);
-      if (appearance.renderMode === 'replacement') {
+      if (
+        appearance.renderMode === 'replacement' ||
+        (appearance.renderMode === 'layer' && appearance.replacementClasses?.includes(classId))
+      ) {
         replacementBaseAsset = asset;
         replacementId = appearance.id;
         continue;

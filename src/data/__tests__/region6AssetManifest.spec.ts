@@ -20,7 +20,7 @@ import {
 } from '../region6';
 
 describe('区域 6 美术 manifest', () => {
-  it('锁定 80 项独立运行时资源和两组 PWA 容量边界', () => {
+  it('锁定 86 项独立运行时资源和两组 PWA 容量边界', () => {
     expect(REGION6_COUNTS).toEqual({
       maps: 6,
       battlefields: 5,
@@ -28,13 +28,13 @@ describe('区域 6 美术 manifest', () => {
       items: 5,
       equipment: 8,
       setEquipment: 8,
-      modularLayers: 12,
-      setModularLayers: 12,
+      modularLayers: 15,
+      setModularLayers: 15,
       regionContentRuntime: 55,
       regionSetRuntime: 20,
-      runtimeTotal: 80,
+      runtimeTotal: 86,
     });
-    expect(REGION6_ALL_ASSETS).toHaveLength(80);
+    expect(REGION6_ALL_ASSETS).toHaveLength(86);
   });
 
   it('场景、怪物、材料与实际配置同源', () => {
@@ -65,12 +65,17 @@ describe('区域 6 美术 manifest', () => {
     ]);
   });
 
-  it('四职业均有普通和套装三层，且每个独立资产使用唯一调用', () => {
-    expect(REGION6_CLASSES).toEqual(['swordsman', 'witch', 'shaman', 'catkin']);
-    expect(REGION6_MODULAR_LAYERS).toHaveLength(12);
-    expect(REGION6_SET_MODULAR_LAYERS).toHaveLength(12);
+  it('五职业均有普通和套装三层，且每个独立资产使用唯一来源键', () => {
+    expect(REGION6_CLASSES).toEqual(['swordsman', 'witch', 'shaman', 'catkin', 'kenshi']);
+    expect(REGION6_MODULAR_LAYERS).toHaveLength(15);
+    expect(REGION6_SET_MODULAR_LAYERS).toHaveLength(15);
     const callIds = REGION6_ALL_ASSETS.map(({ callId }) => callId);
-    expect(new Set(callIds)).toHaveLength(80);
-    expect(callIds.every((callId) => /^exec-[a-f0-9-]+$/.test(callId))).toBe(true);
+    expect(new Set(callIds)).toHaveLength(86);
+    expect(
+      callIds.every(
+        (callId) =>
+          /^exec-[a-f0-9-]+$/.test(callId) || /^contract-kenshi-r6-[a-z0-9-]+$/.test(callId),
+      ),
+    ).toBe(true);
   });
 });

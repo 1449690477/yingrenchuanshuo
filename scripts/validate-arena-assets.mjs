@@ -28,6 +28,12 @@ const EQUIPMENT = {
     'swiftshadow-stalker-suit',
     'swiftshadow-agile-ring',
   ],
+  kenshi: [
+    'blinkbloom-boundary-katana',
+    'blinkbloom-snowear-crown',
+    'blinkbloom-whitefeather-garb',
+    'blinkbloom-return-ring',
+  ],
 };
 const ITEM_IDS = ['honor_sigil', 'box_sacred', 'box_starlight'];
 const TIER_IDS = ['qingying', 'feiyue', 'hupo', 'feiying', 'yingguan'];
@@ -85,14 +91,14 @@ async function assertExactFiles(directory, expectedFiles, label) {
 
 async function assertManifest() {
   if (
-    equipmentFiles.length !== 16 ||
+    equipmentFiles.length !== 20 ||
     itemFiles.length !== 3 ||
     tierFiles.length !== 5 ||
-    sourceFiles.length !== 25
+    sourceFiles.length !== 29
   ) {
-    throw new Error('竞技场资产清单必须严格为 16 装备 + 3 物品 + 5 徽章 + 1 横幅');
+    throw new Error('竞技场资产清单必须严格为 20 装备 + 3 物品 + 5 徽章 + 1 横幅');
   }
-  if (new Set([...iconFiles, BANNER_FILE]).size !== 25) {
+  if (new Set([...iconFiles, BANNER_FILE]).size !== 29) {
     throw new Error('竞技场运行时资产路径存在重复');
   }
 

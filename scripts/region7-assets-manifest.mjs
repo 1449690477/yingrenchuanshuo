@@ -5,7 +5,7 @@
  * 运行时压缩资源、可复现构建器、来源锁和 QA 联系表。
  */
 
-export const REGION7_CLASSES = ['swordsman', 'witch', 'shaman', 'catkin'];
+export const REGION7_CLASSES = ['swordsman', 'witch', 'shaman', 'catkin', 'kenshi'];
 export const REGION7_VISIBLE_SLOTS = ['body', 'head', 'weapon'];
 export const REGION7_SLOTS = [
   'weapon',
@@ -164,6 +164,18 @@ const modularCallIds = {
       weapon: 'call_Q9FQuZ8DIdg30npk1aP7w158',
     },
   },
+  kenshi: {
+    r7: {
+      body: 'contract-kenshi-r7-r7-body',
+      head: 'contract-kenshi-r7-r7-head',
+      weapon: 'contract-kenshi-r7-r7-weapon',
+    },
+    'r7-bloodmoon': {
+      body: 'contract-kenshi-r7-r7-bloodmoon-body',
+      head: 'contract-kenshi-r7-r7-bloodmoon-head',
+      weapon: 'contract-kenshi-r7-r7-bloodmoon-weapon',
+    },
+  },
 };
 
 export const REGION7_MODULAR_LAYERS = REGION7_CLASSES.flatMap((classId) =>
@@ -193,11 +205,11 @@ export const REGION7_COUNTS = Object.freeze({
   equipment: 8,
   setEquipment: 8,
   badges: 1,
-  modularLayers: 12,
-  setModularLayers: 12,
+  modularLayers: 15,
+  setModularLayers: 15,
   regionContentRuntime: 55,
   regionSetRuntime: 21,
-  runtimeTotal: 81,
+  runtimeTotal: 87,
 });
 
 export const REGION7_ALL_ASSETS = [

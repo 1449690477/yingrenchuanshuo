@@ -7,7 +7,7 @@
 
 import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { dirname, resolve } from 'node:path';
+import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
 import {
@@ -29,6 +29,8 @@ const SOURCE_ROOT = process.env.REGION6_ART_SOURCE_ROOT?.trim()
   : resolve(ROOT, '..', 'yingrenchuanshuo-art-source-r6');
 const LOCK_PATH = resolve(ROOT, 'art-source/regions/r6/SOURCE-SHA256.json');
 const CONTACT_PATH = resolve(ROOT, 'art-source/qa/r6-assets-contact.webp');
+const CONTACT_ONLY = process.argv.includes('--contact-only');
+const CHECK_KENSHI_REBUILD = process.argv.includes('--check-kenshi-rebuild');
 
 const CANVAS = Object.freeze({ width: 640, height: 960 });
 
@@ -83,6 +85,85 @@ async function transparentCanvas(width, height, composites) {
     .composite(composites)
     .png()
     .toBuffer();
+}
+
+function alphaBounds(data, info, threshold = 20) {
+  let left = info.width;
+  let top = info.height;
+  let right = -1;
+  let bottom = -1;
+  for (let y = 0; y < info.height; y += 1) {
+    for (let x = 0; x < info.width; x += 1) {
+      if (data[(y * info.width + x) * info.channels + 3] <= threshold) continue;
+      left = Math.min(left, x);
+      top = Math.min(top, y);
+      right = Math.max(right, x);
+      bottom = Math.max(bottom, y);
+    }
+  }
+  return { left, top, right, bottom };
+}
+
+function kenshiSourcePath(entry, suffix) {
+  return resolve(
+    ROOT,
+    'art-source/characters/kenshi/regions',
+    `${entry.family}-${entry.slot}-${suffix}.png`,
+  );
+}
+
+async function buildKenshiLayerCanvas(entry) {
+  const resized = await sharp(kenshiSourcePath(entry, 'alpha'))
+    .ensureAlpha()
+    .resize({ width: CANVAS.width, height: CANVAS.height, fit: 'fill', kernel: sharp.kernel.lanczos3 })
+    .png()
+    .toBuffer();
+  if (entry.slot !== 'body') return resized;
+  const pixels = await sharp(resized).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const bounds = alphaBounds(pixels.data, pixels.info);
+  if (bounds.bottom < 0) throw new Error(`樱酱整身母版为空：${entry.family}`);
+  const offsetY = 925 - bounds.bottom;
+  return transparentCanvas(CANVAS.width, CANVAS.height, [
+    { input: resized, left: 0, top: offsetY },
+  ]);
+}
+
+async function encodeKenshiLayer(canvas) {
+  const truecolor = await sharp(canvas)
+    .png({ compressionLevel: 9, adaptiveFiltering: true })
+    .toBuffer();
+  if (truecolor.length <= 300 * 1024) return truecolor;
+
+  // libvips/libimagequant is the same mature, deterministic encoder already used by
+  // the regional item and equipment builders. Only use it when true-colour PNG
+  // exceeds the runtime budget; smaller head/weapon layers remain lossless RGBA.
+  for (const colours of [256, 224, 192]) {
+    const indexed = await sharp(canvas)
+      .png({
+        compressionLevel: 9,
+        adaptiveFiltering: true,
+        palette: true,
+        colours,
+        dither: 0.65,
+      })
+      .toBuffer();
+    if (indexed.length <= 300 * 1024) return indexed;
+  }
+  throw new Error(`樱酱纸娃娃层无法压到 300KiB：${truecolor.length} bytes`);
+}
+
+function visibleMeanAbsoluteError(left, right) {
+  if (left.length !== right.length) return Number.POSITIVE_INFINITY;
+  let total = 0;
+  for (let index = 0; index < left.length; index += 4) {
+    const leftAlpha = left[index + 3] / 255;
+    const rightAlpha = right[index + 3] / 255;
+    total += Math.abs(left[index] * leftAlpha - right[index] * rightAlpha);
+    total += Math.abs(left[index + 1] * leftAlpha - right[index + 1] * rightAlpha);
+    total += Math.abs(left[index + 2] * leftAlpha - right[index + 2] * rightAlpha);
+    total += Math.abs(left[index + 3] - right[index + 3]);
+  }
+  return total / left.length;
 }
 
 async function centeredTransparent(source, canvasSize, subjectSize) {
@@ -208,6 +289,16 @@ async function splitAtCenter(source, side) {
 
 async function buildLayer(entry) {
   const key = `${entry.classId}:${entry.family}:${entry.slot}`;
+  if (entry.classId === 'kenshi') {
+    const output = resolve(
+      ROOT,
+      'public/assets/characters/modular/kenshi',
+      `${entry.family}-${entry.slot}.png`,
+    );
+    await mkdirFor(output);
+    await writeFile(output, await encodeKenshiLayer(await buildKenshiLayerCanvas(entry)));
+    return output;
+  }
   const placement = PLACEMENTS[key];
   if (!placement) throw new Error(`缺少纸娃娃对位：${key}`);
   const source = resolve(
@@ -260,6 +351,58 @@ function record(asset, runtimePath, sources) {
   }
 }
 
+if (CHECK_KENSHI_REBUILD) {
+  for (const entry of [...REGION6_MODULAR_LAYERS, ...REGION6_SET_MODULAR_LAYERS].filter(
+    ({ classId }) => classId === 'kenshi',
+  )) {
+    const encoded = await encodeKenshiLayer(await buildKenshiLayerCanvas(entry));
+    const rebuilt = await sharp(encoded).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    const rebuiltBounds = alphaBounds(rebuilt.data, rebuilt.info);
+    if (entry.slot === 'body' && rebuiltBounds.bottom !== 925) {
+      throw new Error(`${entry.family}-body 脚底未对齐 925：${rebuiltBounds.bottom}`);
+    }
+    const currentPath = resolve(
+      ROOT,
+      'public/assets/characters/modular/kenshi',
+      `${entry.family}-${entry.slot}.png`,
+    );
+    const current = await sharp(currentPath).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    const currentBounds = alphaBounds(current.data, current.info);
+    const byteExact = sha256(encoded) === (await fileSha256(currentPath));
+    const visibleMae = visibleMeanAbsoluteError(rebuilt.data, current.data);
+    const maxVisibleMae = entry.slot === 'body' ? 8 : 0.1;
+    if (visibleMae > maxVisibleMae) {
+      throw new Error(
+        `${entry.family}-${entry.slot} 重建可见像素偏差过大：${visibleMae.toFixed(3)} > ${maxVisibleMae}`,
+      );
+    }
+    const widthDelta = Math.abs(
+      rebuiltBounds.right - rebuiltBounds.left - (currentBounds.right - currentBounds.left),
+    );
+    const heightDelta = Math.abs(
+      rebuiltBounds.bottom - rebuiltBounds.top - (currentBounds.bottom - currentBounds.top),
+    );
+    if (widthDelta > 2 || heightDelta > 2) {
+      throw new Error(
+        `${entry.family}-${entry.slot} 重建轮廓与当前 runtime 不等价：${widthDelta}/${heightDelta}`,
+      );
+    }
+    console.log(
+      `✓ ${entry.family}-${entry.slot} dry-run：${encoded.length} bytes，bbox=${rebuiltBounds.left},${rebuiltBounds.top},${rebuiltBounds.right},${rebuiltBounds.bottom}，byteExact=${byteExact}，visibleMAE=${visibleMae.toFixed(3)}`,
+    );
+  }
+  process.exit(0);
+}
+
+if (CONTACT_ONLY) {
+  const lock = JSON.parse(await readFile(LOCK_PATH, 'utf8'));
+  for (const asset of REGION6_ALL_ASSETS) {
+    const key = `${asset.category}:${asset.id}`;
+    const lockedRuntime = lock.runtime?.[key];
+    if (!lockedRuntime?.path) throw new Error(`R6 来源锁缺少运行时记录：${key}`);
+    runtimeRecords.push({ key, path: resolve(ROOT, lockedRuntime.path) });
+  }
+} else {
 for (const asset of REGION6_MAPS) {
   const source = resolve(SOURCE_ROOT, 'scenes/maps', `${asset.id}-source.png`);
   const output = resolve(ROOT, 'public/assets/maps', `${asset.id}.webp`);
@@ -322,13 +465,10 @@ for (const asset of REGION6_SET_EQUIPMENT) {
 }
 for (const asset of [...REGION6_MODULAR_LAYERS, ...REGION6_SET_MODULAR_LAYERS]) {
   const output = await buildLayer(asset);
-  const base = resolve(
-    SOURCE_ROOT,
-    'modular',
-    asset.classId,
-    asset.family,
-    asset.slot,
-  );
+  const base =
+    asset.classId === 'kenshi'
+      ? resolve(ROOT, 'art-source/characters/kenshi/regions', `${asset.family}-${asset.slot}`)
+      : resolve(SOURCE_ROOT, 'modular', asset.classId, asset.family, asset.slot);
   record(
     {
       ...asset,
@@ -357,7 +497,9 @@ const lock = {
         `${key}:${index}`,
         {
           callId,
-          path: path.replaceAll('\\', '/').split('/yingrenchuanshuo-art-source-r6/')[1],
+          path: relative(ROOT, path).startsWith('..')
+            ? relative(SOURCE_ROOT, path).replaceAll('\\', '/')
+            : `repo:${relative(ROOT, path).replaceAll('\\', '/')}`,
           sha256: await fileSha256(path),
         },
       ]),
@@ -368,7 +510,7 @@ const lock = {
       runtimeRecords.map(async ({ key, path }) => [
         key,
         {
-          path: path.replaceAll('\\', '/').split('/sakura-legend/')[1],
+          path: relative(ROOT, path).replaceAll('\\', '/'),
           sha256: await fileSha256(path),
         },
       ]),
@@ -377,6 +519,13 @@ const lock = {
 };
 await mkdirFor(LOCK_PATH);
 await writeFile(LOCK_PATH, `${JSON.stringify(lock, null, 2)}\n`, 'utf8');
+}
+
+if (runtimeRecords.length !== REGION6_ALL_ASSETS.length) {
+  throw new Error(
+    `R6 联系表记录错位：${runtimeRecords.length} !== ${REGION6_ALL_ASSETS.length}`,
+  );
+}
 
 const cellWidth = 220;
 const cellHeight = 180;
@@ -414,5 +563,7 @@ await sharp({
   .toFile(CONTACT_PATH);
 
 console.log(
-  `✓ 区域 6 全资产构建完成：${runtimeRecords.length} 张运行时资源，来源锁与联系表已更新。`,
+  CONTACT_ONLY
+    ? `✓ 区域 6 全资产联系表已从 ${runtimeRecords.length} 张既有运行时资源重建。`
+    : `✓ 区域 6 全资产构建完成：${runtimeRecords.length} 张运行时资源，来源锁与联系表已更新。`,
 );

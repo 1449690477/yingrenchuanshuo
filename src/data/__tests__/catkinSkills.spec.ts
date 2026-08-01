@@ -45,9 +45,13 @@ describe('catkin skill content', () => {
       statusId: 'catkin_claw_mark',
       stacks: 3,
     });
+    expect(ambush.type === 'active' ? ambush.castWhen : undefined).toMatchObject({
+      target: 'primary-enemy',
+    });
 
     const ultimate = CATKIN_SKILLS.find((skill) => skill.id === 'skill_catkin_hundred_claw')!;
     expect(primaryDamageEffect(ultimate)?.statusScaling).toEqual({
+      statusTarget: 'damage-target',
       statusId: 'catkin_claw_mark',
       damageRatioPerStack: 0.15,
       consume: 'all',

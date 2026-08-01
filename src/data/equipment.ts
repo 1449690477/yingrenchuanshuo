@@ -70,7 +70,7 @@ interface NamingTheme {
   /** 同区域同部位共用基础图，品质由 UI 边框和光效表达 */
   icons: Record<EquipSlot, string>;
   names: Record<EquipSlot, string>;
-  /** 同一把共享数值武器在四职业手中呈现为剑 / 杖 / 扇 / 爪。 */
+  /** 同一把共享数值武器在五职业手中呈现为剑 / 杖 / 扇 / 爪 / 太刀。 */
   weaponNames: Readonly<Record<ClassId, string>>;
 }
 
@@ -214,7 +214,7 @@ function weaponClassPresentations(
       classId,
       {
         name: `${qualityPrefix}${names[classId]}`,
-        icon: `assets/equipment/weapons/${appearanceId}/${classId === 'kenshi' ? 'catkin' : classId}.png`,
+        icon: `assets/equipment/weapons/${appearanceId}/${classId}.png`,
       },
     ]),
   ) as Record<ClassId, EquipmentClassPresentation>;
@@ -344,8 +344,7 @@ function buildEquipment(): Record<string, EquipmentDef> {
     const percentile = theme.quality === 'epic' ? 0.6 : theme.quality === 'legendary' ? 0.75 : 0.9;
     for (const item of theme.items) {
       const id = boutiqueEquipmentId(theme.id, item.slot, item.classId);
-      const assetClassId = item.classId === 'kenshi' ? 'catkin' : item.classId;
-      const iconName = assetClassId ? `${item.slot}-${assetClassId}.png` : `${item.slot}.png`;
+      const iconName = item.classId ? `${item.slot}-${item.classId}.png` : `${item.slot}.png`;
       const common = {
         id,
         name: item.name,

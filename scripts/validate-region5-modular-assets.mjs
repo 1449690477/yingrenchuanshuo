@@ -1,9 +1,9 @@
 /**
- * 区域 5 四职业纸娃娃资产门禁。
+ * 区域 5 五职业纸娃娃资产门禁。
  *
  * 默认只检查主仓运行时 PNG、SHA 锁、合成对位和联系表，可在没有美术源仓的
  * CI / Pages 环境运行。显式传入 `--with-sources` 时，才追加检查独立源仓里的
- * 24 张绿幕原图与 24 张官方抠图 alpha 母版。
+ * 30 张绿幕原图与 30 张官方抠图 alpha 母版。
  */
 
 import { createHash } from 'node:crypto';
@@ -18,13 +18,15 @@ const SOURCE_ROOT = process.env.REGION5_MODULAR_SOURCE_ROOT?.trim()
   ? resolve(process.env.REGION5_MODULAR_SOURCE_ROOT)
   : resolve(ROOT, '..', 'yingrenchuanshuo-art-source-r5', 'modular');
 const WITH_SOURCES = process.argv.includes('--with-sources');
+const REPO_SOURCES_ONLY = process.argv.includes('--repo-sources-only');
+const CHECK_SOURCES = WITH_SOURCES || REPO_SOURCES_ONLY;
 const LOCK_PATH = resolve(
   ROOT,
   'art-source/regions/r5/MODULAR-SOURCE-SHA256.json',
 );
 const CONTACT_PATH = resolve(ROOT, 'art-source/qa/r5-modular-contact.webp');
 
-const CLASSES = ['swordsman', 'witch', 'shaman', 'catkin'];
+const CLASSES = ['swordsman', 'witch', 'shaman', 'catkin', 'kenshi'];
 const FAMILIES = ['r5', 'r5-crimson'];
 const SLOTS = ['body', 'head', 'weapon'];
 const EXPECTED_COUNT = CLASSES.length * FAMILIES.length * SLOTS.length;
@@ -35,6 +37,7 @@ const EYE_BANDS = {
   witch: { left: 280, top: 105, width: 100, height: 35 },
   shaman: { left: 280, top: 105, width: 105, height: 35 },
   catkin: { left: 292, top: 120, width: 78, height: 20 },
+  kenshi: { left: 260, top: 110, width: 120, height: 90 },
 };
 
 const WEAPON_HAND_BOXES = {
@@ -44,6 +47,10 @@ const WEAPON_HAND_BOXES = {
   catkin: [
     { left: 145, top: 365, width: 100, height: 115 },
     { left: 435, top: 255, width: 115, height: 115 },
+  ],
+  kenshi: [
+    { left: 145, top: 375, width: 120, height: 130 },
+    { left: 435, top: 250, width: 145, height: 180 },
   ],
 };
 
@@ -74,6 +81,14 @@ function runtimePathFor(classId, family, slot) {
     classId,
     `${family}-${slot}.png`,
   );
+}
+
+function lockedSourcePath(relativePath) {
+  const repositoryPrefix = 'repo:';
+  if (relativePath.startsWith(repositoryPrefix)) {
+    return resolve(ROOT, relativePath.slice(repositoryPrefix.length));
+  }
+  return resolve(SOURCE_ROOT, relativePath.replace(/^modular\//, ''));
 }
 
 async function rgba(path) {
@@ -244,7 +259,8 @@ for (const key of expectedKeys) {
 for (const classId of CLASSES) {
   const eyeBand = EYE_BANDS[classId];
   for (const family of FAMILIES) {
-    for (const slot of ['body', 'weapon']) {
+    const faceExclusionSlots = classId === 'kenshi' ? ['weapon'] : ['body', 'weapon'];
+    for (const slot of faceExclusionSlots) {
       const raw = runtimeRaw.get(keyFor(classId, family, slot));
       const covered = alphaCountInRect(raw.data, raw.info, eyeBand);
       const ratio = covered / (eyeBand.width * eyeBand.height);
@@ -257,21 +273,25 @@ for (const classId of CLASSES) {
     }
 
     const weapon = runtimeRaw.get(keyFor(classId, family, 'weapon'));
-    for (const handBox of WEAPON_HAND_BOXES[classId]) {
-      const overlap = alphaCountInRect(
+    const handOverlaps = WEAPON_HAND_BOXES[classId].map((handBox) =>
+      alphaCountInRect(
         weapon.data,
         weapon.info,
         handBox,
         16,
-      );
-      if (overlap < 45) {
-        fail(`${classId}/${family}-weapon 未命中既定握持点`);
+      ),
+    );
+    if (classId === 'kenshi') {
+      if (handOverlaps.every((overlap) => overlap < 150)) {
+        fail(`${classId}/${family}-weapon 未命中任一居合握持点（至少 150 alpha 像素）`);
       }
+    } else if (handOverlaps.some((overlap) => overlap < 45)) {
+      fail(`${classId}/${family}-weapon 未命中既定握持点`);
     }
 
     const head = runtimeRaw.get(keyFor(classId, family, 'head'));
     const headBounds = alphaBounds(head.data, head.info);
-    if (classId === 'catkin' && headBounds.right - headBounds.left > 250) {
+    if ((classId === 'catkin' || classId === 'kenshi') && headBounds.right - headBounds.left > 250) {
       fail(`${classId}/${family}-head 过宽，可能压住猫耳`);
     }
   }
@@ -292,21 +312,18 @@ await requireFile(CONTACT_PATH);
 const contactMetadata = await sharp(CONTACT_PATH).metadata();
 if (
   contactMetadata.format !== 'webp' ||
-  !contactMetadata.width ||
-  !contactMetadata.height ||
-  contactMetadata.width < 1_000 ||
-  contactMetadata.height < 800
+  contactMetadata.width !== 1354 ||
+  contactMetadata.height !== 918
 ) {
-  fail('r5-modular-contact.webp 必须是可读的普通 / 绯焰八套对比联系表');
+  fail('r5-modular-contact.webp 必须是 1354×918 的五职业普通 / 绯焰对比联系表');
 }
 
-if (WITH_SOURCES) {
+if (CHECK_SOURCES) {
   for (const key of expectedKeys) {
     const entry = lock.assets[key];
-    const relativeSource = entry.sourcePath.replace(/^modular\//, '');
-    const relativeAlpha = entry.alphaPath.replace(/^modular\//, '');
-    const sourcePath = resolve(SOURCE_ROOT, relativeSource);
-    const alphaPath = resolve(SOURCE_ROOT, relativeAlpha);
+    if (REPO_SOURCES_ONLY && !entry.sourcePath.startsWith('repo:')) continue;
+    const sourcePath = lockedSourcePath(entry.sourcePath);
+    const alphaPath = lockedSourcePath(entry.alphaPath);
     await requireFile(sourcePath);
     await requireFile(alphaPath);
 
@@ -363,7 +380,11 @@ if (WITH_SOURCES) {
 }
 
 console.log(
-  `✓ R5 纸娃娃门禁通过：${EXPECTED_COUNT} 张运行时层、8 套合成、24 个唯一 ImageGen key${
-    WITH_SOURCES ? '，并已核验 48 个外置母版文件' : ''
+  `✓ R5 纸娃娃门禁通过：${EXPECTED_COUNT} 张运行时层、10 套合成、30 个唯一 ImageGen key${
+    WITH_SOURCES
+      ? '，并已核验 60 个来源母版文件'
+      : REPO_SOURCES_ONLY
+        ? '，并已核验 12 个仓内樱酱母版文件'
+        : ''
   }。`,
 );

@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   KENSHI_SKILLS,
@@ -32,6 +34,7 @@ describe('kenshi skill content', () => {
     if (flash.type !== 'active') throw new Error('居合·一闪必须是主动技能');
     expect(flash.castWhen).toMatchObject({
       kind: 'status-stacks-at-least',
+      target: 'self',
       statusId: 'kenshi_sword_intent',
       stacks: 2,
     });
@@ -45,32 +48,55 @@ describe('kenshi skill content', () => {
       (skill) => skill.id === 'skill_kenshi_thousand_sakura',
     )!;
     expect(primaryDamageEffect(ultimate)?.statusScaling).toEqual({
+      statusTarget: 'self',
       statusId: 'kenshi_sword_intent',
       damageRatioPerStack: 0.12,
       consume: 'all',
     });
   });
 
-  it('燕返与无我都是低血斩杀，斩杀线分别为 30% 与 40%', () => {
+  it('燕返在伤害前读取斩杀线，无我把 30%/50% 升为 40%/60%', () => {
     const swallow = KENSHI_SKILLS.find((skill) => skill.id === 'skill_kenshi_swallow_return')!;
-    expect(swallow.effects.find((effect) => effect.kind === 'conditional')).toMatchObject({
-      when: { kind: 'target-hp-at-most', ratio: 0.3 },
+    expect(primaryDamageEffect(swallow)?.execute).toEqual({
+      targetHpRatioAtMost: 0.3,
+      bonusDamageRatio: { base: 0.5 },
+      upgrade: {
+        passiveSkillId: 'skill_kenshi_no_self',
+        targetHpRatioAtMost: 0.4,
+        bonusDamageRatio: { base: 0.6 },
+      },
     });
 
     const noSelf = KENSHI_SKILLS.find((skill) => skill.id === 'skill_kenshi_no_self')!;
-    expect(noSelf.effects.find((effect) => effect.kind === 'conditional')).toMatchObject({
-      when: { kind: 'target-hp-at-most', ratio: 0.4 },
-    });
+    expect(noSelf.effects).toEqual([]);
   });
 
-  it('剑圣之心 P1 只登记暴击伤害，破甲加成等待 M3-4', () => {
+  it('剑圣之心同时提供 15 暴伤与 10% 全局破甲', () => {
     const saint = KENSHI_SKILLS.find((skill) => skill.id === 'skill_kenshi_sword_saint')!;
-    expect(JSON.stringify(saint)).not.toContain('defenseIgnoreRatio');
-    expect(JSON.stringify(saint)).toContain('critDmg');
+    expect(saint.effects).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'modifier',
+          modifier: { unit: 'percentage-points', stat: 'critDmg', points: { base: 15 } },
+        }),
+        expect.objectContaining({
+          kind: 'modifier',
+          modifier: { unit: 'ratio', stat: 'armorPenetration', ratio: { base: 0.1 } },
+        }),
+      ]),
+    );
   });
 
-  it('P1 不伪造未制作的视觉技能和挂机演出', () => {
-    expect(KENSHI_VISUAL_SKILLS).toEqual([]);
-    expect(battleRhythmSkills('kenshi', 88)).toEqual([]);
+  it('完整批次登记 14 图标与 9 个主动技能特效', () => {
+    expect(KENSHI_VISUAL_SKILLS).toHaveLength(14);
+    for (const skill of KENSHI_VISUAL_SKILLS) {
+      expect(existsSync(resolve('public', skill.icon)), skill.icon).toBe(true);
+      expect(existsSync(resolve('public', skill.effectAsset)), skill.effectAsset).toBe(true);
+    }
+    expect(
+      KENSHI_VISUAL_SKILLS.filter((skill) => skill.effectAsset.startsWith('assets/effects/')),
+    ).toHaveLength(9);
+
+    expect(battleRhythmSkills('kenshi', 88)).not.toHaveLength(0);
   });
 });

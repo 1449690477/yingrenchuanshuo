@@ -35,9 +35,7 @@ describe('词条洗练材料产出', () => {
       const item = ITEMS[itemId];
       expect(item, itemId).toBeDefined();
       expect(item!.kind, itemId).toBe('material');
-      expect(item!.icon, itemId).toBe(
-        itemId === 'sigil_kenshi' ? 'assets/items/sigil_catkin.png' : `assets/items/${itemId}.png`,
-      );
+      expect(item!.icon, itemId).toBe(`assets/items/${itemId}.png`);
       expect(existsSync(resolve('public', item!.icon)), `${itemId} → ${item!.icon}`).toBe(true);
     }
   });

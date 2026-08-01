@@ -29,9 +29,12 @@ const SOURCE_ROOT = process.env.REGION7_ART_SOURCE_ROOT?.trim()
   ? resolve(process.env.REGION7_ART_SOURCE_ROOT)
   : resolve(ROOT, '..', 'yingrenchuanshuo-art-source-r7');
 const WITH_SOURCES = process.argv.includes('--with-sources');
+const REPO_SOURCES_ONLY = process.argv.includes('--repo-sources-only');
+const CHECK_SOURCES = WITH_SOURCES || REPO_SOURCES_ONLY;
 const LOCK_PATH = resolve(ROOT, 'art-source/regions/r7/SOURCE-SHA256.json');
 const PROMPTS_PATH = resolve(ROOT, 'art-source/regions/r7/PROMPTS.md');
 const CONTACT_PATH = resolve(ROOT, 'art-source/qa/r7-assets-contact.webp');
+const APPEARANCE_CONTACT_PATH = resolve(ROOT, 'art-source/qa/r7-appearance-contact.webp');
 const errors = [];
 const runtimeHashes = new Map();
 
@@ -46,6 +49,13 @@ async function exists(path) {
   } catch {
     return false;
   }
+}
+
+function lockedSourcePath(relativePath) {
+  const repositoryPrefix = 'repo:';
+  return relativePath.startsWith(repositoryPrefix)
+    ? resolve(ROOT, relativePath.slice(repositoryPrefix.length))
+    : resolve(SOURCE_ROOT, relativePath);
 }
 
 function runtimeEntries() {
@@ -205,7 +215,11 @@ if (
 }
 
 const callIds = REGION7_ALL_ASSETS.map((asset) => asset.callId);
-if (callIds.some((callId) => !/^call_[A-Za-z0-9]+$/.test(callId))) {
+if (
+  callIds.some(
+    (callId) => !/^(?:call_[A-Za-z0-9]+|contract-kenshi-r7-[a-z0-9-]+)$/.test(callId),
+  )
+) {
   errors.push('R7 manifest 存在无效 ImageGen call ID');
 }
 if (new Set(callIds).size !== callIds.length) {
@@ -224,10 +238,24 @@ if (!(await exists(CONTACT_PATH))) {
   if (
     metadata.format !== 'webp' ||
     metadata.width !== 1100 ||
-    metadata.height !== 3060
+    metadata.height !== 3240
   ) {
     errors.push(
       `R7 联系表规格错误：${metadata.width}×${metadata.height} ${metadata.format}`,
+    );
+  }
+}
+if (!(await exists(APPEARANCE_CONTACT_PATH))) {
+  errors.push(`缺少 R7 五职业纸娃娃联系表：${APPEARANCE_CONTACT_PATH}`);
+} else {
+  const metadata = await sharp(APPEARANCE_CONTACT_PATH).metadata();
+  if (
+    metadata.format !== 'webp' ||
+    metadata.width !== 1800 ||
+    metadata.height !== 1160
+  ) {
+    errors.push(
+      `R7 五职业纸娃娃联系表规格错误：${metadata.width}×${metadata.height} ${metadata.format}`,
     );
   }
 }
@@ -237,11 +265,11 @@ if (!(await exists(LOCK_PATH))) {
   errors.push(`缺少 R7 来源锁：${LOCK_PATH}`);
 } else {
   lock = JSON.parse(await readFile(LOCK_PATH, 'utf8'));
-  if (Object.keys(lock.runtime ?? {}).length !== 81) {
-    errors.push(`R7 来源锁 runtime 必须是 81 项`);
+  if (Object.keys(lock.runtime ?? {}).length !== REGION7_COUNTS.runtimeTotal) {
+    errors.push(`R7 来源锁 runtime 必须是 ${REGION7_COUNTS.runtimeTotal} 项`);
   }
-  if (Object.keys(lock.sources ?? {}).length !== 151) {
-    errors.push(`R7 来源锁 sources 必须是 151 项`);
+  if (Object.keys(lock.sources ?? {}).length !== 163) {
+    errors.push(`R7 来源锁 sources 必须是 163 项`);
   }
   for (const record of Object.values(lock.runtime ?? {})) {
     const path = resolve(ROOT, record.path);
@@ -255,10 +283,11 @@ if (!(await exists(LOCK_PATH))) {
   }
 }
 
-if (WITH_SOURCES && lock) {
+if (CHECK_SOURCES && lock) {
   const sourcePixelHashes = new Map();
   for (const record of Object.values(lock.sources ?? {})) {
-    const path = resolve(SOURCE_ROOT, record.path);
+    if (REPO_SOURCES_ONLY && !record.path.startsWith('repo:')) continue;
+    const path = lockedSourcePath(record.path);
     if (!(await exists(path))) {
       errors.push(`来源锁指向缺失母版：${record.path}`);
       continue;
@@ -298,6 +327,6 @@ if (errors.length > 0) {
   process.exitCode = 1;
 } else {
   console.log(
-    `✓ 区域 7 全资产门禁通过：81/81 独立运行时资源${WITH_SOURCES ? '，151/151 来源母版与 SHA 同步通过' : ''}。`,
+    `✓ 区域 7 全资产门禁通过：${REGION7_COUNTS.runtimeTotal}/${REGION7_COUNTS.runtimeTotal} 独立运行时资源${WITH_SOURCES ? '，163/163 来源母版与 SHA 同步通过' : REPO_SOURCES_ONLY ? '，12/12 仓内樱酱母版与 SHA 同步通过' : ''}。`,
   );
 }

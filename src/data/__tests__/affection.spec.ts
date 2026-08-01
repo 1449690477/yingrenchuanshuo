@@ -10,11 +10,11 @@ import {
   requireAffectionStory,
 } from '../affection';
 
-const COMPLETE_AFFECTION_CLASS_IDS = CLASS_IDS.filter((classId) => classId !== 'kenshi');
+const COMPLETE_AFFECTION_CLASS_IDS = CLASS_IDS;
 
 describe('affection content', () => {
-  it('四位成年角色各有 12 幕剧情、每幕 3 个等价回答和 6 种互动', () => {
-    expect(AFFECTION_STORIES).toHaveLength(48);
+  it('五位成年角色各有 12 幕剧情、每幕 3 个等价回答和 6 种互动', () => {
+    expect(AFFECTION_STORIES).toHaveLength(60);
 
     for (const classId of COMPLETE_AFFECTION_CLASS_IDS) {
       const character = AFFECTION_CHARACTERS[classId];
@@ -58,6 +58,9 @@ describe('affection content', () => {
       ['aff_catkin_04_expansion', '两把平等的钥匙', 'catkin-base-expansion-day.webp'],
       ['aff_catkin_05_rainwatch', '队长也可以说累', 'catkin-rainy-workshop-night.webp'],
       ['aff_catkin_06_departure', '下一次也并肩出发', 'catkin-sunrise-departure-platform.webp'],
+      ['aff_kenshi_04_nick', '缺口也能被看见', 'kenshi-workbench-afterglow.webp'],
+      ['aff_kenshi_05_nightwatch', '今夜不必独守', 'kenshi-dojo-nightwatch.webp'],
+      ['aff_kenshi_06_second_lantern', '落樱道场的第二盏灯', 'kenshi-dojo-homecoming-sunrise.webp'],
     ] as const;
 
     const secondBatch = AFFECTION_STORIES.filter(
@@ -77,6 +80,7 @@ describe('affection content', () => {
       'assets/affection/cg/witch-shared-constellation.webp',
       'assets/affection/cg/shaman-paired-lantern-charm.webp',
       'assets/affection/cg/catkin-partner-badges.webp',
+      'assets/affection/cg/kenshi-paired-dojo-lanterns.webp',
     ]);
   });
 
@@ -94,6 +98,9 @@ describe('affection content', () => {
       ['aff_catkin_07_gift', '礼物要先过搭档验收', 'catkin-gift-inspection-workshop.webp'],
       ['aff_catkin_08_sentimental', '喜欢不是物资编号', 'catkin-sentimental-shelf-rain.webp'],
       ['aff_catkin_09_reciprocal', '下一站也有你的收纳格', 'catkin-shared-expedition-locker-sunrise.webp'],
+      ['aff_kenshi_07_gift', '礼物不替她决定', 'kenshi-gift-whetstone-morning.webp'],
+      ['aff_kenshi_08_preference', '喜欢可以说，不必守礼', 'kenshi-sakura-market-rain.webp'],
+      ['aff_kenshi_09_route_map', '回礼是一张并肩巡路图', 'kenshi-route-map-sunset.webp'],
     ] as const;
 
     const thirdBatch = AFFECTION_STORIES.filter(
@@ -113,6 +120,7 @@ describe('affection content', () => {
       'assets/affection/cg/witch-reciprocal-star-ink.webp',
       'assets/affection/cg/shaman-open-knot-keepsakes.webp',
       'assets/affection/cg/catkin-two-way-supply-tags.webp',
+      'assets/affection/cg/kenshi-shared-patrol-map.webp',
     ]);
   });
 
@@ -178,14 +186,15 @@ describe('affection content', () => {
     }
   });
 
-  it('樱酱 P1 只开放成年边界与两种日常互动，不伪造尚未制作的剧情', () => {
+  it('樱酱保持成年边界并达到完整角色内容契约', () => {
     expect(AFFECTION_CHARACTERS.kenshi).toMatchObject({
       classId: 'kenshi',
       adult: true,
       name: '樱酱',
     });
-    expect(AFFECTION_CHARACTERS.kenshi.interactions).toHaveLength(2);
-    expect(AFFECTION_CHARACTERS.kenshi.stories).toEqual([]);
+    expect(AFFECTION_CHARACTERS.kenshi.interactions).toHaveLength(6);
+    expect(AFFECTION_CHARACTERS.kenshi.stories).toHaveLength(12);
+    expect(AFFECTION_CHARACTERS.kenshi.boundaries).toContain('触碰刀鞘、刀穗或手部前先询问');
   });
 
   it('第三批每幕回响一个完整来源章节的三种历史选择', () => {
@@ -274,17 +283,17 @@ describe('affection content', () => {
         expect(story.cgAsset).toMatch(/^assets\/affection\/cg\/[a-z0-9-]+\.webp$/);
       }
     }
-    expect(scenePaths.size).toBe(48);
-    expect(AFFECTION_STORIES.filter((story) => story.cgAsset)).toHaveLength(16);
+    expect(scenePaths.size).toBe(60);
+    expect(AFFECTION_STORIES.filter((story) => story.cgAsset)).toHaveLength(20);
   });
 
-  it('四批四十八张场景与十六张高潮插画均真实存在且保持 3:2 横图', async () => {
+  it('五位角色六十张场景与二十张高潮插画均真实存在且保持 3:2 横图', async () => {
     const assets = new Set<string>();
     for (const story of AFFECTION_STORIES) {
       assets.add(story.backgroundAsset);
       if (story.cgAsset) assets.add(story.cgAsset);
     }
-    expect(assets.size).toBe(64);
+    expect(assets.size).toBe(80);
 
     for (const asset of assets) {
       const assetPath = resolve('public', asset);

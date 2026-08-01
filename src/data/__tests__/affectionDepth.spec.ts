@@ -5,12 +5,12 @@ import { AFFECTION_INTERLUDES, affectionInterludesForClass } from '../affectionI
 import { AFFECTION_LETTERS, affectionLettersForClass } from '../affectionLetters';
 import { AFFECTION_RULES } from '../affectionRules';
 
-const COMPLETE_AFFECTION_CLASS_IDS = CLASS_IDS.filter((classId) => classId !== 'kenshi');
+const COMPLETE_AFFECTION_CLASS_IDS = CLASS_IDS;
 
 describe('Galgame R2a 陪伴内容数据', () => {
-  it('四角色每个好感阶段各有 4 段闲聊，共 96 段', () => {
-    expect(AFFECTION_INTERLUDES).toHaveLength(96);
-    expect(new Set(AFFECTION_INTERLUDES.map((entry) => entry.id)).size).toBe(96);
+  it('五角色每个好感阶段各有 4 段闲聊，共 120 段', () => {
+    expect(AFFECTION_INTERLUDES).toHaveLength(120);
+    expect(new Set(AFFECTION_INTERLUDES.map((entry) => entry.id)).size).toBe(120);
 
     for (const classId of COMPLETE_AFFECTION_CLASS_IDS) {
       const entries = affectionInterludesForClass(classId);
@@ -22,7 +22,7 @@ describe('Galgame R2a 陪伴内容数据', () => {
         expect(pool.every((entry) => entry.tierLabel === tier.label)).toBe(true);
       }
     }
-    expect(affectionInterludesForClass('kenshi')).toEqual([]);
+    expect(affectionInterludesForClass('kenshi')).toHaveLength(24);
   });
 
   it('每段闲聊均为 2 句微剧情，带角色心情且没有奖励/次数配置', () => {
@@ -40,8 +40,8 @@ describe('Galgame R2a 陪伴内容数据', () => {
   });
 
   it('四角色各有 4 封关键剧情来信，每封完整覆盖来源剧情的三个真实选项', () => {
-    expect(AFFECTION_LETTERS).toHaveLength(16);
-    expect(new Set(AFFECTION_LETTERS.map((entry) => entry.id)).size).toBe(16);
+    expect(AFFECTION_LETTERS).toHaveLength(20);
+    expect(new Set(AFFECTION_LETTERS.map((entry) => entry.id)).size).toBe(20);
 
     for (const classId of COMPLETE_AFFECTION_CLASS_IDS) {
       const letters = affectionLettersForClass(classId);

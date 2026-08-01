@@ -63,6 +63,10 @@ export interface CombatBonuses {
   lifesteal: number;
   /** 三系属性伤害，10 表示对应属性的克制系数额外 +0.1。 */
   elementDamage: Record<Exclude<Element, 'none'>, number>;
+  /** 技能伤害加成百分点；只放大真实主动技能，不放大普攻与装备追加段。 */
+  skillDamage?: number;
+  /** 装备提供的破甲百分点；与技能破甲相加后由公式统一封顶。 */
+  armorPenetration?: number;
 }
 
 /** 参战单位 */
@@ -278,8 +282,13 @@ export type SkillCondition =
   | { kind: 'self-hp-at-most'; ratio: number }
   | { kind: 'target-hp-at-most'; ratio: number }
   | { kind: 'monster-type'; types: readonly MonsterType[] }
-  | { kind: 'status-stacks-at-least'; statusId: string; stacks: number }
-  | { kind: 'has-status'; statusId: string };
+  | {
+      kind: 'status-stacks-at-least';
+      statusId: string;
+      stacks: number;
+      target?: 'self' | 'primary-enemy';
+    }
+  | { kind: 'has-status'; statusId: string; target?: 'self' | 'primary-enemy' };
 
 /**
  * 属性修正显式区分三种单位，防止把「闪避率 +20 个百分点」
@@ -297,7 +306,10 @@ export type SkillStatModifier =
         | 'atk'
         | 'def'
         | 'hp'
+        | 'acc'
+        | 'eva'
         | 'spd'
+        | 'armorPenetration'
         | 'damageDone'
         | 'damageTaken'
         /** 仅放大施加该状态的来源单位造成的伤害。 */
@@ -307,7 +319,13 @@ export type SkillStatModifier =
     }
   | {
       unit: 'percentage-points';
-      stat: 'critRate' | 'critDmg' | 'hitChance' | 'dodgeChance';
+      stat:
+        | 'critRate'
+        | 'critDmg'
+        | 'hitChance'
+        | 'dodgeChance'
+        | 'defenseIgnore'
+        | 'lifesteal';
       points: LevelScalar;
     };
 
@@ -324,8 +342,20 @@ export type SkillEffect =
       hitWeights?: readonly number[];
       element?: Element;
       defenseIgnoreRatio?: number;
+      /** 斩杀线在本伤害前求值；升级被动存在时用 upgrade 完整替换基础档。 */
+      execute?: {
+        targetHpRatioAtMost: number;
+        bonusDamageRatio: LevelScalar;
+        upgrade?: {
+          passiveSkillId: string;
+          targetHpRatioAtMost: number;
+          bonusDamageRatio: LevelScalar;
+        };
+      };
       statusScaling?: {
         statusId: string;
+        /** 必须由新数据显式填写；core 不得根据技能 ID 猜状态在谁身上。 */
+        statusTarget?: 'self' | 'damage-target';
         /**
          * 线性叠层：总伤害 = 基础总伤害 × (1 + 快照层数 × damageRatioPerStack)。
          * AoE 对每个目标分别快照其层数，全部伤害结算后再消费。
@@ -422,6 +452,12 @@ export type SkillEffect =
       target: SkillTarget;
       polarity: 'buff' | 'debuff';
       count: number | 'all';
+    }
+  | {
+      /** 只允许放在 on-damage-taken 触发器内，按本次实际承伤反射。 */
+      kind: 'reflect-trigger-damage';
+      target: Extract<SkillTarget, { kind: 'event-source' }>;
+      damageRatio: LevelScalar;
     };
 
 interface SkillBase {

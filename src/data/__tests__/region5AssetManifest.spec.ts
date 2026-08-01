@@ -20,7 +20,7 @@ import {
 } from '../region5';
 
 describe('区域 5 美术 manifest', () => {
-  it('精确锁定 78 项运行时资产与 PWA 两组容量边界', () => {
+  it('精确锁定 84 项运行时资产与 PWA 两组容量边界', () => {
     expect(REGION5_COUNTS).toEqual({
       maps: 6,
       battlefields: 5,
@@ -28,11 +28,11 @@ describe('区域 5 美术 manifest', () => {
       items: 5,
       equipment: 8,
       setEquipment: 6,
-      modularLayers: 12,
-      setModularLayers: 12,
+      modularLayers: 15,
+      setModularLayers: 15,
       regionContentRuntime: 55,
       regionSetRuntime: 18,
-      runtimeTotal: 78,
+      runtimeTotal: 84,
     });
     expect(
       REGION5_COUNTS.maps +
@@ -43,7 +43,7 @@ describe('区域 5 美术 manifest', () => {
         REGION5_COUNTS.setEquipment +
         REGION5_COUNTS.modularLayers +
         REGION5_COUNTS.setModularLayers,
-    ).toBe(78);
+    ).toBe(84);
   });
 
   it('场景、怪物、材料与运行时内容清单同源', () => {
@@ -73,10 +73,10 @@ describe('区域 5 美术 manifest', () => {
     expect(REGION5_SET_SLOTS).not.toContain('shoes');
   });
 
-  it('四职业各有普通与套装三可见层，稳定键不得重复', () => {
-    expect(REGION5_CLASSES).toEqual(['swordsman', 'witch', 'shaman', 'catkin']);
-    expect(REGION5_MODULAR_LAYERS).toHaveLength(12);
-    expect(REGION5_SET_MODULAR_LAYERS).toHaveLength(12);
+  it('五职业各有普通与套装三可见层，稳定键不得重复', () => {
+    expect(REGION5_CLASSES).toEqual(['swordsman', 'witch', 'shaman', 'catkin', 'kenshi']);
+    expect(REGION5_MODULAR_LAYERS).toHaveLength(15);
+    expect(REGION5_SET_MODULAR_LAYERS).toHaveLength(15);
     const keys = [
       ...REGION5_MAPS.map(({ id }) => `map:${id}`),
       ...REGION5_BATTLEFIELDS.map(({ id }) => `battlefield:${id}`),
@@ -87,7 +87,7 @@ describe('区域 5 美术 manifest', () => {
       ...REGION5_MODULAR_LAYERS.map(({ id }) => `layer:${id}`),
       ...REGION5_SET_MODULAR_LAYERS.map(({ id }) => `set-layer:${id}`),
     ];
-    expect(keys).toHaveLength(78);
-    expect(new Set(keys)).toHaveLength(78);
+    expect(keys).toHaveLength(84);
+    expect(new Set(keys)).toHaveLength(84);
   });
 });

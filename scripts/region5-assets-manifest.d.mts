@@ -17,7 +17,7 @@ export type Region5SetSlot =
   | 'ring'
   | 'bracelet';
 
-export const REGION5_CLASSES: readonly ['swordsman', 'witch', 'shaman', 'catkin'];
+export const REGION5_CLASSES: readonly ['swordsman', 'witch', 'shaman', 'catkin', 'kenshi'];
 export const REGION5_VISIBLE_SLOTS: readonly Region5VisibleSlot[];
 export const REGION5_SLOTS: readonly Region5Slot[];
 export const REGION5_SET_SLOTS: readonly Region5SetSlot[];
@@ -64,9 +64,9 @@ export const REGION5_COUNTS: Readonly<{
   items: 5;
   equipment: 8;
   setEquipment: 6;
-  modularLayers: 12;
-  setModularLayers: 12;
+  modularLayers: 15;
+  setModularLayers: 15;
   regionContentRuntime: 55;
   regionSetRuntime: 18;
-  runtimeTotal: 78;
+  runtimeTotal: 84;
 }>;

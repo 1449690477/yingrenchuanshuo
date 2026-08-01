@@ -3,10 +3,8 @@ import { CLASS_IDS } from '@/core/types';
 import { autoBattleSkillCards } from '../skillCards';
 import { battleRhythmSkills } from '../skills';
 
-const COMPLETE_VISUAL_CLASS_IDS = CLASS_IDS.filter((classId) => classId !== 'kenshi');
-
 describe('自动技能演出卡组', () => {
-  it.each(COMPLETE_VISUAL_CLASS_IDS)('%s 在低等级也稳定提供至少四张可读卡片', (classId) => {
+  it.each(CLASS_IDS)('%s 在低等级也稳定提供至少四张可读卡片', (classId) => {
     const cards = autoBattleSkillCards(classId, 1);
     expect(cards.length).toBeGreaterThanOrEqual(4);
     expect(cards[0]).toMatchObject({
@@ -18,14 +16,11 @@ describe('自动技能演出卡组', () => {
     expect(cards.every((card) => card.iconAsset.length > 0)).toBe(true);
   });
 
-  it('樱酱 P1 只显示基础攻击，不伪造尚未制作的技能视觉卡', () => {
-    expect(autoBattleSkillCards('kenshi', 99)).toEqual([
-      expect.objectContaining({
-        id: 'basic-kenshi',
-        mode: 'basic',
-        kind: '基础',
-      }),
-    ]);
+  it('樱酱完整显示基础攻击、9 个主动技能，并锁定 5 个被动不冒充自动释放', () => {
+    const cards = autoBattleSkillCards('kenshi', 99);
+    expect(cards[0]).toMatchObject({ id: 'basic-kenshi', mode: 'basic', kind: '基础' });
+    expect(cards.filter((card) => card.skillId?.startsWith('skill_kenshi_'))).toHaveLength(9);
+    expect(cards.every((card) => !card.iconAsset.includes('catkin'))).toBe(true);
   });
 
   it.each(CLASS_IDS)('%s 的自动卡严格映射到同一节奏技能 ID', (classId) => {

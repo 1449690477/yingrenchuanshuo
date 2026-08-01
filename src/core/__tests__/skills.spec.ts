@@ -83,13 +83,13 @@ describe('catkin cast conditions', () => {
     expect(
       canCastSkill(ambush, {
         ...baseContext,
-        statusStacks: { catkin_claw_mark: 2 },
+        targetStatusStacks: { catkin_claw_mark: 2 },
       }),
     ).toBe(false);
     expect(
       canCastSkill(ambush, {
         ...baseContext,
-        statusStacks: { catkin_claw_mark: 3 },
+        targetStatusStacks: { catkin_claw_mark: 3 },
       }),
     ).toBe(true);
   });

@@ -5,7 +5,7 @@
  * ImageGen 原图和 alpha 母版进入独立 Git LFS 美术源仓，禁止复制回主仓。
  */
 
-export const REGION5_CLASSES = ['swordsman', 'witch', 'shaman', 'catkin'];
+export const REGION5_CLASSES = ['swordsman', 'witch', 'shaman', 'catkin', 'kenshi'];
 export const REGION5_VISIBLE_SLOTS = ['body', 'head', 'weapon'];
 export const REGION5_SLOTS = [
   'weapon',
@@ -111,9 +111,9 @@ export const REGION5_COUNTS = Object.freeze({
   items: 5,
   equipment: 8,
   setEquipment: 6,
-  modularLayers: 12,
-  setModularLayers: 12,
+  modularLayers: 15,
+  setModularLayers: 15,
   regionContentRuntime: 55,
   regionSetRuntime: 18,
-  runtimeTotal: 78,
+  runtimeTotal: 84,
 });

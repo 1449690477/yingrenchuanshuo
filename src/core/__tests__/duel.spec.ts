@@ -18,6 +18,7 @@ import {
   arenaVictoryHonor,
   duelSeed,
   estimateDuelWinChance,
+  buildArenaDuelSide,
   simulateDuel,
   type DuelSide,
 } from '../duel';
@@ -57,6 +58,21 @@ function nakedSide(
 const SEED = 0xabcdef;
 
 describe('simulateDuel / 确定性', () => {
+  it('竞技场构建完整转发试炼同源的逐击、致命伤与暴击触发数组', () => {
+    const side = buildArenaDuelSide(
+      {
+        name: '测试',
+        classId: 'swordsman',
+        level: 60,
+        equipped: new Array(8).fill(null),
+      },
+      'attacker',
+    );
+    expect(side.onHitTriggers).toEqual([]);
+    expect(side.onLethalTriggers).toEqual([]);
+    expect(side.onCritTriggers).toEqual([]);
+  });
+
   it('同双方同种子，结果逐点一致（含战报日志）', () => {
     const a = nakedSide('swordsman', 60);
     const b = nakedSide('witch', 60);

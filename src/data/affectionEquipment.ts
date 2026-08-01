@@ -347,6 +347,78 @@ const SPECS: readonly AffectionEquipmentSpec[] = [
       memoryEffect: '怦然回忆：技能命中迸开月铃心虹。',
     },
   ]),
+  ...classSpecs('kenshi', 'berry-cream', [
+    {
+      slot: 'head',
+      name: '雪樱猫耳绫结',
+      slug: 'snow-sakura-cat-ear-ribbon',
+      flavorText: '湖蓝绫带避开耳尖，由她亲自确认每一处松紧与垂落方向。',
+      memoryEffect: '雪樱回忆：待机时绫结边缘浮起细小冰樱。',
+    },
+    {
+      slot: 'necklace',
+      name: '蓝铃剑心坠',
+      slug: 'blue-bell-swordheart-necklace',
+      flavorText: '铃声只庆祝平安归来，从不催促下一次拔刀与远行。',
+      memoryEffect: '蓝铃回忆：收刀时响起清澈归鞘铃。',
+    },
+    {
+      slot: 'bracelet',
+      name: '并肩刀鞘手绳',
+      slug: 'side-by-side-sheath-bracelet',
+      flavorText: '两段独立手绳可以并排扣合，也能完整保留各自的长度。',
+      memoryEffect: '并肩回忆：互动时亮起两道等距湖蓝弧光。',
+    },
+    {
+      slot: 'ring',
+      name: '归途樱纹戒',
+      slug: 'homeward-sakura-ring',
+      flavorText: '它不规定归期，只标出双方共同确认过的下一处会合点。',
+      memoryEffect: '归途回忆：暴击时浮现双向巡路樱印。',
+    },
+    {
+      slot: 'belt',
+      name: '居合刀穗腰封',
+      slug: 'iai-tassel-belt',
+      flavorText: '雪白腰封留有可解松结，刀穗位置始终由她自己决定。',
+      memoryEffect: '居合回忆：移动时拖出蓝白樱瓣丝带。',
+    },
+    {
+      slot: 'shoes',
+      name: '雪踏樱纹履',
+      slug: 'snowstep-sakura-sandals',
+      flavorText: '适合道场与长路的轻履，每一步都能按自己的速度落稳。',
+      memoryEffect: '雪踏回忆：闪避时留下薄冰樱纹。',
+    },
+    {
+      slot: 'body',
+      name: '白羽樱守短羽织',
+      slug: 'white-feather-guardian-kimono',
+      flavorText: '蓝白短羽织以少量樱粉收边，可爱与飒爽都是她主动的选择。',
+      memoryEffect: '白羽回忆：角色展示切换为落樱道场礼装。',
+    },
+    {
+      slot: 'weapon',
+      name: '心虹·晴雪居合刀',
+      slug: 'heart-rainbow-frost-sakura-katana',
+      flavorText: '晴雪刀光在归鞘后才绽成心虹，提醒她胜利也包括安全结束。',
+      memoryEffect: '心虹回忆：攻击划出蓝白剑气与樱吹雪。',
+    },
+    {
+      slot: 'body',
+      name: '月蓝巡灯小振袖',
+      slug: 'moonblue-lantern-date-kimono',
+      flavorText: '她为樱川午茶挑选的轻振袖，袖口留足自由收刀的空间。',
+      memoryEffect: '巡灯回忆：角色展示切换为月蓝约会振袖。',
+    },
+    {
+      slot: 'weapon',
+      name: '千樱归心名刀',
+      slug: 'thousand-sakura-homecoming-blade',
+      flavorText: '刀铭不是占有誓言，而是每次走完自己的路后仍愿再次会合。',
+      memoryEffect: '归心回忆：技能命中后千樱归鞘、双灯同亮。',
+    },
+  ]),
 ] as const;
 
 function affectionFixedAffixes(

@@ -35,6 +35,9 @@ interface AppearanceTestProps {
   classId: ClassId;
   level: number;
   equipped?: EquippedRecord | null;
+  variant?: 'showcase' | 'battle' | 'avatar';
+  action?: 'idle' | 'attack' | 'cast' | 'react' | 'dash' | 'flurry' | 'spin' | 'counter' | 'victory';
+  reduceMotion?: boolean;
 }
 
 async function render(props: AppearanceTestProps) {
@@ -78,5 +81,36 @@ describe('角色换装组件的图层标记', () => {
 
     expect(html).toContain('modular/shaman/base.png');
     expect(html).not.toContain('base-noshoes.png');
+  });
+
+  it('樱酱战斗态挂载专属动作特效层，且不挂喵喵特效层', async () => {
+    const html = await render({
+      classId: 'kenshi',
+      level: 30,
+      equipped: emptyEquipped(),
+      variant: 'battle',
+      action: 'dash',
+    });
+
+    expect(html).toContain('class-kenshi');
+    expect(html).toContain('action-dash');
+    expect(html).toContain('kenshi-motion-fx');
+    expect(html).not.toContain('catkin-motion-fx');
+    expect(html).toContain('modular/kenshi/base.png');
+  });
+
+  it('樱酱穿区域衣装时以完整 body 替换底模，不再叠加第二个人物', async () => {
+    const equipped = emptyEquipped();
+    equipped.body = instance('eq_r1_body_rare');
+    equipped.head = instance('eq_r1_head_common');
+    equipped.weapon = instance('eq_r1_weapon_common');
+
+    const html = await render({ classId: 'kenshi', level: 20, equipped });
+
+    expect(html).not.toContain('modular/kenshi/base.png');
+    expect(html).not.toContain('slot-body');
+    expect(html).toContain('modular/kenshi/r1-body.png');
+    expect(html).toContain('slot-head');
+    expect(html).toContain('slot-weapon');
   });
 });

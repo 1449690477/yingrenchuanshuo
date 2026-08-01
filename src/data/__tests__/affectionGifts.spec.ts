@@ -13,12 +13,12 @@ import {
 } from '../affectionGifts';
 import { requireAffectionStory } from '../affection';
 
-const COMPLETE_AFFECTION_CLASS_IDS = CLASS_IDS.filter((classId) => classId !== 'kenshi');
+const COMPLETE_AFFECTION_CLASS_IDS = CLASS_IDS;
 
 describe('好感第三批礼物偏好', () => {
   it('四位角色各有偏爱、喜欢、普通三档正向礼物', () => {
-    expect(AFFECTION_GIFT_LIST).toHaveLength(12);
-    expect(new Set(AFFECTION_GIFT_LIST.map((entry) => entry.id)).size).toBe(12);
+    expect(AFFECTION_GIFT_LIST).toHaveLength(15);
+    expect(new Set(AFFECTION_GIFT_LIST.map((entry) => entry.id)).size).toBe(15);
 
     for (const classId of COMPLETE_AFFECTION_CLASS_IDS) {
       const gifts = affectionGiftsForClass(classId);
@@ -39,7 +39,11 @@ describe('好感第三批礼物偏好', () => {
         expect(requireAffectionGift(classId, gift.id)).toBe(gift);
       }
     }
-    expect(AFFECTION_GIFTS.kenshi).toEqual([]);
+    expect(AFFECTION_GIFTS.kenshi.map((gift) => gift.preference)).toEqual([
+      'favorite',
+      'liked',
+      'regular',
+    ]);
   });
 
   it('礼物成本只使用前两章真实掉落材料，不占用强化成长材料', () => {
@@ -53,9 +57,9 @@ describe('好感第三批礼物偏好', () => {
     }
   });
 
-  it('十二张礼物图标使用独立本地透明素材', async () => {
+  it('十五张礼物图标使用独立本地透明素材', async () => {
     const iconPaths = AFFECTION_GIFT_LIST.map((entry) => entry.iconAsset);
-    expect(new Set(iconPaths).size).toBe(12);
+    expect(new Set(iconPaths).size).toBe(15);
 
     for (const iconAsset of iconPaths) {
       expect(iconAsset).toMatch(/^assets\/affection\/gifts\/gift_[a-z0-9_]+\.png$/);

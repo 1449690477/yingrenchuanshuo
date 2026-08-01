@@ -17,11 +17,11 @@ import {
   findAffectionDate,
 } from '../affectionDates';
 
-const COMPLETE_AFFECTION_CLASS_IDS = CLASS_IDS.filter((classId) => classId !== 'kenshi');
+const COMPLETE_AFFECTION_CLASS_IDS = CLASS_IDS;
 
-describe('A-4 约会日程：四角色第十二批约会剧情', () => {
-  it('四角色各三幕，依次对应上午/午后/夜晚，时段文案齐备', () => {
-    expect(AFFECTION_DATE_STORIES).toHaveLength(12);
+describe('A-4 约会日程：五角色第十二批约会剧情', () => {
+  it('五角色各三幕，依次对应上午/午后/夜晚，时段文案齐备', () => {
+    expect(AFFECTION_DATE_STORIES).toHaveLength(15);
     for (const classId of COMPLETE_AFFECTION_CLASS_IDS) {
       const dates = AFFECTION_DATES[classId];
       expect(dates).toHaveLength(3);
@@ -89,7 +89,7 @@ describe('A-4 约会日程：四角色第十二批约会剧情', () => {
       }
       cgs.push(dates[2]!.story.cgAsset!);
     }
-    expect(new Set(cgs).size).toBe(4);
+    expect(new Set(cgs).size).toBe(5);
   });
 
   it('喵喵三幕依旧全程成年平等搭档表达，无禁忌话术', () => {
@@ -105,8 +105,8 @@ describe('A-4 约会日程：四角色第十二批约会剧情', () => {
         expect(requireAffectionStory(classId, date.story.id)).toBe(date.story);
       }
     }
-    expect(AFFECTION_STORIES).toHaveLength(48);
-    expect(AFFECTION_DATES.kenshi).toEqual([]);
+    expect(AFFECTION_STORIES).toHaveLength(60);
+    expect(AFFECTION_DATES.kenshi.map((date) => date.story.episode)).toEqual([10, 11, 12]);
   });
 
   it('完成奖励严格一次性：心意不足/前置缺失/重复完成全部被拒', () => {

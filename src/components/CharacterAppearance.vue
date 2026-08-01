@@ -122,6 +122,15 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
       <i v-for="index in 7" :key="index" :style="{ '--cat-index': index }" />
     </span>
 
+    <span
+      v-if="classId === 'kenshi' && variant === 'battle'"
+      class="kenshi-motion-fx"
+      aria-hidden="true"
+    >
+      <b />
+      <i v-for="index in 6" :key="index" :style="{ '--kenshi-index': index }" />
+    </span>
+
     <span v-if="appearance.activeDungeonTier" class="dungeon-effect" aria-hidden="true">
       <b></b>
       <i v-for="index in 8" :key="index"></i>
@@ -159,9 +168,136 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
 .enhance-particles,
 .boutique-effect,
 .dungeon-effect,
-.catkin-motion-fx {
+.catkin-motion-fx,
+.kenshi-motion-fx {
   position: absolute;
   inset: 0;
+}
+
+.kenshi-motion-fx {
+  --kenshi-fx-primary: #bcecff;
+  --kenshi-fx-secondary: #90b8ff;
+  --kenshi-fx-petal: #ffb9d6;
+  z-index: 8;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.kenshi-motion-fx b,
+.kenshi-motion-fx i {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.kenshi-motion-fx b {
+  top: 40%;
+  left: 13%;
+  width: 78%;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--kenshi-fx-primary) 24%,
+    #fff 52%,
+    var(--kenshi-fx-secondary) 76%,
+    transparent
+  );
+  box-shadow: 0 0 9px rgb(144 184 255 / 82%);
+  transform-origin: 50% 50%;
+}
+
+.kenshi-motion-fx i {
+  --kenshi-index: 1;
+  top: calc(22% + var(--kenshi-index) * 8%);
+  left: calc(13% + var(--kenshi-index) * 8%);
+  width: 8px;
+  height: 5px;
+  border-radius: 72% 24% 66% 28%;
+  background: linear-gradient(135deg, #fff, var(--kenshi-fx-petal));
+  box-shadow: 0 0 6px rgb(255 185 214 / 76%);
+}
+
+.action-attack .kenshi-motion-fx b,
+.action-flurry .kenshi-motion-fx b,
+.action-spin .kenshi-motion-fx b {
+  animation: kenshi-iai-line 0.56s cubic-bezier(0.16, 0.82, 0.24, 1) both;
+}
+
+.action-dash .kenshi-motion-fx b {
+  animation: kenshi-dash-line 0.62s cubic-bezier(0.14, 0.84, 0.22, 1) both;
+}
+
+.action-cast .kenshi-motion-fx i,
+.action-flurry .kenshi-motion-fx i,
+.action-spin .kenshi-motion-fx i,
+.action-victory .kenshi-motion-fx i {
+  animation: kenshi-sakura-petal 0.82s ease-out both;
+  animation-delay: calc((var(--kenshi-index) - 1) * 46ms);
+}
+
+.action-react .kenshi-motion-fx b,
+.action-counter .kenshi-motion-fx b {
+  top: 35%;
+  left: 27%;
+  width: 47%;
+  animation: kenshi-parry-flash 0.34s ease-out both;
+}
+
+@keyframes kenshi-iai-line {
+  0% {
+    opacity: 0;
+    transform: translateX(-18%) rotate(-18deg) scaleX(0.18);
+  }
+  28% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(19%) rotate(-18deg) scaleX(1.3);
+  }
+}
+
+@keyframes kenshi-dash-line {
+  0% {
+    opacity: 0;
+    transform: translateX(-36%) scaleX(0.12);
+  }
+  34% {
+    opacity: 0.95;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(46%) scaleX(1.45);
+  }
+}
+
+@keyframes kenshi-sakura-petal {
+  0% {
+    opacity: 0;
+    transform: translate(8px, 16px) rotate(-18deg) scale(0.45);
+  }
+  36% {
+    opacity: 0.94;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-18px, -38px) rotate(146deg) scale(1.08);
+  }
+}
+
+@keyframes kenshi-parry-flash {
+  0% {
+    opacity: 0;
+    transform: rotate(70deg) scaleX(0.18);
+  }
+  36% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(70deg) scaleX(1.18);
+  }
 }
 
 .catkin-motion-fx {
@@ -519,7 +655,8 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
   --face-ry: 8.8%;
 }
 
-.class-catkin {
+.class-catkin,
+.class-kenshi {
   --face-x: 50%;
   --face-y: 9.7%;
   --face-rx: 18.5%;
@@ -551,13 +688,15 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
   z-index: 5;
 }
 
-/* 猫耳属于底模身份特征，默认让喵喵的帽饰压在安全脸层后方，不能盖掉眼睛与耳朵。 */
-.class-catkin .slot-head {
+/* 猫耳属于底模身份特征，默认让两名猫耳职业的帽饰压在安全脸层后方。 */
+.class-catkin .slot-head,
+.class-kenshi .slot-head {
   z-index: 3;
 }
 
 /* 整顶戴在头顶的帽饰（精品店帽子）允许提到脸层之上，否则整顶会被头发埋住。 */
-.class-catkin .slot-head.above-face {
+.class-catkin .slot-head.above-face,
+.class-kenshi .slot-head.above-face {
   z-index: 5;
 }
 
@@ -938,6 +1077,24 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
   transform: rotate(-17deg);
 }
 
+.class-kenshi .weapon-trail {
+  left: 5%;
+  bottom: 41%;
+  width: 88%;
+  height: 9%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgb(185 235 255 / 68%) 24%,
+    rgb(255 255 255 / 88%) 52%,
+    rgb(255 176 213 / 64%) 79%,
+    transparent
+  );
+  border: 0;
+  border-top: 2px solid rgb(178 224 255 / 82%);
+  transform: rotate(-19deg);
+}
+
 .class-witch .weapon-trail {
   left: 30%;
   bottom: 43%;
@@ -1003,12 +1160,27 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
   animation: catkin-idle 1.85s cubic-bezier(0.42, 0, 0.34, 1) infinite;
 }
 
+.class-kenshi.action-idle .doll {
+  animation: kenshi-idle 2.35s cubic-bezier(0.42, 0, 0.34, 1) infinite;
+}
+
 .action-attack .doll {
   animation: character-attack 0.62s cubic-bezier(0.24, 0.82, 0.32, 1);
 }
 
 .class-catkin.action-attack .doll {
   animation: catkin-attack 0.54s cubic-bezier(0.18, 0.82, 0.24, 1);
+}
+
+.class-kenshi.action-attack .doll {
+  animation: kenshi-iai-cut 0.56s cubic-bezier(0.14, 0.82, 0.22, 1);
+}
+
+.class-kenshi.action-attack .weapon-trail,
+.class-kenshi.action-dash .weapon-trail,
+.class-kenshi.action-flurry .weapon-trail,
+.class-kenshi.action-spin .weapon-trail {
+  animation: kenshi-blade-trail 0.62s ease-out;
 }
 
 .action-attack .weapon-trail {
@@ -1054,7 +1226,7 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
   animation: character-victory 1.05s cubic-bezier(0.22, 0.72, 0.26, 1);
 }
 
-/* 四职业各自的挂机动作语言：纸娃娃层仍保持同步，不换回会丢装备的宣传立绘。 */
+/* 五职业各自的挂机动作语言：纸娃娃层仍保持同步，不换回会丢装备的宣传立绘。 */
 .class-swordsman.action-idle .doll {
   animation: swordsman-idle 2.2s ease-in-out infinite;
 }
@@ -1155,10 +1327,27 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
   animation: catkin-air-twist 0.92s cubic-bezier(0.2, 0.82, 0.26, 1);
 }
 
+.class-kenshi.action-dash .doll {
+  animation: kenshi-draw-dash 0.62s cubic-bezier(0.14, 0.86, 0.22, 1);
+}
+
+.class-kenshi.action-cast .doll,
+.class-kenshi.action-spin .doll {
+  animation: kenshi-sakura-cast 0.82s cubic-bezier(0.2, 0.74, 0.26, 1);
+}
+
+.class-kenshi.action-flurry .doll {
+  animation: kenshi-thousand-cuts 0.72s linear;
+}
+
+.class-kenshi.action-counter .doll {
+  animation: kenshi-parry 0.46s cubic-bezier(0.24, 0.76, 0.3, 1);
+}
+
 /* ─────────────────────────────────────────────
    受击与胜利（②）
    受击风格由 data/battleMotions 的 ReactStyle 定义：
-   剑姬 brace 扛得住 / 魔女 stagger 踉跄 / 灵巫 drift 飘开 / 喵喵 hop 后跳。
+   剑姬 brace / 魔女 stagger / 灵巫 drift / 喵喵 hop / 樱酱 parry。
 
    为什么值得给四个职业各写一套：挨打是挂机时出现频率最高的动作之一，
    如果四个人被打的反应一模一样，前面所有职业差异化的努力都会被冲淡。
@@ -1180,6 +1369,10 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
   animation: catkin-hop-back 0.3s cubic-bezier(0.2, 0.9, 0.3, 1);
 }
 
+.class-kenshi.action-react .doll {
+  animation: kenshi-parry 0.28s cubic-bezier(0.24, 0.76, 0.3, 1);
+}
+
 .class-swordsman.action-victory .doll {
   animation: swordsman-sheathe 1.4s cubic-bezier(0.22, 0.72, 0.26, 1);
 }
@@ -1194,6 +1387,10 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
 
 .class-catkin.action-victory .doll {
   animation: catkin-groom 1.3s cubic-bezier(0.24, 0.74, 0.3, 1);
+}
+
+.class-kenshi.action-victory .doll {
+  animation: kenshi-sheathe 1.5s cubic-bezier(0.22, 0.72, 0.26, 1);
 }
 
 /* 魔女与灵巫此前缺的位移动作：法系不该只会站着挥手 */
@@ -1927,13 +2124,16 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
     .dungeon-effect b,
     .dungeon-effect i,
     .catkin-motion-fx b,
-    .catkin-motion-fx i
+    .catkin-motion-fx i,
+    .kenshi-motion-fx b,
+    .kenshi-motion-fx i
   ) {
   animation: none !important;
   transition: none !important;
 }
 
-.character-appearance.reduce-motion :is(.catkin-motion-fx, .boutique-effect) {
+.character-appearance.reduce-motion
+  :is(.catkin-motion-fx, .kenshi-motion-fx, .boutique-effect) {
   display: none;
 }
 
@@ -1948,13 +2148,15 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
     .dungeon-effect b,
     .dungeon-effect i,
     .catkin-motion-fx b,
-    .catkin-motion-fx i
+    .catkin-motion-fx i,
+    .kenshi-motion-fx b,
+    .kenshi-motion-fx i
   ) {
     animation: none !important;
   }
 }
 
-/* ── 受击：四职业各自的挨打反应 ── */
+/* ── 受击：五职业各自的挨打反应 ── */
 
 /* 剑姬：重心稳，只有肩膀吃力地沉一下，站位几乎不动 */
 @keyframes swordsman-brace {
@@ -2085,6 +2287,141 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
   }
   100% {
     transform: translate(0, 0) rotate(0) scale(1, 1);
+  }
+}
+
+/* 樱酱六态：全部只改变纸娃娃姿态，不参与攻速、命中或伤害结算。 */
+@keyframes kenshi-idle {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-0.35deg) scale(1);
+  }
+  46% {
+    transform: translateY(-1.15%) rotate(0.45deg) scale(1.004, 0.998);
+  }
+  54% {
+    transform: translateY(-1.3%) rotate(0.2deg) scale(0.998, 1.004);
+  }
+}
+
+@keyframes kenshi-iai-cut {
+  0%,
+  100% {
+    transform: translate(0, 0) rotate(0) scale(1);
+  }
+  22% {
+    transform: translate(-7%, 2%) rotate(-4.5deg) scale(0.96, 1.02);
+  }
+  43% {
+    transform: translate(13%, -2%) rotate(4.2deg) scale(1.055, 0.975);
+  }
+  62% {
+    transform: translate(6%, -1%) rotate(-1.5deg) scale(1.018);
+  }
+}
+
+@keyframes kenshi-draw-dash {
+  0%,
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) rotate(0) scale(1);
+  }
+  18% {
+    transform: translate3d(-10%, 3%, 0) rotate(-5deg) scale(0.94, 1.025);
+  }
+  39% {
+    opacity: 0.42;
+    transform: translate3d(24%, -2%, 0) rotate(3deg) scale(1.08, 0.96);
+  }
+  55% {
+    opacity: 1;
+    transform: translate3d(17%, -1%, 0) rotate(1deg) scale(1.035, 0.985);
+  }
+}
+
+@keyframes kenshi-sakura-cast {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0) scale(1);
+    filter: brightness(1);
+  }
+  28% {
+    transform: translateY(2%) rotate(-5deg) scale(0.985, 1.015);
+  }
+  54% {
+    transform: translateY(-3%) rotate(6deg) scale(1.045, 0.985);
+    filter: brightness(1.16) saturate(1.08);
+  }
+  76% {
+    transform: translateY(-1%) rotate(-2deg) scale(1.012);
+  }
+}
+
+@keyframes kenshi-thousand-cuts {
+  0%,
+  100% {
+    transform: translate(0, 0) rotate(0) scale(1);
+  }
+  16% {
+    transform: translate(8%, -2%) rotate(6deg) scale(1.03, 0.98);
+  }
+  31% {
+    transform: translate(-4%, -1%) rotate(-5deg) scale(0.98, 1.02);
+  }
+  48% {
+    transform: translate(11%, -3%) rotate(7deg) scale(1.045, 0.975);
+  }
+  65% {
+    transform: translate(-2%, -2%) rotate(-4deg) scale(0.99, 1.015);
+  }
+  82% {
+    transform: translate(7%, -1%) rotate(3deg) scale(1.02, 0.99);
+  }
+}
+
+@keyframes kenshi-parry {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(0) scale(1);
+  }
+  32% {
+    transform: translate3d(-5%, 1%, 0) rotate(-4deg) scale(1.025, 0.985);
+  }
+  58% {
+    transform: translate3d(-2%, -1%, 0) rotate(2.5deg) scale(0.99, 1.015);
+  }
+}
+
+@keyframes kenshi-sheathe {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(0) scale(1);
+  }
+  20% {
+    transform: translate3d(5%, -2%, 0) rotate(7deg) scale(1.02);
+  }
+  48% {
+    transform: translate3d(-3%, 0, 0) rotate(-5deg) scale(0.99, 1.015);
+  }
+  72% {
+    transform: translate3d(0, -2%, 0) rotate(1deg) scale(1.018);
+    filter: brightness(1.12);
+  }
+}
+
+@keyframes kenshi-blade-trail {
+  0%,
+  100% {
+    opacity: 0;
+    transform: translateX(-18%) rotate(-28deg) scaleX(0.22);
+  }
+  30%,
+  58% {
+    opacity: 0.96;
+  }
+  78% {
+    opacity: 0;
+    transform: translateX(24%) rotate(-12deg) scaleX(1.35);
   }
 }
 

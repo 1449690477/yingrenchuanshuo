@@ -63,7 +63,7 @@ export const BOUTIQUE_THEMES: Readonly<Record<BoutiqueThemeId, BoutiqueTheme>> =
       witch: 'assets/effects/boutique/berry-cream-witch.png',
       shaman: 'assets/effects/boutique/berry-cream-shaman.png',
       catkin: 'assets/effects/boutique/berry-cream-catkin.png',
-      kenshi: 'assets/effects/boutique/berry-cream-catkin.png',
+      kenshi: 'assets/effects/boutique/berry-cream-kenshi.png',
     },
     items: [
       ...weapons(
@@ -165,7 +165,7 @@ export const BOUTIQUE_THEMES: Readonly<Record<BoutiqueThemeId, BoutiqueTheme>> =
       witch: 'assets/effects/boutique/moon-sugar-witch.png',
       shaman: 'assets/effects/boutique/moon-sugar-shaman.png',
       catkin: 'assets/effects/boutique/moon-sugar-catkin.png',
-      kenshi: 'assets/effects/boutique/moon-sugar-catkin.png',
+      kenshi: 'assets/effects/boutique/moon-sugar-kenshi.png',
     },
     items: [
       ...weapons(
@@ -267,7 +267,7 @@ export const BOUTIQUE_THEMES: Readonly<Record<BoutiqueThemeId, BoutiqueTheme>> =
       witch: 'assets/effects/boutique/rose-night-witch.png',
       shaman: 'assets/effects/boutique/rose-night-shaman.png',
       catkin: 'assets/effects/boutique/rose-night-catkin.png',
-      kenshi: 'assets/effects/boutique/rose-night-catkin.png',
+      kenshi: 'assets/effects/boutique/rose-night-kenshi.png',
     },
     items: [
       ...weapons(

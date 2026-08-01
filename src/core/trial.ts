@@ -17,6 +17,7 @@ import type { ClassId, Combatant, CombatBonuses, EquipmentInstance, Stats } from
 import { Rng } from './rng';
 import { addStats, combatPower } from './formula';
 import { estimateDps, simulateFight, type CombatTimelineEvent } from './combat';
+import type { SkillCombatKit } from './skillCombat';
 import type {
   OnCritPeriodicDamageTrigger,
   OnHitElementalDamageTrigger,
@@ -246,6 +247,8 @@ export interface TrialBuildInput {
 export interface TrialBuild {
   combatant: Combatant;
   skillMultiplier: number;
+  /** M3-4 真实技能栏；服务端与客户端必须由同一职业 / 等级重建。 */
+  skillKit?: SkillCombatKit;
   onHitTriggers: readonly OnHitElementalDamageTrigger[];
   onLethalTriggers: readonly OnLethalRecoveryTrigger[];
   onCritTriggers: readonly OnCritPeriodicDamageTrigger[];
@@ -455,6 +458,8 @@ export function runTrial(build: TrialBuild, boss: Combatant, seed: number): Tria
   const result = simulateFight(player, target, new Rng(seed), {
     maxSeconds: TRIAL_DURATION_SEC,
     playerSkillMultiplier: build.skillMultiplier,
+    playerSkillKit: build.skillKit,
+    playerTargetType: 'boss',
     playerOnHitTriggers: build.onHitTriggers,
     playerOnLethalTriggers: build.onLethalTriggers,
     playerOnCritTriggers: build.onCritTriggers,
@@ -466,9 +471,9 @@ export function runTrial(build: TrialBuild, boss: Combatant, seed: number): Tria
     durationSec: result.duration,
     timeline: result.events,
     playerHpRemaining: player.currentHp,
-    playerHpMax: player.stats.hp,
+    playerHpMax: result.playerMaxHp,
     bossHpRemaining: target.currentHp,
-    bossHpMax: target.stats.hp,
+    bossHpMax: result.monsterMaxHp,
   };
 }
 

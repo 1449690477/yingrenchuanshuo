@@ -51,6 +51,18 @@ const EQUIPMENT = {
     'moonlit-cat-dance-dress',
     'flutter-bell-star-claws',
   ],
+  kenshi: [
+    'snow-sakura-cat-ear-ribbon',
+    'blue-bell-swordheart-necklace',
+    'side-by-side-sheath-bracelet',
+    'homeward-sakura-ring',
+    'iai-tassel-belt',
+    'snowstep-sakura-sandals',
+    'white-feather-guardian-kimono',
+    'heart-rainbow-frost-sakura-katana',
+    'moonblue-lantern-date-kimono',
+    'thousand-sakura-homecoming-blade',
+  ],
 };
 
 const GIFTS = [
@@ -66,6 +78,9 @@ const GIFTS = [
   'gift_catkin_modular_field_case',
   'gift_catkin_dual_repair_lamp',
   'gift_catkin_victory_candy_pack',
+  'gift_kenshi_moonwhite_whetstone_case',
+  'gift_kenshi_twin_sakura_tassel_case',
+  'gift_kenshi_sakura_blade_care_paper',
 ];
 
 const SCENES = [
@@ -117,6 +132,18 @@ const SCENES = [
   'catkin-supply-market',
   'catkin-workshop-coffee',
   'catkin-rooftop-platform',
+  'kenshi-dojo-sakura-dawn',
+  'kenshi-rain-eaves-blue',
+  'kenshi-moonlit-scabbard',
+  'kenshi-workbench-afterglow',
+  'kenshi-dojo-nightwatch',
+  'kenshi-dojo-homecoming-sunrise',
+  'kenshi-gift-whetstone-morning',
+  'kenshi-sakura-market-rain',
+  'kenshi-route-map-sunset',
+  'kenshi-tassel-market-morning',
+  'kenshi-riverside-tea-afternoon',
+  'kenshi-dojo-lantern-night',
 ];
 
 const CGS = [
@@ -136,6 +163,10 @@ const CGS = [
   'witch-meteor-journal',
   'shaman-paired-teacups',
   'catkin-two-tickets',
+  'kenshi-bluebell-scabbard',
+  'kenshi-paired-dojo-lanterns',
+  'kenshi-shared-patrol-map',
+  'kenshi-dojo-keyplate',
 ];
 
 const equipmentIconFiles = Object.entries(EQUIPMENT).flatMap(([classId, slugs]) =>
@@ -153,17 +184,17 @@ function assertManifest() {
     ...cgFiles,
   ];
   const expectedCounts = [
-    [equipmentIconFiles.length, 40, '心虹装备图标'],
-    [giftIconFiles.length, 12, '角色礼物图标'],
-    [sceneFiles.length, 48, '好感剧情场景'],
-    [cgFiles.length, 16, '好感高潮 CG'],
+    [equipmentIconFiles.length, 50, '心虹装备图标'],
+    [giftIconFiles.length, 15, '角色礼物图标'],
+    [sceneFiles.length, 60, '好感剧情场景'],
+    [cgFiles.length, 20, '好感高潮 CG'],
   ];
   for (const [actual, expected, label] of expectedCounts) {
     if (actual !== expected) {
       throw new Error(`${label}清单应为 ${expected} 项，当前为 ${actual}`);
     }
   }
-  if (new Set(allFiles).size !== 116) {
+  if (new Set(allFiles).size !== 145) {
     throw new Error('好感度美术清单存在重复运行时路径');
   }
 }
@@ -203,7 +234,7 @@ async function assertExactRuntimeFiles() {
   if (missing.length > 0 || unexpected.length > 0) {
     throw new Error(
       [
-        '好感度运行时美术目录必须严格匹配 40 装备图标 + 12 礼物图标 + 48 场景 + 16 CG。',
+        '好感度运行时美术目录必须严格匹配 50 装备图标 + 15 礼物图标 + 60 场景 + 20 CG。',
         `缺失：${missing.join('、') || '无'}`,
         `多余：${unexpected.join('、') || '无'}`,
       ].join('\n'),
@@ -348,5 +379,5 @@ for (const file of [...sceneFiles, ...cgFiles]) await validateStoryImage(file);
 await assertStoryImagesDistinct([...sceneFiles, ...cgFiles]);
 
 console.log(
-  '好感度美术审计通过：40 张装备 RGBA 图标 + 12 张礼物 RGBA 图标 + 48 张 3:2 场景 + 16 张 3:2 CG（像素查重无异）。',
+  '好感度美术审计通过：50 张装备 RGBA 图标 + 15 张礼物 RGBA 图标 + 60 张 3:2 场景 + 20 张 3:2 CG（像素查重无异）。',
 );

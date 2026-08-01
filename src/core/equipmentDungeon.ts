@@ -10,6 +10,7 @@ import type { PityCounters } from './loot';
 import { Rng } from './rng';
 import { rollLoot } from './loot';
 import { simulateFight, type SimulatedFightResult } from './combat';
+import type { SkillCombatKit } from './skillCombat';
 import type {
   OnCritPeriodicDamageTrigger,
   OnHitElementalDamageTrigger,
@@ -125,6 +126,7 @@ export interface EquipmentDungeonChallengeInput {
   player: Combatant;
   classId: ClassId;
   playerSkillMultiplier: number;
+  playerSkillKit?: SkillCombatKit;
   playerOnHitTriggers?: readonly OnHitElementalDamageTrigger[];
   playerOnLethalTriggers?: readonly OnLethalRecoveryTrigger[];
   playerOnCritTriggers?: readonly OnCritPeriodicDamageTrigger[];
@@ -261,6 +263,8 @@ export function resolveEquipmentDungeonChallenge(
     const playerHpBefore = player.currentHp;
     const result = simulateFight(player, monster, challengeRng, {
       playerSkillMultiplier: input.playerSkillMultiplier,
+      playerSkillKit: input.playerSkillKit,
+      playerTargetType: encounter.monster.type,
       playerOnHitTriggers: input.playerOnHitTriggers,
       playerOnLethalTriggers: input.playerOnLethalTriggers,
       playerOnCritTriggers: input.playerOnCritTriggers,

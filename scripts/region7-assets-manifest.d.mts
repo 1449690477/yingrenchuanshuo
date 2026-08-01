@@ -1,4 +1,4 @@
-export type Region7ClassId = 'swordsman' | 'witch' | 'shaman' | 'catkin';
+export type Region7ClassId = 'swordsman' | 'witch' | 'shaman' | 'catkin' | 'kenshi';
 export type Region7VisibleSlot = 'body' | 'head' | 'weapon';
 export type Region7Slot =
   | 'weapon'
@@ -20,6 +20,7 @@ export const REGION7_CLASSES: readonly [
   'witch',
   'shaman',
   'catkin',
+  'kenshi',
 ];
 export const REGION7_VISIBLE_SLOTS: readonly Region7VisibleSlot[];
 export const REGION7_SLOTS: readonly Region7Slot[];
@@ -64,11 +65,11 @@ export const REGION7_COUNTS: Readonly<{
   equipment: 8;
   setEquipment: 8;
   badges: 1;
-  modularLayers: 12;
-  setModularLayers: 12;
+  modularLayers: 15;
+  setModularLayers: 15;
   regionContentRuntime: 55;
   regionSetRuntime: 21;
-  runtimeTotal: 81;
+  runtimeTotal: 87;
 }>;
 export const REGION7_ALL_ASSETS: readonly (CalledAsset & {
   category:

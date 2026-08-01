@@ -17,11 +17,11 @@ import {
   arenaShopEntryPrice,
 } from '../arenaShop';
 
-const ARENA_SHOP_CLASS_IDS = CLASS_IDS.filter((classId) => classId !== 'kenshi');
+const ARENA_SHOP_CLASS_IDS = CLASS_IDS;
 
 describe('荣誉商店货架', () => {
-  it('16 个货架：4 职业 × 4 部位，定价与 docs/53 §4.1 一致', () => {
-    expect(ARENA_SHOP_ENTRIES).toHaveLength(16);
+  it('20 个货架：5 职业 × 4 部位，定价与 docs/53 §4.1 一致', () => {
+    expect(ARENA_SHOP_ENTRIES).toHaveLength(20);
     expect(ARENA_SHOP_PRICES).toEqual({ weapon: 1500, head: 1200, body: 1200, ring: 900 });
     for (const entry of ARENA_SHOP_ENTRIES) {
       expect(entry.price).toBe(ARENA_SHOP_PRICES[entry.slot]);
@@ -37,12 +37,12 @@ describe('荣誉商店货架', () => {
       );
       expect(total).toBe(4800);
     }
-    expect(ARENA_SHOP_ENTRIES.some((entry) => entry.classId === 'kenshi')).toBe(false);
+    expect(ARENA_SHOP_ENTRIES.filter((entry) => entry.classId === 'kenshi')).toHaveLength(4);
   });
 
   it('货架 id 唯一且格式稳定', () => {
     const ids = new Set(ARENA_SHOP_ENTRIES.map((e) => e.id));
-    expect(ids.size).toBe(16);
+    expect(ids.size).toBe(20);
     expect(arenaShopEntryPrice('arena_swordsman_weapon')).toBe(1500);
     expect(() => arenaShopEntryPrice('arena_nobody_ring')).toThrow();
   });

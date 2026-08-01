@@ -12,6 +12,8 @@ export interface SkillConditionContext {
   targetHpRatio: number;
   monsterType: MonsterType;
   statusStacks: Readonly<Record<string, number>>;
+  selfStatusStacks?: Readonly<Record<string, number>>;
+  targetStatusStacks?: Readonly<Record<string, number>>;
 }
 
 export interface ActiveSkillLoadoutEntry {
@@ -72,10 +74,24 @@ export function conditionSatisfied(
     case 'monster-type':
       return condition.types.includes(context.monsterType);
     case 'status-stacks-at-least':
-      return (context.statusStacks[condition.statusId] ?? 0) >= condition.stacks;
+      return statusStackFor(condition.target, condition.statusId, context) >= condition.stacks;
     case 'has-status':
-      return (context.statusStacks[condition.statusId] ?? 0) > 0;
+      return statusStackFor(condition.target, condition.statusId, context) > 0;
   }
+}
+
+function statusStackFor(
+  target: 'self' | 'primary-enemy' | undefined,
+  statusId: string,
+  context: SkillConditionContext,
+): number {
+  const source =
+    target === 'self'
+      ? context.selfStatusStacks
+      : target === 'primary-enemy'
+        ? context.targetStatusStacks
+        : context.statusStacks;
+  return source?.[statusId] ?? 0;
 }
 
 /** 被动永远不进入主动释放队列；主动条件不满足时必须跳过，不能空耗冷却。 */

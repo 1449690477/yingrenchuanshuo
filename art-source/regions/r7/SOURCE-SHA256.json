@@ -758,6 +758,66 @@
       "callId": "call_Q9FQuZ8DIdg30npk1aP7w158",
       "path": "modular/catkin/r7-bloodmoon/weapon-alpha.png",
       "sha256": "fadf9135b0e8f0728470cc64e036fe8dbc401069be6c686521f1631a77a25500"
+    },
+    "layer:kenshi-r7-body:151": {
+      "callId": "contract-kenshi-r7-r7-body",
+      "path": "repo:art-source/characters/kenshi/regions/r7-body-chroma.png",
+      "sha256": "7c9ce90ae3431e6b67aac468bcca56043ca323161804cfaf0fe8c0075cfd6302"
+    },
+    "layer:kenshi-r7-body:152": {
+      "callId": "contract-kenshi-r7-r7-body",
+      "path": "repo:art-source/characters/kenshi/regions/r7-body-alpha.png",
+      "sha256": "475cf885dbe30fc42912f5730c0db974aa0d71989b9d9d22a8df002b603cbc7d"
+    },
+    "layer:kenshi-r7-head:153": {
+      "callId": "contract-kenshi-r7-r7-head",
+      "path": "repo:art-source/characters/kenshi/regions/r7-head-chroma.png",
+      "sha256": "934f3ec8be8a7d7f50f5048be910121dafde478208fa11fca66be4eb83c1c841"
+    },
+    "layer:kenshi-r7-head:154": {
+      "callId": "contract-kenshi-r7-r7-head",
+      "path": "repo:art-source/characters/kenshi/regions/r7-head-alpha.png",
+      "sha256": "05be7179a0c1d89865cb414f1a25c535d25aca3ee2dbf79deb77b9410d5ecf26"
+    },
+    "layer:kenshi-r7-weapon:155": {
+      "callId": "contract-kenshi-r7-r7-weapon",
+      "path": "repo:art-source/characters/kenshi/regions/r7-weapon-chroma.png",
+      "sha256": "9c34efff64ab32f63056fd23fc92bb83b052023dda84617dec14d51ea6a4654e"
+    },
+    "layer:kenshi-r7-weapon:156": {
+      "callId": "contract-kenshi-r7-r7-weapon",
+      "path": "repo:art-source/characters/kenshi/regions/r7-weapon-alpha.png",
+      "sha256": "d7efb8bb26495f3e8aa5c22e2616cde5de117dd97fce024a8148c8755f2e2a0a"
+    },
+    "set-layer:kenshi-r7-bloodmoon-body:157": {
+      "callId": "contract-kenshi-r7-r7-bloodmoon-body",
+      "path": "repo:art-source/characters/kenshi/regions/r7-bloodmoon-body-chroma.png",
+      "sha256": "50fb3310f89fcd66a321f9d7eb492178f0b6d8d9cf4580250f39ff18a34b9056"
+    },
+    "set-layer:kenshi-r7-bloodmoon-body:158": {
+      "callId": "contract-kenshi-r7-r7-bloodmoon-body",
+      "path": "repo:art-source/characters/kenshi/regions/r7-bloodmoon-body-alpha.png",
+      "sha256": "326983ab17f02cd0d6804610f52cde5184c72ecf158cb23c859b95dbfd512c2b"
+    },
+    "set-layer:kenshi-r7-bloodmoon-head:159": {
+      "callId": "contract-kenshi-r7-r7-bloodmoon-head",
+      "path": "repo:art-source/characters/kenshi/regions/r7-bloodmoon-head-chroma.png",
+      "sha256": "ab5bcc50c73499ebf55ae0408f3b0b10a1a8cf43724030655611fde25ea86660"
+    },
+    "set-layer:kenshi-r7-bloodmoon-head:160": {
+      "callId": "contract-kenshi-r7-r7-bloodmoon-head",
+      "path": "repo:art-source/characters/kenshi/regions/r7-bloodmoon-head-alpha.png",
+      "sha256": "0e9181bfa031a795bc91507c7166d2faa1e68961d66a657ac721985a90a286c1"
+    },
+    "set-layer:kenshi-r7-bloodmoon-weapon:161": {
+      "callId": "contract-kenshi-r7-r7-bloodmoon-weapon",
+      "path": "repo:art-source/characters/kenshi/regions/r7-bloodmoon-weapon-chroma.png",
+      "sha256": "ec6cfc405a1dc2ffbcc2ecc0a5da3f14e33f4590d848f5f6fb84ff4ba595e1d5"
+    },
+    "set-layer:kenshi-r7-bloodmoon-weapon:162": {
+      "callId": "contract-kenshi-r7-r7-bloodmoon-weapon",
+      "path": "repo:art-source/characters/kenshi/regions/r7-bloodmoon-weapon-alpha.png",
+      "sha256": "b8a9398ed5cac106dfb72a72b9ef6a671d12d6ac9ac2f57345c34e603ac5981f"
     }
   },
   "runtime": {
@@ -1084,6 +1144,30 @@
     "set-layer:catkin-r7-bloodmoon-weapon": {
       "path": "public/assets/characters/modular/catkin/r7-bloodmoon-weapon.png",
       "sha256": "0f530ece9255a469d213c970467d6bdca0bcb211afe7aaf95800cc440654804a"
+    },
+    "layer:kenshi-r7-body": {
+      "path": "public/assets/characters/modular/kenshi/r7-body.png",
+      "sha256": "23ee81344f9cb0d535e24b46ac6dd705d408efc5b5e577ad34aabc76b8e15e7e"
+    },
+    "layer:kenshi-r7-head": {
+      "path": "public/assets/characters/modular/kenshi/r7-head.png",
+      "sha256": "c15cbcdd5454cc08f3a825878706221374aea579dfdb0ac6e806d62e090a2172"
+    },
+    "layer:kenshi-r7-weapon": {
+      "path": "public/assets/characters/modular/kenshi/r7-weapon.png",
+      "sha256": "96231c4888500d9afec7a8e592992261d489eb60a92f0a039a691e543dbbf833"
+    },
+    "set-layer:kenshi-r7-bloodmoon-body": {
+      "path": "public/assets/characters/modular/kenshi/r7-bloodmoon-body.png",
+      "sha256": "0474d5b61c2db031c283e10ad7f606d3b7114e1e0ae01943f02f213c674d8fe1"
+    },
+    "set-layer:kenshi-r7-bloodmoon-head": {
+      "path": "public/assets/characters/modular/kenshi/r7-bloodmoon-head.png",
+      "sha256": "d98a28680c91925430bdc530e9d96b055ad14c4b2f33fcc02d65245f78c57a38"
+    },
+    "set-layer:kenshi-r7-bloodmoon-weapon": {
+      "path": "public/assets/characters/modular/kenshi/r7-bloodmoon-weapon.png",
+      "sha256": "0afc2e83119b637cbab1a45e70f679d3519f29043bc82fe5b27644d5590d9fc1"
     }
   }
 }
