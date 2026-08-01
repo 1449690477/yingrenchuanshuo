@@ -284,8 +284,12 @@ export function simulateFight(
   rng: Rng,
   opts: FightOptions = {},
 ): SimulatedFightResult {
-  const pMul = opts.playerSkillMultiplier ?? 1.0;
-  const mMul = opts.monsterSkillMultiplier ?? 1.0;
+  // `playerSkillMultiplier` / `monsterSkillMultiplier` 是真实技能执行器上线前的
+  // 兼容模型：它把整套技能轮转折算成每次普攻的平均倍率。真实 skillKit 存在时，
+  // 主动技能已经按自己的倍率逐段结算，空档普攻必须回到 1 倍；两者同时生效会把
+  // 旧平均倍率再次叠到普攻上，造成全职业系统性虚高。
+  const pMul = opts.playerSkillKit ? 1.0 : (opts.playerSkillMultiplier ?? 1.0);
+  const mMul = opts.monsterSkillKit ? 1.0 : (opts.monsterSkillMultiplier ?? 1.0);
   const maxSeconds = opts.maxSeconds ?? MAX_FIGHT_SECONDS;
 
   // 用整数计步再乘 TICK，而不是累加浮点数。

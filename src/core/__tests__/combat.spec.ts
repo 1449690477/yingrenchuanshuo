@@ -56,6 +56,69 @@ const mon = (level = 20) =>
   });
 
 describe('simulateFight', () => {
+  it('真实技能栏存在时，空档普攻不再叠加旧平均技能倍率', () => {
+    const run = (playerSkillMultiplier: number) =>
+      simulateFight(
+        makePlayer('p', 20, s({ atk: 1_000, acc: 99_999, critRate: 0, spd: 1 })),
+        makePlayer('m', 20, s({ atk: 0, hp: 1_000_000, def: 0, eva: 0, spd: 0.01 })),
+        new Rng(0x51a11),
+        {
+          maxSeconds: 1.1,
+          playerSkillMultiplier,
+          playerSkillKit: createSkillCombatKit([], 20),
+        },
+      );
+
+    expect(run(7).damageDealt).toBeCloseTo(run(1).damageDealt, 8);
+  });
+
+  it('套装技能伤害 0.18 按比例放大真实技能段约 1.18 倍', () => {
+    const skill: Skill = {
+      id: 'set-ratio-contract',
+      name: '套装比例合同',
+      class: 'kenshi',
+      type: 'active',
+      element: 'none',
+      unlockLevel: 1,
+      cooldownSec: 60,
+      priority: 1,
+      effects: [
+        {
+          kind: 'damage',
+          target: { kind: 'primary-enemy' },
+          multiplier: { base: 2 },
+        },
+      ],
+      icon: '',
+      desc: '',
+    };
+    const run = (skillDamageBonusRatio: number) =>
+      simulateFight(
+        makePlayer('p', 20, s({ atk: 1_000, acc: 99_999, critRate: 0, spd: 0.01 })),
+        makePlayer('m', 20, s({ atk: 0, hp: 1_000_000, def: 0, eva: 0, spd: 0.01 })),
+        new Rng(0x18),
+        {
+          maxSeconds: 0.1,
+          playerSkillMultiplier: 9,
+          playerSkillKit: createSkillCombatKit([skill], 20, { skillDamageBonusRatio }),
+        },
+      ).events.find(
+        (event) =>
+          event.source === 'player' &&
+          event.event.kind === 'direct-damage' &&
+          event.event.skillId === skill.id,
+      );
+
+    const baseline = run(0);
+    const boosted = run(0.18);
+    expect(baseline?.event.kind).toBe('direct-damage');
+    expect(boosted?.event.kind).toBe('direct-damage');
+    if (baseline?.event.kind !== 'direct-damage' || boosted?.event.kind !== 'direct-damage') {
+      throw new Error('测试缺少真实技能伤害事件');
+    }
+    expect(boosted.event.damage).toBeCloseTo(baseline.event.damage * 1.18, 8);
+  });
+
   it('碾压时玩家获胜', () => {
     const p = makePlayer('p', 20, s({ atk: 50000, hp: 999999 }));
     const r = simulateFight(p, mon(20), new Rng(1));

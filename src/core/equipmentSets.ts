@@ -73,7 +73,11 @@ export interface EquipmentSetBonus {
   onLethalTriggers?: readonly OnLethalRecoveryTrigger[];
   /** 每个直接真实暴击独立触发；持续伤害不得折算进平均技能倍率。 */
   onCritTriggers?: readonly OnCritPeriodicDamageTrigger[];
-  /** 加到技能倍率上的绝对值，例如 0.08 表示平均技能倍率 +0.08。 */
+  /**
+   * 真实技能伤害的比例加成，例如 0.18 表示技能伤害 +18%。
+   * 仅在没有真实 skillKit 的旧兼容入口中映射成平均技能倍率的绝对增量；
+   * 两条模型不得在同一场战斗重复生效。
+   */
   skillMultiplierBonus?: number;
   /**
    * 纯外观档：只给称号与外观，**不产生任何战斗收益**（docs/58 §四）。
