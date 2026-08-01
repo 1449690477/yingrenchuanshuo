@@ -33,6 +33,7 @@ import { expectedBuildCp } from '../data/expectedPower';
 import { EQUIPMENT } from '../data/equipment';
 import { ENHANCE_GAIN_MAX, ENHANCE_MAX, SLOT_ORDER } from '../data/constants';
 import { buildTrialCombatant } from './trial';
+import { isStructurallyPossibleLevel } from './levelCap';
 import { itemBaseValue, REGIONAL_BLANK_ID } from './equipment';
 import type { ClassId, EquipmentInstance, EquipSlot } from './types';
 
@@ -157,7 +158,9 @@ export function isPlausibleCombatPower(
   classId: ClassId,
 ): boolean {
   if (!Number.isFinite(combatPower) || combatPower < 0) return false;
-  if (!Number.isInteger(level) || level < 1 || level > 120) return false;
+  // 等级守卫走结构上限（levelCap.ts），不写死 120 —— 玩家实际只能到内容顶+3，
+  // 写死 120 留了 39 级空档，线上那两行 Lv100 僵尸档就是从这钻进来的。
+  if (!isStructurallyPossibleLevel(level)) return false;
   return combatPower <= combatPowerCeiling(level, classId);
 }
 

@@ -24,6 +24,7 @@
  */
 
 import type { ClassId, EquipmentInstance, EquipSlot } from './types';
+import { isStructurallyPossibleLevel } from './levelCap';
 import { EQUIPMENT } from '../data/equipment';
 import { ENHANCE_GAIN_MAX, ENHANCE_MAX, EQUIPMENT_BASE_ROLL_MAX, SLOT_ORDER } from '../data/constants';
 import { TRIAL_SEASON_ID } from '../data/trialRules';
@@ -186,6 +187,7 @@ export function isPlausibleTrialDamage(
   weekIndex: number,
 ): boolean {
   if (!Number.isFinite(damage) || damage < 0) return false;
-  if (!Number.isInteger(level) || level < 1 || level > 120) return false;
+  // 同 combatPowerBound：等级守卫走结构上限，Lv100 报伤害同样该在这里被拒。
+  if (!isStructurallyPossibleLevel(level)) return false;
   return damage <= trialBracketDamageCeiling(level, classId, weekIndex);
 }
