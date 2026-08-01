@@ -46,3 +46,6 @@ export {
   judgeCheatEvidence,
   type CheatEvidenceInput,
 } from '../../../src/core/cheatEvidence';
+
+// 档案进度行的唯一构造点：战力与它的公式版本戳同批产出（见该模块文件头）。
+export { buildProfileProgress } from '../../../src/core/profileProgress';

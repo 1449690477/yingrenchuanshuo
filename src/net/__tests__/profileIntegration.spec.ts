@@ -1,5 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
+import { CP_FORMULA_VERSION } from '@/core/cpFormulaVersion';
+import { buildProfileProgress } from '@/core/profileProgress';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { fetchPublicProfileIdentities } from '../leaderboard';
 import { reportProfile } from '../profile';
@@ -48,15 +50,33 @@ describe('公开档案补读', () => {
 
 describe('服务端档案同步', () => {
   it('上传试炼成绩不会覆盖已有玩家昵称', () => {
-    // main 80e1a50 恢复 profileProgress 字面量写法（守卫测试扫的是源码形状），
-    // 断言随源码形状走：display_name 仍只出现在首次建档的 upsert 里。
-    expect(submitTrialSource).toContain('const profileProgress = {');
+    // ── 2026-08-01：从「扫源码形状」改成「断行为」 ──
+    // 原本这条扫的是字面量写法（`const profileProgress = {` 加正则挖块内文本）。
+    // 那等于把**实现长什么样**当成契约 —— 而正是「四个函数各写各的」这个形状，
+    // 让公式版本戳只加在了 sync-profile 一处。漏戳会留下「合法的戳 + 错尺的数」：
+    // 筛得过、显示正常、没有任何人看得出它是错的。
+    //
+    // 现在四个写入点统一走 core 的 buildProfileProgress，
+    // **「不含 display_name」由返回类型保证，不必再用正则去源码里挖。**
+    const progress = buildProfileProgress({ classId: 'swordsman', level: 45, combatPower: 1234 });
+    expect(progress).not.toHaveProperty('display_name');
+    expect(progress.cp_formula_version).toBe(CP_FORMULA_VERSION);
+
+    // 这两条仍然只能从调用形状上看出来：昵称只在首次建档的 upsert 里写一次。
     expect(submitTrialSource).toContain("{ onConflict: 'id', ignoreDuplicates: true }");
     expect(submitTrialSource).toContain('.update(profileProgress)');
-    const progressBlock = submitTrialSource.match(
-      /const profileProgress = \{\n([\s\S]*?)\n[ \t]*\};/,
-    );
-    expect(progressBlock?.[1]).not.toContain('display_name');
+  });
+
+  it('★ 写 profiles.combat_power 的函数都走同一个构造点，不许再各写各的', () => {
+    // 版本戳漏在任何一个写入点都会产出「合法的戳 + 错尺的数」。
+    // 2026-08-01 就是这么漏的：加戳时以为 sync-profile 是唯一写入点，没 grep 全部函数。
+    for (const [name, source] of Object.entries({
+      submitTrial: submitTrialSource,
+      arenaSnapshot: arenaSnapshotSource,
+      arenaChallenge: arenaChallengeSource,
+    })) {
+      expect(source, `${name} 没有走 buildProfileProgress`).toContain('buildProfileProgress(');
+    }
   });
 
   it('服务端不再用平均战力或匿名账号年龄拒绝已复算的真实成绩', () => {

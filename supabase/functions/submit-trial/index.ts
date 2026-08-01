@@ -21,6 +21,7 @@ import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import {
   buildCheatEvidenceRow,
+  buildProfileProgress,
   buildTrialCombatant,
   CLASS_IDS,
   decideTrialScoreWrite,
@@ -31,8 +32,8 @@ import {
   runTrial,
   SLOT_ORDER,
   TRIAL_SEASON_ID,
-  trialBracketFor,
   trialBracketDamageCeiling,
+  trialBracketFor,
   trialEquipmentSnapshotIssue,
   trialScoreSeed,
   trialWeekIndex,
@@ -237,12 +238,13 @@ Deno.serve(async (req: Request) => {
     }
 
     // ── 5. 写入（service role；成绩表对客户端无写权限）──
-    const profileProgress = {
-      class_id: sub.classId,
+    // 战力与公式版本戳同批写入（见 core/profileProgress.ts）：
+    // 只改数不改戳会留下「合法的戳 + 错尺的数」，那种行筛得过、显示正常、没人看得出错。
+    const profileProgress = buildProfileProgress({
+      classId: sub.classId,
       level: sub.level,
-      combat_power: build.combatPower,
-      updated_at: new Date().toISOString(),
-    };
+      combatPower: build.combatPower,
+    });
     // ★ 判为不可信时**绝不把自报进度写进档案** —— 档案是下一次判定的尺子，
     //   让伪造值写进去等于亲手把尺子弄弯（2026-07-30 那次绕过的关键一环：
     //   伪造的 Lv81 先写进 profiles，后续判定便再也无从比对）。

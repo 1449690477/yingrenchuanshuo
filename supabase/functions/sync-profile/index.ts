@@ -25,10 +25,10 @@ import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import {
   buildCheatEvidenceRow,
+  buildProfileProgress,
   buildTrialCombatant,
   CLASS_IDS,
   combatPowerCeiling,
-  CP_FORMULA_VERSION,
   equipmentInstanceSchema,
   getEquipment,
   isPlausibleCombatPower,
@@ -227,16 +227,14 @@ Deno.serve(async (req: Request) => {
 
     // ── 5. 落库（service role）──
     const admin = createClient(supabaseUrl, serviceKey);
-    const progress = {
-      class_id: sub.classId,
+    // 战力与公式版本戳同批写入（见 core/profileProgress.ts）。
+    // 这里原本是手写的字面量对象 —— 而正是「每个函数各写各的」这个形状，
+    // 让另外四个写入点漏掉了戳。现在四个函数与本函数走同一个构造点。
+    const progress = buildProfileProgress({
+      classId: sub.classId,
       level: effectiveLevel,
-      combat_power: combatPower,
-      // 版本戳与战力同一次写入、同一个打包产物里的常量（批3-3）。
-      // 存量战力没有重算路径（这里的 sub.equipped 算完就丢，不落库），
-      // 所以公式一改，唯一诚实的做法是标注每行是哪把尺量的。
-      cp_formula_version: CP_FORMULA_VERSION,
-      updated_at: new Date().toISOString(),
-    };
+      combatPower,
+    });
 
     // 首次建档才写昵称：已有档案的自设昵称绝不能被同步覆盖
     // （与 submit-trial 同一条口径）。

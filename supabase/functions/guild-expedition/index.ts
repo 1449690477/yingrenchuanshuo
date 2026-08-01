@@ -6,15 +6,15 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import {
+  buildProfileProgress,
   buildTrialCombatant,
   CLASS_IDS,
   equipmentInstanceSchema,
   getEquipment,
   GUILD_DAILY_SUBMISSIONS,
-  guildCompletedCommissions,
   GUILD_WEEK_CLEAR_REPUTATION,
   GUILD_WEEKLY_TARGET_PER_MEMBER,
-  TRIAL_SEASON_ID,
+  guildCompletedCommissions,
   guildContributionPoints,
   guildDayKey,
   guildExpeditionBoss,
@@ -22,6 +22,7 @@ import {
   guildWeekKey,
   runTrial,
   SLOT_ORDER,
+  TRIAL_SEASON_ID,
   trialBracketFor,
   trialEquipmentSnapshotIssue,
   trialWeekIndex,
@@ -224,14 +225,17 @@ Deno.serve(async (req: Request) => {
       throw new Error(`公会据点结算失败：${strongholdError.message}`);
     }
 
+    // 战力与公式版本戳同批写入（见 core/profileProgress.ts）：
+    // 只改数不改戳会留下「合法的戳 + 错尺的数」，那种行筛得过、显示正常、没人看得出错。
     await admin
       .from('profiles')
-      .update({
-        class_id: body.classId,
-        level: body.level,
-        combat_power: build.combatPower,
-        updated_at: new Date().toISOString(),
-      })
+      .update(
+        buildProfileProgress({
+          classId: body.classId,
+          level: body.level,
+          combatPower: build.combatPower,
+        }),
+      )
       .eq('id', user.id);
 
     const refreshed = await initState(admin, user.id, TRIAL_SEASON_ID, now);

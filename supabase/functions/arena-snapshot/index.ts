@@ -14,6 +14,7 @@ import { z } from 'zod';
 import {
   ARENA_JOIN_HONOR,
   arenaTierFor,
+  buildProfileProgress,
   buildTrialCombatant,
   CLASS_IDS,
   equipmentInstanceSchema,
@@ -102,12 +103,13 @@ Deno.serve(async (req: Request) => {
     const admin = createClient(supabaseUrl, serviceKey);
     // 与 submit-trial 同一口径：display_name 只在首次建档时写入，
     // 已有档案的玩家自设昵称绝不能被竞技场快照覆盖（codex-profile 约定）。
-    const profileProgress = {
-      class_id: sub.classId,
+    // 战力与公式版本戳同批写入（见 core/profileProgress.ts）：
+    // 只改数不改戳会留下「合法的戳 + 错尺的数」，那种行筛得过、显示正常、没人看得出错。
+    const profileProgress = buildProfileProgress({
+      classId: sub.classId,
       level: sub.level,
-      combat_power: build.combatPower,
-      updated_at: new Date().toISOString(),
-    };
+      combatPower: build.combatPower,
+    });
     await admin.from('profiles').upsert(
       { id: user.id, display_name: sub.displayName, ...profileProgress },
       { onConflict: 'id', ignoreDuplicates: true },
