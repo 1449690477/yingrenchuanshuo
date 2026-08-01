@@ -32,6 +32,7 @@ const shopSceneUrl = `${import.meta.env.BASE_URL}assets/shops/sakura-boutique.we
 const guildSceneUrl = `${import.meta.env.BASE_URL}${GUILD_HOME_SCENE_ASSET}`;
 
 const stats = computed(() => settings.saveData?.stats ?? null);
+const boutiqueOfferCount = computed(() => (player.player?.classId === 'catkin' ? 26 : 24));
 
 function doExport() {
   if (!settings.saveData) return;
@@ -153,7 +154,7 @@ function say(text: string, ok: boolean) {
       >
         <span class="boutique-shade" />
         <span class="boutique-copy">
-          <small><Sparkles :size="11" />35 件珍品 · 喵喵专属纸箱套</small>
+          <small><Sparkles :size="11" />{{ boutiqueOfferCount }} 件本职业珍品 · 五职业专属外观</small>
           <strong>樱花珍品店</strong>
           <span>紫 · 金 · 红洛丽塔系列，支持试穿、专属互动与攻击换肤。</span>
           <em><Coins :size="11" />只收分解与挂机获得的金币</em>

@@ -10,6 +10,8 @@ describe('玩家界面文案收口', () => {
     const source = read('../../views/MoreView.vue');
 
     expect(source).toContain('title="旅途计划"');
+    expect(source).toContain('五职业专属外观');
+    expect(source).not.toContain('35 件珍品 · 喵喵专属纸箱套');
     expect(source).not.toContain('排行榜 · M7-4');
     expect(source).not.toContain('图鉴 · M4-8');
     expect(source).not.toContain('开发版 M2');
