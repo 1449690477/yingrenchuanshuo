@@ -337,6 +337,36 @@ async function iconLayer(source, slot) {
     .toBuffer();
 }
 
+async function snowstepSandalsLayer() {
+  const source = Buffer.from(`
+    <svg xmlns="http://www.w3.org/2000/svg" width="640" height="960" viewBox="0 0 640 960">
+      <defs>
+        <linearGradient id="sole" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#fff9fd"/>
+          <stop offset="1" stop-color="#ffd9ea"/>
+        </linearGradient>
+      </defs>
+      <g stroke-linecap="round" stroke-linejoin="round">
+        <path d="M276 832 C272 854 267 880 267 902 C267 919 276 928 290 929 C303 930 310 923 310 911 C308 888 302 861 297 839 Z"
+          fill="url(#sole)" stroke="#6788c4" stroke-width="3"/>
+        <path d="M374 817 C367 839 358 866 356 887 C355 902 363 911 377 912 C391 913 400 906 402 894 C401 871 394 843 392 822 Z"
+          fill="url(#sole)" stroke="#6788c4" stroke-width="3"/>
+        <path d="M274 866 C284 858 296 859 304 871 M273 878 C285 869 299 871 306 884"
+          fill="none" stroke="#f28fbd" stroke-width="8"/>
+        <path d="M364 852 C374 844 388 846 397 858 M361 864 C374 855 390 858 400 871"
+          fill="none" stroke="#f28fbd" stroke-width="8"/>
+        <g fill="#ffd1e5" stroke="#ffffff" stroke-width="2">
+          <path d="M289 861 C281 851 284 843 291 846 C293 837 302 838 302 847 C311 843 316 851 307 858 C314 865 307 873 299 867 C294 875 285 871 289 861 Z"/>
+          <path d="M381 847 C373 837 376 829 383 832 C385 823 394 824 394 833 C403 829 408 837 399 844 C406 851 399 859 391 853 C386 861 377 857 381 847 Z"/>
+        </g>
+      </g>
+    </svg>
+  `);
+  return sharp(source)
+    .png({ compressionLevel: 9, palette: true, quality: 94 })
+    .toBuffer();
+}
+
 async function weaponIcon(source) {
   const trimmed = await sharp(source)
     .ensureAlpha()
@@ -488,6 +518,8 @@ async function build() {
     const output =
       entry.slot === 'body'
         ? await normalizedBody(entry.source)
+        : entry.slot === 'shoes'
+          ? await snowstepSandalsLayer()
         : await iconLayer(entry.source, entry.slot);
     await writeOrCheck(entry.output, output);
   }

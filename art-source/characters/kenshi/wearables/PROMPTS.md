@@ -24,6 +24,9 @@
 - necklace / bracelet / ring / belt / shoes 分别对位胸、腕、手、腰与足；
 - 三件 body 使用上节完整人物替换母版。
 
+`snowstep-sakura-sandals` 不再把双鞋商品图整体缩放到脚前；构建脚本按
+`base-noshoes.png` 的左右脚轮廓分别绘制鞋底、绑带与樱花扣，保证两只鞋各自覆盖脚掌。
+
 竞技 4 件与心虹 10 件全部使用独立 `appearanceId`，单穿时
 `visibleEquippedCount=1`，禁止回落精品主题或 `slot-only`。
 
