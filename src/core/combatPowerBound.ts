@@ -31,30 +31,36 @@
 
 import { expectedBuildCp } from '../data/expectedPower';
 import { EQUIPMENT } from '../data/equipment';
-import {
-  ENHANCE_GAIN_MAX,
-  ENHANCE_MAX,
-  EQUIPMENT_BASE_ROLL_MAX,
-  PROFESSION_AFFIX_POOLS,
-  QUALITY_AFFIX_COUNT,
-  SLOT_ORDER,
-} from '../data/constants';
+import { ENHANCE_GAIN_MAX, ENHANCE_MAX, SLOT_ORDER } from '../data/constants';
 import { buildTrialCombatant } from './trial';
-import { affixValueRange, itemBaseValue, REGIONAL_BLANK_ID } from './equipment';
-import type { Affix, AffixKey, ClassId, EquipmentInstance, EquipSlot } from './types';
+import { itemBaseValue, REGIONAL_BLANK_ID } from './equipment';
+import type { ClassId, EquipmentInstance, EquipSlot } from './types';
 
 /**
- * 套装静态加成与版本漂移的余量。**词条不再走这里** —— 2026-08-01 起
- * 探针本身带满 T5 词条（见下方 A 版构造），这只剩两件事要兜：
- * ①套装静态加成（不进探针的那部分）②客户端与 Edge 打包版本短暂不一致。
+ * 词条与套装效果的余量（2026-08-01 随 CP 乘法尺重定，1.5 → 3.0）。
  *
- * 为什么必须收窄：CP 换乘法尺后实测「满 T5 真人 ÷ 无词条探针」最高 2.40
- * （小满 17:52 从上方保证的解析值；小榜 17:53 实构 build 读到 1.48），
- * 旧口径「探针不带词条 × 1.5」在新尺下**拦真人** —— 12 格全被拦，
- * 而 sync-profile 撞上界是 500 + 记一条作弊证据（小督 17:55 链路实查）。
- * 词条进了探针之后，这个系数只需覆盖 ①②，取小督 09:26 口径带 1.1~1.3 的中值。
+ * 探针**不带词条**，词条全走这个系数。3.0 的推导链（四方两侧夹出来的，
+ * 改这个数之前先把这段读完）：
+ *
+ *   - 下界 2.547：**合法**满词条构造实测（小库，贪心混键、每件键不重复，
+ *     Lv10 魔女最难兜；四职业 Lv10/16/45/81 全表 2.16~2.55）。
+ *     贪心不是穷举，真实最大可能略高于它。
+ *   - 全等级扫描 3.0（小督）：抽样会漏 —— Lv20/45/78 三点抽样读到的
+ *     最差是 2.22/2.40，全等级扫出来 Lv10 才是最难兜的那格。
+ *   - 上方余量 18%：3.0 ÷ 2.547。
+ *
+ * ⚠ 三个曾被否掉的口径，别再走回去：
+ *   ① 「纯键取最大」（每件塞满同一种词条）：**schema 禁止同件重复键**
+ *      （save/schema.ts 随机词条键查重），那种装备任何玩家都不可能拥有，
+ *      而且**混键在几何平均尺下能打败纯键**（2.547 > 纯键解析 2.40）——
+ *      拿它标定会从下方漏风。小库用线上探针实证：那种构造被 sync-profile
+ *      判 400「快照不合法」，根本到不了上界那一步。
+ *   ② 词条塞进探针（A 版，11dfe94，已撤回）：同样建立在 ① 的非法构造上，
+ *      且验收抽样同样漏了 Lv10。
+ *   ③ 按 2.5 附近「贴边」定数：将来有人重测得 2.5x 就会想调小 ——
+ *      真边界是 2.547 的**下界**，贴边定数会在下一次被错误地推翻。
  */
-export const COMBAT_POWER_HEADROOM = 1.2;
+export const COMBAT_POWER_HEADROOM = 3.0;
 
 /** 该槽位在该等级能穿到的最强定义：按真实基准值排序，不按名字或品质猜。 */
 function strongestDefFor(slot: EquipSlot, level: number, classId: ClassId) {
@@ -82,20 +88,22 @@ function strongestDefFor(slot: EquipSlot, level: number, classId: ClassId) {
 }
 
 /** 物理上最强的一件：基础值满掷 + 全 +15 且每级都掷出最高增益。 */
-function maxedInstance(defId: string, uid: string, affixes: readonly Affix[]): EquipmentInstance {
+function maxedInstance(defId: string, uid: string): EquipmentInstance {
   return {
     uid,
     defId,
     enhance: ENHANCE_MAX,
-    // ⚠ 满掷是 EQUIPMENT_BASE_ROLL_MAX(1200)，不是 1000。
-    // 旧探针写 1000 —— 「奇迹」档（1121~1200‰）的真实掉落能越过探针，
-    // 上界从下方漏风。这不是本次换尺暴露的，是一直就错的。
-    baseRollPermille: EQUIPMENT_BASE_ROLL_MAX,
+    // ⚠ 满掷是 1200（EQUIPMENT_BASE_ROLL_MAX 的「奇迹」档 1121~1200‰），
+    // 不是 1000。旧值让真实的奇迹掷装备越过探针，上界从下方漏风 ——
+    // 这与换尺无关，是一直就错的。抬探针只会让上界更松，方向安全；
+    // 上面 HEADROOM 的 2.547/3.0 是对着 1000 探针量的，探针抬高后
+    // 实际余量比注释里写的更大。
+    baseRollPermille: 1200,
     // 每级都掷「奇迹」档上限，累计会撞上 ENHANCE_TOTAL_GAIN_CAP_PERMILLE，
     // 也就是强化倍率的结构性天花板 ×2.35
     enhanceGainPermille: Array<number>(ENHANCE_MAX).fill(ENHANCE_GAIN_MAX),
     enhanceLuck: {},
-    affixes: [...affixes],
+    affixes: [],
     reforgeResonance: 0,
     locked: false,
   };
@@ -112,71 +120,23 @@ const maxCpCache = new Map<string, number>();
  *
  * 结果按 (等级, 职业) 记忆化：Edge Function 每次上报都会调它。
  */
-/**
- * A 版词条构造（2026-08-01，小满 09:21 六条口径 + 小督 09:25 上界法）：
- * 每槽按该件品质的词条容量塞满 **同一个键** 的 T5 满值，对候选键逐一
- * 全量重算取最大 —— 「纯键取最大」。
- *
- * 为什么是纯键而不是搜索混合：小满实测纯 spd / 纯 hp 分别是输出侧与
- * 生存侧的全局最大、混合更差（几何平均的两轴各自被单键推到头）；
- * 候选键取通用池全集 ∪ 该职业专属池 —— 是真实可掉键的**超集**，
- * 超集上的最大值只会 ≥ 真实最优，上界方向永远安全。
- *
- * 词条值取 affixValueRange(key, L, 5).max，**不再额外乘 1.03** ——
- * 值域公式里 ±3% 方差已含在 max 里，再乘一次就是把方差算两遍
- * （小榜 17:55 抓过这个：spd T5 的 min 与 max 四舍五入后同为 0.05）。
- */
-const GENERIC_PROBE_KEYS: readonly AffixKey[] = [
-  'atk', 'def', 'hp', 'acc', 'eva', 'critRate', 'critDmg', 'spd',
-  'dmgReduce', 'elemDmg', 'lifesteal', 'skillMul',
-];
-
-function probeKeysFor(classId: ClassId): readonly AffixKey[] {
-  const profession = PROFESSION_AFFIX_POOLS[classId].map((entry) => entry.key);
-  return [...GENERIC_PROBE_KEYS, ...profession];
-}
-
-function pureAffixesFor(key: AffixKey, level: number, quality: string): Affix[] {
-  const count = QUALITY_AFFIX_COUNT[quality as keyof typeof QUALITY_AFFIX_COUNT] ?? 0;
-  const value = affixValueRange(key, level, 5).max;
-  return Array.from({ length: count }, () => ({
-    key,
-    tier: 5 as const,
-    value,
-    // elemDmg 与 wit_elem（魔女专属，内部同走元素伤害结算）必须绑元素，
-    // 否则 applyCombatAffix 直接抛错。选哪一系对上界无差 —— 参考怪无属性，
-    // elementMultiplier 对三系一视同仁。
-    ...(key === 'elemDmg' || key === 'wit_elem' ? { element: 'fire' as const } : {}),
-  }));
-}
-
 export function structuralMaxCombatPower(level: number, classId: ClassId): number {
-  const cacheKey = `${level}:${classId}`;
-  const cached = maxCpCache.get(cacheKey);
+  const key = `${level}:${classId}`;
+  const cached = maxCpCache.get(key);
   if (cached !== undefined) return cached;
 
-  const slotDefs = SLOT_ORDER.map((slot) => strongestDefFor(slot, level, classId));
-  let max = 0;
-  for (const affixKey of probeKeysFor(classId)) {
-    const equipped = slotDefs.map((defId, index) => {
-      if (!defId) return null;
-      const def = EQUIPMENT[defId]!;
-      return maxedInstance(
-        defId,
-        `cp-ceiling-${index}`,
-        pureAffixesFor(affixKey, level, def.quality),
-      );
-    });
-    const cp = buildTrialCombatant({
-      name: '上界探针',
-      classId,
-      level,
-      equipped,
-    }).combatPower;
-    if (cp > max) max = cp;
-  }
-  maxCpCache.set(cacheKey, max);
-  return max;
+  const equipped = SLOT_ORDER.map((slot, index) => {
+    const defId = strongestDefFor(slot, level, classId);
+    return defId ? maxedInstance(defId, `cp-ceiling-${index}`) : null;
+  });
+  const cp = buildTrialCombatant({
+    name: '上界探针',
+    classId,
+    level,
+    equipped,
+  }).combatPower;
+  maxCpCache.set(key, cp);
+  return cp;
 }
 
 /** 该等级该职业允许出现的最高战力。 */

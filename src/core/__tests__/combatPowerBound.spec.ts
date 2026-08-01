@@ -29,9 +29,8 @@ describe('上界从真实最强装备推出来', () => {
       const maxed = structuralMaxCombatPower(LEVEL, classId);
       expect(maxed).toBeGreaterThan(0);
       expect(isPlausibleCombatPower(maxed, LEVEL, classId)).toBe(true);
-      // 2026-08-01 A 版起词条在探针**里面**（每槽满 T5 纯键取最大），
-      // 不再靠余量兜 —— 旧断言「ceiling ≥ maxed × 1.25」编码的是无词条探针
-      // 时代的设计，新设计下 HEADROOM 只兜套装静态与版本漂移。
+      // 全 T5 词条最多再 +25%，探针不带词条，所以余量必须够
+      expect(combatPowerCeiling(LEVEL, classId)).toBeGreaterThanOrEqual(maxed * 1.25);
       expect(combatPowerCeiling(LEVEL, classId)).toBeCloseTo(maxed * COMBAT_POWER_HEADROOM, 6);
     }
   });
@@ -45,11 +44,10 @@ describe('上界从真实最强装备推出来', () => {
   });
 
   it('结构上界与典型养成的比值随等级塌陷 —— 平坦系数正是被它否掉的', () => {
-    // 实测（docs/73 批 3 乘法投影 + 批 3-1 锚 Lv1 + 2026-08-01 A 版词条入探针）：
-    // 全矩阵（Lv1~78 × 4 职业）峰值 = 120.92 @ Lv20 swordsman。
-    // 相对上一版（无词条探针峰值 49.04）上浮的来源就是词条：低等级段 T5 满值
-    // 相对裸属性占比极大，正是旧口径「探针×1.5」在新尺下拦掉 12 格真人的原因。
-    // Lv16/20 峰值来自珍品商店超前品质阶梯 —— docs/73 A4 已拍板保留（a+c），属预期结构。
+    // 实测（docs/73 批 3 乘法投影 + 批 3-1 锚 Lv1 后）：Lv16 ≈ ×13.5~16.4
+    // （珍品月糖 legendary）、Lv20 ≈ ×39.8~49.0（珍品夜蔷薇 mythic）、Lv40 ≈ ×5.3~6.5、
+    // Lv78 ≈ ×1.53~1.82。Lv16/20 峰值来自珍品商店超前品质阶梯 —— docs/73 A4 已拍板
+    // 保留（a+c），属预期结构；乘法投影让满配件的属性差在战力空间复合放大，比值不再受 <8 约束。
     // 只要塌陷还在，就不能退回「典型 × 单一系数」的写法：
     // 那个系数在低等级会松到形同虚设，在满级会紧到误伤肝帝。
     const low = combatPowerCeilingRatio(16, 'swordsman');
@@ -60,16 +58,16 @@ describe('上界从真实最强装备推出来', () => {
     const sameLevel = CLASS_IDS.map((classId) => combatPowerCeilingRatio(LEVEL, classId));
     expect(Math.max(...sameLevel) / Math.min(...sameLevel)).toBeLessThan(1.5);
 
-    // 守住合理范围：A 版（词条入探针）全矩阵实测峰值 = 120.92（Lv20 swordsman），
-    // 门槛 125 = 峰值取整上浮（沿用小衡 2026-08-01「49.04 → 50」的同一裁定法）。
-    // 它是绊线不是标定：若哪天某个比值跑到 125 以上，说明装备表出了新的超模件、
-    // 又加了一档超前品质、或词条值域被抬 —— 该去查数据而不是调这条断言。
-    // ⚠ 本次 50 → 125 恰恰**不是**「查数据」而是「改绊线」，因为触发它的是
-    // 探针方法论变更（词条从 HEADROOM 挪进探针），不是数据超模 —— 两种情况的
-    // 区分判据：方法变更会整条曲线等比上移，数据超模只会在单点冒尖。
+    // 守住合理范围：探针满掷修正（1000 → 1200，修真实漏洞）后全矩阵峰值
+    // = 62.93（Lv20 witch，珍品超前品质 + 奇迹掷，均属登记在案的结构）。
+    // 门槛 65 = 峰值取整上浮，沿用小衡「49.04 → 50」同一裁定法。
+    // 它是绊线不是标定：若哪天某个比值跑到 65 以上，先用这条判据分辨 ——
+    // **方法变更是整条曲线等比上移，数据超模是单点冒尖**。
+    // 单点冒尖 → 查装备表；等比上移 → 查探针口径是否又变了，再按新峰值重标。
+    // 本次 50 → 65 属后者（满掷从 1000 修到 1200，全矩阵约 ×1.28 等比上移）。
     for (const level of [1, 16, 20, 40, LEVEL]) {
       for (const classId of CLASS_IDS) {
-        expect(combatPowerCeilingRatio(level, classId)).toBeLessThan(125);
+        expect(combatPowerCeilingRatio(level, classId)).toBeLessThan(65);
         expect(combatPowerCeilingRatio(level, classId)).toBeGreaterThan(1);
       }
     }
@@ -80,7 +78,11 @@ describe('上界从真实最强装备推出来', () => {
       for (const classId of CLASS_IDS) {
         const maxed = structuralMaxCombatPower(level, classId);
         expect(isPlausibleCombatPower(maxed, level, classId)).toBe(true);
-        expect(isPlausibleCombatPower(maxed * 2, level, classId)).toBe(false);
+        // 拒绝侧贴着上界测，不写「maxed × 2」这类隐含 HEADROOM < 2 的魔法数 ——
+        // 那正是 2026-08-01 HEADROOM 1.5 → 3.0 时被当场翻红的写法。
+        expect(
+          isPlausibleCombatPower(combatPowerCeiling(level, classId) + 1, level, classId),
+        ).toBe(false);
       }
     }
   });
