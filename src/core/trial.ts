@@ -16,7 +16,12 @@
 import type { ClassId, Combatant, CombatBonuses, EquipmentInstance, Stats } from './types';
 import { Rng } from './rng';
 import { addStats, combatPower } from './formula';
-import { estimateDps, simulateFight, type CombatTimelineEvent } from './combat';
+import {
+  estimateDps,
+  simulateFight,
+  type CombatTimelineEvent,
+  type FightOptions,
+} from './combat';
 import type { SkillCombatKit } from './skillCombat';
 import { buildDefaultPlayerSkillKit } from './playerSkillKit';
 import type {
@@ -468,6 +473,24 @@ export interface TrialRunResult {
 }
 
 /**
+ * 试炼结构上界成立的配置契约。
+ *
+ * 当前成绩只累计玩家对 Boss 的伤害，因此必须始终锁定 Boss 目标，并且不能给
+ * Boss 注入技能包（怪物召唤会引入额外血池）。若以后要给试炼 Boss 加技能，
+ * 需要先重审反作弊上界，不能在这里悄悄接入。
+ */
+export function trialFightOptions(build: TrialBuild): FightOptions {
+  return {
+    maxSeconds: TRIAL_DURATION_SEC,
+    playerSkillKit: build.skillKit,
+    playerTargetType: 'boss',
+    playerOnHitTriggers: build.onHitTriggers,
+    playerOnLethalTriggers: build.onLethalTriggers,
+    playerOnCritTriggers: build.onCritTriggers,
+  };
+}
+
+/**
  * 跑一次试炼。纯函数：同一 build、同一 Boss、同一种子必然得到同一结果。
  * 不会修改入参（内部先拷贝，simulateFight 会改写 currentHp）。
  */
@@ -478,14 +501,7 @@ export function runTrial(build: TrialBuild, boss: Combatant, seed: number): Tria
     currentHp: build.combatant.stats.hp,
   };
   const target: Combatant = { ...boss, stats: { ...boss.stats }, currentHp: boss.stats.hp };
-  const result = simulateFight(player, target, new Rng(seed), {
-    maxSeconds: TRIAL_DURATION_SEC,
-    playerSkillKit: build.skillKit,
-    playerTargetType: 'boss',
-    playerOnHitTriggers: build.onHitTriggers,
-    playerOnLethalTriggers: build.onLethalTriggers,
-    playerOnCritTriggers: build.onCritTriggers,
-  });
+  const result = simulateFight(player, target, new Rng(seed), trialFightOptions(build));
   return {
     damage: Math.max(0, Math.round(result.damageDealt)),
     damageTaken: Math.max(0, Math.round(result.damageTaken)),

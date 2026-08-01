@@ -11,6 +11,7 @@ import {
   runTrial,
   trialBracketFor,
   trialEquipmentSnapshotIssue,
+  trialFightOptions,
   trialScoreSeed,
   trialWeekIndex,
   weeklyTrialBoss,
@@ -228,6 +229,15 @@ function legalBuild(classId: ClassId, level: number, seed: number, extreme: bool
 }
 
 describe('试炼成绩的结构上界 · damage 不可能超过 Boss 初始血量', () => {
+  it('★ 配置契约：玩家只锁定 Boss，且 Boss 不得接入技能包或额外血池', () => {
+    const { build } = legalBuild('kenshi', 65, 20260802, true);
+    const options = trialFightOptions(build);
+
+    expect(options.playerTargetType).toBe('boss');
+    expect(Object.hasOwn(options, 'monsterSkillKit')).toBe(false);
+    expect(Object.hasOwn(options, 'monsterSkillMultiplier')).toBe(false);
+  });
+
   /**
    * 为什么用一条行为不变量，而不是逐条枚举「无回复 / 无致死复活 / 无额外血池」：
    * 枚举挡不住**还没被想到的**那个向量。2026-08-02 凌晨就现场发生过一次 ——
