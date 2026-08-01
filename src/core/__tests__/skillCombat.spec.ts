@@ -26,6 +26,26 @@ function fighter(name: string, overrides: Partial<Combatant['stats']> = {}): Com
 }
 
 describe('通用技能战斗状态机', () => {
+  it('噬血术只在自身生命不高于 30% 时提供 1% 吸血', () => {
+    const bloodBite = SHAMAN_SKILLS.find((skill) => skill.id === 'skill_shaman_blood_bite')!;
+    const kit = createSkillCombatKit([bloodBite], 52);
+    const fullHp = fighter('满血灵巫', { atk: 1_000, hp: 20_000, spd: 1 });
+    const lowHp = { ...fullHp, name: '濒危灵巫', currentHp: 6_000 };
+    const target = fighter('木桩', { hp: 1_000_000, def: 0, spd: 0.01 });
+
+    const fullResult = simulateFight(fullHp, target, new Rng(0x51ee), {
+      maxSeconds: 1,
+      playerSkillKit: kit,
+    });
+    const lowResult = simulateFight(lowHp, target, new Rng(0x51ee), {
+      maxSeconds: 1,
+      playerSkillKit: kit,
+    });
+
+    expect(fullResult.lifestealPotential).toBe(0);
+    expect(lowResult.lifestealPotential).toBeGreaterThan(0);
+  });
+
   it('缺省技能栏稳定选择优先级最高的四个已解锁主动，被动全部生效', () => {
     const skills: Skill[] = Array.from({ length: 6 }, (_, index) => ({
       id: `active-${index}`,

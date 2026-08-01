@@ -536,18 +536,18 @@ export const SHAMAN_SKILLS: readonly Skill[] = [
     type: 'active',
     element: 'none',
     unlockLevel: 1,
-    cooldownSec: 10,
+    cooldownSec: 55,
     priority: 95,
     castWhen: { kind: 'self-hp-at-most', ratio: 0.75 },
     effects: [
       {
         kind: 'heal',
         target: SELF,
-        maxHpRatio: { base: 0.15 },
+        maxHpRatio: { base: 0.1 },
       },
     ],
     icon: 'assets/icons/skills/shaman-heal.png',
-    desc: '水晶莲心绽开柔光，为少女回复元气。',
+    desc: '水晶莲心绽开柔光，生命低于 75% 时回复 10% 生命；55 秒内只能施放一次。',
   },
   {
     id: 'skill_shaman_spirit_basics',
@@ -579,7 +579,7 @@ export const SHAMAN_SKILLS: readonly Skill[] = [
       {
         kind: 'periodic-damage',
         target: PRIMARY,
-        totalMultiplier: { base: 6, perLevel: 0.6 },
+        totalMultiplier: { base: 2.35, perLevel: 0.6 },
         ticks: 10,
         durationSec: 10,
         maxStacks: 3,
@@ -597,9 +597,9 @@ export const SHAMAN_SKILLS: readonly Skill[] = [
     unlockLevel: 15,
     cooldownSec: 5,
     priority: 40,
-    effects: [damage(PRIMARY, 1.9)],
+    effects: [damage(PRIMARY, 2.5)],
     icon: 'assets/icons/skills/shaman-poison.png',
-    desc: '灵火符咒锁定单体，造成 190% 伤害。',
+    desc: '灵火符咒锁定单体，造成 250% 伤害。',
   },
   {
     id: 'skill_shaman_skeleton',
@@ -642,12 +642,12 @@ export const SHAMAN_SKILLS: readonly Skill[] = [
     type: 'active',
     element: 'none',
     unlockLevel: 32,
-    cooldownSec: 18,
+    cooldownSec: 60,
     priority: 100,
     castWhen: { kind: 'self-hp-at-most', ratio: 0.65 },
-    effects: [{ kind: 'heal', target: ALL_ALLIES, maxHpRatio: { base: 0.25 } }],
+    effects: [{ kind: 'heal', target: ALL_ALLIES, maxHpRatio: { base: 0.15 } }],
     icon: 'assets/icons/skills/shaman-heal.png',
-    desc: '展开群体灵阵，为己方全体恢复各自 25% 生命上限。',
+    desc: '展开群体灵阵，为己方全体恢复各自 15% 生命上限；60 秒内只能施放一次。',
   },
   {
     id: 'skill_shaman_tao_mastery',
@@ -692,13 +692,19 @@ export const SHAMAN_SKILLS: readonly Skill[] = [
     unlockLevel: 52,
     effects: [
       {
-        kind: 'modifier',
-        target: SELF,
-        modifier: { unit: 'percentage-points', stat: 'lifesteal', points: { base: 8 } },
+        kind: 'conditional',
+        when: { kind: 'self-hp-at-most', ratio: 0.3 },
+        effects: [
+          {
+            kind: 'modifier',
+            target: SELF,
+            modifier: { unit: 'percentage-points', stat: 'lifesteal', points: { base: 1 } },
+          },
+        ],
       },
     ],
     icon: 'assets/icons/skills/shaman-poison.png',
-    desc: '让灵符汲取敌人的生机，吸血提高 8 个百分点。',
+    desc: '生命不高于 30% 时，灵符汲取敌人生机，吸血提高 1 个百分点。',
   },
   {
     id: 'skill_shaman_infinite_qi',

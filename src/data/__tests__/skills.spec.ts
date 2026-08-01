@@ -156,21 +156,42 @@ describe('five-class skill roster', () => {
 
   it('灵巫三个代表技能与 docs/13 的数值一致', () => {
     const heal = requireSkill(SHAMAN_SKILLS, 'skill_shaman_heal');
+    expect(heal).toMatchObject({ cooldownSec: 55 });
     expect(heal.effects.find((effect) => effect.kind === 'heal')).toMatchObject({
-      maxHpRatio: { base: 0.15 },
+      maxHpRatio: { base: 0.1 },
     });
 
     const poison = requireSkill(SHAMAN_SKILLS, 'skill_shaman_poison');
     expect(poison.effects.find((effect) => effect.kind === 'periodic-damage')).toMatchObject({
-      totalMultiplier: { base: 6, perLevel: 0.6 },
+      totalMultiplier: { base: 2.35, perLevel: 0.6 },
       ticks: 10,
       durationSec: 10,
       maxStacks: 3,
     });
 
+    expect(primaryDamageEffect(requireSkill(SHAMAN_SKILLS, 'skill_shaman_soul_fire')))
+      .toMatchObject({ multiplier: { base: 2.5 } });
+
+    const groupHeal = requireSkill(SHAMAN_SKILLS, 'skill_shaman_group_heal');
+    expect(groupHeal).toMatchObject({ cooldownSec: 60 });
+    expect(groupHeal.effects.find((effect) => effect.kind === 'heal')).toMatchObject({
+      maxHpRatio: { base: 0.15 },
+    });
+
     const skeleton = requireSkill(SHAMAN_SKILLS, 'skill_shaman_skeleton');
     expect(skeleton.effects.find((effect) => effect.kind === 'summon')).toMatchObject({
       durationSec: 60,
+    });
+
+    expect(requireSkill(SHAMAN_SKILLS, 'skill_shaman_blood_bite').effects[0]).toMatchObject({
+      kind: 'conditional',
+      when: { kind: 'self-hp-at-most', ratio: 0.3 },
+      effects: [
+        {
+          kind: 'modifier',
+          modifier: { unit: 'percentage-points', stat: 'lifesteal', points: { base: 1 } },
+        },
+      ],
     });
   });
 

@@ -29,7 +29,7 @@ describe('summon data contract', () => {
       expect(definition.attackIntervalSec).toBeGreaterThan(0);
       expect(['primary-enemy', 'lowest-hp-enemy']).toContain(definition.targeting);
       expect(definition.damageable).toBe(true);
-      expect(definition.targetWeight).toBe(1);
+      expect(definition.targetWeight).toBe(0.05);
       expect(definition.maxHpRatio).toBeGreaterThan(0);
       expect(definition.defenseRatio).toBeGreaterThan(0);
       expect(definition.inheritedStats).toEqual(['atk', 'hp', 'def']);
@@ -45,5 +45,22 @@ describe('summon data contract', () => {
     expect(beast.attackIntervalSec).toBeLessThan(skeleton.attackIntervalSec);
     expect(beast.maxHpRatio).toBeGreaterThan(skeleton.maxHpRatio);
     expect(beast.defenseRatio).toBeGreaterThan(skeleton.defenseRatio);
+  });
+
+  it('召唤物只偶尔挡刀，且攻击与承伤数值锁定长战平衡基线', () => {
+    expect(summonDefinition('summon_shaman_skeleton')).toMatchObject({
+      attackMultiplier: 0.45,
+      attackIntervalSec: 2,
+      targetWeight: 0.05,
+      maxHpRatio: 0.35,
+      defenseRatio: 0.55,
+    });
+    expect(summonDefinition('summon_shaman_divine_beast')).toMatchObject({
+      attackMultiplier: 0.75,
+      attackIntervalSec: 1.8,
+      targetWeight: 0.05,
+      maxHpRatio: 0.55,
+      defenseRatio: 0.75,
+    });
   });
 });
