@@ -11,6 +11,7 @@ import GuildView from '@/views/GuildView.vue';
 import SetCodexView from '@/views/SetCodexView.vue';
 import CollapsibleCard from '@/components/CollapsibleCard.vue';
 import SaveIntegrityCard from '@/components/SaveIntegrityCard.vue';
+import { GUILD_HOME_SCENE_ASSET } from '@/data/guildScenes';
 
 const player = usePlayerStore();
 const settings = useSettingsStore();
@@ -28,6 +29,7 @@ const showCodex = ref(false);
 const codexLeaving = ref(false);
 const codexEntryButton = ref<HTMLButtonElement | null>(null);
 const shopSceneUrl = `${import.meta.env.BASE_URL}assets/shops/sakura-boutique.webp`;
+const guildSceneUrl = `${import.meta.env.BASE_URL}${GUILD_HOME_SCENE_ASSET}`;
 
 const stats = computed(() => settings.saveData?.stats ?? null);
 
@@ -168,6 +170,10 @@ function say(text: string, ok: boolean) {
         aria-label="进入樱庭公会"
         @click="openGuild"
       >
+        <img class="guild-entry-scene" :src="guildSceneUrl" alt="" aria-hidden="true" />
+        <span class="guild-entry-shade" aria-hidden="true" />
+        <i class="guild-entry-spark spark-a" aria-hidden="true">✦</i>
+        <i class="guild-entry-spark spark-b" aria-hidden="true">✦</i>
         <span class="guild-entry-crest"><Castle :size="24" /></span>
         <span class="guild-entry-copy">
           <small>异步共享世界 · 不影响挂机</small>
@@ -665,8 +671,9 @@ function say(text: string, ok: boolean) {
 }
 
 .guild-entry {
+  isolation: isolate;
   position: relative;
-  min-height: 6.5rem;
+  min-height: 8.25rem;
   display: grid;
   grid-template-columns: 2.8rem minmax(0, 1fr) auto;
   align-items: center;
@@ -676,20 +683,81 @@ function say(text: string, ok: boolean) {
   padding: 0.8rem;
   color: #fff;
   text-align: left;
-  background:
-    radial-gradient(circle at 82% 20%, rgb(255 255 255 / 22%), transparent 28%),
-    linear-gradient(135deg, #6f9fbe, #86b4cf 52%, #df89ab);
+  background: #6f9fbe;
   border: 1px solid rgb(255 255 255 / 78%);
   border-radius: var(--r);
   box-shadow: 0 0.5rem 1.1rem rgb(68 100 126 / 15%);
   transition: transform var(--t-fast) var(--ease-spring);
 }
 
+.guild-entry-scene,
+.guild-entry-shade {
+  position: absolute;
+  z-index: -2;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.guild-entry-scene {
+  object-fit: cover;
+  object-position: 52% 57%;
+  transform: scale(1.025);
+  transition: transform 0.8s var(--ease-soft);
+}
+
+.guild-entry-shade {
+  z-index: -1;
+  background:
+    linear-gradient(90deg, rgb(26 56 80 / 76%) 0%, rgb(37 69 93 / 56%) 54%, rgb(57 46 72 / 38%)),
+    linear-gradient(180deg, rgb(20 45 65 / 8%) 22%, rgb(22 48 69 / 72%) 100%);
+}
+
+.guild-entry-spark {
+  position: absolute;
+  z-index: 0;
+  font-size: 0.72rem;
+  font-style: normal;
+  color: rgb(255 255 255 / 88%);
+  text-shadow: 0 0 0.55rem #fff;
+  pointer-events: none;
+  animation: guild-entry-twinkle 2.8s ease-in-out infinite;
+}
+.guild-entry-spark.spark-a {
+  top: 16%;
+  right: 20%;
+}
+.guild-entry-spark.spark-b {
+  top: 36%;
+  right: 7%;
+  animation-delay: -1.2s;
+}
+
+@keyframes guild-entry-twinkle {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.72) rotate(0deg);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.16) rotate(18deg);
+  }
+}
+
 .guild-entry:active {
   transform: scale(0.985);
 }
 
+@media (hover: hover) and (pointer: fine) {
+  .guild-entry:hover .guild-entry-scene {
+    transform: scale(1.07);
+  }
+}
+
 .guild-entry-crest {
+  position: relative;
+  z-index: 1;
   width: 2.8rem;
   height: 2.8rem;
   display: grid;
@@ -701,6 +769,8 @@ function say(text: string, ok: boolean) {
 }
 
 .guild-entry-copy {
+  position: relative;
+  z-index: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -722,6 +792,8 @@ function say(text: string, ok: boolean) {
 }
 
 .guild-entry-cta {
+  position: relative;
+  z-index: 1;
   min-width: 5.2rem;
   min-height: 2.75rem;
   display: flex;
@@ -811,8 +883,13 @@ function say(text: string, ok: boolean) {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .boutique-shade::after {
+  .boutique-shade::after,
+  .guild-entry-spark {
     animation: none;
+  }
+
+  .guild-entry-scene {
+    transition: none;
   }
 }
 
@@ -829,7 +906,7 @@ function say(text: string, ok: boolean) {
 
   .guild-entry,
   .codex-entry {
-    grid-template-columns: 2.6rem minmax(0, 1fr) 5.3rem;
+    grid-template-columns: 2.6rem minmax(0, 1fr) 4.85rem;
     gap: 0.45rem;
     padding: 0.7rem;
   }
@@ -842,7 +919,7 @@ function say(text: string, ok: boolean) {
 
   .guild-entry-cta,
   .codex-entry-cta {
-    min-width: 5.3rem;
+    min-width: 4.85rem;
     padding-inline: 0.35rem;
   }
 }

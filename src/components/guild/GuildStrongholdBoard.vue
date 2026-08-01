@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import { Castle, CheckCircle2, Gift, Lock, Sparkles, Swords, WalletCards } from '@lucide/vue';
 import { GUILD_DONATION_AMOUNTS, GUILD_STRONGHOLD_STAGES } from '@/data/guildStronghold';
+import { GUILD_STRONGHOLD_SCENE_ASSET } from '@/data/guildScenes';
 import type { GuildShopOfferState, GuildStrongholdState } from '@/net/guildStronghold';
 
 const props = defineProps<{
@@ -13,6 +14,7 @@ const emit = defineEmits<{
   claim: [offerId: GuildShopOfferState['id']];
   expedition: [];
 }>();
+const strongholdSceneUrl = `${import.meta.env.BASE_URL}${GUILD_STRONGHOLD_SCENE_ASSET}`;
 
 const stage = computed(
   () =>
@@ -54,6 +56,9 @@ function canClaim(offer: GuildShopOfferState): boolean {
 
     <template v-if="state">
       <section class="stage-card" :class="`stage-${stage.id}`">
+        <img class="stage-scene" :src="strongholdSceneUrl" alt="" aria-hidden="true" />
+        <i class="stage-shade" aria-hidden="true" />
+        <i class="stage-energy" aria-hidden="true" />
         <div class="stage-copy">
           <small>S1 · {{ stage.name }}</small>
           <strong>{{ stage.description }}</strong>
@@ -192,20 +197,75 @@ function canClaim(offer: GuildShopOfferState): boolean {
   white-space: nowrap;
 }
 .stage-card {
+  isolation: isolate;
   position: relative;
+  min-height: 11.25rem;
   margin-top: 0.72rem;
-  padding: 0.72rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 0.78rem;
   overflow: hidden;
-  border: 1px solid #dce8ee;
-  border-radius: 0.84rem;
-  background: linear-gradient(125deg, #f5fbfe, #f9f5ff);
+  color: #fff;
+  border: 1px solid rgb(255 255 255 / 82%);
+  border-radius: 0.95rem;
+  background: #607f9a;
+  box-shadow: 0 0.55rem 1.2rem rgb(64 96 121 / 17%);
 }
-.stage-card::after {
+.stage-scene,
+.stage-shade {
   position: absolute;
+  z-index: -2;
   inset: 0;
-  background: radial-gradient(circle at 95% 5%, rgb(255 207 229 / 0.62), transparent 35%);
-  content: '';
+  width: 100%;
+  height: 100%;
   pointer-events: none;
+}
+.stage-scene {
+  object-fit: cover;
+  object-position: 57% 52%;
+  transform: scale(1.02);
+  animation: stronghold-drift 12s ease-in-out infinite alternate;
+}
+.stage-shade {
+  z-index: -1;
+  background:
+    linear-gradient(90deg, rgb(20 49 72 / 68%), rgb(30 59 82 / 26%) 58%, rgb(52 42 72 / 18%)),
+    linear-gradient(180deg, rgb(12 36 58 / 4%) 25%, rgb(17 40 59 / 84%) 100%);
+}
+.stage-energy {
+  position: absolute;
+  z-index: 0;
+  top: 12%;
+  right: 13%;
+  width: 3.5rem;
+  height: 3.5rem;
+  border: 1px solid rgb(181 238 255 / 46%);
+  border-radius: 50%;
+  box-shadow:
+    0 0 1.1rem rgb(113 220 255 / 42%),
+    inset 0 0 0.8rem rgb(234 154 255 / 28%);
+  animation: energy-pulse 2.8s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes stronghold-drift {
+  from {
+    transform: scale(1.02) translate3d(0, 0, 0);
+  }
+  to {
+    transform: scale(1.07) translate3d(-0.25rem, -0.12rem, 0);
+  }
+}
+@keyframes energy-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.86);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.08);
+  }
 }
 .stage-copy,
 .stage-progress,
@@ -215,54 +275,60 @@ function canClaim(offer: GuildShopOfferState): boolean {
   z-index: 1;
 }
 .stage-copy {
-  padding-right: 2rem;
+  padding: 0.55rem 2.6rem 0.52rem 0.6rem;
+  background: rgb(17 44 65 / 48%);
+  border: 1px solid rgb(255 255 255 / 22%);
+  border-radius: 0.72rem;
+  backdrop-filter: blur(7px);
 }
 .stage-copy small,
 .stage-copy strong {
   display: block;
 }
 .stage-copy small {
-  color: #6e8ca0;
+  color: rgb(255 255 255 / 78%);
   font-size: 0.64rem;
 }
 .stage-copy strong {
   margin-top: 0.13rem;
-  color: #55748b;
+  color: #fff;
   font-size: 0.74rem;
   line-height: 1.4;
 }
 .stage-mark {
   position: absolute;
   z-index: 1;
-  top: 0.62rem;
+  top: 0.72rem;
   right: 0.68rem;
   display: grid;
   width: 1.95rem;
   height: 1.95rem;
   place-items: center;
-  border: 1px solid #f3d9e6;
+  border: 1px solid rgb(255 255 255 / 56%);
   border-radius: 0.68rem;
-  color: #d982ad;
-  background: rgb(255 255 255 / 0.75);
+  color: #fff;
+  background: rgb(34 58 80 / 38%);
+  box-shadow: 0 0 0.8rem rgb(189 226 255 / 24%);
+  backdrop-filter: blur(8px);
 }
 .stage-progress {
   display: flex;
   justify-content: space-between;
   gap: 0.5rem;
   margin-top: 0.62rem;
-  color: #7892a4;
+  color: rgb(255 255 255 / 82%);
   font-size: 0.65rem;
 }
 .stage-progress b {
-  color: #d275a0;
+  color: #ffd3e8;
 }
 .season-track {
   height: 0.48rem;
   margin-top: 0.28rem;
   overflow: hidden;
-  border: 1px solid #dfeaf0;
+  border: 1px solid rgb(255 255 255 / 22%);
   border-radius: 999px;
-  background: #edf4f8;
+  background: rgb(18 45 65 / 56%);
 }
 .season-track i {
   display: block;
@@ -274,7 +340,7 @@ function canClaim(offer: GuildShopOfferState): boolean {
 .stage-stats {
   display: block;
   margin-top: 0.42rem;
-  color: #839aa9;
+  color: rgb(255 255 255 / 76%);
   font-size: 0.61rem;
   line-height: 1.45;
 }
@@ -494,7 +560,10 @@ function canClaim(offer: GuildShopOfferState): boolean {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .season-track i {
+  .season-track i,
+  .stage-scene,
+  .stage-energy {
+    animation: none;
     transition: none;
   }
   .stronghold-go:active {

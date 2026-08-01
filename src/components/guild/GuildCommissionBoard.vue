@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { CheckCircle2, Hammer, Sparkles, Swords, UsersRound } from '@lucide/vue';
+import { GUILD_STRONGHOLD_SCENE_ASSET } from '@/data/guildScenes';
 import type { GuildCommissionState } from '@/net/guildCommissions';
 
 const props = defineProps<{ state: GuildCommissionState | null }>();
 const emit = defineEmits<{ expedition: [] }>();
+const strongholdSceneUrl = `${import.meta.env.BASE_URL}${GUILD_STRONGHOLD_SCENE_ASSET}`;
 
 const completedIds = computed(() => new Set(props.state?.completedCommissionIds ?? []));
 const buildPercent = computed(() => {
@@ -29,26 +31,30 @@ function isComplete(id: string): boolean {
     </header>
 
     <template v-if="state">
-      <div class="build-summary">
-        <div>
-          <small>樱庭建设</small>
-          <strong v-if="state.completed"
-            ><Sparkles :size="15" aria-hidden="true" />今日已点亮</strong
-          >
-          <strong v-else>离共同点亮还差 {{ Math.max(0, state.target - state.progress) }}</strong>
+      <section class="commission-visual" aria-label="今日樱庭建设进度">
+        <img :src="strongholdSceneUrl" alt="" aria-hidden="true" />
+        <i class="commission-scene-shade" aria-hidden="true" />
+        <div class="build-summary">
+          <div>
+            <small>樱庭建设 · 云端工坊</small>
+            <strong v-if="state.completed"
+              ><Sparkles :size="15" aria-hidden="true" />今日已点亮</strong
+            >
+            <strong v-else>离共同点亮还差 {{ Math.max(0, state.target - state.progress) }}</strong>
+          </div>
+          <b class="num">{{ state.progress }}/{{ state.target }}</b>
         </div>
-        <b class="num">{{ state.progress }}/{{ state.target }}</b>
-      </div>
-      <div
-        class="build-track"
-        role="progressbar"
-        aria-label="今日樱庭建设进度"
-        :aria-valuenow="state.progress"
-        aria-valuemin="0"
-        :aria-valuemax="state.target"
-      >
-        <i :style="{ width: `${buildPercent}%` }" />
-      </div>
+        <div
+          class="build-track"
+          role="progressbar"
+          aria-label="今日樱庭建设进度"
+          :aria-valuenow="state.progress"
+          aria-valuemin="0"
+          :aria-valuemax="state.target"
+        >
+          <i :style="{ width: `${buildPercent}%` }" />
+        </div>
+      </section>
 
       <ol class="commission-list" aria-label="今日可完成的远征委托">
         <li
@@ -130,7 +136,39 @@ function isComplete(id: string): boolean {
 .build-summary {
   justify-content: space-between;
   gap: 0.8rem;
-  margin-top: 0.8rem;
+  margin-top: 0;
+}
+.commission-visual {
+  position: relative;
+  isolation: isolate;
+  min-height: 7.4rem;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  margin-top: 0.72rem;
+  padding: 0.7rem;
+  border: 1px solid rgb(255 255 255 / 78%);
+  border-radius: 0.9rem;
+  box-shadow: 0 0.45rem 1rem rgb(68 101 126 / 14%);
+}
+.commission-visual > img,
+.commission-scene-shade {
+  position: absolute;
+  z-index: -2;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.commission-visual > img {
+  object-fit: cover;
+  object-position: 18% 61%;
+}
+.commission-scene-shade {
+  z-index: -1;
+  background:
+    linear-gradient(90deg, rgb(22 52 73 / 72%), rgb(36 67 88 / 30%) 72%),
+    linear-gradient(180deg, transparent 18%, rgb(19 45 65 / 80%));
 }
 .build-summary div {
   min-width: 0;
@@ -140,12 +178,12 @@ function isComplete(id: string): boolean {
   display: block;
 }
 .build-summary small {
-  color: #66849a;
+  color: rgb(255 255 255 / 78%);
   font-size: 0.66rem;
 }
 .build-summary strong {
   margin-top: 0.14rem;
-  color: #54748c;
+  color: #fff;
   font-size: 0.74rem;
 }
 .build-summary strong svg {
@@ -153,18 +191,18 @@ function isComplete(id: string): boolean {
   color: #e998b8;
 }
 .build-summary b {
-  color: #d9769e;
+  color: #ffd0e5;
   font-size: 0.78rem;
   white-space: nowrap;
 }
 .build-track {
   height: 0.52rem;
-  margin: 0.45rem 0 0.72rem;
+  margin: 0.45rem 0 0;
   overflow: hidden;
-  border: 1px solid #e3edf4;
+  border: 1px solid rgb(255 255 255 / 24%);
   border-radius: 999px;
-  background: #edf4f8;
-  box-shadow: inset 0 0.08rem 0.18rem rgb(107 151 179 / 0.08);
+  background: rgb(18 44 64 / 55%);
+  box-shadow: inset 0 0.08rem 0.18rem rgb(19 43 61 / 0.2);
 }
 .build-track i {
   display: block;

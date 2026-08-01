@@ -20,6 +20,14 @@ describe('公会竖屏与单层页面契约', () => {
     expect(more).not.toContain('公会 · M8-3');
   });
 
+  it('更多页入口与公会顶部使用专用庭院场景，并以稳定最小高度防止横幅塌缩', () => {
+    expect(more).toContain('GUILD_HOME_SCENE_ASSET');
+    expect(more).toContain('class="guild-entry-scene"');
+    expect(guild).toContain('class="guild-banner-scene"');
+    expect(guild).toMatch(/\.guild-banner\s*\{[\s\S]*?min-height:\s*10\.5rem/);
+    expect(guild).toContain('env(safe-area-inset-top)');
+  });
+
   it('页面使用绝对单层覆盖，不创建 dialog 或弹窗套弹窗', () => {
     expect(guild).toMatch(/\.guild-view\s*\{[\s\S]*?position:\s*absolute/);
     expect(guild).not.toContain('<dialog');
@@ -53,6 +61,15 @@ describe('公会竖屏与单层页面契约', () => {
     expect(guild).toContain('guild.openDetail(item.id)');
   });
 
+  it('成员名册每行可打开统一的人物详情，并让移除按钮保持独立操作', () => {
+    expect(guild).toContain('openMemberPeek(member, index)');
+    expect(guild).toContain('class="member-peek"');
+    expect(guild).toContain('查看成员 ${member.displayName} 的人物详情');
+    expect(guild).toContain('<PlayerPeekSheet');
+    expect(guild).toContain('context="guild"');
+    expect(guild).toContain('@close="memberPeekTarget = null"');
+  });
+
   it('邀请码加入与复制邀请入口齐备', () => {
     expect(guild).toContain('凭邀请码加入');
     expect(guild).toContain('guild.joinByCode(codeDraft.value.trim())');
@@ -73,6 +90,8 @@ describe('公会竖屏与单层页面契约', () => {
     expect(commissions).toContain('今日建设委托');
     expect(commissions).toContain('远征评分由服务器复算');
     expect(commissions).toContain('不发放战力资产');
+    expect(commissions).toContain('GUILD_STRONGHOLD_SCENE_ASSET');
+    expect(commissions).toContain('class="commission-visual"');
     expect(commissions).not.toContain('<dialog');
     expect(commissions).not.toContain('Teleport');
   });
@@ -90,6 +109,8 @@ describe('公会竖屏与单层页面契约', () => {
     expect(stronghold).toContain('赛季据点');
     expect(stronghold).toContain('功勋收藏');
     expect(stronghold).toContain('全程由服务器保管');
+    expect(stronghold).toContain('GUILD_STRONGHOLD_SCENE_ASSET');
+    expect(stronghold).toContain('class="stage-scene"');
     expect(stronghold).toContain('min-height: 2.75rem');
     expect(stronghold).toContain('prefers-reduced-motion: reduce');
     expect(stronghold).not.toContain('<dialog');

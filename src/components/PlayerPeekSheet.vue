@@ -1,8 +1,8 @@
 <script setup lang="ts">
 /**
- * PlayerPeekSheet —— 榜单玩家详情弹层。
+ * PlayerPeekSheet —— 玩家详情弹层。
  *
- * 排行榜两种行（试炼伤害榜 / 战力榜）点击后弹出：
+ * 排行榜两种行（试炼伤害榜 / 战力榜）与公会名册点击后弹出：
  *   立绘 + 大头像光环 + 名次奖牌 + 上位百分比进度 + 伤害/战力大数字 + 签名
  *   自己的卡多一个「编辑档案」入口，别人的卡保留「举报」。
  *
@@ -39,6 +39,8 @@ const props = defineProps<{
   combatPower?: number;
   /** 联机就绪且不是自己时可举报 */
   canReport: boolean;
+  /** 展示语境；公会名册不冒充排行榜，也不展示上位百分比。 */
+  context?: 'leaderboard' | 'guild';
 }>();
 
 const emit = defineEmits<{ close: []; report: []; editProfile: [] }>();
@@ -48,6 +50,7 @@ const classSymbol = computed(() => CLASS_VISUALS[props.classId]?.symbol ?? '·')
 const classColor = computed(() => CLASS_INFO[props.classId]?.color ?? 'var(--pink-deep)');
 
 const isTrial = computed(() => props.damage !== undefined);
+const isGuild = computed(() => props.context === 'guild');
 const upperText = computed(() =>
   props.total && props.total > 0 ? upperPercentText(props.rank, props.total) : null,
 );
@@ -147,7 +150,9 @@ function requestClose(): void {
             />
           </span>
           <span class="head-copy">
-            <small>{{ classSymbol }} {{ className }} · 旅途同路人</small>
+            <small>
+              {{ classSymbol }} {{ className }} · {{ isGuild ? '樱庭同行者' : '旅途同路人' }}
+            </small>
             <strong>
               {{ displayName }}
               <em v-if="isMe" class="me-badge">你</em>
@@ -171,18 +176,22 @@ function requestClose(): void {
           <span class="art-class" :style="{ color: classColor }">{{ className }}</span>
         </div>
 
-        <!-- 名次与上位进度 -->
+        <!-- 名次 / 名册席位与对应语境 -->
         <div class="rank-band">
           <span class="rank-medal" :data-medal="medalTone">
-            <small>名次</small>
+            <small>{{ isGuild ? '席位' : '名次' }}</small>
             <b class="num">{{ rank }}</b>
           </span>
           <span class="rank-progress">
-            <small v-if="upperText">{{ isTrial ? '本周试炼' : '战力榜' }} · {{ upperText }}</small>
+            <small v-if="isGuild">公会名册 · 共 {{ total ?? '—' }} 人同行</small>
+            <small v-else-if="upperText"
+              >{{ isTrial ? '本周试炼' : '战力榜' }} · {{ upperText }}</small
+            >
             <small v-else>{{ isTrial ? '本周试炼榜' : '战力榜' }}</small>
-            <i v-if="total" class="progress-track">
+            <i v-if="total && !isGuild" class="progress-track">
               <i class="progress-fill" :style="{ width: `${upperRatio * 100}%` }" />
             </i>
+            <span v-if="isGuild" class="guild-context">同一座樱庭，共同建设与远征</span>
           </span>
         </div>
 
@@ -195,7 +204,12 @@ function requestClose(): void {
         <p v-if="bio" class="sheet-bio">「{{ bio }}」</p>
 
         <footer class="sheet-actions">
-          <button v-if="isMe" type="button" class="action-btn edit" @click="emit('editProfile')">
+          <button
+            v-if="isMe && !isGuild"
+            type="button"
+            class="action-btn edit"
+            @click="emit('editProfile')"
+          >
             <Pencil :size="13" aria-hidden="true" />
             编辑档案
           </button>
@@ -208,7 +222,9 @@ function requestClose(): void {
             <Flag :size="13" aria-hidden="true" />
             举报档案
           </button>
-          <button type="button" class="action-btn plain" @click="requestClose">返回榜单</button>
+          <button type="button" class="action-btn plain" @click="requestClose">
+            {{ isGuild ? '返回名册' : '返回榜单' }}
+          </button>
         </footer>
       </section>
     </div>
@@ -339,8 +355,8 @@ function requestClose(): void {
 
 .sheet-close {
   display: grid;
-  width: 30px;
-  height: 30px;
+  width: 44px;
+  height: 44px;
   flex-shrink: 0;
   place-items: center;
   color: var(--text-mid);
@@ -499,6 +515,12 @@ function requestClose(): void {
   color: var(--text-mid);
 }
 
+.guild-context {
+  font-size: 9px;
+  line-height: 1.45;
+  color: var(--text-dim);
+}
+
 .progress-track {
   overflow: hidden;
   height: 8px;
@@ -565,7 +587,7 @@ function requestClose(): void {
 
 .action-btn {
   flex: 1;
-  min-height: 42px;
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
   justify-content: center;

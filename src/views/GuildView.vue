@@ -10,6 +10,7 @@ import {
   ArrowLeft,
   Castle,
   Check,
+  ChevronRight,
   Compass,
   Copy,
   Crown,
@@ -34,12 +35,14 @@ import {
   GUILD_NAME_MAX_LENGTH,
   GUILD_NOTICE_MAX_LENGTH,
 } from '@/data/guildRules';
-import type { GuildSummary } from '@/net/guild';
+import { GUILD_HOME_SCENE_ASSET } from '@/data/guildScenes';
+import type { GuildMember, GuildSummary } from '@/net/guild';
 import GuildPlazaList from '@/components/guild/GuildPlazaList.vue';
 import GuildDetailSheet from '@/components/guild/GuildDetailSheet.vue';
 import GuildCommissionBoard from '@/components/guild/GuildCommissionBoard.vue';
 import GuildStrongholdBoard from '@/components/guild/GuildStrongholdBoard.vue';
 import GuildExpeditionBattleScene from '@/components/guild/GuildExpeditionBattleScene.vue';
+import PlayerPeekSheet from '@/components/PlayerPeekSheet.vue';
 import { crestInitial, crestTintClass } from '@/components/guild/guildCrest';
 
 const emit = defineEmits<{ close: [] }>();
@@ -47,6 +50,8 @@ const guild = useGuildStore();
 const game = useGameStore();
 const backButton = ref<HTMLButtonElement | null>(null);
 const guildPlaybackKey = ref(0);
+const guildHomeSceneUrl = `${import.meta.env.BASE_URL}${GUILD_HOME_SCENE_ASSET}`;
+const memberPeekTarget = ref<{ member: GuildMember; position: number } | null>(null);
 const systemReduced =
   typeof window !== 'undefined' &&
   typeof window.matchMedia === 'function' &&
@@ -233,6 +238,10 @@ async function challengeExpedition() {
 function openPlazaDetail(item: GuildSummary) {
   void guild.openDetail(item.id);
 }
+
+function openMemberPeek(member: GuildMember, index: number): void {
+  memberPeekTarget.value = { member, position: index + 1 };
+}
 </script>
 
 <template>
@@ -360,6 +369,8 @@ function openPlazaDetail(item: GuildSummary) {
 
       <template v-else>
         <section class="guild-banner" :class="`stage-${stage.id}`">
+          <img class="guild-banner-scene" :src="guildHomeSceneUrl" alt="" aria-hidden="true" />
+          <i class="guild-banner-tint" aria-hidden="true" />
           <i class="banner-shine" aria-hidden="true" />
           <i class="hero-petal hp-a" aria-hidden="true" /><i
             class="hero-petal hp-b"
@@ -416,7 +427,12 @@ function openPlazaDetail(item: GuildSummary) {
               <small>同灯共济</small>
             </div>
             <div class="invite-body">
-              <div class="invite-code" aria-label="公会邀请码">{{ inviteCode }}</div>
+              <div class="invite-code-frame">
+                <img :src="guildHomeSceneUrl" alt="" aria-hidden="true" />
+                <i aria-hidden="true" />
+                <span>樱庭通行凭证</span>
+                <div class="invite-code" aria-label="公会邀请码">{{ inviteCode }}</div>
+              </div>
               <button
                 class="copy-button"
                 :class="{ done: copiedInvite }"
@@ -583,18 +599,27 @@ function openPlazaDetail(item: GuildSummary) {
               class="member-row row-in"
               :style="{ '--row-delay': `${Math.min(index, 12) * 40}ms` }"
             >
-              <span class="member-avatar" aria-hidden="true">{{
-                crestInitial(member.displayName)
-              }}</span>
-              <div>
-                <strong
-                  >{{ member.displayName }}
-                  <Crown v-if="member.role === 'leader'" :size="13" aria-hidden="true" />
-                  <em v-if="member.userId === guild.userId" class="me-chip">我</em></strong
-                ><small class="num"
-                  >Lv.{{ member.level }} · 战力 {{ abbr(member.combatPower) }}</small
-                >
-              </div>
+              <button
+                type="button"
+                class="member-peek"
+                :aria-label="`查看成员 ${member.displayName} 的人物详情`"
+                @click="openMemberPeek(member, index)"
+              >
+                <span class="member-avatar" aria-hidden="true">{{
+                  crestInitial(member.displayName)
+                }}</span>
+                <span class="member-copy">
+                  <strong
+                    >{{ member.displayName }}
+                    <Crown v-if="member.role === 'leader'" :size="13" aria-hidden="true" />
+                    <em v-if="member.userId === guild.userId" class="me-chip">我</em></strong
+                  ><small class="num"
+                    >{{ member.role === 'leader' ? '会长' : '成员' }} · Lv.{{ member.level }} · 战力
+                    {{ abbr(member.combatPower) }}</small
+                  >
+                </span>
+                <ChevronRight class="member-chevron" :size="17" aria-hidden="true" />
+              </button>
               <button
                 v-if="guild.isLeader && member.role !== 'leader'"
                 class="remove-button"
@@ -657,6 +682,23 @@ function openPlazaDetail(item: GuildSummary) {
         </section>
       </template>
     </main>
+
+    <PlayerPeekSheet
+      v-if="memberPeekTarget"
+      :display-name="memberPeekTarget.member.displayName"
+      :bio="null"
+      :avatar-url="null"
+      :class-id="memberPeekTarget.member.classId"
+      :rank="memberPeekTarget.position"
+      :is-me="memberPeekTarget.member.userId === guild.userId"
+      :podium="false"
+      :total="guild.membership?.members.length"
+      :level="memberPeekTarget.member.level"
+      :combat-power="memberPeekTarget.member.combatPower"
+      :can-report="false"
+      context="guild"
+      @close="memberPeekTarget = null"
+    />
 
     <GuildDetailSheet />
 
@@ -795,9 +837,10 @@ function openPlazaDetail(item: GuildSummary) {
   grid-template-columns: 2.75rem minmax(0, 1fr) 2.75rem;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.35rem 0.65rem;
+  padding: max(0.35rem, env(safe-area-inset-top)) 0.65rem 0.35rem;
   border-bottom: 1px solid rgb(255 255 255 / 55%);
-  background: var(--glass-bg);
+  background: rgb(247 252 255 / 88%);
+  box-shadow: 0 0.35rem 1rem rgb(70 104 132 / 8%);
   backdrop-filter: var(--blur-glass);
 }
 .icon-button {
@@ -1035,17 +1078,56 @@ textarea:focus-visible {
 }
 /* ── 公会横幅：阶段主题与光泽 ── */
 .guild-banner {
+  isolation: isolate;
+  min-height: 10.5rem;
   grid-template-columns: auto minmax(0, 1fr) auto;
-  background: linear-gradient(135deg, #6f9fd0, #8db8de 45%, #e08fae);
+  align-content: end;
+  align-items: end;
+  padding: 1rem;
+  background: #6589a8;
 }
-.guild-banner.stage-bloom {
-  background: linear-gradient(135deg, #7f9fd6, #a48fd4 48%, #ef92b1);
+.guild-banner-scene,
+.guild-banner-tint {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
 }
-.guild-banner.stage-moonlit {
-  background: linear-gradient(135deg, #55619b, #7a6cb2 52%, #c0739c);
+.guild-banner-scene {
+  z-index: 0;
+  object-fit: cover;
+  object-position: 52% 55%;
+  transform: scale(1.02);
+  animation: guild-scene-breathe 11s ease-in-out infinite alternate;
 }
-.guild-banner.stage-legend {
-  background: linear-gradient(120deg, #6a7fc9, #9a6fc0 30%, #d06f9e 55%, #e8a06f 80%, #d4b45c);
+.guild-banner-tint {
+  z-index: 0;
+  background:
+    linear-gradient(90deg, rgb(28 62 90 / 70%) 0%, rgb(39 74 101 / 42%) 52%, rgb(69 53 81 / 30%)),
+    linear-gradient(180deg, rgb(15 43 65 / 5%) 18%, rgb(19 48 70 / 78%) 100%);
+}
+.guild-banner.stage-bloom .guild-banner-tint {
+  background:
+    linear-gradient(90deg, rgb(62 54 108 / 68%), rgb(76 79 126 / 35%) 55%, rgb(122 61 93 / 30%)),
+    linear-gradient(180deg, transparent 18%, rgb(39 47 86 / 78%) 100%);
+}
+.guild-banner.stage-moonlit .guild-banner-tint {
+  background:
+    linear-gradient(90deg, rgb(35 42 89 / 76%), rgb(54 50 103 / 48%) 56%, rgb(102 48 81 / 38%)),
+    linear-gradient(180deg, rgb(16 25 69 / 16%), rgb(22 29 70 / 86%));
+}
+.guild-banner.stage-legend .guild-banner-tint {
+  background:
+    linear-gradient(90deg, rgb(72 46 104 / 75%), rgb(112 60 102 / 42%) 58%, rgb(131 82 34 / 38%)),
+    linear-gradient(180deg, transparent 12%, rgb(54 34 70 / 84%));
+}
+@keyframes guild-scene-breathe {
+  from {
+    transform: scale(1.02) translate3d(0, 0, 0);
+  }
+  to {
+    transform: scale(1.07) translate3d(-0.35rem, -0.12rem, 0);
+  }
 }
 .guild-banner .crest-large {
   font-size: 1.3rem;
@@ -1053,7 +1135,7 @@ textarea:focus-visible {
 }
 .banner-shine {
   position: absolute;
-  z-index: 0;
+  z-index: 2;
   top: 0;
   bottom: 0;
   left: -35%;
@@ -1074,14 +1156,18 @@ textarea:focus-visible {
 }
 .guild-identity {
   min-width: 0;
+  padding-bottom: 0.1rem;
+  text-shadow: 0 0.08rem 0.35rem rgb(12 39 62 / 55%);
 }
 .rep-pill {
   padding: 0.36rem 0.6rem;
   font-size: 0.64rem;
   font-weight: 800;
-  background: rgb(255 255 255 / 20%);
-  border: 1px solid rgb(255 255 255 / 38%);
+  background: rgb(28 53 76 / 46%);
+  border: 1px solid rgb(255 255 255 / 46%);
   border-radius: 999px;
+  box-shadow: inset 0 0.08rem 0 rgb(255 255 255 / 18%);
+  backdrop-filter: blur(8px);
   white-space: nowrap;
 }
 .stage-next {
@@ -1089,8 +1175,14 @@ textarea:focus-visible {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  margin: 0.1rem -0.2rem -0.18rem;
+  padding: 0.48rem 0.55rem;
   font-size: 0.62rem;
-  opacity: 0.94;
+  background: rgb(18 45 68 / 43%);
+  border: 1px solid rgb(255 255 255 / 24%);
+  border-radius: 0.72rem;
+  box-shadow: inset 0 0.08rem 0 rgb(255 255 255 / 12%);
+  backdrop-filter: blur(8px);
 }
 .next-track {
   flex: 1;
@@ -1305,16 +1397,55 @@ textarea {
   gap: 0.6rem;
   padding: 0.8rem 0.75rem;
 }
+.invite-code-frame {
+  position: relative;
+  isolation: isolate;
+  min-height: 7rem;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 0.28rem;
+  padding: 0.8rem;
+  border: 1px solid rgb(255 255 255 / 78%);
+  border-radius: 0.95rem;
+  box-shadow: 0 0.45rem 1rem rgb(79 113 139 / 14%);
+}
+.invite-code-frame > img,
+.invite-code-frame > i {
+  position: absolute;
+  z-index: -2;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.invite-code-frame > img {
+  object-fit: cover;
+  object-position: 52% 62%;
+}
+.invite-code-frame > i {
+  z-index: -1;
+  background: linear-gradient(180deg, rgb(23 57 82 / 10%), rgb(25 54 78 / 80%));
+}
+.invite-code-frame > span {
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: rgb(255 255 255 / 82%);
+  text-shadow: 0 1px 4px rgb(20 42 60 / 65%);
+}
 .invite-code {
-  padding: 0.75rem 0.5rem 0.75rem 0.8rem;
+  padding: 0.52rem 0.4rem 0.52rem 0.7rem;
   font-size: 1.28rem;
   font-weight: 900;
   letter-spacing: 0.3em;
   text-align: center;
-  color: #4d6f8a;
-  background: linear-gradient(120deg, #fff7fb, #f2f9ff);
-  border: 1.5px dashed #e3b7cc;
-  border-radius: 0.9rem;
+  color: #fff;
+  background: rgb(255 255 255 / 16%);
+  border: 1.5px dashed rgb(255 255 255 / 66%);
+  border-radius: 0.72rem;
+  text-shadow: 0 0.08rem 0.35rem rgb(17 43 63 / 72%);
+  backdrop-filter: blur(8px);
 }
 .copy-button {
   color: #4f748e;
@@ -1640,10 +1771,10 @@ textarea {
 .member-row {
   min-height: 3.6rem;
   display: grid;
-  grid-template-columns: 2.5rem minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 0.55rem;
-  padding: 0.5rem 0.7rem;
+  gap: 0.2rem;
+  padding: 0.24rem 0.34rem 0.24rem 0.42rem;
   border-bottom: 1px solid #eef4f9;
 }
 .member-row:last-child {
@@ -1661,12 +1792,26 @@ textarea {
   border-radius: 50%;
   box-shadow: var(--shadow-sm);
 }
-.member-row div {
+.member-peek {
+  min-width: 0;
+  min-height: 3.65rem;
+  display: grid;
+  grid-template-columns: 2.5rem minmax(0, 1fr) 1.25rem;
+  align-items: center;
+  gap: 0.58rem;
+  padding: 0.38rem 0.3rem;
+  text-align: left;
+  border-radius: 0.84rem;
+  transition:
+    transform var(--t-fast) var(--ease-spring),
+    background-color var(--t-mid) var(--ease-soft);
+}
+.member-copy {
   min-width: 0;
   display: flex;
   flex-direction: column;
 }
-.member-row strong {
+.member-peek strong {
   display: flex;
   align-items: center;
   gap: 0.25rem;
@@ -1675,7 +1820,7 @@ textarea {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.member-row strong svg {
+.member-peek strong svg {
   flex-shrink: 0;
   color: #e8a43c;
 }
@@ -1688,10 +1833,27 @@ textarea {
   background: var(--blue-soft);
   border-radius: 999px;
 }
-.member-row small {
+.member-peek small {
   margin-top: 0.2rem;
   font-size: 0.64rem;
   color: var(--text-dim);
+}
+.member-chevron {
+  color: #afc0cc;
+  transition: transform var(--t-fast) var(--ease-spring);
+}
+.member-peek:active {
+  transform: scale(0.985);
+  background: #f2f8fc;
+}
+@media (hover: hover) and (pointer: fine) {
+  .member-peek:hover {
+    background: linear-gradient(105deg, #f5fbff, #fff5f9);
+  }
+  .member-peek:hover .member-chevron {
+    transform: translateX(0.18rem);
+    color: #d781a7;
+  }
 }
 .remove-button {
   min-width: 2.75rem;
@@ -1790,12 +1952,39 @@ textarea {
     padding-left: 1rem;
   }
 }
+@media (max-width: 360px) {
+  .guild-banner {
+    min-height: 11.25rem;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.65rem;
+  }
+  .guild-banner .rep-pill {
+    position: absolute;
+    top: 0.7rem;
+    right: 0.7rem;
+  }
+  .guild-identity h2 {
+    font-size: 1rem;
+  }
+  .stage-next {
+    margin-inline: -0.3rem;
+  }
+  .member-peek {
+    grid-template-columns: 2.35rem minmax(0, 1fr) 1rem;
+    gap: 0.48rem;
+  }
+  .member-avatar {
+    width: 2.35rem;
+    height: 2.35rem;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .sky-blob,
   .sky-petal,
   .hero-crest,
   .hero-petal,
   .hero-sparkle,
+  .guild-banner-scene,
   .banner-shine,
   .boss-orbit,
   .progress-track i::after,
@@ -1810,6 +1999,7 @@ textarea {
   .icon-button,
   .panel,
   .copy-button,
+  .member-peek,
   .remove-button {
     transition: none;
   }
