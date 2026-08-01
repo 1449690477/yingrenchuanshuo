@@ -9,6 +9,10 @@ const ROOT = resolve('.');
 const CHECK = process.argv.includes('--check');
 const REBUILD = process.argv.includes('--rebuild') || !CHECK;
 const CANVAS = { width: 640, height: 960 };
+const LAYER_MAX_VISIBLE_MAE = 0.1;
+// 256 图标会在可穿层之后再经历缩放与第二次调色板量化，且主体占画布比例更高。
+// Linux 实测全画布 visibleMAE=0.232；0.5 仍小于一个 8-bit 色阶的平均变化。
+const ICON_MAX_VISIBLE_MAE = 0.5;
 const SOURCE_ROOT = 'art-source/characters/kenshi/wearables';
 const THEME_ATLAS = `${SOURCE_ROOT}/theme-equipment-atlas-alpha.png`;
 
@@ -192,7 +196,7 @@ async function assertVisualEquivalent(
   actualInput,
   rebuiltInput,
   label,
-  { maxVisibleMae = 0.1, maxBoundsDelta = 2, includePixel } = {},
+  { maxVisibleMae = LAYER_MAX_VISIBLE_MAE, maxBoundsDelta = 2, includePixel } = {},
 ) {
   // sharp/libvips 的调色板量化在 Windows 与 Linux 上会产生肉眼不可见的取整差异。
   // 因此跨平台门禁比较真正影响游戏画面的 RGBA、尺寸和锚点轮廓；0.1 与 2px
@@ -234,10 +238,10 @@ async function guardFixture({ width = 16, height = 16, left = 4, top = 4, color 
   return sharp(data, { raw: { width, height, channels: 4 } }).png().toBuffer();
 }
 
-async function expectVisualGuardRejects(name, actual, rebuilt) {
+async function expectVisualGuardRejects(name, actual, rebuilt, options) {
   let rejected = false;
   try {
-    await assertVisualEquivalent(actual, rebuilt, `门禁破坏样本/${name}`);
+    await assertVisualEquivalent(actual, rebuilt, `门禁破坏样本/${name}`, options);
   } catch {
     rejected = true;
   }
@@ -247,20 +251,24 @@ async function expectVisualGuardRejects(name, actual, rebuilt) {
 async function verifyVisualComparisonGuard() {
   const base = await guardFixture({ color: [255, 64, 96] });
   await assertVisualEquivalent(base, base, '门禁同图自检');
+  const iconThreshold = { maxVisibleMae: ICON_MAX_VISIBLE_MAE };
   await expectVisualGuardRejects(
     '明显改色',
     base,
     await guardFixture({ color: [64, 96, 255] }),
+    iconThreshold,
   );
   await expectVisualGuardRejects(
     '明显位移',
     base,
     await guardFixture({ left: 7, top: 4, color: [255, 64, 96] }),
+    iconThreshold,
   );
   await expectVisualGuardRejects(
     '尺寸变化',
     base,
     await guardFixture({ width: 17, color: [255, 64, 96] }),
+    iconThreshold,
   );
 }
 
@@ -578,7 +586,7 @@ async function writeIcon(path, buffer) {
     .toBuffer();
   if (CHECK) {
     if (!existsSync(abs(path))) throw new Error(`[樱酱可穿资产] 缺少图标：${path}`);
-    await assertVisualRebuild(path, canonical);
+    await assertVisualRebuild(path, canonical, { maxVisibleMae: ICON_MAX_VISIBLE_MAE });
     return;
   }
   ensureParent(path);
