@@ -43,21 +43,21 @@ describe('five-class skill roster', () => {
   it('高等级默认四槽保留各职业低冷却循环、招牌机制与终结技', () => {
     expect(DEFAULT_ACTIVE_SKILL_ORDER.shaman.slice(0, 4)).toEqual([
       'skill_shaman_heal',
-      'skill_shaman_poison',
       'skill_shaman_divine_beast',
       'skill_shaman_all_spirits',
+      'skill_shaman_group_poison',
     ]);
     expect(DEFAULT_ACTIVE_SKILL_ORDER.catkin.slice(0, 4)).toEqual([
-      'skill_catkin_paw_combo',
+      'skill_catkin_hundred_claw',
       'skill_catkin_bristle_counter',
       'skill_catkin_box_ambush',
-      'skill_catkin_hundred_claw',
+      'skill_catkin_moonshadow_step',
     ]);
     expect(DEFAULT_ACTIVE_SKILL_ORDER.kenshi.slice(0, 4)).toEqual([
-      'skill_kenshi_iai_draw',
-      'skill_kenshi_armor_break',
-      'skill_kenshi_swallow_return',
       'skill_kenshi_thousand_sakura',
+      'skill_kenshi_iai_flash',
+      'skill_kenshi_armor_break',
+      'skill_kenshi_iai_draw',
     ]);
   });
 
