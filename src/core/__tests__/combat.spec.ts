@@ -56,20 +56,17 @@ const mon = (level = 20) =>
   });
 
 describe('simulateFight', () => {
-  it('真实技能栏存在时，空档普攻不再叠加旧平均技能倍率', () => {
-    const run = (playerSkillMultiplier: number) =>
-      simulateFight(
-        makePlayer('p', 20, s({ atk: 1_000, acc: 99_999, critRate: 0, spd: 1 })),
-        makePlayer('m', 20, s({ atk: 0, hp: 1_000_000, def: 0, eva: 0, spd: 0.01 })),
-        new Rng(0x51a11),
-        {
-          maxSeconds: 1.1,
-          playerSkillMultiplier,
-          playerSkillKit: createSkillCombatKit([], 20),
-        },
-      );
+  it('真实技能栏与旧平均倍率双传时立即暴露调用错误', () => {
+    const player = makePlayer('p', 20, s());
+    const target = makePlayer('m', 20, s());
+    const invalid = {
+      playerSkillMultiplier: 7,
+      playerSkillKit: createSkillCombatKit([], 20),
+    } as unknown as import('../combat').FightOptions;
 
-    expect(run(7).damageDealt).toBeCloseTo(run(1).damageDealt, 8);
+    expect(() => simulateFight(player, target, new Rng(0x51a11), invalid)).toThrow(
+      '玩家真实技能栏与旧平均倍率不能同时传入',
+    );
   });
 
   it('套装技能伤害 0.18 按比例放大真实技能段约 1.18 倍', () => {
@@ -99,7 +96,6 @@ describe('simulateFight', () => {
         new Rng(0x18),
         {
           maxSeconds: 0.1,
-          playerSkillMultiplier: 9,
           playerSkillKit: createSkillCombatKit([skill], 20, { skillDamageBonusRatio }),
         },
       ).events.find(

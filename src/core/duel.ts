@@ -211,10 +211,12 @@ export function simulateDuelWithFirst(
 
   const result = simulateFight(p, m, rng, {
     maxSeconds,
-    playerSkillMultiplier: first.skillMultiplier,
-    monsterSkillMultiplier: second.skillMultiplier,
-    playerSkillKit: first.skillKit,
-    monsterSkillKit: second.skillKit,
+    ...(first.skillKit
+      ? { playerSkillKit: first.skillKit }
+      : { playerSkillMultiplier: first.skillMultiplier }),
+    ...(second.skillKit
+      ? { monsterSkillKit: second.skillKit }
+      : { monsterSkillMultiplier: second.skillMultiplier }),
     playerOnHitTriggers: first.onHitTriggers,
     monsterOnHitTriggers: second.onHitTriggers,
     playerOnLethalTriggers: first.onLethalTriggers,

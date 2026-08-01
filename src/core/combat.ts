@@ -88,15 +88,7 @@ const TICK = 0.1;
 const TICK_MS = 100;
 const EMPTY_SKILL_KIT: SkillCombatKit = { active: [], passives: [] };
 
-export interface FightOptions {
-  /** 玩家平均技能倍率。默认 1.0（普攻） */
-  playerSkillMultiplier?: number;
-  /** 怪物平均技能倍率 */
-  monsterSkillMultiplier?: number;
-  /** 玩家真实技能栏；存在时替代平均技能倍率。 */
-  playerSkillKit?: SkillCombatKit;
-  /** PvP 防守方等可使用同一真实技能栏。 */
-  monsterSkillKit?: SkillCombatKit;
+interface FightOptionsCommon {
   /** 玩家技能条件看到的目标类型。 */
   playerTargetType?: MonsterType;
   /** 怪物 / PvP 对手技能条件看到的目标类型。 */
@@ -118,6 +110,32 @@ export interface FightOptions {
   /** 挂机轮转估算专用：目标死亡后以同一满血模板继续，技能冷却不重置。 */
   repeatTargetOnDefeat?: boolean;
 }
+
+type PlayerSkillSource =
+  | {
+      /** 玩家真实技能栏；与旧平均倍率严格互斥。 */
+      playerSkillKit: SkillCombatKit;
+      playerSkillMultiplier?: never;
+    }
+  | {
+      /** 玩家旧平均技能倍率；仅供尚未迁移的兼容调用。 */
+      playerSkillMultiplier?: number;
+      playerSkillKit?: never;
+    };
+
+type MonsterSkillSource =
+  | {
+      /** PvP 防守方等可使用同一真实技能栏；与旧平均倍率严格互斥。 */
+      monsterSkillKit: SkillCombatKit;
+      monsterSkillMultiplier?: never;
+    }
+  | {
+      /** 怪物旧平均技能倍率；仅供尚未迁移的兼容调用。 */
+      monsterSkillMultiplier?: number;
+      monsterSkillKit?: never;
+    };
+
+export type FightOptions = FightOptionsCommon & PlayerSkillSource & MonsterSkillSource;
 
 export interface DirectDamageSegmentEvent {
   kind: 'direct-damage';
@@ -284,12 +302,15 @@ export function simulateFight(
   rng: Rng,
   opts: FightOptions = {},
 ): SimulatedFightResult {
-  // `playerSkillMultiplier` / `monsterSkillMultiplier` 是真实技能执行器上线前的
-  // 兼容模型：它把整套技能轮转折算成每次普攻的平均倍率。真实 skillKit 存在时，
-  // 主动技能已经按自己的倍率逐段结算，空档普攻必须回到 1 倍；两者同时生效会把
-  // 旧平均倍率再次叠到普攻上，造成全职业系统性虚高。
-  const pMul = opts.playerSkillKit ? 1.0 : (opts.playerSkillMultiplier ?? 1.0);
-  const mMul = opts.monsterSkillKit ? 1.0 : (opts.monsterSkillMultiplier ?? 1.0);
+  // 类型在编译期阻止双传；运行时检查同时保护 Edge / JS 调用与反序列化边界。
+  if (opts.playerSkillKit && opts.playerSkillMultiplier !== undefined) {
+    throw new Error('[战斗技能来源错误] 玩家真实技能栏与旧平均倍率不能同时传入');
+  }
+  if (opts.monsterSkillKit && opts.monsterSkillMultiplier !== undefined) {
+    throw new Error('[战斗技能来源错误] 怪物真实技能栏与旧平均倍率不能同时传入');
+  }
+  const pMul = opts.playerSkillMultiplier ?? 1.0;
+  const mMul = opts.monsterSkillMultiplier ?? 1.0;
   const maxSeconds = opts.maxSeconds ?? MAX_FIGHT_SECONDS;
 
   // 用整数计步再乘 TICK，而不是累加浮点数。
