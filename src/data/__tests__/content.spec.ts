@@ -574,8 +574,9 @@ describe('区域 1–5 内容完整性', () => {
         ...layerAssets,
       ]),
     ];
-    // 五职业底模、七区、三套精品与四档副本的运行时可见纸娃娃资产均不得别名复用。
-    expect(assets).toHaveLength(282);
+    // 五职业底模、七区、三套精品、四档副本，以及樱酱竞技/心虹珍藏的运行时
+    // 可见纸娃娃资产均不得别名复用。新增 14 件专属可穿层必须进入本合同。
+    expect(assets).toHaveLength(296);
 
     for (const asset of assets) {
       const assetPath = resolve('public', asset);
