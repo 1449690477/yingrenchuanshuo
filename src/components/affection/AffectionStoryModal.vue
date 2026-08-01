@@ -1304,6 +1304,14 @@ onUnmounted(() => {
   }
 }
 
+/* 320×568 这类短屏里，默认 8% 顶锚会让角色的脸与舞台工具栏重叠。保持立绘
+ * 原尺寸并整体下移：脸完整露出，腿部自然收进对白框后方，符合 AVG 构图。 */
+@media (max-width: 350px) and (max-height: 650px) {
+  .portrait-slot {
+    inset: 15% 3% 17% 24%;
+  }
+}
+
 .backlog-panel {
   position: absolute;
   inset: 0;
