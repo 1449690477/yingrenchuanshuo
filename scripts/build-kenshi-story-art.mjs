@@ -9,6 +9,7 @@ import sharp from 'sharp';
 const ROOT = resolve('.');
 const CHECK = process.argv.includes('--check');
 const SOURCE_ROOT = 'art-source/characters/kenshi/affection';
+const CONTACT_PREVIEW_MAX_MAE = 0.5;
 
 const WIDE_RECTS = [
   { left: 7, top: 8, width: 705, height: 523 },
@@ -78,11 +79,43 @@ function digest(buffer) {
   return createHash('sha256').update(buffer).digest('hex');
 }
 
-async function pixelDigest(input) {
-  const { data, info } = await sharp(input).removeAlpha().raw().toBuffer({
+async function decodedRgb(input) {
+  return sharp(input).removeAlpha().raw().toBuffer({
     resolveWithObject: true,
   });
+}
+
+async function pixelDigest(input) {
+  const { data, info } = await decodedRgb(input);
   return digest(Buffer.concat([Buffer.from(`${info.width}x${info.height}:`), data]));
+}
+
+async function assertContactPreviewEquivalent(path, rebuilt) {
+  const actual = await decodedRgb(abs(path));
+  const expected = await decodedRgb(rebuilt);
+  if (actual.info.width !== expected.info.width || actual.info.height !== expected.info.height) {
+    throw new Error(
+      `[樱酱剧情美术] 联系图尺寸不一致：${actual.info.width}×${actual.info.height} / ${expected.info.width}×${expected.info.height}`,
+    );
+  }
+  let total = 0;
+  let channels = 0;
+  for (let index = 0; index < actual.data.length; index += 3) {
+    const pixel = index / 3;
+    const y = Math.floor(pixel / actual.info.width);
+    // 每张 250px 卡片的场景预览止于 211px；底部文字依赖系统字体，不参与像素门禁。
+    if (y % 250 >= 215) continue;
+    total += Math.abs(actual.data[index] - expected.data[index]);
+    total += Math.abs(actual.data[index + 1] - expected.data[index + 1]);
+    total += Math.abs(actual.data[index + 2] - expected.data[index + 2]);
+    channels += 3;
+  }
+  const mae = channels === 0 ? 0 : total / channels;
+  if (mae > CONTACT_PREVIEW_MAX_MAE) {
+    throw new Error(
+      `[樱酱剧情美术] 联系图预览未更新：${path}（visibleMAE=${mae.toFixed(3)}）`,
+    );
+  }
 }
 
 async function panelBuffer(source, rect) {
@@ -167,9 +200,12 @@ async function buildContactSheet() {
     .toBuffer();
   const path = 'art-source/qa/kenshi-story-contact.png';
   if (CHECK) {
-    if (!existsSync(abs(path)) || (await pixelDigest(abs(path))) !== (await pixelDigest(contact))) {
+    if (!existsSync(abs(path))) {
       throw new Error(`[樱酱剧情美术] 联系图未更新：${path}`);
     }
+    // 场景本体仍由 writeOrCheck 做精确像素重建；这里只为二次缩放/调色板量化后的
+    // QA 联系图预览接受小于一个色阶的跨平台误差。
+    await assertContactPreviewEquivalent(path, contact);
   } else {
     writeFileSync(abs(path), contact);
   }

@@ -10,9 +10,9 @@ const CHECK = process.argv.includes('--check');
 const REBUILD = process.argv.includes('--rebuild') || !CHECK;
 const CANVAS = { width: 640, height: 960 };
 const LAYER_MAX_VISIBLE_MAE = 0.1;
-// 256 图标会在可穿层之后再经历缩放与第二次调色板量化，且主体占画布比例更高。
-// Linux 实测全画布 visibleMAE=0.232；0.5 仍小于一个 8-bit 色阶的平均变化。
-const ICON_MAX_VISIBLE_MAE = 0.5;
+// 256 图标与 QA 预览会在可穿层之后再经历缩放、合成与第二次调色板量化。
+// Linux 实测全画布 visibleMAE=0.232/0.233；0.5 仍小于一个 8-bit 色阶的平均变化。
+const DERIVED_MAX_VISIBLE_MAE = 0.5;
 const SOURCE_ROOT = 'art-source/characters/kenshi/wearables';
 const THEME_ATLAS = `${SOURCE_ROOT}/theme-equipment-atlas-alpha.png`;
 
@@ -251,24 +251,24 @@ async function expectVisualGuardRejects(name, actual, rebuilt, options) {
 async function verifyVisualComparisonGuard() {
   const base = await guardFixture({ color: [255, 64, 96] });
   await assertVisualEquivalent(base, base, '门禁同图自检');
-  const iconThreshold = { maxVisibleMae: ICON_MAX_VISIBLE_MAE };
+  const derivedThreshold = { maxVisibleMae: DERIVED_MAX_VISIBLE_MAE };
   await expectVisualGuardRejects(
     '明显改色',
     base,
     await guardFixture({ color: [64, 96, 255] }),
-    iconThreshold,
+    derivedThreshold,
   );
   await expectVisualGuardRejects(
     '明显位移',
     base,
     await guardFixture({ left: 7, top: 4, color: [255, 64, 96] }),
-    iconThreshold,
+    derivedThreshold,
   );
   await expectVisualGuardRejects(
     '尺寸变化',
     base,
     await guardFixture({ width: 17, color: [255, 64, 96] }),
-    iconThreshold,
+    derivedThreshold,
   );
 }
 
@@ -564,7 +564,7 @@ async function buildContactSheet() {
     // 联系图的生产门禁只比较每张卡片上方的试穿预览区；底部 70px 文本由同一份
     // entry 清单生成，不参与跨平台像素判定。运行时各独立层仍由 writeOrCheck 严格校验。
     await assertVisualRebuild(path, output, {
-      maxVisibleMae: 0.1,
+      maxVisibleMae: DERIVED_MAX_VISIBLE_MAE,
       maxBoundsDelta: 0,
       includePixel: (_x, y) => y % 410 < 340,
     });
@@ -586,7 +586,7 @@ async function writeIcon(path, buffer) {
     .toBuffer();
   if (CHECK) {
     if (!existsSync(abs(path))) throw new Error(`[樱酱可穿资产] 缺少图标：${path}`);
-    await assertVisualRebuild(path, canonical, { maxVisibleMae: ICON_MAX_VISIBLE_MAE });
+    await assertVisualRebuild(path, canonical, { maxVisibleMae: DERIVED_MAX_VISIBLE_MAE });
     return;
   }
   ensureParent(path);
