@@ -28,6 +28,7 @@ import { writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { CP_FORMULA_VERSION } from '../src/core/cpFormulaVersion.ts';
 
 interface Check {
   name: string;
@@ -80,6 +81,53 @@ const CHECKS: Check[] = [
     remedy:
       '执行 20260731230000_profile_write_grants.sql。⚠ 必须在新客户端发布足够久之后 —— ' +
       '旧客户端直写会静默失败（详见该迁移的文件头注释）',
+  },
+  {
+    // 这一条守的是**顺序**，方向与上一条正好相反，别照上一条的直觉理解。
+    // 上一条（收权限）晚做才安全；这一条（加列）**早做才安全**：
+    // 新客户端的 fetchPowerTop 会 select 并 eq 这一列，列不存在时 PostgREST
+    // 返回 42703，玩家看到「战力榜读取失败」——**整张榜打不开**，不是少几行。
+    // 而这个失败**只在真实浏览器里出现**：单元测试用桩客户端，永远是绿的。
+    name: '战力公式版本戳列已就位（必须早于新客户端发布）',
+    sql: `select column_name, column_default, is_nullable
+            from information_schema.columns
+           where table_schema='public' and table_name='profiles'
+             and column_name='cp_formula_version'`,
+    verdict: (rows) => {
+      if (rows.length === 0) {
+        return '列不存在 —— 一旦发布读它的客户端，战力榜会整张打不开（PostgREST 42703）';
+      }
+      if (rows[0]!.is_nullable !== 'NO') return '列可空 —— null 版本无法参与「当前版本」判定';
+      return null;
+    },
+    remedy:
+      '执行 20260801040000_cp_formula_version.sql。⚠ 顺序与上一条相反：' +
+      '本迁移必须**先于** sync-profile 部署与新客户端发布（详见该迁移文件头顶部）',
+  },
+  {
+    // 版本戳的可信度**整个建立在「profiles 没有表级写授权」这一条上**
+    // （见上一条检查）。这里查的是另一半：库里有没有出现无法解释的版本号。
+    // 只应存在「当前版本」与「更旧的历史版本」；**比代码还新的版本号只可能来自伪造**
+    // ——客户端拿不到未来的公式。这条为零成本，出现即为强信号。
+    name: 'profiles 里没有比服务端更新的公式版本号',
+    // 用 to_jsonb 取键而不是直接引用列名：**列还不存在时，缺键返回 null 而不是报错**。
+    // 直接写 select cp_formula_version 会让这一条在迁移落地前抛 42703，
+    // 于是本该由上一条负责报告的「列不存在」，在这里变成一句语焉不详的
+    // 「查询失败」加一段驴唇不对马嘴的补救建议 —— 一个失败伪装成另一个失败。
+    sql: `select max((to_jsonb(p) ->> 'cp_formula_version')::int) as v
+            from public.profiles p`,
+    verdict: (rows) => {
+      const raw = rows[0]?.v;
+      if (raw === null || raw === undefined) return null; // 列还没建，由上一条负责报
+      const max = Number(raw);
+      return max > CP_FORMULA_VERSION
+        ? `出现版本 ${max}，而服务端当前是 ${CP_FORMULA_VERSION} —— ` +
+            '要么有人漏了 edge:build/重部署，要么表级写授权被恢复了'
+        : null;
+    },
+    remedy:
+      '先查 information_schema.column_privileges 确认玩家写不了这一列；' +
+      '再确认 12 个 Edge Function 都用当前 core 重打包并部署过（npm run edge:build）',
   },
 ];
 

@@ -260,3 +260,80 @@ describe('用时展示', () => {
     expect(formatDungeonDuration(95_400)).toBe('1 分 35.4 秒');
   });
 });
+
+/**
+ * 榜单 id 的单向棘轮（2026-08-01，与小榜共同定的）。
+ *
+ * ── 这两条守的是什么 ──
+ * 秘境榜的定位键 dungeon_id 由 `stageId + 深度` 拼成（dungeonBoard.ts:79），
+ * 而读取侧是 `eq('dungeon_id', …)`（net/dungeonBoard.ts:125）。
+ * **一个 id 只要从 DUNGEON_BOARD_ENTRIES 里消失，库里那些历史行就再也没人查它们**
+ * —— 行还在，永远不显示；玩家想重打还会收到「这座秘境尚未开放，或者不存在」
+ * （submit-dungeon/index.ts:85）。
+ *
+ * 试炼榜 2026-07-30 已经完整发生过一次同型事件（分段重划 → 10 行成为孤儿）。
+ * 那次是**有人在做决定**：trialRules.ts:74~77 白纸黑字写了「宁可看不见也不能错位展示」。
+ * **而这里不会是决定** —— 改的人在调「crimson 开几层」，想的是玩法节奏，
+ * 不会意识到自己顺手让一批历史记录变成了「不存在」。
+ * **有意识的取舍不需要门禁，无意识的副作用才需要。**
+ *
+ * ── 为什么是两条而不是一条 ──
+ * id 消失有两条独立路径：**改 stageId** 与 **调小 openDepths**。
+ * 合并成「id 集合是超集」一条也能挡住，但失败时只会说「少了 40 个 id」，
+ * 不说是哪条路径破的。分成两条，红的那条自己就是诊断结论。
+ *
+ * ── 它不禁止缩层 ──
+ * 要缩就改这里的数字。它的作用是让缩层从「顺手改个数」变成「必须先读这段注释」。
+ */
+describe('★ 榜单 id 单向棘轮：消失的 id 会让历史成绩变成「不存在」', () => {
+  /** 2026-08-01 的全部关卡 id。**只增不减** —— 减了就是有历史行成为孤儿。 */
+  const FROZEN_STAGE_IDS: readonly string[] = [
+    'equipment_belt_auric', 'equipment_belt_azure', 'equipment_belt_crimson',
+    'equipment_belt_violet', 'equipment_body_auric', 'equipment_body_azure',
+    'equipment_body_crimson', 'equipment_body_violet', 'equipment_bracelet_auric',
+    'equipment_bracelet_azure', 'equipment_bracelet_crimson', 'equipment_bracelet_violet',
+    'equipment_head_auric', 'equipment_head_azure', 'equipment_head_crimson',
+    'equipment_head_violet', 'equipment_necklace_auric', 'equipment_necklace_azure',
+    'equipment_necklace_crimson', 'equipment_necklace_violet', 'equipment_ring_auric',
+    'equipment_ring_azure', 'equipment_ring_crimson', 'equipment_ring_violet',
+    'equipment_shoes_auric', 'equipment_shoes_azure', 'equipment_shoes_crimson',
+    'equipment_shoes_violet', 'equipment_weapon_auric', 'equipment_weapon_azure',
+    'equipment_weapon_crimson', 'equipment_weapon_violet',
+  ];
+
+  /** 2026-08-01 各档实际开放层数。**只增不减**。 */
+  const FROZEN_OPEN_DEPTHS: Readonly<Record<string, number>> = {
+    azure: 5, violet: 5, auric: 5, crimson: 1,
+  };
+
+  it('关卡 id 只增不减 —— 改名或删关卡都会让该关卡的历史成绩永久不可见', () => {
+    const current = new Set(DUNGEON_BOARD_ENTRIES.map((entry) => entry.stageId));
+    const missing = FROZEN_STAGE_IDS.filter((id) => !current.has(id));
+    expect(
+      missing,
+      `这些关卡 id 从榜单里消失了：${missing.join(', ')}\n` +
+        `dungeon_records 里带这些 id 的历史行会永久查不到（读取侧按 dungeon_id 精确匹配），\n` +
+        `玩家重打时会收到「这座秘境尚未开放，或者不存在」。\n` +
+        `如果这是有意的：先处理那些历史行（迁移或显式声明不可比），再改这里的清单。`,
+    ).toEqual([]);
+  });
+
+  it('各档开放层数只增不减 —— 缩层等于让超出新层数的历史成绩变成「不存在」', () => {
+    const shrunk = Object.entries(FROZEN_OPEN_DEPTHS)
+      .map(([tierId, frozen]) => {
+        const now = Math.max(
+          0,
+          ...DUNGEON_BOARD_ENTRIES.filter((e) => e.tierId === tierId).map((e) => e.depth),
+        );
+        return { tierId, frozen, now };
+      })
+      .filter((row) => row.now < row.frozen);
+    expect(
+      shrunk,
+      `这些档的开放层数变小了：${shrunk.map((r) => `${r.tierId} ${r.frozen}→${r.now}`).join('、')}\n` +
+        `要调低 openDepths，请先处理 dungeon_records 里该档超出新层数的历史行 ——\n` +
+        `它们会变成玩家侧的「这座秘境不存在」，而不是「暂时关闭」。\n` +
+        `确认处理过之后，把上面 FROZEN_OPEN_DEPTHS 的数字一起改小。`,
+    ).toEqual([]);
+  });
+});

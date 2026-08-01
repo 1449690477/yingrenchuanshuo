@@ -28,9 +28,11 @@ import {
   buildTrialCombatant,
   CLASS_IDS,
   combatPowerCeiling,
+  CP_FORMULA_VERSION,
   equipmentInstanceSchema,
   getEquipment,
   isPlausibleCombatPower,
+  STRUCTURAL_MAX_LEVEL,
   judgeCheatEvidence,
   SLOT_ORDER,
   trialEquipmentSnapshotIssue,
@@ -46,6 +48,9 @@ const corsHeaders = {
 const submissionSchema = z
   .object({
     classId: z.enum(CLASS_IDS),
+    // 结构上的荒谬值仍然直接拒（负数、超过 120），但**超出内容可达上限的等级
+    // 不在这里拒** —— 见下面 effectiveLevel 那一段：拒绝会把线上已经存在的
+    // 两行 level=100 档案永久锁死，钳制不会。
     level: z.number().int().min(1).max(120),
     displayName: z.string().min(1).max(20),
     /** 八槽位穿戴快照，顺序与 SLOT_ORDER 一致 */
@@ -127,6 +132,37 @@ Deno.serve(async (req: Request) => {
     if (!parsed.success) return json({ error: '提交的搭配快照不合法' }, 400);
     const sub = parsed.data;
 
+    // ── 2.5 等级钳制到内容可达上限（2026-08-01，小榜报、小督定形态）──
+    // level 是战力上界与试炼伤害上界的**自变量**，而它完全由客户端上报、
+    // 此前只有 max(120) 的范围校验 —— 而玩家实际能到的最高等级是 81
+    // （210 关最高 Lv78 + 软上限余量）。**中间 39 级空档**：谁都可以报 Lv120，
+    // 把自己的上界抬到内容顶之上；小督实测该空档足以让试炼判据整个失效
+    // （Lv120 → 王冠段段顶上界 2,234,856 > Boss 满血 1,489,904，怎么伪造都在界内）。
+    //
+    // ★ 为什么是钳制不是拒绝 —— 这一条是小督 09:14 纠正我的，他对：
+    // 我第一版写的是 z.max(STRUCTURAL_MAX_LEVEL)，也就是直接 400。
+    // 但线上**已经存在**两行 level=100 的档案（07-30 客户端还能直写时留下的），
+    // 拒绝会让它们**每次同步都被打回，确定性地、永远同步不上去** ——
+    // 那正是今晚反复批评的那种坏法：用一条防作弊的线把账号锁死。
+    // 钳制则：真人（≤81）完全无感；伪造者报多高都只按 81 结算，上界抬不起来；
+    // **那两行坏数据还会在下一次同步时被自动改写成 81 + 正确战力，自愈。**
+    //
+    // 钳制不会误伤任何合法装备：实查最高装备定义等级 = 81 = 本上限，
+    // 所以「装备等级 ≤ 角色等级」这条校验在钳制后依然对真人成立。
+    const effectiveLevel = Math.min(sub.level, STRUCTURAL_MAX_LEVEL);
+
+    // ★ 留痕（小榜 09:15 提的，成立）：钳制是静默的，不留痕就等于
+    // **我们永远不知道有没有人在用这个口子**，也无法区分「一次客户端 bug」
+    // 与「有人在反复试探上界」。这里只打日志、不记作弊证据 ——
+    // 报一个超限等级可能只是旧客户端或坏存档，够不上「证明」那一档
+    // （cheat_evidence 的 claimField 也还没有 player_level 这一项，
+    //  要不要加归 docs/78 的持有者定，我不擅自扩它的枚举）。
+    if (sub.level > STRUCTURAL_MAX_LEVEL) {
+      console.warn(
+        `[sync-profile] 等级越过内容上限，已钳制：user=${user.id} 上报=${sub.level} 结算=${effectiveLevel}`,
+      );
+    }
+
     // ── 3. 装备硬校验（与 submit-trial 逐条相同）──
     // 档案同步比试炼成绩「轻」，但校验不能轻：这条路径产出的战力会直接
     // 参与排名，若放宽校验，伪造搭配就成了新的刷榜入口。
@@ -136,7 +172,7 @@ Deno.serve(async (req: Request) => {
       const def = getEquipment(inst.defId);
       if (!def) return json({ error: '装备定义不存在' }, 400);
       if (def.slot !== SLOT_ORDER[i]) return json({ error: '装备槽位不符' }, 400);
-      const snapshotIssue = trialEquipmentSnapshotIssue(inst, sub.classId, sub.level);
+      const snapshotIssue = trialEquipmentSnapshotIssue(inst, sub.classId, effectiveLevel);
       if (snapshotIssue) {
         const issueMessages: Record<typeof snapshotIssue, string> = {
           'unknown-equipment': '装备定义不存在',
@@ -152,7 +188,7 @@ Deno.serve(async (req: Request) => {
             source: 'sync-profile',
             claimField: 'equipment_level',
             claimedValue: def.level,
-            boundValue: sub.level,
+            boundValue: effectiveLevel,
             boundKind: 'upper',
             priorEvidenceCount: 0,
           });
@@ -165,7 +201,7 @@ Deno.serve(async (req: Request) => {
     const build = buildTrialCombatant({
       name: sub.displayName,
       classId: sub.classId,
-      level: sub.level,
+      level: effectiveLevel,
       equipped: sub.equipped,
     });
     const combatPower = Math.round(build.combatPower);
@@ -174,7 +210,7 @@ Deno.serve(async (req: Request) => {
     // 不成立说明 core 的口径改动让某个真实搭配越过了展示层上界 ——
     // 此时宁可少写一次战力，也不要让榜单收下一个会被前端过滤掉的值，
     // 那种「写进去了但榜上看不见」的状态最难排查。
-    if (!isPlausibleCombatPower(combatPower, sub.level, sub.classId)) {
+    if (!isPlausibleCombatPower(combatPower, effectiveLevel, sub.classId)) {
       // 走到这里有两种可能，证据分级会自动把它们分开（docs/78 §2.3）：
       //   ① core 口径改动让某个真实搭配越过了展示层上界 —— 超额小，只记录不公开；
       //   ② 逐件都合法、合起来却物理上不可能的伪造快照 —— 超额大，够格公开。
@@ -182,7 +218,7 @@ Deno.serve(async (req: Request) => {
         source: 'sync-profile',
         claimField: 'combat_power',
         claimedValue: combatPower,
-        boundValue: combatPowerCeiling(sub.level, sub.classId),
+        boundValue: combatPowerCeiling(effectiveLevel, sub.classId),
         boundKind: 'upper',
         priorEvidenceCount: 0,
       });
@@ -193,8 +229,12 @@ Deno.serve(async (req: Request) => {
     const admin = createClient(supabaseUrl, serviceKey);
     const progress = {
       class_id: sub.classId,
-      level: sub.level,
+      level: effectiveLevel,
       combat_power: combatPower,
+      // 版本戳与战力同一次写入、同一个打包产物里的常量（批3-3）。
+      // 存量战力没有重算路径（这里的 sub.equipped 算完就丢，不落库），
+      // 所以公式一改，唯一诚实的做法是标注每行是哪把尺量的。
+      cp_formula_version: CP_FORMULA_VERSION,
       updated_at: new Date().toISOString(),
     };
 
@@ -214,7 +254,7 @@ Deno.serve(async (req: Request) => {
       .eq('id', user.id);
     if (updateError) return json({ error: '档案同步失败' }, 500);
 
-    return json({ combatPower, level: sub.level, classId: sub.classId });
+    return json({ combatPower, level: effectiveLevel, classId: sub.classId });
   } catch (_error) {
     return json({ error: '服务器开小差了，请稍后重试' }, 500);
   }

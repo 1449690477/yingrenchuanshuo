@@ -265,7 +265,21 @@ const BOARD_TABS: { key: BoardTab; label: string }[] = [
 const neighborhoodRows = computed(() => lb.neighborhoodCache?.value ?? []);
 const topRows = computed(() => lb.topCache?.value ?? []);
 const powerRows = computed(() => lb.powerCache?.value.rows ?? []);
-const myPowerRank = computed(() => lb.powerCache?.value.myRank ?? null);
+/**
+ * 我的战力名次的完整状态（批3-3）：过渡期它可能是「旧公式、不可比」而不是一个数字。
+ * 榜单侧的展示与措辞归小榜（批3-4），这里只把状态原样透出来备用。
+ */
+const myPowerRankDetail = computed(() => lb.powerCache?.value.myRank ?? null);
+
+/**
+ * 只有「算得准的名次」才给数字。
+ * staleFormula（我的战力是旧尺量的）与 exact=false（扫描到上限、名次只是下界）
+ * 都不给 —— 那两种情况下写「第 N 名」是在说一个我们并不知道的数。
+ */
+const myPowerRank = computed(() => {
+  const detail = myPowerRankDetail.value;
+  return detail?.kind === 'ranked' && detail.exact ? detail.rank : null;
+});
 
 /** 我的试炼名次与总人数（来自邻域行），用于「上位 N%」段位。 */
 const myStanding = computed(() => {

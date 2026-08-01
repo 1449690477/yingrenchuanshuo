@@ -30,6 +30,15 @@ export type { ClassId, EquipmentInstance } from '../../../src/core/types';
 // 这里会当场记 verified=false 而不是让榜单默默收下一个越界值。
 export { isPlausibleCombatPower, combatPowerCeiling } from '../../../src/core/combatPowerBound';
 
+// 战力公式版本戳（批3-3）：写 combat_power 的同时记下它是哪版公式算的。
+// 必须从 core 打包进来而不是在 Edge 侧写死一个字面量 —— 版本号与公式在
+// 同一个打包产物里，物理上不可能出现「函数用新公式算、却盖旧版本戳」。
+export { CP_FORMULA_VERSION } from '../../../src/core/cpFormulaVersion';
+
+// 等级的结构上限（从关卡数据推导）。level 是战力/伤害上界的自变量，而它由
+// 客户端上报 —— 载荷校验的那个范围就是整条防线的宽度，必须跟着内容走。
+export { STRUCTURAL_MAX_LEVEL, isStructurallyPossibleLevel } from '../../../src/core/levelCap';
+
 // 作弊证据的分级与行构造（docs/78）。判定留在 core，Edge 只做 insert ——
 // 五条上报路径共用同一套闸门与措辞，避免同一口径五处实现。
 export {

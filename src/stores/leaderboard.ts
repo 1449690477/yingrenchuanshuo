@@ -21,6 +21,7 @@ import {
   trialEntryThreshold,
   trialNeighborhoodIsPreview,
   upsertProfile,
+  type MyPowerRank,
   type PowerBoardRow,
   type TrialBoardFilter,
   type TrialBoardRow,
@@ -82,13 +83,28 @@ export const useLeaderboardStore = defineStore('leaderboard', () => {
   // ─────────── 联机状态 ───────────
   const status = ref<LeaderboardStatus>(isSupabaseConfigured ? 'offline' : 'unconfigured');
   const userId = ref<string | null>(null);
+
+  /**
+   * 上一次成功同步到服务端的等级（null = 本会话还没同步过）。
+   *
+   * 存在的理由：connect() 在 status 已经 ready 时提前返回，所以档案同步
+   * **每个会话只跑一次**。玩家在这个会话里升多少级，服务端都不知道 ——
+   * 而 submit-trial 是拿服务端那份 profiles.level 当判据标尺的。
+   * 2026-08-01 的线上事故就是这么来的：新手一个会话从 Lv1 打到 Lv10，
+   * 标尺还停在 Lv1，成绩被判成物理不可能。
+   */
+  const lastSyncedLevel = ref<number | null>(null);
   const lastError = ref<string | null>(null);
   const submitting = ref(false);
 
   // ─────────── 榜单缓存 ───────────
   const neighborhoodCache = ref<CacheSlot<TrialBoardRow[]> | null>(null);
   const topCache = ref<CacheSlot<TrialBoardRow[]> | null>(null);
-  const powerCache = ref<CacheSlot<{ rows: PowerBoardRow[]; myRank: number | null }> | null>(null);
+  // myRank 不是裸数字：过渡期存在「战力是旧公式量的、与榜上的值不可比」这个
+  // 真实状态，裸数字只能表达成一个编出来的名次（批3-3，见 net/leaderboard.ts）。
+  const powerCache = ref<CacheSlot<{ rows: PowerBoardRow[]; myRank: MyPowerRank | null }> | null>(
+    null,
+  );
   const boardsLoading = ref(false);
   /** 当前邻域是否已放宽到全职业（UI 要如实说明，不能假装是同职业榜）。 */
   const neighborhoodWidened = ref(false);
@@ -216,6 +232,33 @@ export const useLeaderboardStore = defineStore('leaderboard', () => {
 
   // ─────────── 联机 ───────────
 
+  /**
+   * 同步一次公开档案，并记下同步时的等级。
+   *
+   * 失败**只吞不抛**：档案同步失败最多让战力榜数据旧一点，
+   * 绝不能因此把玩家的成绩上传给挡掉。失败时不更新 lastSyncedLevel，
+   * 所以下一次提交会自然重试。
+   */
+  async function syncProfileNow(
+    client: Parameters<typeof upsertProfile>[0],
+    level: number,
+  ): Promise<void> {
+    const save = game.save;
+    if (!save) return;
+    // 战力由服务端从这份搭配快照现算，客户端不再上报 game.cp
+    // （docs/65 §六之二 方向 A）。
+    const ok = await upsertProfile(client, {
+      displayName: save.player.name,
+      classId: save.player.classId,
+      level,
+      equipped: currentEquipped(),
+    }).then(
+      () => true,
+      () => false,
+    );
+    if (ok) lastSyncedLevel.value = level;
+  }
+
   /** 建立会话并同步公开档案；所有失败都收进 status/lastError，绝不抛出。 */
   async function connect(): Promise<boolean> {
     if (!isSupabaseConfigured) {
@@ -238,12 +281,7 @@ export const useLeaderboardStore = defineStore('leaderboard', () => {
         // 档案同步是战力榜的数据源；失败只影响战力榜新鲜度，不影响试炼。
         // 战力由服务端从这份搭配快照现算，客户端不再上报 game.cp
         // （docs/65 §六之二 方向 A）。
-        await upsertProfile(session.client, {
-          displayName: save.player.name,
-          classId: save.player.classId,
-          level: save.player.level,
-          equipped: currentEquipped(),
-        }).catch(() => undefined);
+        await syncProfileNow(session.client, save.player.level);
       }
       return true;
     } catch (error) {
@@ -318,7 +356,7 @@ export const useLeaderboardStore = defineStore('leaderboard', () => {
         force || !powerCache.value || Date.now() - powerCache.value.at > LEADERBOARD_CACHE_TTL_MS
           ? Promise.all([
               fetchPowerTop(client, userId.value),
-              fetchMyPowerRank(client, game.cp).catch(() => null),
+              fetchMyPowerRank(client, userId.value, game.cp).catch(() => null),
             ])
               .then(
                 ([rows, myRank]) =>
@@ -360,6 +398,23 @@ export const useLeaderboardStore = defineStore('leaderboard', () => {
       if (!session) return null;
       userId.value = session.userId;
       status.value = 'ready';
+
+      // ★ 提交前先把等级同步上去（2026-08-01 线上事故的根治）。
+      // submit-trial 拿服务端那份 profiles.level 当判据标尺，而 connect()
+      // 在 status 已 ready 时提前返回 —— 整个会话只同步一次档案。
+      // 于是玩家在会话内升的级服务端一无所知，标尺停在旧等级上：
+      // 新手一个会话 Lv1→Lv10，成绩就会被判成物理不可能（实测缺口 1075 倍）。
+      //
+      // 只在等级真的变了时才补这一次请求，不是每次提交都发。
+      //
+      // ⚠ 说清楚它**不是**什么：profiles.level 由客户端上报、sync-profile
+      // 只做 1~120 的范围校验，**它从来就不是「服务端验证过的等级」**。
+      // 所以这里补同步既没有削弱防伪造（本来就没有），也别把它当防线看 ——
+      // 它解决的是「老实玩家被旧标尺误判」，纯收益。
+      if (lastSyncedLevel.value !== save.player.level) {
+        await syncProfileNow(session.client, save.player.level);
+      }
+
       const result = await submitTrialScore(session.client, {
         seasonId: TRIAL_SEASON_ID,
         weekIndex: best.weekIndex,

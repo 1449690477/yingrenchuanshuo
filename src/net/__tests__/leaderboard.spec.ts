@@ -17,9 +17,11 @@ import {
   trialNeighborhoodIsPreview,
   upsertProfile,
   type TrialBoardRow,
+  fetchMyPowerRank,
   fetchPowerTop,
   type TrialSubmission,
 } from '../leaderboard';
+import { CP_FORMULA_VERSION } from '@/core/cpFormulaVersion';
 import { NetRequestError } from '../supabase';
 
 type InvokeStub = (
@@ -367,11 +369,15 @@ describe('trial_neighborhood 迁移的 SQL 契约', () => {
  */
 describe('fetchPowerTop 过滤掉物理上不可能的战力', () => {
   function powerStub(rows: unknown[]) {
-    const log: { limit?: number } = {};
+    const log: { limit?: number; eq: [string, unknown][] } = { eq: [] };
     const builder: Record<string, unknown> = {};
     Object.assign(builder, {
       select: () => builder,
       order: () => builder,
+      eq: (column: string, value: unknown) => {
+        log.eq.push([column, value]);
+        return builder;
+      },
       limit: (n: number) => {
         log.limit = n;
         return Promise.resolve({ data: rows, error: null });
@@ -389,6 +395,7 @@ describe('fetchPowerTop 过滤掉物理上不可能的战力', () => {
     class_id: 'swordsman',
     level: 78,
     combat_power: 90_000,
+    cp_formula_version: CP_FORMULA_VERSION,
   };
   const forged = { ...honest, id: 'forged', display_name: '自填哥', combat_power: 999_999_999 };
 
@@ -426,6 +433,145 @@ describe('fetchPowerTop 过滤掉物理上不可能的战力', () => {
     const rows = await fetchPowerTop(client, null);
 
     expect(rows).toHaveLength(0);
+  });
+
+  it('★ 迁移还没执行时榜依然能开 —— 退回不带版本筛的查询', async () => {
+    // 列不存在时 PostgREST 返回 42703。若直接抛出，玩家看到的是
+    // **整张榜打不开** —— 比今晚讨论的任何一条误伤都严重（误伤是个别人
+    // 看不见自己，这个是所有人都打不开）。所以宁可退回今天的行为。
+    let call = 0;
+    const eqCalls: string[] = [];
+    const builder: Record<string, unknown> = {};
+    Object.assign(builder, {
+      select: () => builder,
+      order: () => builder,
+      eq: (column: string) => {
+        eqCalls.push(column);
+        return builder;
+      },
+      limit: () => {
+        call += 1;
+        return call === 1
+          ? Promise.resolve({
+              data: null,
+              error: { code: '42703', message: 'column profiles.cp_formula_version does not exist' },
+            })
+          : Promise.resolve({ data: [honest], error: null });
+      },
+    });
+    const client = { from: () => builder } as unknown as SupabaseClient;
+
+    const rows = await fetchPowerTop(client, null);
+
+    expect(call).toBe(2); // 第一次带版本筛失败，第二次不带
+    expect(eqCalls).toEqual(['cp_formula_version']); // 重试那次确实没再筛版本
+    expect(rows.map((r) => r.userId)).toEqual(['honest']);
+  });
+
+  it('迁移执行后的正常错误仍然抛出，不会被降级路径吞掉', async () => {
+    const builder: Record<string, unknown> = {};
+    Object.assign(builder, {
+      select: () => builder,
+      order: () => builder,
+      eq: () => builder,
+      limit: () => Promise.resolve({ data: null, error: { code: '08006', message: 'connection failure' } }),
+    });
+    const client = { from: () => builder } as unknown as SupabaseClient;
+
+    await expect(fetchPowerTop(client, null)).rejects.toThrow(NetRequestError);
+  });
+
+  it('★ 只取当前公式版本的行 —— 旧尺量出的战力不能和新值同榜排序（批3-3）', async () => {
+    const { client, log } = powerStub([honest]);
+
+    await fetchPowerTop(client, null);
+
+    expect(log.eq).toContainEqual(['cp_formula_version', CP_FORMULA_VERSION]);
+  });
+});
+
+/**
+ * 名次与榜单必须数同一批人。
+ *
+ * 旧实现是不带任何过滤的 count(*)，而列表在客户端按上界过滤过 ——
+ * 玩家会看到「你第 37 名」配一张只有 12 个人的榜，两个数字当面互相打脸。
+ */
+describe('fetchMyPowerRank 与榜单同口径', () => {
+  /** mine: 我那行的版本（null = 查无此人）；above: 战力比我高的那些行 */
+  function rankStub(mine: { cp_formula_version: number } | null, above: unknown[]) {
+    const log: { eq: [string, unknown][]; gt: [string, unknown][] } = { eq: [], gt: [] };
+    let isMineQuery = false;
+    const builder: Record<string, unknown> = {};
+    Object.assign(builder, {
+      select: (cols: string) => {
+        isMineQuery = cols === 'cp_formula_version';
+        return builder;
+      },
+      eq: (column: string, value: unknown) => {
+        log.eq.push([column, value]);
+        return builder;
+      },
+      gt: (column: string, value: unknown) => {
+        log.gt.push([column, value]);
+        return builder;
+      },
+      maybeSingle: () => Promise.resolve({ data: mine, error: null }),
+      limit: () => Promise.resolve({ data: isMineQuery ? [] : above, error: null }),
+    });
+    const client = { from: () => builder } as unknown as SupabaseClient;
+    return { client, log };
+  }
+
+  const rival = {
+    level: 78,
+    class_id: 'swordsman' as const,
+    combat_power: 95_000,
+    cp_formula_version: CP_FORMULA_VERSION,
+  };
+
+  it('没登录时不给名次，而不是给第 1 名', async () => {
+    const { client } = rankStub(null, []);
+    expect(await fetchMyPowerRank(client, null, 90_000)).toEqual({ kind: 'unranked' });
+  });
+
+  it('查无档案时不给名次', async () => {
+    const { client } = rankStub(null, []);
+    expect(await fetchMyPowerRank(client, 'me', 90_000)).toEqual({ kind: 'unranked' });
+  });
+
+  it('★ 我的战力还是旧公式量的：明说不可比，不编一个名次出来', async () => {
+    const { client } = rankStub({ cp_formula_version: CP_FORMULA_VERSION - 1 }, [rival]);
+    expect(await fetchMyPowerRank(client, 'me', 90_000)).toEqual({ kind: 'staleFormula' });
+  });
+
+  it('比我高的人数 + 1', async () => {
+    const { client } = rankStub({ cp_formula_version: CP_FORMULA_VERSION }, [rival, rival]);
+    expect(await fetchMyPowerRank(client, 'me', 90_000)).toEqual({
+      kind: 'ranked',
+      rank: 3,
+      exact: true,
+    });
+  });
+
+  it('★ 排在我上面的伪造行不算进名次 —— 与列表用同一道上界过滤', async () => {
+    const forgedAbove = { ...rival, combat_power: 999_999_999 };
+    const { client } = rankStub({ cp_formula_version: CP_FORMULA_VERSION }, [forgedAbove, rival]);
+
+    // 两行都比我高，但伪造那行会被上界剔掉，所以是第 2 名不是第 3 名
+    expect(await fetchMyPowerRank(client, 'me', 90_000)).toEqual({
+      kind: 'ranked',
+      rank: 2,
+      exact: true,
+    });
+  });
+
+  it('★ 只数当前公式版本的人', async () => {
+    const { client, log } = rankStub({ cp_formula_version: CP_FORMULA_VERSION }, []);
+
+    await fetchMyPowerRank(client, 'me', 90_000);
+
+    expect(log.eq).toContainEqual(['cp_formula_version', CP_FORMULA_VERSION]);
+    expect(log.gt).toContainEqual(['combat_power', 90_000]);
   });
 });
 
