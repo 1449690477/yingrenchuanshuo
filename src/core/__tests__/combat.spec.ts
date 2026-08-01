@@ -514,12 +514,25 @@ describe('estimateDps / timeToKill', () => {
     // 玩家必须能撑到打完，否则测的就是「玩家被打死用了多久」而不是击杀时间。
     // Lv30 怪攻击约 2465，4000 血两下就没了 —— 这里给足生存属性。
     const build = () => makePlayer('p', 30, s({ atk: 3000, hp: 500000, def: 5000 }));
-    const expected = timeToKill(build(), mon(30));
-    const result = simulateFight(build(), mon(30), new Rng(555));
+    // 1～2 秒的单场战斗只有两三次攻击，拿它对比连续期望会被冷却取整与
+    // 一次暴击主导。把目标血量放大 10 倍，再对 32 个固定种子取均值，测的才是
+    // 「随机模拟长期均值 ≈ 无随机期望」，而不是某一场的手气。
+    const target = () => {
+      const monster = mon(30);
+      monster.stats = { ...monster.stats, hp: monster.stats.hp * 10 };
+      monster.currentHp = monster.stats.hp;
+      return monster;
+    };
+    const expected = timeToKill(build(), target());
+    const results = Array.from({ length: 32 }, (_, seed) =>
+      simulateFight(build(), target(), new Rng(500 + seed)),
+    );
+    const meanDuration =
+      results.reduce((total, result) => total + result.duration, 0) / results.length;
 
-    expect(result.win).toBe(true);
-    expect(result.duration).toBeGreaterThan(expected * 0.6);
-    expect(result.duration).toBeLessThan(expected * 1.6);
+    expect(results.every((result) => result.win)).toBe(true);
+    expect(meanDuration).toBeGreaterThan(expected * 0.9);
+    expect(meanDuration).toBeLessThan(expected * 1.1);
   });
 });
 

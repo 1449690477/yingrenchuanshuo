@@ -40,8 +40,11 @@ import type { Stats } from './types';
  * 2 = 锚点化乘法投影（docs/73 批3-1，老板拍板 A）：combatPower 单参，参考怪与
  *     减伤分母钉固定锚点 Lv1。v1 行保持原值不参与排名，等玩家下次同步由
  *     sync-profile 用新公式重算并改写为 v2。
+ * 3 = 五职业真实技能和怪物节奏重标后的同形公式。公式代码形状没变，
+ *     但参考怪锚变了；线上 v2 数字不能与 v3 混排，等五个服务端写入点
+ *     下次同步时自然升到 v3。
  */
-export const CP_FORMULA_VERSION = 2;
+export const CP_FORMULA_VERSION = 3;
 
 /**
  * 公式指纹探针：一组固定的属性向量，**永远不要改动**。
