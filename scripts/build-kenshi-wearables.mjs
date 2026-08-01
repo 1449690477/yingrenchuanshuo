@@ -15,6 +15,24 @@ const LAYER_MAX_VISIBLE_MAE = 0.1;
 const DERIVED_MAX_VISIBLE_MAE = 0.5;
 const SOURCE_ROOT = 'art-source/characters/kenshi/wearables';
 const THEME_ATLAS = `${SOURCE_ROOT}/theme-equipment-atlas-alpha.png`;
+const WEARABLE_CONTACT_LAYOUT = Object.freeze({
+  columns: 4,
+  rows: 7,
+  cardWidth: 280,
+  cardHeight: 410,
+  previewHeight: 340,
+  cardCount: 28,
+  channels: 4,
+});
+const CONTACT_GUARD_LAYOUT = Object.freeze({
+  columns: 4,
+  rows: 7,
+  cardWidth: 16,
+  cardHeight: 16,
+  previewHeight: 16,
+  cardCount: 28,
+  channels: 4,
+});
 
 const transparentCanvas = () => ({
   create: {
@@ -28,26 +46,22 @@ const transparentCanvas = () => ({
 const runtimeWearables = [
   {
     source: 'public/assets/equipment/arena/kenshi/blinkbloom-boundary-katana.png',
-    output:
-      'public/assets/characters/modular/arena/kenshi/blinkbloom-boundary-katana.png',
+    output: 'public/assets/characters/modular/arena/kenshi/blinkbloom-boundary-katana.png',
     slot: 'weapon',
   },
   {
     source: 'public/assets/equipment/arena/kenshi/blinkbloom-snowear-crown.png',
-    output:
-      'public/assets/characters/modular/arena/kenshi/blinkbloom-snowear-crown.png',
+    output: 'public/assets/characters/modular/arena/kenshi/blinkbloom-snowear-crown.png',
     slot: 'head',
   },
   {
     source: `${SOURCE_ROOT}/arena-whitefeather-body.png`,
-    output:
-      'public/assets/characters/modular/arena/kenshi/blinkbloom-whitefeather-garb.png',
+    output: 'public/assets/characters/modular/arena/kenshi/blinkbloom-whitefeather-garb.png',
     slot: 'body',
   },
   {
     source: 'public/assets/equipment/arena/kenshi/blinkbloom-return-ring.png',
-    output:
-      'public/assets/characters/modular/arena/kenshi/blinkbloom-return-ring.png',
+    output: 'public/assets/characters/modular/arena/kenshi/blinkbloom-return-ring.png',
     slot: 'ring',
   },
   ...[
@@ -66,14 +80,12 @@ const runtimeWearables = [
   })),
   {
     source: `${SOURCE_ROOT}/affection-guardian-body.png`,
-    output:
-      'public/assets/characters/modular/affection/kenshi/white-feather-guardian-kimono.png',
+    output: 'public/assets/characters/modular/affection/kenshi/white-feather-guardian-kimono.png',
     slot: 'body',
   },
   {
     source: `${SOURCE_ROOT}/affection-moonblue-body.png`,
-    output:
-      'public/assets/characters/modular/affection/kenshi/moonblue-lantern-date-kimono.png',
+    output: 'public/assets/characters/modular/affection/kenshi/moonblue-lantern-date-kimono.png',
     slot: 'body',
   },
 ];
@@ -139,10 +151,7 @@ function ensureParent(path) {
 }
 
 async function decodedRgba(input) {
-  return sharp(input)
-    .ensureAlpha()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
+  return sharp(input).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
 }
 
 function alphaBounds(data, info, threshold = 20) {
@@ -182,6 +191,71 @@ function visibleMeanAbsoluteError(left, right, includePixel = () => true) {
   return comparedChannels === 0 ? 0 : total / comparedChannels;
 }
 
+function assertContactLayout(info, layout, label) {
+  const integerKeys = [
+    'columns',
+    'rows',
+    'cardWidth',
+    'cardHeight',
+    'previewHeight',
+    'cardCount',
+    'channels',
+  ];
+  if (integerKeys.some((key) => !Number.isInteger(layout[key]) || layout[key] <= 0)) {
+    throw new Error(`[樱酱可穿资产] 联系图布局参数无效：${label}`);
+  }
+  if (
+    layout.cardCount !== layout.columns * layout.rows ||
+    layout.previewHeight > layout.cardHeight ||
+    info.width !== layout.columns * layout.cardWidth ||
+    info.height !== layout.rows * layout.cardHeight ||
+    info.channels !== layout.channels
+  ) {
+    throw new Error(
+      `[樱酱可穿资产] 联系图布局不一致：${label}（${info.width}×${info.height}×${info.channels}，应为 ${layout.columns * layout.cardWidth}×${layout.rows * layout.cardHeight}×${layout.channels} / ${layout.cardCount} 卡）`,
+    );
+  }
+}
+
+function maxVisibleMeanAbsoluteErrorByGroup(left, right, layout, label) {
+  if (left.data.length !== right.data.length) {
+    return { value: Number.POSITIVE_INFINITY, group: null };
+  }
+  assertContactLayout(left.info, layout, `${label}/actual`);
+  assertContactLayout(right.info, layout, `${label}/rebuilt`);
+  const totals = Array.from({ length: layout.cardCount }, () => 0);
+  const comparedChannels = Array.from({ length: layout.cardCount }, () => 0);
+  for (let index = 0; index < left.data.length; index += 4) {
+    const pixel = index / 4;
+    const x = pixel % left.info.width;
+    const y = Math.floor(pixel / left.info.width);
+    if (y % layout.cardHeight >= layout.previewHeight) continue;
+    const group =
+      Math.floor(y / layout.cardHeight) * layout.columns + Math.floor(x / layout.cardWidth);
+    const leftAlpha = left.data[index + 3] / 255;
+    const rightAlpha = right.data[index + 3] / 255;
+    const difference =
+      Math.abs(left.data[index] * leftAlpha - right.data[index] * rightAlpha) +
+      Math.abs(left.data[index + 1] * leftAlpha - right.data[index + 1] * rightAlpha) +
+      Math.abs(left.data[index + 2] * leftAlpha - right.data[index + 2] * rightAlpha) +
+      Math.abs(left.data[index + 3] - right.data[index + 3]);
+    totals[group] += difference;
+    comparedChannels[group] += 4;
+  }
+  let worst = { value: 0, group: null };
+  const expectedChannels = layout.cardWidth * layout.previewHeight * layout.channels;
+  for (let group = 0; group < layout.cardCount; group += 1) {
+    if (comparedChannels[group] !== expectedChannels) {
+      throw new Error(
+        `[樱酱可穿资产] 联系图分组不完整：${label}（group=${group}，channels=${comparedChannels[group]}，应为 ${expectedChannels}）`,
+      );
+    }
+    const value = totals[group] / comparedChannels[group];
+    if (value > worst.value) worst = { value, group };
+  }
+  return worst;
+}
+
 function boundsDelta(left, right) {
   if (left === null || right === null) return left === right ? 0 : Number.POSITIVE_INFINITY;
   return Math.max(
@@ -196,7 +270,7 @@ async function assertVisualEquivalent(
   actualInput,
   rebuiltInput,
   label,
-  { maxVisibleMae = LAYER_MAX_VISIBLE_MAE, maxBoundsDelta = 2, includePixel } = {},
+  { maxVisibleMae = LAYER_MAX_VISIBLE_MAE, maxBoundsDelta = 2, includePixel, contactLayout } = {},
 ) {
   // sharp/libvips 的调色板量化在 Windows 与 Linux 上会产生肉眼不可见的取整差异。
   // 因此跨平台门禁比较真正影响游戏画面的 RGBA、尺寸和锚点轮廓；0.1 与 2px
@@ -208,14 +282,17 @@ async function assertVisualEquivalent(
       `[樱酱可穿资产] 重建尺寸不一致：${label}（${actual.info.width}×${actual.info.height} / ${rebuilt.info.width}×${rebuilt.info.height}）`,
     );
   }
-  const visibleMae = visibleMeanAbsoluteError(actual, rebuilt, includePixel);
+  const groupedMae = contactLayout
+    ? maxVisibleMeanAbsoluteErrorByGroup(actual, rebuilt, contactLayout, label)
+    : { value: visibleMeanAbsoluteError(actual, rebuilt, includePixel), group: null };
+  const visibleMae = groupedMae.value;
   const outlineDelta = boundsDelta(
     alphaBounds(actual.data, actual.info),
     alphaBounds(rebuilt.data, rebuilt.info),
   );
   if (visibleMae > maxVisibleMae || outlineDelta > maxBoundsDelta) {
     throw new Error(
-      `[樱酱可穿资产] 非确定性或未重建：${label}（visibleMAE=${visibleMae.toFixed(3)}，bboxDelta=${outlineDelta}）`,
+      `[樱酱可穿资产] 非确定性或未重建：${label}（visibleMAE=${visibleMae.toFixed(3)}${groupedMae.group === null ? '' : `，group=${groupedMae.group}`}，bboxDelta=${outlineDelta}）`,
     );
   }
 }
@@ -235,14 +312,58 @@ async function guardFixture({ width = 16, height = 16, left = 4, top = 4, color 
       data[offset + 3] = 255;
     }
   }
-  return sharp(data, { raw: { width, height, channels: 4 } }).png().toBuffer();
+  return sharp(data, { raw: { width, height, channels: 4 } })
+    .png()
+    .toBuffer();
 }
 
-async function expectVisualGuardRejects(name, actual, rebuilt, options) {
+async function contactGuardFixture({ changedCard = null, color = [255, 64, 96], shift = 0 } = {}) {
+  const layout = CONTACT_GUARD_LAYOUT;
+  const width = layout.columns * layout.cardWidth;
+  const height = layout.rows * layout.cardHeight;
+  const data = Buffer.alloc(width * height * layout.channels);
+  for (let offset = 0; offset < data.length; offset += layout.channels) {
+    data[offset] = 238;
+    data[offset + 1] = 238;
+    data[offset + 2] = 238;
+    data[offset + 3] = 255;
+  }
+  for (let card = 0; card < layout.cardCount; card += 1) {
+    const cardLeft = (card % layout.columns) * layout.cardWidth;
+    const cardTop = Math.floor(card / layout.columns) * layout.cardHeight;
+    const cardColor = card === changedCard ? color : [255, 64, 96];
+    const cardShift = card === changedCard ? shift : 0;
+    const drawLeft = cardLeft + 4 + cardShift;
+    const drawRight = cardLeft + 12 + cardShift;
+    if (drawLeft < cardLeft || drawRight > cardLeft + layout.cardWidth) {
+      throw new Error(`[樱酱可穿资产] 联系图测试图形越出 card=${card}`);
+    }
+    for (let y = cardTop + 4; y < cardTop + 12; y += 1) {
+      for (let x = drawLeft; x < drawRight; x += 1) {
+        const offset = (y * width + x) * layout.channels;
+        data[offset] = cardColor[0];
+        data[offset + 1] = cardColor[1];
+        data[offset + 2] = cardColor[2];
+        data[offset + 3] = 255;
+      }
+    }
+  }
+  return sharp(data, { raw: { width, height, channels: layout.channels } })
+    .png()
+    .toBuffer();
+}
+
+async function expectVisualGuardRejects(name, actual, rebuilt, options, expectedMessageParts) {
   let rejected = false;
   try {
     await assertVisualEquivalent(actual, rebuilt, `门禁破坏样本/${name}`, options);
-  } catch {
+  } catch (error) {
+    if (
+      !(error instanceof Error) ||
+      !expectedMessageParts.every((part) => error.message.includes(part))
+    ) {
+      throw error;
+    }
     rejected = true;
   }
   if (!rejected) throw new Error(`[樱酱可穿资产] 可见等价门禁未拒绝破坏样本：${name}`);
@@ -257,18 +378,43 @@ async function verifyVisualComparisonGuard() {
     base,
     await guardFixture({ color: [64, 96, 255] }),
     derivedThreshold,
+    ['非确定性或未重建'],
   );
   await expectVisualGuardRejects(
     '明显位移',
     base,
     await guardFixture({ left: 7, top: 4, color: [255, 64, 96] }),
     derivedThreshold,
+    ['非确定性或未重建'],
   );
   await expectVisualGuardRejects(
     '尺寸变化',
     base,
     await guardFixture({ width: 17, color: [255, 64, 96] }),
     derivedThreshold,
+    ['重建尺寸不一致'],
+  );
+
+  const contactBase = await contactGuardFixture();
+  const contactPolicy = {
+    maxVisibleMae: DERIVED_MAX_VISIBLE_MAE,
+    maxBoundsDelta: 0,
+    contactLayout: CONTACT_GUARD_LAYOUT,
+  };
+  await assertVisualEquivalent(contactBase, contactBase, '联系图逐卡同图自检', contactPolicy);
+  await expectVisualGuardRejects(
+    '联系图单卡明显改色',
+    contactBase,
+    await contactGuardFixture({ changedCard: 0, color: [64, 96, 255] }),
+    contactPolicy,
+    ['非确定性或未重建', 'group=0'],
+  );
+  await expectVisualGuardRejects(
+    '联系图单卡 3px 位移',
+    contactBase,
+    await contactGuardFixture({ changedCard: 0, shift: 3 }),
+    contactPolicy,
+    ['非确定性或未重建', 'group=0'],
   );
 }
 
@@ -279,9 +425,7 @@ async function canonicalPng(buffer) {
     metadata.width === CANVAS.width && metadata.height === CANVAS.height
       ? image
       : image.resize(CANVAS.width, CANVAS.height, { fit: 'fill' });
-  return normalized
-    .png({ compressionLevel: 9, palette: true, quality: 92 })
-    .toBuffer();
+  return normalized.png({ compressionLevel: 9, palette: true, quality: 92 }).toBuffer();
 }
 
 async function writeOrCheck(path, buffer) {
@@ -357,9 +501,7 @@ async function cleanLargestComponent(input) {
 async function buildVariantMaster(familyIndex, slot) {
   const metadata = await sharp(abs(THEME_ATLAS)).metadata();
   if (!metadata.width || !metadata.height || metadata.width < 1700 || metadata.height < 850) {
-    throw new Error(
-      `[樱酱可穿资产] 主题装备图集尺寸异常：${metadata.width}×${metadata.height}`,
-    );
+    throw new Error(`[樱酱可穿资产] 主题装备图集尺寸异常：${metadata.width}×${metadata.height}`);
   }
 
   const left = Math.round((familyIndex * metadata.width) / variantFamilies.length);
@@ -467,9 +609,7 @@ async function snowstepSandalsLayer() {
       </g>
     </svg>
   `);
-  return sharp(source)
-    .png({ compressionLevel: 9, palette: true, quality: 94 })
-    .toBuffer();
+  return sharp(source).png({ compressionLevel: 9, palette: true, quality: 94 }).toBuffer();
 }
 
 async function weaponIcon(source) {
@@ -535,12 +675,14 @@ async function buildContactSheet() {
   for (const entry of [...variantRuntimeWearables, ...runtimeWearables]) {
     cards.push(await wearablePreview(entry));
   }
-  const columns = 4;
-  const rows = Math.ceil(cards.length / columns);
+  const layout = WEARABLE_CONTACT_LAYOUT;
+  if (cards.length !== layout.cardCount) {
+    throw new Error(`[樱酱可穿资产] 联系图卡数不一致：${cards.length}，应为 ${layout.cardCount}`);
+  }
   const canvas = sharp({
     create: {
-      width: columns * 280,
-      height: rows * 410,
+      width: layout.columns * layout.cardWidth,
+      height: layout.rows * layout.cardHeight,
       channels: 4,
       background: { r: 236, g: 243, b: 252, alpha: 1 },
     },
@@ -549,8 +691,8 @@ async function buildContactSheet() {
     .composite(
       cards.map((input, index) => ({
         input,
-        left: (index % columns) * 280,
-        top: Math.floor(index / columns) * 410,
+        left: (index % layout.columns) * layout.cardWidth,
+        top: Math.floor(index / layout.columns) * layout.cardHeight,
       })),
     )
     .png({ compressionLevel: 9, palette: true, quality: 92 })
@@ -566,7 +708,7 @@ async function buildContactSheet() {
     await assertVisualRebuild(path, output, {
       maxVisibleMae: DERIVED_MAX_VISIBLE_MAE,
       maxBoundsDelta: 0,
-      includePixel: (_x, y) => y % 410 < 340,
+      contactLayout: layout,
     });
     return;
   }
@@ -623,7 +765,7 @@ async function build() {
         ? await normalizedBody(entry.source)
         : entry.slot === 'shoes'
           ? await snowstepSandalsLayer()
-        : await iconLayer(entry.source, entry.slot);
+          : await iconLayer(entry.source, entry.slot);
     await writeOrCheck(entry.output, output);
   }
   await buildContactSheet();

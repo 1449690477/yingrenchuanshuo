@@ -10,6 +10,24 @@ const ROOT = resolve('.');
 const CHECK = process.argv.includes('--check');
 const SOURCE_ROOT = 'art-source/characters/kenshi/affection';
 const CONTACT_PREVIEW_MAX_MAE = 0.5;
+const STORY_CONTACT_LAYOUT = Object.freeze({
+  columns: 4,
+  rows: 4,
+  cardWidth: 320,
+  cardHeight: 250,
+  previewHeight: 215,
+  cardCount: 16,
+  channels: 3,
+});
+const CONTACT_GUARD_LAYOUT = Object.freeze({
+  columns: 4,
+  rows: 4,
+  cardWidth: 16,
+  cardHeight: 16,
+  previewHeight: 16,
+  cardCount: 16,
+  channels: 3,
+});
 
 const WIDE_RECTS = [
   { left: 7, top: 8, width: 705, height: 523 },
@@ -90,32 +108,131 @@ async function pixelDigest(input) {
   return digest(Buffer.concat([Buffer.from(`${info.width}x${info.height}:`), data]));
 }
 
-async function assertContactPreviewEquivalent(path, rebuilt) {
-  const actual = await decodedRgb(abs(path));
-  const expected = await decodedRgb(rebuilt);
+function assertDecodedContactPreviewEquivalent(actual, expected, label, layout) {
   if (actual.info.width !== expected.info.width || actual.info.height !== expected.info.height) {
     throw new Error(
       `[樱酱剧情美术] 联系图尺寸不一致：${actual.info.width}×${actual.info.height} / ${expected.info.width}×${expected.info.height}`,
     );
   }
-  let total = 0;
-  let channels = 0;
-  for (let index = 0; index < actual.data.length; index += 3) {
-    const pixel = index / 3;
-    const y = Math.floor(pixel / actual.info.width);
-    // 每张 250px 卡片的场景预览止于 211px；底部文字依赖系统字体，不参与像素门禁。
-    if (y % 250 >= 215) continue;
-    total += Math.abs(actual.data[index] - expected.data[index]);
-    total += Math.abs(actual.data[index + 1] - expected.data[index + 1]);
-    total += Math.abs(actual.data[index + 2] - expected.data[index + 2]);
-    channels += 3;
+  const integerKeys = [
+    'columns',
+    'rows',
+    'cardWidth',
+    'cardHeight',
+    'previewHeight',
+    'cardCount',
+    'channels',
+  ];
+  if (integerKeys.some((key) => !Number.isInteger(layout[key]) || layout[key] <= 0)) {
+    throw new Error(`[樱酱剧情美术] 联系图布局参数无效：${label}`);
   }
-  const mae = channels === 0 ? 0 : total / channels;
-  if (mae > CONTACT_PREVIEW_MAX_MAE) {
+  if (
+    layout.cardCount !== layout.columns * layout.rows ||
+    layout.previewHeight > layout.cardHeight ||
+    actual.info.width !== layout.columns * layout.cardWidth ||
+    actual.info.height !== layout.rows * layout.cardHeight ||
+    actual.info.channels !== layout.channels ||
+    expected.info.channels !== layout.channels
+  ) {
     throw new Error(
-      `[樱酱剧情美术] 联系图预览未更新：${path}（visibleMAE=${mae.toFixed(3)}）`,
+      `[樱酱剧情美术] 联系图布局不一致：${label}（${actual.info.width}×${actual.info.height}×${actual.info.channels}，应为 ${layout.columns * layout.cardWidth}×${layout.rows * layout.cardHeight}×${layout.channels} / ${layout.cardCount} 卡）`,
     );
   }
+  const totals = Array.from({ length: layout.cardCount }, () => 0);
+  const channels = Array.from({ length: layout.cardCount }, () => 0);
+  for (let index = 0; index < actual.data.length; index += 3) {
+    const pixel = index / 3;
+    const x = pixel % actual.info.width;
+    const y = Math.floor(pixel / actual.info.width);
+    if (y % layout.cardHeight >= layout.previewHeight) continue;
+    const card =
+      Math.floor(y / layout.cardHeight) * layout.columns + Math.floor(x / layout.cardWidth);
+    totals[card] += Math.abs(actual.data[index] - expected.data[index]);
+    totals[card] += Math.abs(actual.data[index + 1] - expected.data[index + 1]);
+    totals[card] += Math.abs(actual.data[index + 2] - expected.data[index + 2]);
+    channels[card] += 3;
+  }
+  const expectedChannels = layout.cardWidth * layout.previewHeight * layout.channels;
+  const cardMae = totals.map((total, card) => {
+    if (channels[card] !== expectedChannels) {
+      throw new Error(
+        `[樱酱剧情美术] 联系图分组不完整：${label}（card=${card}，channels=${channels[card]}，应为 ${expectedChannels}）`,
+      );
+    }
+    return { card, value: total / channels[card] };
+  });
+  const worst = cardMae.reduce(
+    (current, candidate) => (candidate.value > current.value ? candidate : current),
+    { card: 0, value: 0 },
+  );
+  const mae = worst.value;
+  if (mae > CONTACT_PREVIEW_MAX_MAE) {
+    throw new Error(
+      `[樱酱剧情美术] 联系图预览未更新：${label}（card=${worst.card}，visibleMAE=${mae.toFixed(3)}）`,
+    );
+  }
+}
+
+async function assertContactPreviewEquivalent(path, rebuilt) {
+  assertDecodedContactPreviewEquivalent(
+    await decodedRgb(abs(path)),
+    await decodedRgb(rebuilt),
+    path,
+    STORY_CONTACT_LAYOUT,
+  );
+}
+
+function contactGuardFixture({ changedCard = null, color = [255, 64, 96], shift = 0 } = {}) {
+  const layout = CONTACT_GUARD_LAYOUT;
+  const width = layout.columns * layout.cardWidth;
+  const height = layout.rows * layout.cardHeight;
+  const data = Buffer.alloc(width * height * layout.channels, 238);
+  for (let card = 0; card < layout.cardCount; card += 1) {
+    const cardLeft = (card % layout.columns) * layout.cardWidth;
+    const cardTop = Math.floor(card / layout.columns) * layout.cardHeight;
+    const cardColor = card === changedCard ? color : [255, 64, 96];
+    const cardShift = card === changedCard ? shift : 0;
+    const drawLeft = cardLeft + 4 + cardShift;
+    const drawRight = cardLeft + 12 + cardShift;
+    if (drawLeft < cardLeft || drawRight > cardLeft + layout.cardWidth) {
+      throw new Error(`[樱酱剧情美术] 联系图测试图形越出 card=${card}`);
+    }
+    for (let y = cardTop + 4; y < cardTop + 12; y += 1) {
+      for (let x = drawLeft; x < drawRight; x += 1) {
+        const offset = (y * width + x) * layout.channels;
+        data[offset] = cardColor[0];
+        data[offset + 1] = cardColor[1];
+        data[offset + 2] = cardColor[2];
+      }
+    }
+  }
+  return { data, info: { width, height, channels: layout.channels }, layout };
+}
+
+function expectContactGuardRejects(name, actual, rebuilt, layout) {
+  let rejected = false;
+  try {
+    assertDecodedContactPreviewEquivalent(actual, rebuilt, `门禁破坏样本/${name}`, layout);
+  } catch (error) {
+    if (
+      !(error instanceof Error) ||
+      !error.message.includes('联系图预览未更新') ||
+      !error.message.includes('card=0')
+    ) {
+      throw error;
+    }
+    rejected = true;
+  }
+  if (!rejected) throw new Error(`[樱酱剧情美术] 联系图逐卡门禁未拒绝：${name}`);
+}
+
+function verifyContactComparisonGuard() {
+  const base = contactGuardFixture();
+  assertDecodedContactPreviewEquivalent(base, base, '联系图逐卡同图自检', base.layout);
+  const recolored = contactGuardFixture({ changedCard: 0, color: [64, 96, 255] });
+  expectContactGuardRejects('单卡明显改色', base, recolored, base.layout);
+  const shifted = contactGuardFixture({ changedCard: 0, shift: 3 });
+  expectContactGuardRejects('单卡 3px 位移', base, shifted, base.layout);
 }
 
 async function panelBuffer(source, rect) {
@@ -155,20 +272,21 @@ for (const sheet of sheets) {
     );
   }
   for (let index = 0; index < sheet.outputs.length; index += 1) {
-    await writeOrCheck(
-      sheet.outputs[index],
-      await panelBuffer(sheet.source, sheet.rects[index]),
-    );
+    await writeOrCheck(sheet.outputs[index], await panelBuffer(sheet.source, sheet.rects[index]));
   }
 }
 
 async function buildContactSheet() {
   const outputs = sheets.flatMap((sheet) => sheet.outputs);
+  const layout = STORY_CONTACT_LAYOUT;
+  if (outputs.length !== layout.cardCount) {
+    throw new Error(`[樱酱剧情美术] 联系图卡数不一致：${outputs.length}，应为 ${layout.cardCount}`);
+  }
   const cards = [];
   for (const path of outputs) {
     const slug = path.split('/').pop().replace('.webp', '');
     const label = Buffer.from(
-      `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="250"><rect width="320" height="250" fill="#eef4fc"/><text x="160" y="238" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#302947">${slug}</text></svg>`,
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${layout.cardWidth}" height="${layout.cardHeight}"><rect width="${layout.cardWidth}" height="${layout.cardHeight}" fill="#eef4fc"/><text x="${layout.cardWidth / 2}" y="238" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#302947">${slug}</text></svg>`,
     );
     const scene = await sharp(abs(path))
       .resize(308, 205, { fit: 'cover', position: 'centre' })
@@ -183,8 +301,8 @@ async function buildContactSheet() {
   }
   const contact = await sharp({
     create: {
-      width: 1280,
-      height: 1000,
+      width: layout.columns * layout.cardWidth,
+      height: layout.rows * layout.cardHeight,
       channels: 4,
       background: { r: 238, g: 244, b: 252, alpha: 1 },
     },
@@ -192,8 +310,8 @@ async function buildContactSheet() {
     .composite(
       cards.map((input, index) => ({
         input,
-        left: (index % 4) * 320,
-        top: Math.floor(index / 4) * 250,
+        left: (index % layout.columns) * layout.cardWidth,
+        top: Math.floor(index / layout.columns) * layout.cardHeight,
       })),
     )
     .png({ compressionLevel: 9, palette: true, quality: 92 })
@@ -211,6 +329,7 @@ async function buildContactSheet() {
   }
 }
 
+if (CHECK) verifyContactComparisonGuard();
 await buildContactSheet();
 
 console.log(
