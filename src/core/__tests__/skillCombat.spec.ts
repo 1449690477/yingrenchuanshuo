@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { simulateFight } from '../combat';
+import { combatPressure, estimateDps, simulateFight } from '../combat';
 import { Rng } from '../rng';
 import {
   createSkillCombatKit,
@@ -234,6 +234,105 @@ describe('通用技能战斗状态机', () => {
     const periodicHits = result.events.filter((event) => event.event.kind === 'periodic-damage');
     expect(periodicHits.some((event) => event.targetSummonId === undefined)).toBe(true);
     expect(periodicHits.some((event) => event.targetSummonId === 'wall')).toBe(true);
+  });
+
+  it('挂机估算跨目标保留技能冷却，开场击杀后仍会轮到低优先级召唤技', () => {
+    const opener: Skill = {
+      id: 'opener',
+      name: '开场斩',
+      class: 'shaman',
+      type: 'active',
+      element: 'none',
+      unlockLevel: 1,
+      cooldownSec: 60,
+      priority: 100,
+      effects: [
+        { kind: 'damage', target: { kind: 'primary-enemy' }, multiplier: { base: 10 } },
+      ],
+      icon: '',
+      desc: '',
+    };
+    const summon: Skill = {
+      id: 'summon-helper',
+      name: '召唤助手',
+      class: 'shaman',
+      type: 'active',
+      element: 'none',
+      unlockLevel: 1,
+      cooldownSec: 60,
+      priority: 90,
+      effects: [{ kind: 'summon', summonId: 'helper', durationSec: 120 }],
+      icon: '',
+      desc: '',
+    };
+    const helper: SkillSummonDefinition = {
+      id: 'helper',
+      attackMultiplier: 10,
+      attackIntervalSec: 0.5,
+      element: 'none',
+      damageable: false,
+      maxConcurrent: 1,
+    };
+    const player = fighter('召唤者', { atk: 100, spd: 1 });
+    const target = fighter('小怪', { hp: 50, def: 0, spd: 0.01 });
+    const openerOnly = estimateDps(
+      player,
+      target,
+      1,
+      [],
+      createSkillCombatKit([opener], 1),
+    );
+    const fullRotation = estimateDps(
+      player,
+      target,
+      1,
+      [],
+      createSkillCombatKit([opener, summon], 1, { summons: [helper] }),
+    );
+    expect(fullRotation).toBeGreaterThan(openerOnly * 2);
+  });
+
+  it('挂机承伤读取技能被动的真实吸血潜力，不因模拟时满血而误算为零', () => {
+    const attack: Skill = {
+      id: 'attack',
+      name: '攻击',
+      class: 'shaman',
+      type: 'active',
+      element: 'none',
+      unlockLevel: 1,
+      cooldownSec: 1,
+      priority: 10,
+      effects: [
+        { kind: 'damage', target: { kind: 'primary-enemy' }, multiplier: { base: 1 } },
+      ],
+      icon: '',
+      desc: '',
+    };
+    const lifesteal: Skill = {
+      id: 'lifesteal',
+      name: '噬血',
+      class: 'shaman',
+      type: 'passive',
+      element: 'none',
+      unlockLevel: 1,
+      effects: [
+        {
+          kind: 'modifier',
+          target: { kind: 'self' },
+          modifier: { unit: 'percentage-points', stat: 'lifesteal', points: { base: 50 } },
+        },
+      ],
+      icon: '',
+      desc: '',
+    };
+    const pressure = combatPressure(
+      fighter('灵巫', { atk: 100, spd: 1 }),
+      fighter('目标', { hp: 1_000, def: 0, atk: 50, spd: 1 }),
+      1,
+      { playerSkillKit: createSkillCombatKit([attack, lifesteal], 1) },
+    );
+    expect(pressure.lifestealPerSecond).toBeGreaterThan(0);
+    expect(pressure.lifestealPerSecond).toBeCloseTo(pressure.playerDps * 0.5, 5);
   });
 
   it('斩杀在本次伤害前读取血线，并由已装备的升级被动完整替换阈值与加成', () => {

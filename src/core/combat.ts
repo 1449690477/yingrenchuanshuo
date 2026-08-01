@@ -80,6 +80,8 @@ import { IDLE_FREE_DAMAGE_RATIO, IDLE_SUSTAIN_HINT_EFFICIENCY } from '@/data/con
 
 /** 单场战斗的时间上限（秒），防止打不动时死循环 */
 const MAX_FIGHT_SECONDS = 300;
+/** 挂机技能轮转取两个完整 60 秒长冷却周期，兼顾稳态精度与前台计算成本。 */
+const SKILL_ESTIMATE_SECONDS = 120;
 
 /** 模拟步长（秒）。0.1 秒足够精确，且 300 秒战斗只要 3000 步。 */
 const TICK = 0.1;
@@ -113,6 +115,8 @@ export interface FightOptions {
   monsterOnCritTriggers?: readonly OnCritPeriodicDamageTrigger[];
   /** 时间上限 */
   maxSeconds?: number;
+  /** 挂机轮转估算专用：目标死亡后以同一满血模板继续，技能冷却不重置。 */
+  repeatTargetOnDefeat?: boolean;
 }
 
 export interface DirectDamageSegmentEvent {
@@ -184,6 +188,8 @@ export interface SimulatedFightResult extends CombatResult {
   /** 被动生命修正后的真实战斗上限；没有技能栏时等于 Combatant.stats.hp。 */
   playerMaxHp: number;
   monsterMaxHp: number;
+  /** 未受当前生命缺口截断的真实吸血潜力；挂机承伤模型直接读取。 */
+  lifestealPotential: number;
 }
 
 export interface CombatEstimateOptions {
@@ -299,9 +305,11 @@ export function simulateFight(
   let monsterCd = 0;
   let damageDealt = 0;
   let damageTaken = 0;
+  let lifestealPotential = 0;
+  let kills = 0;
   const events: CombatTimelineEvent[] = [];
   const playerLethalUses = createLethalTriggerUses(opts.playerOnLethalTriggers);
-  const monsterLethalUses = createLethalTriggerUses(opts.monsterOnLethalTriggers);
+  let monsterLethalUses = createLethalTriggerUses(opts.monsterOnLethalTriggers);
   let playerPeriodicDamage = createPeriodicDamageState();
   let monsterPeriodicDamage = createPeriodicDamageState();
   let playerSkillState = createSkillCombatState(opts.playerSkillKit ?? EMPTY_SKILL_KIT);
@@ -635,7 +643,7 @@ export function simulateFight(
     hitIndex?: number,
     hitCount?: number,
     allowTriggers = true,
-  ): { damage: number; directCrit: boolean } => {
+  ): { damage: number; directCrit: boolean; lifestealPotential: number } => {
     const target = opposite(source);
     const decorated: DamageSegmentResolution = {
       direct: { ...rawResolution.direct, ...(skillId ? { skillId, hitIndex, hitCount } : {}) },
@@ -688,7 +696,12 @@ export function simulateFight(
     allowTriggers = true,
     onHitFormulaOptions: DamageFormulaOptions = formulaOptions,
     targetSummonId?: string,
-  ): { damage: number; directCrit: boolean; targetSummonId?: string } => {
+  ): {
+    damage: number;
+    directCrit: boolean;
+    lifestealPotential: number;
+    targetSummonId?: string;
+  } => {
     const target = opposite(source);
     const resolvedTargetSummonId = targetSummonId
     const targetSummon = resolvedTargetSummonId
@@ -777,6 +790,7 @@ export function simulateFight(
         events,
       );
       combatantOf(source).currentHp = sourceView.currentHp;
+      lifestealPotential += applied.lifestealPotential;
       for (let index = timelineStart; index < events.length; index++) {
         events[index] = { ...events[index]!, targetSummonId: resolvedTargetSummonId };
       }
@@ -839,7 +853,7 @@ export function simulateFight(
       formulaOptions,
       onHitFormulaOptions,
     );
-    return applyDirectResolution(
+    const applied = applyDirectResolution(
       source,
       resolution,
       cast,
@@ -848,6 +862,8 @@ export function simulateFight(
       hitCount,
       allowTriggers,
     );
+    lifestealPotential += applied.lifestealPotential;
+    return applied;
   };
 
   const applyEquipmentCritTriggers = (
@@ -1406,6 +1422,18 @@ export function simulateFight(
     }
   };
 
+  const continueAfterTargetDefeat = (): boolean => {
+    if (monster.currentHp > 0) return true;
+    kills++;
+    if (!opts.repeatTargetOnDefeat) return false;
+    monster.currentHp = monsterMaxHp;
+    monsterCd = 0;
+    monsterPeriodicDamage = createPeriodicDamageState();
+    monsterSkillState = createSkillCombatState(opts.monsterSkillKit ?? EMPTY_SKILL_KIT);
+    monsterLethalUses = createLethalTriggerUses(opts.monsterOnLethalTriggers);
+    return true;
+  };
+
   while (ticks < maxTicks && player.currentHp > 0 && monster.currentHp > 0) {
     ticks++;
     const elapsedMs = ticks * TICK_MS;
@@ -1438,7 +1466,7 @@ export function simulateFight(
       );
       dispatchRuntimeEvent('monster', 'player', 'on-low-hp', cast, 'player');
     }
-    if (monster.currentHp <= 0) break;
+    if (!continueAfterTargetDefeat()) break;
 
     const playerPeriodicAdvance = applyPeriodicDamageAdvance(
       player,
@@ -1469,7 +1497,7 @@ export function simulateFight(
     advanceSummonPeriodics('player', elapsedMs);
     advanceSummonPeriodics('monster', elapsedMs);
     advanceSummons('player');
-    if (monster.currentHp <= 0) break;
+    if (!continueAfterTargetDefeat()) break;
     advanceSummons('monster');
     if (player.currentHp <= 0) break;
 
@@ -1479,7 +1507,7 @@ export function simulateFight(
       const primarySummonId =
         selectWeightedSummonTarget(monsterSkillState, rng) ?? undefined;
       if (!castSkill('player', primarySummonId)) basicAttack('player', pMul, primarySummonId);
-      if (monster.currentHp <= 0) break;
+      if (!continueAfterTargetDefeat()) break;
     }
 
     if (monsterCd <= 0 && skillControlBlockUntil(monsterSkillState) <= elapsedMs) {
@@ -1491,17 +1519,18 @@ export function simulateFight(
     }
   }
 
-  const win = monster.currentHp <= 0 && player.currentHp > 0;
+  const win = kills > 0 && player.currentHp > 0;
 
   return {
     win,
     duration: ticks * TICK,
     damageDealt,
     damageTaken,
-    kills: win ? 1 : 0,
+    kills,
     events,
     playerMaxHp,
     monsterMaxHp,
+    lifestealPotential,
   };
 }
 
@@ -1518,7 +1547,7 @@ export function estimateDps(
   targetType: MonsterType = 'normal',
 ): number {
   if (skillKit) {
-    return estimateRealSkillDps(player, monster, skillKit, onHitTriggers, targetType);
+    return estimateRealSkillRotation(player, monster, skillKit, onHitTriggers, targetType).dps;
   }
   return expectedDamageSegment(player, monster, skillMultiplier, onHitTriggers) * player.stats.spd;
 }
@@ -1562,11 +1591,14 @@ export function estimateLifestealPerSecond(
   targetType: MonsterType = 'normal',
 ): number {
   const lifestealPoints = player.combatBonuses?.lifesteal ?? 0;
-  // on-hit 追加段明确不吸血，因此这里只取直接伤害段期望，不能复用含触发的 estimateDps。
+  if (skillKit) {
+    return estimateRealSkillRotation(player, monster, skillKit, [], targetType)
+      .lifestealPerSecond;
+  }
+  // on-hit 追加段明确不吸血，因此这里只取直接伤害段期望。
   return (
-    (skillKit
-      ? estimateRealSkillDps(player, monster, skillKit, [], targetType)
-      : expectedDamage(player, monster, skillMultiplier) * player.stats.spd) *
+    expectedDamage(player, monster, skillMultiplier) *
+    player.stats.spd *
     (Math.max(0, lifestealPoints) / 100)
   );
 }
@@ -1602,22 +1634,22 @@ export function combatPressure(
   skillMultiplier = 1.0,
   options: CombatEstimateOptions = {},
 ): CombatPressure {
-  const playerDps = estimateDps(
-    player,
-    monster,
-    skillMultiplier,
-    options.playerOnHitTriggers,
-    options.playerSkillKit,
-    options.playerTargetType,
-  );
+  const skillEstimate = options.playerSkillKit
+    ? estimateRealSkillRotation(
+        player,
+        monster,
+        options.playerSkillKit,
+        options.playerOnHitTriggers ?? [],
+        options.playerTargetType ?? 'normal',
+      )
+    : undefined;
+  const playerDps =
+    skillEstimate?.dps ??
+    estimateDps(player, monster, skillMultiplier, options.playerOnHitTriggers);
   const incomingDps = estimateIncomingDps(player, monster, 1, options.monsterOnHitTriggers);
-  const lifestealPerSecond = estimateLifestealPerSecond(
-    player,
-    monster,
-    skillMultiplier,
-    options.playerSkillKit,
-    options.playerTargetType,
-  );
+  const lifestealPerSecond =
+    skillEstimate?.lifestealPerSecond ??
+    estimateLifestealPerSecond(player, monster, skillMultiplier);
   const fightSeconds =
     playerDps > 0 && monster.stats.hp > 0 ? monster.stats.hp / playerDps : Infinity;
   const netIncomingDps = Math.max(0, incomingDps - lifestealPerSecond);
@@ -1671,18 +1703,25 @@ export function canSustain(
 
 /**
  * 挂机期望不再另写一套“平均倍率”：用同一真实解释器跑两个固定种子样本，
- * 再取单位时间伤害。目标保留真实生命 / 防御 / 血线，所以斩杀、状态消费、
- * 冷却竞争和多段命中都会进入结果；只把目标攻击置 0，避免输出估算混入生存失败。
+ * 目标死亡后立刻以同模板复活，但玩家技能冷却 / 状态 / 召唤不重置。这样 120 秒内
+ * 会真实轮转所有技能，也保留每只怪的血线、斩杀、过量伤害、DOT 清除与多段截断；
+ * 只把目标攻击置 0，避免输出估算混入生存失败。
  */
-function estimateRealSkillDps(
+interface SkillRotationEstimate {
+  dps: number;
+  lifestealPerSecond: number;
+}
+
+function estimateRealSkillRotation(
   player: Combatant,
   monster: Combatant,
   skillKit: SkillCombatKit,
   onHitTriggers: readonly OnHitElementalDamageTrigger[],
   targetType: MonsterType,
-): number {
+): SkillRotationEstimate {
   const sampleSeeds = [0x51a7e11, 0x7b3d902] as const;
-  let total = 0;
+  let totalDps = 0;
+  let totalLifesteal = 0;
   for (const seed of sampleSeeds) {
     const source: Combatant = {
       ...player,
@@ -1711,14 +1750,20 @@ function estimateRealSkillDps(
         : {}),
     };
     const result = simulateFight(source, target, new Rng(seed), {
-      maxSeconds: MAX_FIGHT_SECONDS,
+      maxSeconds: SKILL_ESTIMATE_SECONDS,
+      repeatTargetOnDefeat: true,
       playerSkillKit: skillKit,
       playerTargetType: targetType,
       playerOnHitTriggers: onHitTriggers,
     });
-    total += result.duration > 0 ? result.damageDealt / result.duration : 0;
+    totalDps += result.duration > 0 ? result.damageDealt / result.duration : 0;
+    totalLifesteal +=
+      result.duration > 0 ? result.lifestealPotential / result.duration : 0;
   }
-  return total / sampleSeeds.length;
+  return {
+    dps: totalDps / sampleSeeds.length,
+    lifestealPerSecond: totalLifesteal / sampleSeeds.length,
+  };
 }
 
 /**
@@ -1729,6 +1774,7 @@ function estimateRealSkillDps(
 interface AppliedDamage {
   damage: number;
   recovery: LethalRecoveryEvent | null;
+  lifestealPotential: number;
 }
 
 function createLethalTriggerUses(
@@ -1756,11 +1802,13 @@ function applyDamageAndLifesteal(
   defender.currentHp = Math.max(0, defender.currentHp - actualDamage);
 
   const lifestealPoints = attacker.combatBonuses?.lifesteal ?? 0;
-  const healing = actualDamage * (Math.max(0, lifestealPoints) / 100);
+  const lifestealPotential = actualDamage * (Math.max(0, lifestealPoints) / 100);
+  const healing = lifestealPotential;
   attacker.currentHp = Math.min(attacker.stats.hp, attacker.currentHp + healing);
   return {
     damage: actualDamage,
     recovery: resolveLethalRecovery(defender, lethalTriggers, lethalUses),
+    lifestealPotential,
   };
 }
 
@@ -1772,8 +1820,9 @@ function applyDamageSegment(
   timeline: CombatTimelineEvent[],
   defenderLethalTriggers: readonly OnLethalRecoveryTrigger[] = [],
   defenderLethalUses: Map<string, number> = new Map(),
-): { damage: number; directCrit: boolean } {
+): { damage: number; directCrit: boolean; lifestealPotential: number } {
   let total = 0;
+  let lifestealPotential = 0;
   for (const event of resolution.events) {
     const applied =
       event.kind === 'direct-damage'
@@ -1792,6 +1841,7 @@ function applyDamageSegment(
           );
     const actualDamage = applied.damage;
     total += actualDamage;
+    lifestealPotential += applied.lifestealPotential;
 
     // 命中失败也作为直接段事件保留，方便未来表现层显示 MISS；追加段若因直接段
     // 已击杀目标而变成 0 实际伤害则不播放一段假的炎爆飘字。
@@ -1811,7 +1861,11 @@ function applyDamageSegment(
       });
     }
   }
-  return { damage: total, directCrit: resolution.direct.hit && resolution.direct.crit };
+  return {
+    damage: total,
+    directCrit: resolution.direct.hit && resolution.direct.crit,
+    lifestealPotential,
+  };
 }
 
 function resolveOnCritTriggers(
@@ -1940,6 +1994,7 @@ function applyDamageOnly(
   return {
     damage: actualDamage,
     recovery: resolveLethalRecovery(defender, lethalTriggers, lethalUses),
+    lifestealPotential: 0,
   };
 }
 
