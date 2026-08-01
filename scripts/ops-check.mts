@@ -193,15 +193,21 @@ const CHECKS: Check[] = [
     remedy: '执行 20260801070000_trial_formula_version_isolation.sql',
   },
   {
-    name: '新旧试炼邻域榜 RPC 均存在',
+    name: '新旧试炼榜 RPC 均存在',
     sql: `select proname from pg_proc
            where pronamespace='public'::regnamespace
-             and proname in ('trial_neighborhood','trial_neighborhood_versioned')`,
+             and proname in (
+               'trial_neighborhood',
+               'trial_neighborhood_versioned',
+               'trial_top_versioned'
+             )`,
     verdict: (rows) => {
       const names = new Set(rows.map((row) => String(row.proname)));
-      const missing = ['trial_neighborhood', 'trial_neighborhood_versioned'].filter(
-        (name) => !names.has(name),
-      );
+      const missing = [
+        'trial_neighborhood',
+        'trial_neighborhood_versioned',
+        'trial_top_versioned',
+      ].filter((name) => !names.has(name));
       return missing.length === 0 ? null : `缺少 RPC：${missing.join(', ')}`;
     },
     remedy: '执行 20260801070000_trial_formula_version_isolation.sql',
