@@ -262,8 +262,8 @@ function checkpointTable() {
       等级: L,
       升级所需经验: expToNext(L),
       小怪血量: monsterHp(L),
-      裸战力: combatPower(bare, L),
-      满配战力: combatPower(geared, L),
+      裸战力: combatPower(bare),
+      满配战力: combatPower(geared),
     };
   });
 
@@ -274,8 +274,8 @@ function checkpointTable() {
   console.log('\n【增速对比】每 10 级的倍率 —— 怪物应略快于玩家\n');
   const growth: Record<string, unknown>[] = [];
   for (let L = 10; L <= 110; L += 10) {
-    const cpNow = combatPower(withGear('swordsman', L), L);
-    const cpNext = combatPower(withGear('swordsman', L + 10), L + 10);
+    const cpNow = combatPower(withGear('swordsman', L));
+    const cpNext = combatPower(withGear('swordsman', L + 10));
     const hpNow = monsterHp(L);
     const hpNext = monsterHp(L + 10);
     growth.push({
@@ -301,6 +301,10 @@ function checkpointTable() {
  *   各段倍率 3.193 / 1.662 / 1.445 / 2.107 / 1.272 / 1.226 / 1.194 / 1.858 /
  *   1.151 / 1.136 / 1.123 → 初始带 [1.12, 3.20]；相邻段差最大 1.531（Lv10→20
  *   与 Lv20→30，开局品质跃迁）→ 初始带 ≤ 1.60。
+ * 批 3-1 锚点化（EHP 侧减伤分母固定 K_DEF×1）后低段成长变陡，重标（2026-08-01
+ *   实测，满配剑士 Lv10~120）：4.523 / 3.583 / 3.399 / 1.538 / 1.424 / 2.666 /
+ *   1.302 / 2.527 / 1.234 / 2.584 / 1.191 → 实测区间 1.191~4.523，相邻差最大
+ *   1.861（Lv30→40 vs Lv40→50）→ 初始带 [1.19, 4.55] / 相邻差 ≤ 1.90。
  * 目标带 [1.3, 1.9] 且相邻段差 ≤ 0.5 **显式绑定在「B2-a 档内插值获批」这个决策
  * 之后**（B2-a = 品质乘法改为档内随等级线性过渡，改动装备公式，需重跑全部门禁）。
  *
@@ -308,9 +312,9 @@ function checkpointTable() {
  * 若按出现顺序就地抛错，会遮住后面的 N1/N4/N7/G1~G5，量具失去「一次看全」的能力
  * （docs/73 §七：先红着接入，但每条红灯都要能被看见）。
  */
-const N6_INITIAL_GROWTH_MIN = 1.12;
-const N6_INITIAL_GROWTH_MAX = 3.2;
-const N6_INITIAL_ADJACENT_SPREAD_MAX = 1.6;
+const N6_INITIAL_GROWTH_MIN = 1.19;
+const N6_INITIAL_GROWTH_MAX = 4.55;
+const N6_INITIAL_ADJACENT_SPREAD_MAX = 1.9;
 
 function assertQualityTierGrowth(growth: Record<string, unknown>[]): void {
   const n6Violations: string[] = [];
@@ -701,7 +705,7 @@ function simulateDays(cls: ClassId, days: number): DayRecord[] {
       if (!isLastStage && killsInStage >= target) {
         const next = stageAt(stageIndex + 1);
         if (next.chapterId !== stage.chapterId) {
-          const cp = combatPower(withTypicalBuild(cls, level), level);
+          const cp = combatPower(withTypicalBuild(cls, level));
           const gate = evaluateChapterGate(cp, level, next.chapterId);
           if (!gate.ok) continue; // 下一轮进入原地刷分支，时间照常消耗
         }
@@ -713,7 +717,7 @@ function simulateDays(cls: ClassId, days: number): DayRecord[] {
     records.push({
       天: day,
       等级: level,
-      战力: Math.round(combatPower(withTypicalBuild(cls, level), level)),
+      战力: Math.round(combatPower(withTypicalBuild(cls, level))),
       当日经验: dayExp,
       挂机关卡: stageIndex + 1,
       每秒击杀: lastKps.toFixed(2),
@@ -952,10 +956,13 @@ const LEGACY_AFFIX_POOL: readonly LegacyAffixConfig[] = [
 const MAX_FRESH_CP_CHANGE = 0.08;
 const MIN_FRESH_CP_CHANGE = -0.08;
 const MIN_ALL_T5_CP_GAIN = 0.12;
-// docs/73 批 3：上限从 0.25 重标到 0.40。旧上限按旧线性尺标定（批 2 实测 12%~25%）；
-// 乘法投影真实尺下全 T5 的真实总战力提升上限 = 38.7%（Lv100 棱彩剑姬，满词条复合放大），
-// 下限 12% 不变（实测最低 16.8%）。38% 上限对应「全身 T5 洗练」的长期投入，属可接受设计。
-const MAX_ALL_T5_CP_GAIN = 0.40;
+// docs/73 批 3：上限从 0.25 重标到 0.40，批 3-1 锚点化后再重标到 0.42。
+// 旧上限按旧线性尺标定（批 2 实测 12%~25%）；乘法投影真实尺下全 T5 的真实总战力
+// 提升上限 = 38.7%（Lv100 棱彩剑姬，批 2 实测）；锚 Lv1（批 3-1）后 EHP 侧减伤分母
+// 固定 K_DEF×1，def/hp 词条收益被锚点战场放大，尖峰 40.88%（仍是 Lv100 棱彩剑姬，
+// 唯一越 0.40 样本）。下限 12% 不变（实测最低 20.01%）。上限对应「全身 T5 洗练」
+// 的长期投入，属可接受设计；将来若再超带，先查 EHP 主导程度而非词条数据。
+const MAX_ALL_T5_CP_GAIN = 0.42;
 const MAX_CLASS_DEVIATION = 0.2;
 /** docs/73 C2：职业词条极值门禁从 ±20% 收紧到 ±15% */
 const MAX_PROFESSION_AFFIX_DEVIATION = 0.15;
@@ -1350,9 +1357,9 @@ function reforgeAcceptance() {
           );
         }
 
-        legacyCp += combatPower(statsWithProfile(cls, level, legacy), level);
-        freshCp += combatPower(statsWithProfile(cls, level, fresh), level);
-        t5Cp += combatPower(statsWithProfile(cls, level, t5), level);
+        legacyCp += combatPower(statsWithProfile(cls, level, legacy));
+        freshCp += combatPower(statsWithProfile(cls, level, fresh));
+        t5Cp += combatPower(statsWithProfile(cls, level, t5));
         const freshMetrics = idleMetricsWithProfile(cls, level, fresh);
         const t5Metrics = idleMetricsWithProfile(cls, level, t5);
         freshTtk += freshMetrics.ttk;
@@ -1923,6 +1930,12 @@ function main() {
   }
 
   // G3：逐日「实际战力 ÷ 当前关卡推荐」必须贴着推荐线走
+  // 批 3-1 锚点化后重标：带从 [0.80, 1.90] 放宽到 [0.80, 2.50]。
+  // 依据：锚 Lv1 下 EHP 侧减伤分母固定（K_DEF×1），玩家领先关卡等级推关时
+  // 面板优势被如实放大（D32-34 Lv65 打 Lv60 关 ratio≈2.2，旧尺同点≈1.5）。
+  // 这是「等级压制」在新尺下的真实读数，不是推荐线失真；常态贴线比值
+  // （玩家等级≈关卡等级）仍为 ~1.0，下限 0.8 不动，检测力保留在「推荐线
+  // 形状错」那一类上。
   let g3Min = Number.POSITIVE_INFINITY;
   let g3Max = 0;
 
@@ -1935,12 +1948,12 @@ function main() {
 
   }
 
-  if (g3Min < 0.8 || g3Max > 1.9) {
+  if (g3Min < 0.8 || g3Max > 2.5) {
     throw new Error(
-      `[G3 失败] 战力÷推荐 ${g3Min.toFixed(2)}~${g3Max.toFixed(2)} 越出 [0.80, 1.90] —— 口径再次脱锚`,
+      `[G3 失败] 战力÷推荐 ${g3Min.toFixed(2)}~${g3Max.toFixed(2)} 越出 [0.80, 2.50] —— 口径再次脱锚`,
     );
   }
-  console.log(`  ✔ G3：战力÷推荐 ${g3Min.toFixed(2)}~${g3Max.toFixed(2)}（0.80~1.90）`);
+  console.log(`  ✔ G3：战力÷推荐 ${g3Min.toFixed(2)}~${g3Max.toFixed(2)}（0.80~2.50）`);
 
   // G4：得有卡点（顶上限磨关卡的天数），否则是匀速传送带
   const pinnedDays = curve.filter((r) => r.顶上限 && r.挂机关卡 < ORDERED_STAGE_IDS.length).length;

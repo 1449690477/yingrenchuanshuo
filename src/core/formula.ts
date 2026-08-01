@@ -214,23 +214,27 @@ export function calcPeriodicDamage(
  * 随等级与装备一起膨胀 —— 固定价让面板对暴击的定价错约 40 倍
  * （docs/73 A2，N2 门禁实测跨度最大 3310×）。
  * 批 3 按「乘法形」重定价：crit/spd 权重从玩家自身属性派生（小督小项），
- * 战力 = 玩家打同级参考怪的单次期望输出（含攻速）× 扛同级参考怪的攻击次数
+ * 战力 = 玩家打锚点参考怪的单次期望输出（含攻速）× 扛锚点参考怪的攻击次数
  * 期望（EHP）的几何平均。由此每个属性的面板相对导数恒等于真实 DPS/EHP
  * 相对导数（N2 门禁目标 ≤ 1.20×，实测 ≤ 1.02×），且对非典型构建同样成立
  * —— 构建耦合而不是等级耦合。
  *
- * level 用于推导同级参考怪（命中/减伤参照）。同级怪属性是确定函数
- * （progression.makeMonster），无运行时随机与外部依赖；服务端复算与
- * 客户端走同一份 core，天然一致。
+ * 批 3-1 锚点化：参考怪与减伤分母两侧全部钉在固定锚点
+ * REFERENCE_MONSTER_LEVEL（Lv1），不再随玩家等级走 ——
+ * ① 升级不换装不再掉战力（旧版同级参考怪口径 10 级掉 28.7%）；
+ * ② level 参数删除，函数回到纯 (stats) 单参，调用点连锁改动归零；
+ * ③ 锚点怪属性是确定函数（progression.makeMonster），无运行时随机与
+ * 外部依赖；服务端复算与客户端走同一份 core，天然一致。
+ *
+ * 数字尺度（锚 Lv1，剑士典型养成实测）：Lv1≈61 / Lv81≈23.4 万 / Lv120≈24.2 万。
  */
-export function combatPowerValue(stats: Stats, level: number): number {
-  if (!Number.isInteger(level) || level < 1) {
-    throw new Error(`combatPower: 等级必须 >= 1 的整数，收到 ${level}`);
-  }
+export const REFERENCE_MONSTER_LEVEL = 1;
+
+export function combatPowerValue(stats: Stats): number {
   const m = makeMonster({
     id: 'ref',
     name: 'ref',
-    level,
+    level: REFERENCE_MONSTER_LEVEL,
     type: 'normal',
     element: 'none',
     lootTableId: 'ref',
@@ -241,21 +245,21 @@ export function combatPowerValue(stats: Stats, level: number): number {
   const critAvgM = 1 + clamp(m.critRate / 100, 0, 1) * (critMultiplier(m.critDmg) - 1);
   const avgVariance = (DAMAGE_VARIANCE_MIN + DAMAGE_VARIANCE_MAX) / 2;
 
-  // 输出侧：打同级参考怪的单次期望伤害 × 攻速（与 expectedDamage 同构）。
+  // 输出侧：打锚点参考怪的单次期望伤害 × 攻速（与 expectedDamage 同构）。
   const dps =
     stats.spd *
     hitChance(stats.acc, m.eva) *
     avgVariance *
     stats.atk *
-    (1 - damageReduction(m.def, level)) *
+    (1 - damageReduction(m.def, REFERENCE_MONSTER_LEVEL)) *
     critAvgP;
 
-  // 生存侧：扛同级参考怪的攻击次数期望（EHP = hp ÷ 怪物单次期望伤害）。
+  // 生存侧：扛锚点参考怪的攻击次数期望（EHP = hp ÷ 怪物单次期望伤害）。
   const perHit =
     hitChance(m.acc, stats.eva) *
     avgVariance *
     m.atk *
-    (1 - damageReduction(stats.def, level)) *
+    (1 - damageReduction(stats.def, REFERENCE_MONSTER_LEVEL)) *
     critAvgM;
   // 没有生命就没有战力：hp<=0 时 EHP 无意义，直接归 0（避免 sqrt(dps*Infinity) 的 NaN 路径）。
   // 真实玩家经 baseStatsFor 必有 hp>0；这只覆盖探针与构造数据。
@@ -267,8 +271,8 @@ export function combatPowerValue(stats: Stats, level: number): number {
 }
 
 /** 取整后的战力展示值。排序与门禁请用 combatPowerValue（取整会抹掉小步长导数）。 */
-export function combatPower(stats: Stats, level: number): number {
-  return Math.round(combatPowerValue(stats, level));
+export function combatPower(stats: Stats): number {
+  return Math.round(combatPowerValue(stats));
 }
 
 /** 空属性，用于累加 */

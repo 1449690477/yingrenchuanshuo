@@ -44,10 +44,10 @@ describe('上界从真实最强装备推出来', () => {
   });
 
   it('结构上界与典型养成的比值随等级塌陷 —— 平坦系数正是被它否掉的', () => {
-    // 实测（docs/73 批 3 乘法投影重定价后）：Lv16 ≈ ×9.2~11.1（珍品月糖 legendary）、
-    // Lv20 ≈ ×23.2~28.6（珍品夜蔷薇 mythic）、Lv40 ≈ ×4.4~5.4、Lv78 ≈ ×1.45~1.71。
-    // Lv16/20 峰值来自珍品商店超前品质阶梯 —— docs/73 A4 已拍板保留（a+c），
-    // 属预期结构；乘法投影让满配件的属性差在战力空间复合放大，比值不再受 <8 约束。
+    // 实测（docs/73 批 3 乘法投影 + 批 3-1 锚 Lv1 后）：Lv16 ≈ ×13.5~16.4
+    // （珍品月糖 legendary）、Lv20 ≈ ×39.8~49.0（珍品夜蔷薇 mythic）、Lv40 ≈ ×5.3~6.5、
+    // Lv78 ≈ ×1.53~1.82。Lv16/20 峰值来自珍品商店超前品质阶梯 —— docs/73 A4 已拍板
+    // 保留（a+c），属预期结构；乘法投影让满配件的属性差在战力空间复合放大，比值不再受 <8 约束。
     // 只要塌陷还在，就不能退回「典型 × 单一系数」的写法：
     // 那个系数在低等级会松到形同虚设，在满级会紧到误伤肝帝。
     const low = combatPowerCeilingRatio(16, 'swordsman');
@@ -58,12 +58,14 @@ describe('上界从真实最强装备推出来', () => {
     const sameLevel = CLASS_IDS.map((classId) => combatPowerCeilingRatio(LEVEL, classId));
     expect(Math.max(...sameLevel) / Math.min(...sameLevel)).toBeLessThan(1.5);
 
-    // 守住合理范围：当前全等级全职业峰值是 Lv20 夜蔷薇 mythic ≈ 28.6（witch）。
-    // 若哪天某个比值跑到 35 倍以上，说明装备表出了新的超模件（或又加了一档超前品质），
-    // 该去查数据而不是调这条断言。珍品店属 A4 登记在案的预期结构，不在此列。
+    // 守住合理范围：批 3-1 锚 Lv1 后全等级全职业峰值 = 49.04（Lv20 witch，珍品夜蔷薇
+    // mythic，A4 登记结构）。门槛 50 = 全矩阵（Lv1~78 × 4 职业）实测峰值取整
+    // （2026-08-01 小衡裁定，docs/73 批 3）。它是绊线不是标定：若哪天某个比值跑到
+    // 50 倍以上，说明装备表出了新的超模件（或又加了一档超前品质），该去查数据而不是
+    // 调这条断言。珍品店属 A4 登记在案的预期结构，不在此列。
     for (const level of [1, 16, 20, 40, LEVEL]) {
       for (const classId of CLASS_IDS) {
-        expect(combatPowerCeilingRatio(level, classId)).toBeLessThan(35);
+        expect(combatPowerCeilingRatio(level, classId)).toBeLessThan(50);
         expect(combatPowerCeilingRatio(level, classId)).toBeGreaterThan(1);
       }
     }

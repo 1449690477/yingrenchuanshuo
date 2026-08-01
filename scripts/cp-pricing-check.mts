@@ -19,7 +19,7 @@ import {
   TYPICAL_ENHANCE_MUL,
 } from '../src/data/expectedPower';
 import { CRIT_RATE_CAP } from '../src/data/constants';
-import { combatPowerValue } from '../src/core/formula';
+import { combatPowerValue, REFERENCE_MONSTER_LEVEL } from '../src/core/formula';
 
 const LEVELS = [1, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120];
 
@@ -40,15 +40,16 @@ function typicalStats(cls: ClassId, level: number): Stats {
 }
 
 /** 未取整的战力（取整会抹掉小步长的导数，用公式层导出的未取整版本） */
-function cpValue(stats: Stats, level: number): number {
-  return combatPowerValue(stats, level);
+function cpValue(stats: Stats): number {
+  return combatPowerValue(stats);
 }
 
-function refMonster(level: number): Combatant {
+/** 锚点参考怪（批 3-1：与 combatPowerValue 同一固定锚点，N2 两侧同战场自洽） */
+function refMonster(): Combatant {
   return makeMonster({
     id: 'ref',
     name: 'ref',
-    level,
+    level: REFERENCE_MONSTER_LEVEL,
     type: 'normal',
     element: 'none',
     lootTableId: 'ref',
@@ -62,12 +63,12 @@ function playerOf(cls: ClassId, level: number, stats: Stats): Combatant {
 
 /** 输出侧真实度量：单次期望伤害 × 攻速（combat.ts:346 的真实 DPS 口径） */
 function offenseReal(cls: ClassId, level: number, stats: Stats): number {
-  return expectedDamage(playerOf(cls, level, stats), refMonster(level), 1) * stats.spd;
+  return expectedDamage(playerOf(cls, level, stats), refMonster(), 1) * stats.spd;
 }
 
 /** 生存侧真实度量：EHP = hp ÷ 怪物单次期望伤害 */
 function defenseReal(cls: ClassId, level: number, stats: Stats): number {
-  const perHit = expectedDamage(refMonster(level), playerOf(cls, level, stats), 1);
+  const perHit = expectedDamage(refMonster(), playerOf(cls, level, stats), 1);
   return perHit > 0 ? stats.hp / perHit : Number.POSITIVE_INFINITY;
 }
 
@@ -116,11 +117,11 @@ function main(): void {
           side === 'offense'
             ? offenseReal(cls, level, stats)
             : defenseReal(cls, level, stats);
-        const cp0 = cpValue(stats, level);
+        const cp0 = cpValue(stats);
         if (cp0 <= 0 || real <= 0) continue;
 
         const bumped: Stats = { ...stats, [key]: stats[key] + delta };
-        const cp1 = cpValue(bumped, level);
+        const cp1 = cpValue(bumped);
         const real1 =
           side === 'offense'
             ? offenseReal(cls, level, bumped)

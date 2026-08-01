@@ -35,8 +35,8 @@ function scoreStats(def: EquipmentDef, classId: ClassId, itemStats: Stats): numb
 
   return Math.max(
     0,
-    combatPower(applyClassMods(classId, combined), def.level) -
-      combatPower(applyClassMods(classId, reference), def.level),
+    combatPower(applyClassMods(classId, combined)) -
+      combatPower(applyClassMods(classId, reference)),
   );
 }
 

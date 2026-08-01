@@ -688,7 +688,7 @@ export const useGameStore = defineStore('game', () => {
 
   /** 未取整的真实战力投影：排序、门禁与增量计算用它（取整会抹掉小步长导数，docs/73 批 3）。 */
   const cpValue = computed(() =>
-    combatPowerValue(finalStats.value, save.value?.player.level ?? 1),
+    combatPowerValue(finalStats.value),
   );
   /** 取整后的展示战力。 */
   const cp = computed(() => Math.round(cpValue.value));
@@ -2282,7 +2282,7 @@ export const useGameStore = defineStore('game', () => {
       save.value.affection.characters[classId].points,
       AFFECTION_RULES,
     );
-    return combatPower(affectionStats, level);
+    return combatPower(affectionStats);
   }
 
   function interactWithCharacter(

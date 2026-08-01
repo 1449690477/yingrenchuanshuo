@@ -19,7 +19,7 @@ import {
   zeroStats,
 } from '../formula';
 import { Rng } from '../rng';
-import { makePlayer } from '../progression';
+import { baseStatsFor, makePlayer } from '../progression';
 import type { CombatBonuses, Stats } from '../types';
 import { K_DEF, MIN_DAMAGE_RATIO } from '@/data/constants';
 
@@ -397,27 +397,25 @@ describe('expectedDamage', () => {
 
 describe('combatPower', () => {
   it('全零属性战力为 0', () => {
-    expect(combatPower({ ...zeroStats(), spd: 1.0 }, 50)).toBe(0);
+    expect(combatPower({ ...zeroStats(), spd: 1.0 })).toBe(0);
   });
 
   it('属性提升则战力提升（未取整口径，取整会抹掉小步长）', () => {
     const base = stats();
-    const level = 50;
-    expect(combatPowerValue({ ...base, atk: base.atk + 100 }, level)).toBeGreaterThan(
-      combatPowerValue(base, level),
+    expect(combatPowerValue({ ...base, atk: base.atk + 100 })).toBeGreaterThan(
+      combatPowerValue(base),
     );
-    expect(combatPowerValue({ ...base, def: base.def + 100 }, level)).toBeGreaterThan(
-      combatPowerValue(base, level),
+    expect(combatPowerValue({ ...base, def: base.def + 100 })).toBeGreaterThan(
+      combatPowerValue(base),
     );
-    expect(combatPowerValue({ ...base, hp: base.hp + 1000 }, level)).toBeGreaterThan(
-      combatPowerValue(base, level),
+    expect(combatPowerValue({ ...base, hp: base.hp + 1000 })).toBeGreaterThan(
+      combatPowerValue(base),
     );
   });
 
   it('暴击的边际战力随攻击放大（乘法形定价，docs/73 批 3）', () => {
-    const level = 50;
     const build = (atk: number, critRate: number) =>
-      combatPowerValue({ ...zeroStats(), spd: 1, hp: 1000, atk, critRate }, level);
+      combatPowerValue({ ...zeroStats(), spd: 1, hp: 1000, atk, critRate });
     const low = build(100, 10);
     const lowBase = build(100, 0);
     const high = build(10_000, 10);
@@ -426,13 +424,16 @@ describe('combatPower', () => {
   });
 
   it('无生命值则战力为 0（EHP 无意义，不产生 NaN/Infinity 路径）', () => {
-    expect(combatPowerValue({ ...stats(), hp: 0 }, 50)).toBe(0);
-    expect(combatPower({ ...stats(), hp: 0 }, 50)).toBe(0);
+    expect(combatPowerValue({ ...stats(), hp: 0 })).toBe(0);
+    expect(combatPower({ ...stats(), hp: 0 })).toBe(0);
   });
 
-  it('非法等级抛错', () => {
-    expect(() => combatPower(zeroStats(), 0)).toThrow();
-    expect(() => combatPower(zeroStats(), 1.5)).toThrow();
+  it('升级不换装不掉战力（锚点化后单调，docs/73 批 3-1）', () => {
+    // 固定一套 Lv40 典型装备，人从 40 级升到 50 级：战力必须只升不降。
+    const gear = { atk: 500, def: 300, hp: 3000, acc: 100, eva: 80, critRate: 5, critDmg: 30, spd: 0.3 };
+    const at40 = addStats(baseStatsFor('swordsman', 40), gear);
+    const at50 = addStats(baseStatsFor('swordsman', 50), gear);
+    expect(combatPowerValue(at50)).toBeGreaterThan(combatPowerValue(at40));
   });
 });
 

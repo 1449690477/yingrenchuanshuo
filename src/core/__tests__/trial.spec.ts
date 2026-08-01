@@ -209,8 +209,8 @@ describe('buildTrialCombatant / 搭配构建', () => {
       level: 20,
       equipped: EMPTY_EQUIPPED,
     });
-    expect(combatPowerValue(build.combatant.stats, 20)).toBeGreaterThan(
-      combatPowerValue(empty.combatant.stats, 20),
+    expect(combatPowerValue(build.combatant.stats)).toBeGreaterThan(
+      combatPowerValue(empty.combatant.stats),
     );
   });
 });

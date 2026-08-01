@@ -391,7 +391,7 @@ export function buildTrialCombatant(input: TrialBuildInput): TrialBuild {
     onHitTriggers: setResolution.onHitTriggers,
     onLethalTriggers: setResolution.onLethalTriggers,
     onCritTriggers: setResolution.onCritTriggers,
-    combatPower: combatPower(stats, input.level),
+    combatPower: combatPower(stats),
     buildHash: canonicalBuildHash(input.equipped),
   };
 }
