@@ -101,6 +101,7 @@ export function buildArenaDuelSide(input: TrialBuildInput, role: DuelRole): Aren
     ...(build.skillKit ? { skillKit: build.skillKit } : {}),
     onHitTriggers: build.onHitTriggers,
     onLethalTriggers: build.onLethalTriggers,
+    onCritTriggers: build.onCritTriggers,
     combatPower: build.combatPower,
     buildHash: build.buildHash,
     arenaSetPieces: pieces,
