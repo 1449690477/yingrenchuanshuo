@@ -6,9 +6,9 @@
  * 输出六份东西：
  *   1. 校验点表     —— 用来核对 docs/10-数值与战斗.md 里的关键数字
  *   2. 30 天成长曲线 —— 玩家每天能到几级，有没有断档
- *   3. 四职业对比    —— 挂机效率是否在 ±20% 平衡带内
+ *   3. 五职业对比    —— 挂机效率是否在 ±20% 平衡带内
  *   4. 装备随机健康检查 —— 独立验证胚子与逐级强化随机，不混入理想满配曲线
- *   5. 词条洗练验收 —— 对照旧版、新掉落与全 T5，并复验四职业 TTK
+ *   5. 词条洗练验收 —— 对照旧版、新掉落与全 T5，并复验五职业 TTK
  *   6. 竞技场 PvP 胜率验收 —— 同战力镜像胜率 45%~55%（docs/52 §11）
  *
  * 之所以能有这个工具，是因为 core 层是纯函数（AGENTS.md 铁律 1）。
@@ -1601,7 +1601,7 @@ function reforgeAcceptance() {
  * MONSTER_ATK_BASE，两项恢复为硬门禁 —— **不要再把它们降级**，
  * 它们现在是真的能过。
  *
- * 四职业平衡同样必须在这里硬判：基础、新掉落、全 T5 与玩家可定向追到的
+ * 五职业平衡同样必须在这里硬判：基础、新掉落、全 T5 与玩家可定向追到的
  * 全输出 T5 都统一读取真实 killsPerSecond，任何一层超过 20% 都退出非零。
  */
 function assertReforgeAcceptance(
@@ -1650,13 +1650,13 @@ function assertReforgeAcceptance(
     },
     {
       ok: baseBalance.maxDeviation <= MAX_CLASS_DEVIATION,
-      detail: `基础四职业真实 KPS 最大偏离 ${percent(baseBalance.maxDeviation)}（目标 ≤ ${percent(MAX_CLASS_DEVIATION)}）`,
+      detail: `基础五职业真实 KPS 最大偏离 ${percent(baseBalance.maxDeviation)}（目标 ≤ ${percent(MAX_CLASS_DEVIATION)}）`,
     },
     {
       ok:
         result.maxFreshClassDeviation <= MAX_CLASS_DEVIATION &&
         result.maxT5ClassDeviation <= MAX_CLASS_DEVIATION,
-      detail: `词条四职业真实 KPS 最大偏离：新掉落 ${percent(result.maxFreshClassDeviation)}、全 T5 ${percent(result.maxT5ClassDeviation)}（目标均 ≤ ${percent(MAX_CLASS_DEVIATION)}）`,
+      detail: `词条五职业真实 KPS 最大偏离：新掉落 ${percent(result.maxFreshClassDeviation)}、全 T5 ${percent(result.maxT5ClassDeviation)}（目标均 ≤ ${percent(MAX_CLASS_DEVIATION)}）`,
     },
   ];
 
@@ -1703,7 +1703,7 @@ function assertReforgeAcceptance(
   const n5Violations: string[] = [];
   if (offenseExtreme.maxDeviation > MAX_PROFESSION_AFFIX_DEVIATION) {
     n5Violations.push(
-      `八件定向输出 T5 的四职业真实 KPS 最大偏离 ${percent(offenseExtreme.maxDeviation)}（目标 ≤ ${percent(MAX_PROFESSION_AFFIX_DEVIATION)}，docs/73 C2 收紧）`,
+      `八件定向输出 T5 的五职业真实 KPS 最大偏离 ${percent(offenseExtreme.maxDeviation)}（目标 ≤ ${percent(MAX_PROFESSION_AFFIX_DEVIATION)}，docs/73 C2 收紧）`,
     );
   }
   if (Math.max(...Object.values(offenseExtreme.bottomCounts)) > 2) {

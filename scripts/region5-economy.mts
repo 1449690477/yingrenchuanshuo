@@ -16,6 +16,7 @@ import { addStats } from '../src/core/formula';
 import { instanceStatsForClass } from '../src/core/equipment';
 import { attemptEnhance, enhanceCost } from '../src/core/enhance';
 import { killsPerSecond } from '../src/core/idle';
+import { buildDefaultPlayerSkillKit } from '../src/core/playerSkillKit';
 import {
   pityGroupKey,
   rollLoot,
@@ -160,7 +161,7 @@ function stageKps(stage: Stage): number {
     goldPerKill: 0,
     lootTable: requireLootTable(stage.lootTableId),
     maxKillsPerSec: stage.maxKillsPerSec,
-    skillMultiplier: averageSkillMultiplier(PLAYER_LEVEL),
+    skillKit: buildDefaultPlayerSkillKit(CLASS_ID, PLAYER_LEVEL),
   });
 }
 

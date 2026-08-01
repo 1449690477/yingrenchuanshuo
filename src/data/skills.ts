@@ -202,9 +202,9 @@ export const SWORDSMAN_SKILLS: readonly Skill[] = [
     unlockLevel: 50,
     cooldownSec: 12,
     priority: 90,
-    effects: [damage(PRIMARY, 3.2)],
+    effects: [damage(PRIMARY, 3.3)],
     icon: 'assets/icons/skills/swordsman-flame.png',
-    desc: '踏着日轮残光追斩目标，造成 320% 单体伤害。',
+    desc: '踏着日轮残光追斩目标，造成 330% 单体伤害。',
   },
   {
     id: 'skill_swordsman_blood_rage',
@@ -594,12 +594,12 @@ export const SHAMAN_SKILLS: readonly Skill[] = [
     class: 'shaman',
     type: 'active',
     element: 'none',
-    unlockLevel: 15,
+    unlockLevel: 10,
     cooldownSec: 5,
     priority: 40,
-    effects: [damage(PRIMARY, 2.5)],
+    effects: [damage(PRIMARY, 3.45)],
     icon: 'assets/icons/skills/shaman-poison.png',
-    desc: '灵火符咒锁定单体，造成 250% 伤害。',
+    desc: '灵火符咒锁定单体，造成 345% 伤害。',
   },
   {
     id: 'skill_shaman_skeleton',
@@ -719,11 +719,14 @@ export const SHAMAN_SKILLS: readonly Skill[] = [
       modifier: {
         unit: 'ratio' as const,
         stat,
-        ratio: { base: 0.06, perLevel: 0.001, max: 0.12 },
+        ratio:
+          stat === 'atk' || stat === 'spd'
+            ? { base: 0.01, perLevel: 0.001, max: 0.07 }
+            : { base: 0.06, perLevel: 0.001, max: 0.12 },
       },
     })),
     icon: 'assets/icons/skills/shaman-heal.png',
-    desc: '真气循环不息，攻击、防御、生命、命中、闪避与攻速提高 6%。',
+    desc: '真气循环不息，攻击与攻速提高 1%，防御、生命、命中与闪避提高 6%。',
   },
   {
     id: 'skill_shaman_group_poison',
@@ -738,14 +741,14 @@ export const SHAMAN_SKILLS: readonly Skill[] = [
       {
         kind: 'periodic-damage',
         target: ALL_ENEMIES,
-        totalMultiplier: { base: 9, perLevel: 0.09 },
+        totalMultiplier: { base: 4.5, perLevel: 0.045 },
         ticks: 10,
         durationSec: 10,
         maxStacks: 1,
       },
     ],
     icon: 'assets/icons/skills/shaman-poison.png',
-    desc: '向全体敌人施下十跳毒雾，每秒造成 90% 伤害，持续 10 秒。',
+    desc: '向全体敌人施下十跳毒雾，每秒造成 45% 伤害，持续 10 秒。',
   },
   {
     id: 'skill_shaman_divine_armor',
@@ -1463,15 +1466,16 @@ export const DEFAULT_ACTIVE_SKILL_ORDER: Readonly<Record<ClassId, readonly strin
   ],
   catkin: [
     'skill_catkin_hundred_claw',
-    'skill_catkin_bristle_counter',
+    'skill_catkin_scratch_frenzy',
     'skill_catkin_box_ambush',
     'skill_catkin_moonshadow_step',
     'skill_catkin_furball_storm',
     'skill_catkin_nine_life_spin',
-    'skill_catkin_scratch_frenzy',
     'skill_catkin_tail_sweep',
     'skill_catkin_light_pounce',
     'skill_catkin_paw_combo',
+    // 炸毛反击需要低血量且主要提供防御；无技能栏 UI 时不能让它挤掉稳定伤害循环。
+    'skill_catkin_bristle_counter',
   ],
   kenshi: [
     'skill_kenshi_thousand_sakura',

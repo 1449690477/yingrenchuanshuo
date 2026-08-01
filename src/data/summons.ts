@@ -53,7 +53,7 @@ export const SUMMON_DEFINITIONS = [
     id: 'summon_shaman_divine_beast',
     name: '雷纹神兽',
     ownerClass: 'shaman',
-    attackMultiplier: 0.75,
+    attackMultiplier: 0.62,
     attackIntervalSec: 1.8,
     element: 'thunder',
     targeting: 'lowest-hp-enemy',

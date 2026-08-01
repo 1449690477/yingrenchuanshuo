@@ -151,9 +151,11 @@ export const REGION_5_ENHANCE_PROGRESSION: Readonly<
     },
     [
       { itemId: MATERIAL.reforge, count: 6 },
-      { itemId: MATERIAL.ore, count: 120 },
-      { itemId: MATERIAL.lucky, count: 6 },
-      { itemId: MATERIAL.protection, count: 6 },
+      // 真实技能栏接管挂机后，高阶材料供需略低于 1.02 下界；把差额放在
+      // 终章首通的确定性奖励里，避免继续抬随机掉率和保底方差。
+      { itemId: MATERIAL.ore, count: 200 },
+      { itemId: MATERIAL.lucky, count: 8 },
+      { itemId: MATERIAL.protection, count: 8 },
     ],
   ),
 };

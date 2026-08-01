@@ -56,7 +56,7 @@ describe('summon data contract', () => {
       defenseRatio: 0.55,
     });
     expect(summonDefinition('summon_shaman_divine_beast')).toMatchObject({
-      attackMultiplier: 0.75,
+      attackMultiplier: 0.62,
       attackIntervalSec: 1.8,
       targetWeight: 0.05,
       maxHpRatio: 0.55,

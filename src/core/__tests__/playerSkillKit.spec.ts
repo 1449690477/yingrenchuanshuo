@@ -25,7 +25,12 @@ describe('玩家默认技能栏生产入口', () => {
     }
   });
 
-  it('高等级灵巫不再携带双治疗，樱酱保留低冷却与破甲循环', () => {
+  it('灵巫低段有直伤循环，高等级不携带双治疗；喵喵和樱酱保留招牌循环', () => {
+    expect(buildDefaultPlayerSkillKit('shaman', 10).active.map((entry) => entry.skill.id)).toEqual([
+      'skill_shaman_heal',
+      'skill_shaman_soul_fire',
+      'skill_shaman_poison',
+    ]);
     expect(buildDefaultPlayerSkillKit('shaman', 120).active.map((entry) => entry.skill.id)).toEqual(
       [
         'skill_shaman_heal',
@@ -34,6 +39,18 @@ describe('玩家默认技能栏生产入口', () => {
         'skill_shaman_group_poison',
       ],
     );
+    expect(buildDefaultPlayerSkillKit('catkin', 120).active.map((entry) => entry.skill.id)).toEqual([
+      'skill_catkin_hundred_claw',
+      'skill_catkin_scratch_frenzy',
+      'skill_catkin_box_ambush',
+      'skill_catkin_moonshadow_step',
+    ]);
+    expect(buildDefaultPlayerSkillKit('catkin', 65).active.map((entry) => entry.skill.id)).toEqual([
+      'skill_catkin_scratch_frenzy',
+      'skill_catkin_box_ambush',
+      'skill_catkin_nine_life_spin',
+      'skill_catkin_tail_sweep',
+    ]);
     expect(buildDefaultPlayerSkillKit('kenshi', 120).active.map((entry) => entry.skill.id)).toEqual(
       [
         'skill_kenshi_thousand_sakura',

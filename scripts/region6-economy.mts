@@ -17,10 +17,10 @@ import { attemptEnhance, enhanceCost } from '../src/core/enhance';
 import { instanceStatsForClass } from '../src/core/equipment';
 import { addStats } from '../src/core/formula';
 import { killsPerSecond } from '../src/core/idle';
+import { buildDefaultPlayerSkillKit } from '../src/core/playerSkillKit';
 import { expectedLoot, pityGroupKey, rollLoot, type PityCounters } from '../src/core/loot';
 import {
   applyClassMods,
-  averageSkillMultiplier,
   baseStatsFor,
   makeMonster,
   makePlayer,
@@ -210,7 +210,7 @@ function stageKps(stage: Stage, classId: ClassId): number {
     goldPerKill: 0,
     lootTable: requireLootTable(stage.lootTableId),
     maxKillsPerSec: stage.maxKillsPerSec,
-    skillMultiplier: averageSkillMultiplier(build.playerLevel),
+    skillKit: buildDefaultPlayerSkillKit(classId, build.playerLevel),
   });
 }
 
@@ -239,7 +239,9 @@ function combatMetrics(): readonly CombatMetric[] {
         ttk: timeToKill(
           player,
           monster,
-          averageSkillMultiplier(build.playerLevel),
+          1,
+          [],
+          buildDefaultPlayerSkillKit(classId, build.playerLevel),
         ),
         kps: stageKps(stage, classId),
       };

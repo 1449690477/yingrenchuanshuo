@@ -49,7 +49,7 @@ describe('five-class skill roster', () => {
     ]);
     expect(DEFAULT_ACTIVE_SKILL_ORDER.catkin.slice(0, 4)).toEqual([
       'skill_catkin_hundred_claw',
-      'skill_catkin_bristle_counter',
+      'skill_catkin_scratch_frenzy',
       'skill_catkin_box_ambush',
       'skill_catkin_moonshadow_step',
     ]);
@@ -169,8 +169,9 @@ describe('five-class skill roster', () => {
       maxStacks: 3,
     });
 
-    expect(primaryDamageEffect(requireSkill(SHAMAN_SKILLS, 'skill_shaman_soul_fire')))
-      .toMatchObject({ multiplier: { base: 2.5 } });
+    const soulFire = requireSkill(SHAMAN_SKILLS, 'skill_shaman_soul_fire');
+    expect(soulFire).toMatchObject({ unlockLevel: 10, cooldownSec: 5 });
+    expect(primaryDamageEffect(soulFire)).toMatchObject({ multiplier: { base: 3.45 } });
 
     const groupHeal = requireSkill(SHAMAN_SKILLS, 'skill_shaman_group_heal');
     expect(groupHeal).toMatchObject({ cooldownSec: 60 });
@@ -210,6 +211,10 @@ describe('five-class skill roster', () => {
           : [],
       ),
     ).toEqual(['atk', 'def', 'hp', 'acc', 'eva', 'spd']);
+    expect(qi.effects.find((effect) => effect.kind === 'modifier' && effect.modifier.stat === 'atk'))
+      .toMatchObject({ modifier: { ratio: { base: 0.01, max: 0.07 } } });
+    expect(qi.effects.find((effect) => effect.kind === 'modifier' && effect.modifier.stat === 'def'))
+      .toMatchObject({ modifier: { ratio: { base: 0.06, max: 0.12 } } });
 
     const armor = requireSkill(SHAMAN_SKILLS, 'skill_shaman_divine_armor');
     const trigger = armor.effects.find((effect) => effect.kind === 'trigger');
