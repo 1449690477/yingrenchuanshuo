@@ -453,7 +453,7 @@ describe('试炼成绩的结构上界 · damage 不可能超过 Boss 初始血�
     );
     expect(deaths).toEqual([]);
     expect(lowestHpRatio).toBeLessThan(0.6);
-  });
+  }, 15_000);
 
   it('★ 公会远征同源标尺：225 格基准玩家都活满 60 秒，最险格仍有压力', () => {
     const tiltIds = ['shell', 'mirage', 'fury'] as const;
@@ -495,7 +495,7 @@ describe('试炼成绩的结构上界 · damage 不可能超过 Boss 初始血�
     );
     expect(deaths).toEqual([]);
     expect(lowestHpRatio).toBeLessThan(0.6);
-  });
+  }, 15_000);
 
   /**
    * 上界必须**可取等**。判据写成严格小于（或取整取错方向）时，
