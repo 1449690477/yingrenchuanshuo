@@ -16,9 +16,9 @@ var HIT_MAX = 1;
 var CRIT_BASE = 1.5;
 var DAMAGE_VARIANCE_MIN = 0.92;
 var DAMAGE_VARIANCE_MAX = 1.08;
-var MONSTER_HP_BASE = 60;
+var MONSTER_HP_BASE = 40.5;
 var MONSTER_HP_POW = 1.45;
-var MONSTER_ATK_BASE = 4.9;
+var MONSTER_ATK_BASE = 7.26;
 var MONSTER_ATK_POW = 1.35;
 var MONSTER_DEF_BASE = 4;
 var MONSTER_DEF_POW = 1.3;
@@ -50,13 +50,15 @@ var CLASS_BASE_STATS = {
   swordsman: { atk: 12, def: 8, hp: 200, acc: 85, eva: 5, critRate: 5, critDmg: 50, spd: 1 },
   witch: { atk: 18, def: 4, hp: 120, acc: 80, eva: 8, critRate: 8, critDmg: 50, spd: 0.9 },
   shaman: { atk: 10, def: 6, hp: 160, acc: 82, eva: 10, critRate: 6, critDmg: 50, spd: 1.1 },
-  catkin: { atk: 13, def: 5, hp: 140, acc: 88, eva: 12, critRate: 10, critDmg: 50, spd: 1.25 }
+  catkin: { atk: 13, def: 5, hp: 140, acc: 88, eva: 12, critRate: 10, critDmg: 50, spd: 1.25 },
+  kenshi: { atk: 15, def: 6, hp: 127, acc: 87, eva: 9, critRate: 9, critDmg: 50, spd: 1.15 }
 };
 var CLASS_GROWTH = {
   swordsman: { atk: 2.2, def: 1.8, hp: 45 },
   witch: { atk: 3.4, def: 0.8, hp: 22 },
   shaman: { atk: 1.9, def: 1.3, hp: 33 },
-  catkin: { atk: 2.6, def: 1, hp: 28 }
+  catkin: { atk: 2.6, def: 1, hp: 28 },
+  kenshi: { atk: 2.8, def: 1.1, hp: 31.1 }
 };
 var ACC_PER_LEVEL = 1.5;
 var EVA_PER_LEVEL = 0.8;
@@ -360,14 +362,15 @@ var AUTO_LOCK_MIN_RANK = QUALITY_RANK.legendary;
 var MIRACLE_AUTO_LOCK_MIN_RANK = QUALITY_RANK.epic;
 
 // src/core/types.ts
-var CLASS_IDS = ["swordsman", "witch", "shaman", "catkin"];
+var CLASS_IDS = ["swordsman", "witch", "shaman", "catkin", "kenshi"];
 
 // src/data/boutique.ts
-var weapons = (swordsman, witch, shaman, catkin) => [
+var weapons = (swordsman, witch, shaman, catkin, kenshi) => [
   { ...swordsman, slot: "weapon", category: "weapon", classId: "swordsman" },
   { ...witch, slot: "weapon", category: "weapon", classId: "witch" },
   { ...shaman, slot: "weapon", category: "weapon", classId: "shaman" },
-  { ...catkin, slot: "weapon", category: "weapon", classId: "catkin" }
+  { ...catkin, slot: "weapon", category: "weapon", classId: "catkin" },
+  { ...kenshi, slot: "weapon", category: "weapon", classId: "kenshi" }
 ];
 var BOUTIQUE_THEMES = {
   "berry-cream": {
@@ -390,7 +393,8 @@ var BOUTIQUE_THEMES = {
       swordsman: "assets/effects/boutique/berry-cream-swordsman.png",
       witch: "assets/effects/boutique/berry-cream-witch.png",
       shaman: "assets/effects/boutique/berry-cream-shaman.png",
-      catkin: "assets/effects/boutique/berry-cream-catkin.png"
+      catkin: "assets/effects/boutique/berry-cream-catkin.png",
+      kenshi: "assets/effects/boutique/berry-cream-kenshi.png"
     },
     items: [
       ...weapons(
@@ -413,6 +417,11 @@ var BOUTIQUE_THEMES = {
           name: "\u8349\u8393\u5976\u971C\u7CD6\u6676\u722A",
           price: 135e4,
           uniqueEffect: "\u653B\u51FB\u6362\u80A4\uFF1A\u8349\u8393\u5FC3\u6676\u5728\u53CC\u722A\u4EA4\u9519\u5904\u8FF8\u5F00\u3002"
+        },
+        {
+          name: "\u8349\u8393\u5976\u971C\u6A31\u592A\u5200",
+          price: 135e4,
+          uniqueEffect: "\u653B\u51FB\u6362\u80A4\uFF1A\u7C89\u767D\u7CD6\u6676\u6CBF\u5C45\u5408\u5200\u5149\u8F7B\u5FEB\u7EFD\u5F00\u3002"
         }
       ),
       {
@@ -486,7 +495,8 @@ var BOUTIQUE_THEMES = {
       swordsman: "assets/effects/boutique/moon-sugar-swordsman.png",
       witch: "assets/effects/boutique/moon-sugar-witch.png",
       shaman: "assets/effects/boutique/moon-sugar-shaman.png",
-      catkin: "assets/effects/boutique/moon-sugar-catkin.png"
+      catkin: "assets/effects/boutique/moon-sugar-catkin.png",
+      kenshi: "assets/effects/boutique/moon-sugar-kenshi.png"
     },
     items: [
       ...weapons(
@@ -509,6 +519,11 @@ var BOUTIQUE_THEMES = {
           name: "\u6708\u6842\u661F\u7CD6\u6708\u5154\u722A",
           price: 68e5,
           uniqueEffect: "\u653B\u51FB\u6362\u80A4\uFF1A\u6708\u5154\u65B0\u6708\u6CBF\u84DD\u7D2B\u6676\u722A\u8DC3\u51FA\u3002"
+        },
+        {
+          name: "\u6708\u6842\u661F\u7CD6\u5C45\u5408\u5200",
+          price: 68e5,
+          uniqueEffect: "\u653B\u51FB\u6362\u80A4\uFF1A\u5976\u91D1\u6708\u5F27\u968F\u5F52\u9798\u58F0\u8FDE\u6210\u661F\u5EA7\u7EBF\u3002"
         }
       ),
       {
@@ -582,7 +597,8 @@ var BOUTIQUE_THEMES = {
       swordsman: "assets/effects/boutique/rose-night-swordsman.png",
       witch: "assets/effects/boutique/rose-night-witch.png",
       shaman: "assets/effects/boutique/rose-night-shaman.png",
-      catkin: "assets/effects/boutique/rose-night-catkin.png"
+      catkin: "assets/effects/boutique/rose-night-catkin.png",
+      kenshi: "assets/effects/boutique/rose-night-kenshi.png"
     },
     items: [
       ...weapons(
@@ -605,6 +621,11 @@ var BOUTIQUE_THEMES = {
           name: "\u7EEF\u6A31\u661F\u613F\u8537\u8587\u722A",
           price: 22e6,
           uniqueEffect: "\u653B\u51FB\u6362\u80A4\uFF1A\u8D64\u91D1\u8537\u8587\u5728\u4EA4\u9519\u722A\u75D5\u4E2D\u592E\u76DB\u5F00\u3002"
+        },
+        {
+          name: "\u7EEF\u6A31\u661F\u613F\u540D\u5200",
+          price: 22e6,
+          uniqueEffect: "\u653B\u51FB\u6362\u80A4\uFF1A\u8D64\u91D1\u6A31\u74E3\u6CBF\u4E00\u7EBF\u5C45\u5408\u5251\u75D5\u4F9D\u6B21\u76DB\u5F00\u3002"
         }
       ),
       {
@@ -1014,6 +1035,78 @@ var SPECS = [
       flavorText: "\u94C3\u661F\u4F1A\u5728\u53CC\u722A\u76F8\u78B0\u65F6\u4EAE\u8D77\uFF0C\u50CF\u4E24\u4F4D\u642D\u6863\u9ED8\u5951\u7684\u51FB\u638C\u3002",
       memoryEffect: "\u6026\u7136\u56DE\u5FC6\uFF1A\u6280\u80FD\u547D\u4E2D\u8FF8\u5F00\u6708\u94C3\u5FC3\u8679\u3002"
     }
+  ]),
+  ...classSpecs("kenshi", "berry-cream", [
+    {
+      slot: "head",
+      name: "\u96EA\u6A31\u732B\u8033\u7EEB\u7ED3",
+      slug: "snow-sakura-cat-ear-ribbon",
+      flavorText: "\u6E56\u84DD\u7EEB\u5E26\u907F\u5F00\u8033\u5C16\uFF0C\u7531\u5979\u4EB2\u81EA\u786E\u8BA4\u6BCF\u4E00\u5904\u677E\u7D27\u4E0E\u5782\u843D\u65B9\u5411\u3002",
+      memoryEffect: "\u96EA\u6A31\u56DE\u5FC6\uFF1A\u5F85\u673A\u65F6\u7EEB\u7ED3\u8FB9\u7F18\u6D6E\u8D77\u7EC6\u5C0F\u51B0\u6A31\u3002"
+    },
+    {
+      slot: "necklace",
+      name: "\u84DD\u94C3\u5251\u5FC3\u5760",
+      slug: "blue-bell-swordheart-necklace",
+      flavorText: "\u94C3\u58F0\u53EA\u5E86\u795D\u5E73\u5B89\u5F52\u6765\uFF0C\u4ECE\u4E0D\u50AC\u4FC3\u4E0B\u4E00\u6B21\u62D4\u5200\u4E0E\u8FDC\u884C\u3002",
+      memoryEffect: "\u84DD\u94C3\u56DE\u5FC6\uFF1A\u6536\u5200\u65F6\u54CD\u8D77\u6E05\u6F88\u5F52\u9798\u94C3\u3002"
+    },
+    {
+      slot: "bracelet",
+      name: "\u5E76\u80A9\u5200\u9798\u624B\u7EF3",
+      slug: "side-by-side-sheath-bracelet",
+      flavorText: "\u4E24\u6BB5\u72EC\u7ACB\u624B\u7EF3\u53EF\u4EE5\u5E76\u6392\u6263\u5408\uFF0C\u4E5F\u80FD\u5B8C\u6574\u4FDD\u7559\u5404\u81EA\u7684\u957F\u5EA6\u3002",
+      memoryEffect: "\u5E76\u80A9\u56DE\u5FC6\uFF1A\u4E92\u52A8\u65F6\u4EAE\u8D77\u4E24\u9053\u7B49\u8DDD\u6E56\u84DD\u5F27\u5149\u3002"
+    },
+    {
+      slot: "ring",
+      name: "\u5F52\u9014\u6A31\u7EB9\u6212",
+      slug: "homeward-sakura-ring",
+      flavorText: "\u5B83\u4E0D\u89C4\u5B9A\u5F52\u671F\uFF0C\u53EA\u6807\u51FA\u53CC\u65B9\u5171\u540C\u786E\u8BA4\u8FC7\u7684\u4E0B\u4E00\u5904\u4F1A\u5408\u70B9\u3002",
+      memoryEffect: "\u5F52\u9014\u56DE\u5FC6\uFF1A\u66B4\u51FB\u65F6\u6D6E\u73B0\u53CC\u5411\u5DE1\u8DEF\u6A31\u5370\u3002"
+    },
+    {
+      slot: "belt",
+      name: "\u5C45\u5408\u5200\u7A57\u8170\u5C01",
+      slug: "iai-tassel-belt",
+      flavorText: "\u96EA\u767D\u8170\u5C01\u7559\u6709\u53EF\u89E3\u677E\u7ED3\uFF0C\u5200\u7A57\u4F4D\u7F6E\u59CB\u7EC8\u7531\u5979\u81EA\u5DF1\u51B3\u5B9A\u3002",
+      memoryEffect: "\u5C45\u5408\u56DE\u5FC6\uFF1A\u79FB\u52A8\u65F6\u62D6\u51FA\u84DD\u767D\u6A31\u74E3\u4E1D\u5E26\u3002"
+    },
+    {
+      slot: "shoes",
+      name: "\u96EA\u8E0F\u6A31\u7EB9\u5C65",
+      slug: "snowstep-sakura-sandals",
+      flavorText: "\u9002\u5408\u9053\u573A\u4E0E\u957F\u8DEF\u7684\u8F7B\u5C65\uFF0C\u6BCF\u4E00\u6B65\u90FD\u80FD\u6309\u81EA\u5DF1\u7684\u901F\u5EA6\u843D\u7A33\u3002",
+      memoryEffect: "\u96EA\u8E0F\u56DE\u5FC6\uFF1A\u95EA\u907F\u65F6\u7559\u4E0B\u8584\u51B0\u6A31\u7EB9\u3002"
+    },
+    {
+      slot: "body",
+      name: "\u767D\u7FBD\u6A31\u5B88\u77ED\u7FBD\u7EC7",
+      slug: "white-feather-guardian-kimono",
+      flavorText: "\u84DD\u767D\u77ED\u7FBD\u7EC7\u4EE5\u5C11\u91CF\u6A31\u7C89\u6536\u8FB9\uFF0C\u53EF\u7231\u4E0E\u98D2\u723D\u90FD\u662F\u5979\u4E3B\u52A8\u7684\u9009\u62E9\u3002",
+      memoryEffect: "\u767D\u7FBD\u56DE\u5FC6\uFF1A\u89D2\u8272\u5C55\u793A\u5207\u6362\u4E3A\u843D\u6A31\u9053\u573A\u793C\u88C5\u3002"
+    },
+    {
+      slot: "weapon",
+      name: "\u5FC3\u8679\xB7\u6674\u96EA\u5C45\u5408\u5200",
+      slug: "heart-rainbow-frost-sakura-katana",
+      flavorText: "\u6674\u96EA\u5200\u5149\u5728\u5F52\u9798\u540E\u624D\u7EFD\u6210\u5FC3\u8679\uFF0C\u63D0\u9192\u5979\u80DC\u5229\u4E5F\u5305\u62EC\u5B89\u5168\u7ED3\u675F\u3002",
+      memoryEffect: "\u5FC3\u8679\u56DE\u5FC6\uFF1A\u653B\u51FB\u5212\u51FA\u84DD\u767D\u5251\u6C14\u4E0E\u6A31\u5439\u96EA\u3002"
+    },
+    {
+      slot: "body",
+      name: "\u6708\u84DD\u5DE1\u706F\u5C0F\u632F\u8896",
+      slug: "moonblue-lantern-date-kimono",
+      flavorText: "\u5979\u4E3A\u6A31\u5DDD\u5348\u8336\u6311\u9009\u7684\u8F7B\u632F\u8896\uFF0C\u8896\u53E3\u7559\u8DB3\u81EA\u7531\u6536\u5200\u7684\u7A7A\u95F4\u3002",
+      memoryEffect: "\u5DE1\u706F\u56DE\u5FC6\uFF1A\u89D2\u8272\u5C55\u793A\u5207\u6362\u4E3A\u6708\u84DD\u7EA6\u4F1A\u632F\u8896\u3002"
+    },
+    {
+      slot: "weapon",
+      name: "\u5343\u6A31\u5F52\u5FC3\u540D\u5200",
+      slug: "thousand-sakura-homecoming-blade",
+      flavorText: "\u5200\u94ED\u4E0D\u662F\u5360\u6709\u8A93\u8A00\uFF0C\u800C\u662F\u6BCF\u6B21\u8D70\u5B8C\u81EA\u5DF1\u7684\u8DEF\u540E\u4ECD\u613F\u518D\u6B21\u4F1A\u5408\u3002",
+      memoryEffect: "\u5F52\u5FC3\u56DE\u5FC6\uFF1A\u6280\u80FD\u547D\u4E2D\u540E\u5343\u6A31\u5F52\u9798\u3001\u53CC\u706F\u540C\u4EAE\u3002"
+    }
   ])
 ];
 function affectionFixedAffixes(slot, level, collectionIndex) {
@@ -1046,9 +1139,12 @@ function affectionAffixValue(key, level, collectionIndex) {
       throw new Error(`[\u914D\u7F6E\u9519\u8BEF] \u5FC3\u8679\u56FA\u5B9A\u8BCD\u6761\u4E0D\u652F\u6301\uFF1A${key}`);
   }
 }
+function affectionAppearanceId(classId, slug) {
+  return `affection-${classId}-${slug}`;
+}
 function buildDefinition(spec, collectionIndex) {
   const id = `eq_affection_${spec.classId}_${spec.slug}`;
-  const appearanceId = spec.slot === "weapon" ? boutiqueAppearanceId(spec.appearanceTheme, spec.slot, spec.classId) : boutiqueAppearanceId(spec.appearanceTheme, spec.slot);
+  const appearanceId = spec.classId === "kenshi" ? affectionAppearanceId(spec.classId, spec.slug) : spec.slot === "weapon" ? boutiqueAppearanceId(spec.appearanceTheme, spec.slot, spec.classId) : boutiqueAppearanceId(spec.appearanceTheme, spec.slot);
   const commonDefinition = {
     id,
     name: spec.name,
@@ -1252,7 +1348,8 @@ var REGION_34_EQUIPMENT_THEMES = [
       swordsman: "\u6676\u58F3\u53CC\u5203",
       witch: "\u5E7D\u6676\u9B54\u5BFC\u7403",
       shaman: "\u866B\u7FC5\u7075\u6247",
-      catkin: "\u5E7D\u6676\u88C2\u722A"
+      catkin: "\u5E7D\u6676\u88C2\u722A",
+      kenshi: "\u6676\u58F3\u592A\u5200"
     }
   },
   {
@@ -1273,7 +1370,8 @@ var REGION_34_EQUIPMENT_THEMES = [
       swordsman: "\u6708\u6CEA\u9AA8\u5203",
       witch: "\u6708\u6CEA\u661F\u6756",
       shaman: "\u6C38\u7720\u8F6E\u6247",
-      catkin: "\u6708\u94E0\u5DE8\u722A"
+      catkin: "\u6708\u94E0\u5DE8\u722A",
+      kenshi: "\u6708\u6CEA\u592A\u5200"
     }
   }
 ];
@@ -1371,7 +1469,8 @@ var REGION_5_EQUIPMENT_THEME = {
     swordsman: "\u7EEF\u91D1\u8A93\u5203",
     witch: "\u7194\u6676\u7130\u5FC3\u6756",
     shaman: "\u8D64\u7FBD\u796D\u706B\u6247",
-    catkin: "\u7EEF\u7130\u88C2\u6676\u722A"
+    catkin: "\u7EEF\u7130\u88C2\u6676\u722A",
+    kenshi: "\u7EEF\u91D1\u5C45\u5408\u5200"
   }
 };
 var REGION_5_SET_ID = "set_region_crimson";
@@ -1397,7 +1496,8 @@ var REGION_5_SET_WEAPON_NAMES = {
   swordsman: "\u7EF4\u65AF\u5854\u8A93\u7130\u5203",
   witch: "\u7EF4\u65AF\u5854\u7130\u5FC3\u6756",
   shaman: "\u7EF4\u65AF\u5854\u71CE\u5929\u6247",
-  catkin: "\u7EF4\u65AF\u5854\u7130\u7FBD\u722A"
+  catkin: "\u7EF4\u65AF\u5854\u7130\u7FBD\u722A",
+  kenshi: "\u7EF4\u65AF\u5854\u7EEF\u7130\u540D\u5200"
 };
 function region5SetEquipmentId(slot) {
   return `eq_set_region_crimson_${slot}`;
@@ -1496,7 +1596,8 @@ var REGION_6_EQUIPMENT_THEME = {
     swordsman: "\u5E7D\u77F3\u9547\u9B42\u5251",
     witch: "\u5E7D\u70EC\u7977\u661F\u6756",
     shaman: "\u7384\u94C3\u9547\u5F71\u6247",
-    catkin: "\u591C\u5F71\u88C2\u77F3\u722A"
+    catkin: "\u591C\u5F71\u88C2\u77F3\u722A",
+    kenshi: "\u5E7D\u77F3\u9547\u9B42\u5200"
   }
 };
 var REGION_6_SET_ID = "set_region_shadow";
@@ -1526,7 +1627,8 @@ var REGION_6_SET_WEAPON_NAMES = {
   swordsman: "\u8BFA\u74E6\u5E7D\u754C\u5251",
   witch: "\u8BFA\u74E6\u865A\u661F\u6756",
   shaman: "\u8BFA\u74E6\u9547\u9B42\u6247",
-  catkin: "\u8BFA\u74E6\u5F71\u7F1A\u722A"
+  catkin: "\u8BFA\u74E6\u5F71\u7F1A\u722A",
+  kenshi: "\u8BFA\u74E6\u5E7D\u754C\u592A\u5200"
 };
 function region6SetEquipmentId(slot) {
   return `eq_set_region_shadow_${slot}`;
@@ -1625,7 +1727,8 @@ var REGION_7_EQUIPMENT_THEME = {
     swordsman: "\u8840\u6708\u65AD\u9B42\u5251",
     witch: "\u6708\u8680\u7EEF\u661F\u6756",
     shaman: "\u8D64\u96FE\u5F15\u9B42\u6247",
-    catkin: "\u8840\u6708\u88C2\u9B42\u53CC\u722A"
+    catkin: "\u8840\u6708\u88C2\u9B42\u53CC\u722A",
+    kenshi: "\u8840\u6708\u65AD\u9B42\u5200"
   }
 };
 var REGION_7_SET_ID = "set_region_bloodmoon";
@@ -1655,7 +1758,8 @@ var REGION_7_SET_WEAPON_NAMES = {
   swordsman: "\u8389\u8389\u59C6\u6708\u8680\u5251",
   witch: "\u8389\u8389\u59C6\u8840\u661F\u6756",
   shaman: "\u8389\u8389\u59C6\u5524\u6708\u6247",
-  catkin: "\u8389\u8389\u59C6\u7EEF\u6708\u53CC\u722A"
+  catkin: "\u8389\u8389\u59C6\u7EEF\u6708\u53CC\u722A",
+  kenshi: "\u8389\u8389\u59C6\u7EEF\u6708\u592A\u5200"
 };
 function region7SetEquipmentId(slot) {
   return `eq_set_region_bloodmoon_${slot}`;
@@ -1944,6 +2048,16 @@ var CLASS_GEAR = {
     bodyAffix: "eva",
     attackCopy: "\u4EA4\u9519\u722A\u75D5\u4E2D\u592E\u5F39\u51FA\u732B\u722A\u661F\u5370",
     interactionCopy: "\u4FCF\u76AE\u8F6C\u8EAB\uFF0C\u5C3E\u7AEF\u7559\u4E0B\u77ED\u6682\u5FC3\u5F62\u5149\u8FF9"
+  },
+  kenshi: {
+    weaponNoun: "\u843D\u6A31\u5C45\u5408\u5200",
+    dressNoun: "\u767D\u6A31\u7FBD\u7EC7\u793C\u88D9",
+    weaponVisualKey: "weapon-kenshi",
+    bodyVisualKey: "body-kenshi",
+    weaponAffix: "critDmg",
+    bodyAffix: "hp",
+    attackCopy: "\u84DD\u767D\u5200\u5149\u7A7F\u8FC7\u6A31\u74E3\u540E\u77AC\u95F4\u5F52\u9798",
+    interactionCopy: "\u6309\u4F4F\u5200\u9798\u884C\u6B66\u58EB\u793C\uFF0C\u767D\u6A31\u6CBF\u7FBD\u7EC7\u8F7B\u843D"
   }
 };
 var TIER_CLASS_PREFIX = {
@@ -1951,25 +2065,29 @@ var TIER_CLASS_PREFIX = {
     swordsman: "\u6674\u84DD\u8336\u4F1A",
     witch: "\u6674\u84DD\u7CD6\u661F",
     shaman: "\u6674\u84DD\u7948\u613F",
-    catkin: "\u6674\u84DD\u732B\u7CD6"
+    catkin: "\u6674\u84DD\u732B\u7CD6",
+    kenshi: "\u6674\u84DD\u6A31\u5200"
   },
   violet: {
     swordsman: "\u6708\u7D2B\u8A93\u7EA6",
     witch: "\u6708\u7D2B\u661F\u4EEA",
     shaman: "\u6708\u7D2B\u7977\u6B4C",
-    catkin: "\u6708\u7D2B\u5154\u5F71"
+    catkin: "\u6708\u7D2B\u5154\u5F71",
+    kenshi: "\u6708\u7D2B\u6A31\u5200"
   },
   auric: {
     swordsman: "\u7425\u73C0\u738B\u5EAD",
     witch: "\u7425\u73C0\u5929\u7A79",
     shaman: "\u7425\u73C0\u5723\u6B4C",
-    catkin: "\u7425\u73C0\u8537\u8587"
+    catkin: "\u7425\u73C0\u8537\u8587",
+    kenshi: "\u7425\u73C0\u6A31\u5200"
   },
   crimson: {
     swordsman: "\u7EEF\u6A31\u5178\u85CF",
     witch: "\u7EEF\u6A31\u79D8\u85CF",
     shaman: "\u7EEF\u6A31\u5723\u85CF",
-    catkin: "\u7EEF\u6A31\u73CD\u85CF"
+    catkin: "\u7EEF\u6A31\u73CD\u85CF",
+    kenshi: "\u7EEF\u6A31\u540D\u5200"
   }
 };
 var SHARED_VARIANTS = {
@@ -2255,7 +2373,12 @@ var SPECS2 = [
   { classId: "catkin", slot: "weapon", name: "\u5723\u75D5\xB7\u75BE\u5F71\xB7\u53CC\u5F26\u722A", slug: "swiftshadow-twin-claws", series: "\u75BE\u5F71" },
   { classId: "catkin", slot: "head", name: "\u5723\u75D5\xB7\u75BE\u5F71\xB7\u591C\u730E\u8033\u9970", slug: "swiftshadow-nighthunt-ears", series: "\u75BE\u5F71" },
   { classId: "catkin", slot: "body", name: "\u5723\u75D5\xB7\u75BE\u5F71\xB7\u6F5C\u884C\u6218\u8863", slug: "swiftshadow-stalker-suit", series: "\u75BE\u5F71" },
-  { classId: "catkin", slot: "ring", name: "\u5723\u75D5\xB7\u75BE\u5F71\xB7\u8FC5\u6377\u6307\u73AF", slug: "swiftshadow-agile-ring", series: "\u75BE\u5F71" }
+  { classId: "catkin", slot: "ring", name: "\u5723\u75D5\xB7\u75BE\u5F71\xB7\u8FC5\u6377\u6307\u73AF", slug: "swiftshadow-agile-ring", series: "\u75BE\u5F71" },
+  // ── 樱酱 · 瞬樱 ──
+  { classId: "kenshi", slot: "weapon", name: "\u5723\u75D5\xB7\u77AC\u6A31\xB7\u65AD\u754C\u592A\u5200", slug: "blinkbloom-boundary-katana", series: "\u77AC\u6A31" },
+  { classId: "kenshi", slot: "head", name: "\u5723\u75D5\xB7\u77AC\u6A31\xB7\u96EA\u8033\u5251\u51A0", slug: "blinkbloom-snowear-crown", series: "\u77AC\u6A31" },
+  { classId: "kenshi", slot: "body", name: "\u5723\u75D5\xB7\u77AC\u6A31\xB7\u767D\u7FBD\u6218\u8863", slug: "blinkbloom-whitefeather-garb", series: "\u77AC\u6A31" },
+  { classId: "kenshi", slot: "ring", name: "\u5723\u75D5\xB7\u77AC\u6A31\xB7\u5F52\u9798\u6307\u73AF", slug: "blinkbloom-return-ring", series: "\u77AC\u6A31" }
 ];
 function arenaAppearanceId(classId, slot) {
   return `arena-${classId}-${slot}`;
@@ -2311,7 +2434,8 @@ var THEMES = [
       swordsman: "\u6A31\u679D\u77ED\u5251",
       witch: "\u82B1\u7FBD\u9B54\u6756",
       shaman: "\u6A31\u4FE1\u7075\u6247",
-      catkin: "\u82B1\u94C3\u6676\u722A"
+      catkin: "\u82B1\u94C3\u6676\u722A",
+      kenshi: "\u6A31\u679D\u592A\u5200"
     }
   },
   {
@@ -2343,7 +2467,8 @@ var THEMES = [
       swordsman: "\u68C9\u82B1\u7CD6\u6218\u69CC",
       witch: "\u751C\u4E91\u9B54\u6756",
       shaman: "\u871C\u94C3\u7075\u69CC",
-      catkin: "\u8702\u871C\u952E\u5E3D\u9524"
+      catkin: "\u8702\u871C\u952E\u5E3D\u9524",
+      kenshi: "\u68C9\u82B1\u7CD6\u592A\u5200"
     }
   },
   // 区域 3/4：主题与可见名称登记在 region34.ts，此处只补等级与品质档。

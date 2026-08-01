@@ -19,6 +19,16 @@ export const TRIAL_SEASON_ID = 's1';
 export const TRIAL_DURATION_SEC = 60;
 
 /**
+ * 固定 60 秒试炼使用的独立怪物攻击基准。
+ *
+ * 主线怪物可以为了关卡 TTK（击杀用时）调整 `MONSTER_ATK_BASE`，但试炼不会随
+ * 主线怪物血量一起缩短：把主线的“短战补偿”直接带进 60 秒战，会把同一份总承伤
+ * 重复放大。这里锁住试炼自己的长期生存标尺，生成时仍复用 `monsterAtk` 的等级、
+ * Boss 类型和成长公式，只把基准归一到本值。
+ */
+export const TRIAL_MONSTER_ATK_BASE = 4.9;
+
+/**
  * 周切时刻：北京时间周一 04:00，与装备副本 / 好感的日切小时保持一致。
  * 计算方式见 src/core/trial.ts 的 trialWeekIndex。
  */

@@ -324,6 +324,51 @@ describe('试炼成绩的结构上界 · damage 不可能超过 Boss 初始血�
     ).toBeGreaterThan(0);
   });
 
+  it('★ 固定时长生存标尺：3 倾向 × 5 段 × 5 职业的合法极值都能存活并打到满血上界', () => {
+    const tiltIds = ['shell', 'mirage', 'fury'] as const;
+    let cells = 0;
+
+    for (const bracket of TRIAL_BRACKETS) {
+      for (const tiltId of tiltIds) {
+        let week: number | null = null;
+        for (let candidate = 0; candidate < 256; candidate += 1) {
+          if (weeklyTrialBoss(TRIAL_SEASON_ID, candidate, bracket.id).tilt.id === tiltId) {
+            week = candidate;
+            break;
+          }
+        }
+        expect(week, `${bracket.id} 在 256 周内没有生成 ${tiltId} 倾向`).not.toBeNull();
+
+        for (const classId of CLASS_IDS) {
+          cells += 1;
+          const level = bracket.maxLevel;
+          const { build, equipped } = legalBuild(classId, level, 20260802, true);
+          expect(equipped.filter(Boolean).length, `${classId} @ ${bracket.id}`).toBe(
+            SLOT_ORDER.length,
+          );
+
+          const boss = weeklyTrialBoss(TRIAL_SEASON_ID, week!, bracket.id).combatant;
+          const result = runTrial(
+            build,
+            boss,
+            trialScoreSeed(TRIAL_SEASON_ID, week!, bracket.id, build.buildHash),
+          );
+          expect(
+            result.survived,
+            `${classId} @ ${bracket.id}/${tiltId} 在 ${result.durationSec.toFixed(1)} 秒阵亡，` +
+              `固定 60 秒试炼错误继承了主线短战攻击补偿`,
+          ).toBe(true);
+          expect(
+            result.damage,
+            `${classId} @ ${bracket.id}/${tiltId} 只打出 ${result.damage}/${boss.stats.hp}`,
+          ).toBe(boss.stats.hp);
+        }
+      }
+    }
+
+    expect(cells).toBe(TRIAL_BRACKETS.length * tiltIds.length * CLASS_IDS.length);
+  });
+
   /**
    * 上界必须**可取等**。判据写成严格小于（或取整取错方向）时，
    * 第一个被误判成作弊的恰好是把 Boss 打死的顶尖玩家 —— 误伤面最难看的那种。

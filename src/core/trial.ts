@@ -52,6 +52,7 @@ import {
   CRIT_RATE_CAP,
   MONSTER_ACC_BASE,
   MONSTER_ACC_PER_LEVEL,
+  MONSTER_ATK_BASE,
   MONSTER_BASE_CRIT_DMG,
   MONSTER_CRIT_RATE,
   MONSTER_EVA_PER_LEVEL,
@@ -63,6 +64,7 @@ import {
   TRIAL_BOSS_HP_HEADROOM,
   TRIAL_BRACKETS,
   TRIAL_DURATION_SEC,
+  TRIAL_MONSTER_ATK_BASE,
   TRIAL_RESET_HOUR_CST,
   TRIAL_TILTS,
   type TrialBracket,
@@ -185,7 +187,12 @@ export function weeklyTrialBoss(
 
   const def = Math.round(monsterDef(level, 'boss') * tilt.defMul);
   const eva = Math.round(level * MONSTER_EVA_PER_LEVEL * tilt.evaMul);
-  const atk = Math.round(monsterAtk(level, 'boss') * tilt.atkMul);
+  // 试炼固定打 60 秒，不能继承主线为缩短 TTK 而加上的攻击补偿；否则主线血量
+  // 降低后战斗更短、总承伤近似不变，试炼却仍打满 60 秒，补偿会被重复计算。
+  // 保留 monsterAtk 的等级/Boss 成长曲线，只把攻击基准归一到试炼自己的标尺。
+  const atk = Math.round(
+    monsterAtk(level, 'boss') * (TRIAL_MONSTER_ATK_BASE / MONSTER_ATK_BASE) * tilt.atkMul,
+  );
 
   // 先搭一个缺省血量的原型，用基准玩家期望 DPS 反推真正血量
   const protoStats: Stats = {
