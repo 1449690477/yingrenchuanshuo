@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   addStats,
+  adjustedHitChance,
   calcConfirmedElementalDamage,
   calcDamage,
   calcPeriodicDamage,
@@ -87,6 +88,14 @@ describe('hitChance', () => {
   it('下限 0.55，上限 1.0', () => {
     expect(hitChance(0, 100000)).toBe(0.55);
     expect(hitChance(100000, 0)).toBe(1.0);
+  });
+
+  it('动态命中与闪避修正仍服从真实战斗的命中上下限', () => {
+    const attacker = makePlayer('攻击者', 20, stats({ acc: 100 }));
+    const defender = makePlayer('防守者', 20, stats({ eva: 100 }));
+
+    expect(adjustedHitChance(attacker, defender, { dodgeChancePoints: 999 })).toBe(0.55);
+    expect(adjustedHitChance(attacker, defender, { hitChancePoints: 999 })).toBe(1);
   });
 });
 

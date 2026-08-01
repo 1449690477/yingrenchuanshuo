@@ -64,6 +64,25 @@ export function hitChance(acc: number, eva: number): number {
   return clamp(HIT_BASE + (acc - eva) / HIT_DIVISOR, HIT_MIN, HIT_MAX);
 }
 
+/**
+ * 单次伤害段应用动态命中/闪避修正后的最终命中率。
+ *
+ * 基础面板与技能修正必须共用同一组 HIT_MIN/HIT_MAX 边界；否则真实战斗与
+ * 挂机期望会在高额命中或闪避状态下产生 0%/100% 与硬门限之间的分叉。
+ */
+export function adjustedHitChance(
+  attacker: Combatant,
+  defender: Combatant,
+  options: Pick<DamageFormulaOptions, 'hitChancePoints' | 'dodgeChancePoints'> = {},
+): number {
+  return clamp(
+    hitChance(attacker.stats.acc, defender.stats.eva) +
+      ((options.hitChancePoints ?? 0) - (options.dodgeChancePoints ?? 0)) / 100,
+    HIT_MIN,
+    HIT_MAX,
+  );
+}
+
 /** 暴击倍率 */
 export function critMultiplier(critDmg: number): number {
   return CRIT_BASE + critDmg / 100;
@@ -128,14 +147,7 @@ export function calcDamage(
   rng: Rng,
   options: DamageFormulaOptions = {},
 ): DamageResult {
-  const hit = rng.chance(
-    clamp(
-      hitChance(attacker.stats.acc, defender.stats.eva) +
-        ((options.hitChancePoints ?? 0) - (options.dodgeChancePoints ?? 0)) / 100,
-      HIT_MIN,
-      HIT_MAX,
-    ),
-  );
+  const hit = rng.chance(adjustedHitChance(attacker, defender, options));
   if (!hit) return { damage: 0, hit: false, crit: false };
 
   const crit = rng.chance(clamp(attacker.stats.critRate / 100, 0, 1));
@@ -169,12 +181,7 @@ export function expectedDamage(
   skillMultiplier: number,
   options: DamageFormulaOptions = {},
 ): number {
-  const hitP = clamp(
-    hitChance(attacker.stats.acc, defender.stats.eva) +
-      ((options.hitChancePoints ?? 0) - (options.dodgeChancePoints ?? 0)) / 100,
-    HIT_MIN,
-    HIT_MAX,
-  );
+  const hitP = adjustedHitChance(attacker, defender, options);
   const critP = clamp(attacker.stats.critRate / 100, 0, 1);
 
   const avgVariance = (DAMAGE_VARIANCE_MIN + DAMAGE_VARIANCE_MAX) / 2;

@@ -13,8 +13,10 @@ import {
 } from '../combat';
 import { makeMonster, makePlayer } from '../progression';
 import { Rng } from '../rng';
+import { calcPeriodicDamage, expectedConfirmedElementalDamage } from '../formula';
+import { createSkillCombatKit } from '../skillCombat';
 import type { OnCritPeriodicDamageTrigger } from '../equipmentSets';
-import type { Combatant, Stats } from '../types';
+import type { Combatant, Skill, Stats } from '../types';
 import { REGION_CRIMSON_SET } from '@/data/regionEquipmentSets';
 
 const FLAMEBURST = REGION_CRIMSON_SET.bonuses.flatMap((bonus) => bonus.onHitTriggers ?? [])[0]!;
@@ -242,6 +244,96 @@ describe('simulateFight', () => {
     expect(player.currentHp).toBeCloseTo(100 + direct.event.damage + 30, 8);
     expect(result.damageDealt).toBeCloseTo(direct.event.damage + 32, 8);
   });
+
+  it('装备暴击持续伤害快照同一时刻的攻防动态修正', () => {
+    const attacker = makePlayer(
+      'p',
+      20,
+      s({ atk: 1_000, hp: 100_000, acc: 99_999, critRate: 100, spd: 0.01 }),
+    );
+    const defender = makePlayer(
+      'm',
+      20,
+      s({ atk: 0, hp: 100_000, def: 1_000, eva: 0, critRate: 0, spd: 0.01 }),
+    );
+    const offense: Skill = {
+      id: 'periodic-offense',
+      name: '持续伤害强化',
+      class: 'kenshi',
+      type: 'passive',
+      element: 'none',
+      unlockLevel: 1,
+      effects: [
+        {
+          kind: 'modifier',
+          target: { kind: 'self' },
+          modifier: { unit: 'ratio', stat: 'damageDone', ratio: { base: 0.5 } },
+        },
+        {
+          kind: 'modifier',
+          target: { kind: 'self' },
+          modifier: { unit: 'ratio', stat: 'dotDamage', ratio: { base: 0.25 } },
+        },
+        {
+          kind: 'modifier',
+          target: { kind: 'self' },
+          modifier: { unit: 'percentage-points', stat: 'defenseIgnore', points: { base: 50 } },
+        },
+      ],
+      icon: '',
+      desc: '',
+    };
+    const vulnerability: Skill = {
+      id: 'periodic-vulnerability',
+      name: '承伤加深',
+      class: 'swordsman',
+      type: 'passive',
+      element: 'none',
+      unlockLevel: 1,
+      effects: [
+        {
+          kind: 'modifier',
+          target: { kind: 'self' },
+          modifier: { unit: 'ratio', stat: 'damageTaken', ratio: { base: 0.2 } },
+        },
+        {
+          kind: 'modifier',
+          target: { kind: 'self' },
+          modifier: {
+            unit: 'ratio',
+            stat: 'damageTakenFromSource',
+            ratio: { base: 0.1 },
+          },
+        },
+      ],
+      icon: '',
+      desc: '',
+    };
+
+    const result = simulateFight(attacker, defender, new Rng(1907), {
+      maxSeconds: 1.1,
+      playerSkillKit: createSkillCombatKit([offense], 20),
+      monsterSkillKit: createSkillCombatKit([vulnerability], 20),
+      playerOnCritTriggers: [BLOODMOON],
+    });
+    const periodic = result.events.find((event) => event.event.kind === 'periodic-damage');
+    const expected = calcPeriodicDamage(
+      attacker,
+      defender,
+      BLOODMOON.atkMultiplierPerTick,
+      attacker.element,
+      {
+        defenseIgnoreRatio: 0.5,
+        damageDoneRatio: 0.5,
+        dotDamageRatio: 0.25,
+        damageTakenRatio: 0.2,
+        damageTakenFromSourceRatio: 0.1,
+      },
+    );
+
+    expect(periodic?.event.kind).toBe('periodic-damage');
+    expect(periodic?.event.damage).toBeCloseTo(expected, 8);
+  });
 });
 
 describe('逐伤害段 on-hit 解析', () => {
@@ -291,6 +383,34 @@ describe('逐伤害段 on-hit 解析', () => {
     expect(triggers / samples).toBeCloseTo(0.15, 2);
     const expected = expectedDamageSegment(attacker, target, 1.4, [FLAMEBURST]);
     expect(Math.abs(total / samples - expected) / expected).toBeLessThan(0.02);
+  });
+
+  it('挂机逐击期望与实战共享动态命中的硬上下限', () => {
+    const attacker = makePlayer('p', 20, s({ atk: 1_000, acc: 100, critRate: 0 }), 'fire');
+    const target = makePlayer('m', 20, s({ def: 0, eva: 100 }), 'ice');
+    const guaranteed = { ...FLAMEBURST, chance: 1 };
+    const triggeredDamage = expectedConfirmedElementalDamage(
+      attacker,
+      target,
+      guaranteed.atkMultiplier,
+      guaranteed.element,
+    );
+
+    const lowerBase = expectedDamageSegment(attacker, target, 1, [], {
+      dodgeChancePoints: 999,
+    });
+    const lowerWithTrigger = expectedDamageSegment(attacker, target, 1, [guaranteed], {
+      dodgeChancePoints: 999,
+    });
+    expect(lowerWithTrigger - lowerBase).toBeCloseTo(triggeredDamage * 0.55, 8);
+
+    const upperBase = expectedDamageSegment(attacker, target, 1, [], {
+      hitChancePoints: 999,
+    });
+    const upperWithTrigger = expectedDamageSegment(attacker, target, 1, [guaranteed], {
+      hitChancePoints: 999,
+    });
+    expect(upperWithTrigger - upperBase).toBeCloseTo(triggeredDamage, 8);
   });
 
   it('拒绝越界触发配置，不用概率 clamp 掩盖数据错误', () => {

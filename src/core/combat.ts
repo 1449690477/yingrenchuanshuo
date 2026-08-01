@@ -18,12 +18,12 @@ import type {
 } from './types';
 import { Rng } from './rng';
 import {
+  adjustedHitChance,
   calcConfirmedElementalDamage,
   calcDamage,
   calcPeriodicDamage,
   expectedConfirmedElementalDamage,
   expectedDamage,
-  hitChance,
   type DamageFormulaOptions,
 } from './formula';
 import {
@@ -256,14 +256,7 @@ export function expectedDamageSegment(
   formulaOptions: DamageFormulaOptions = {},
 ): number {
   let total = expectedDamage(attacker, defender, skillMultiplier, formulaOptions);
-  const directHitChance = Math.min(
-    1,
-    Math.max(
-      0,
-      hitChance(attacker.stats.acc, defender.stats.eva) +
-        ((formulaOptions.hitChancePoints ?? 0) - (formulaOptions.dodgeChancePoints ?? 0)) / 100,
-    ),
-  );
+  const directHitChance = adjustedHitChance(attacker, defender, formulaOptions);
   for (const trigger of onHitTriggers) {
     assertOnHitElementalDamageTrigger(trigger);
     total +=
@@ -899,6 +892,13 @@ export function simulateFight(
       source === 'player' ? opts.playerOnCritTriggers : opts.monsterOnCritTriggers;
     if (!triggers?.length) return;
     const attacker = viewsFor(source, targetRef.summonId).attacker.combatant;
+    const formulaOptions = formulaOptionsFor(
+      source,
+      null,
+      false,
+      undefined,
+      targetRef.summonId,
+    );
     attacker.currentHp = combatantOf(source).currentHp;
     if (targetRef.summonId) {
       const summon = runtimeSummon(getSkillState(targetRef.side), targetRef.summonId);
@@ -911,6 +911,7 @@ export function simulateFight(
         ticks * TICK_MS,
         summon.periodicDamage,
         events,
+        formulaOptions,
       );
       combatantOf(source).currentHp = attacker.currentHp;
       setSkillState(
@@ -931,6 +932,7 @@ export function simulateFight(
         ticks * TICK_MS,
         playerPeriodicDamage,
         events,
+        formulaOptions,
       );
     } else {
       monsterPeriodicDamage = resolveOnCritTriggers(
@@ -941,6 +943,7 @@ export function simulateFight(
         ticks * TICK_MS,
         monsterPeriodicDamage,
         events,
+        formulaOptions,
       );
     }
     combatantOf(source).currentHp = attacker.currentHp;
@@ -1905,6 +1908,7 @@ function resolveOnCritTriggers(
   elapsedMs: number,
   periodicState: PeriodicDamageState,
   timeline: CombatTimelineEvent[],
+  formulaOptions: DamageFormulaOptions = {},
 ): PeriodicDamageState {
   let state = periodicState;
   for (const trigger of triggers) {
@@ -1941,6 +1945,7 @@ function resolveOnCritTriggers(
           defender,
           trigger.atkMultiplierPerTick,
           element,
+          formulaOptions,
         ),
         stacks: 1,
         maxStacks: trigger.maxStacks,
