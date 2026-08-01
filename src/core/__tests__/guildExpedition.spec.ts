@@ -67,8 +67,8 @@ describe('公会远征确定性与归一化', () => {
         buildDefaultPlayerSkillKit('swordsman', bracket.bossLevel),
         'boss',
       );
-      expect(boss.stats.hp).toBeGreaterThanOrEqual(
-        dps * TRIAL_DURATION_SEC * (TRIAL_BOSS_HP_HEADROOM - 1),
+      expect(boss.stats.hp).toBe(
+        Math.max(1, Math.ceil(dps * TRIAL_DURATION_SEC * TRIAL_BOSS_HP_HEADROOM)),
       );
     }
   });

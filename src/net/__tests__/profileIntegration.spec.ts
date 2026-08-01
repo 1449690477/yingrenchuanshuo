@@ -88,9 +88,28 @@ describe('服务端档案同步', () => {
   });
 
   it('同分重提可以修复旧版误审，但低分不能洗白更高旧分', () => {
-    expect(submitTrialSource).toContain("select('id, damage, verified')");
+    expect(submitTrialSource).toContain("select('id, damage, verified, class_id')");
+    expect(submitTrialSource).toContain(".eq('trial_formula_version'");
     expect(submitTrialSource).toContain("decision.action === 'reverify'");
     expect(submitTrialSource).toContain('verified: decision.bestVerified');
+  });
+
+  it('试炼写入、排名和回包共用同一个公式版本戳', () => {
+    expect(submitTrialSource).toContain('const trialFormulaStamp = buildTrialFormulaStamp()');
+    expect(submitTrialSource).toContain(
+      ".eq('trial_formula_version', trialFormulaStamp.trial_formula_version)",
+    );
+    expect(submitTrialSource).toContain(
+      'formulaVersion: trialFormulaStamp.trial_formula_version',
+    );
+  });
+
+  it('切职后覆盖/复核成绩会同步 class_id，keep 才沿用原职业排名', () => {
+    expect(submitTrialSource.match(/class_id: sub\.classId/g)?.length ?? 0).toBeGreaterThanOrEqual(3);
+    expect(submitTrialSource).toContain(
+      "decision.action === 'keep' ? existing!.class_id : sub.classId",
+    );
+    expect(submitTrialSource).toContain(".eq('class_id', rankingClassId)");
   });
 });
 

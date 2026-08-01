@@ -134,7 +134,15 @@ export function trialDamageCeiling(
   classId: ClassId,
   weekIndex: number,
 ): number {
-  return maxPlausibleTrialDamage(level, classId, weekIndex) * TRIAL_DAMAGE_HEADROOM;
+  const bracket = trialBracketFor(level);
+  const bossHp = weeklyTrialBoss(TRIAL_SEASON_ID, weekIndex, bracket.id).combatant.stats.hp;
+  // 伤害只累计 Boss 实际扣掉的血，因此任何构筑探针加余量后都不能
+  // 超过 Boss 初始血量。生存标尺调低后顶配玩家能打满 60 秒，若不夹取，
+  // 这个诊断函数反而会报出比结构上界还大的不可能数。
+  return Math.min(
+    bossHp,
+    maxPlausibleTrialDamage(level, classId, weekIndex) * TRIAL_DAMAGE_HEADROOM,
+  );
 }
 
 /**

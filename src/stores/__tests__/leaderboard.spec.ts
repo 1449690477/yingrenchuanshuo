@@ -15,7 +15,10 @@ import { clearSave } from '@/save/storage';
 import { createSave, type TrialBest } from '@/save/schema';
 import { TRIAL_BEST_KEEP, TRIAL_BRACKETS, TRIAL_SEASON_ID } from '@/data/trialRules';
 import { trialBracketFor, trialWeekIndex } from '@/core/trial';
-import { TRIAL_FORMULA_VERSION } from '@/core/trialFormulaVersion';
+import {
+  LEGACY_TRIAL_FORMULA_VERSION,
+  TRIAL_FORMULA_VERSION,
+} from '@/core/trialFormulaVersion';
 import { useGameStore } from '../game';
 import { useLeaderboardStore } from '../leaderboard';
 
@@ -203,6 +206,26 @@ describe('离线降级 / 未配置 Supabase', () => {
     await setupGame();
     const lb = useLeaderboardStore();
     await expect(lb.submitBest()).resolves.toBeNull();
+  });
+});
+
+describe('试炼榜公式切换', () => {
+  it('默认只看当前公式，仅接受当前/历史两个明确版本', async () => {
+    await setupGame();
+    const lb = useLeaderboardStore();
+
+    expect(lb.trialBoardFormulaVersion).toBe(TRIAL_FORMULA_VERSION);
+    expect(lb.viewingHistoricalTrialFormula).toBe(false);
+
+    lb.selectTrialBoardFormulaVersion(999);
+    expect(lb.trialBoardFormulaVersion).toBe(TRIAL_FORMULA_VERSION);
+
+    lb.selectTrialBoardFormulaVersion(LEGACY_TRIAL_FORMULA_VERSION);
+    expect(lb.trialBoardFormulaVersion).toBe(LEGACY_TRIAL_FORMULA_VERSION);
+    expect(lb.viewingHistoricalTrialFormula).toBe(true);
+
+    lb.selectTrialBoardFormulaVersion(TRIAL_FORMULA_VERSION);
+    expect(lb.viewingHistoricalTrialFormula).toBe(false);
   });
 });
 

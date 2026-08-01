@@ -12,6 +12,8 @@ import {
   TRIAL_BOSS_HP_HEADROOM,
   TRIAL_BRACKETS,
   TRIAL_DURATION_SEC,
+  TRIAL_MONSTER_ATK_BASE,
+  TRIAL_REFERENCE_DAMAGE_FRACTION,
   TRIAL_TILTS,
 } from '../trialRules';
 
@@ -61,5 +63,11 @@ describe('试炼数值护栏', () => {
 
   it('试炼时长是 60 秒（方案 §3.1 的硬口径）', () => {
     expect(TRIAL_DURATION_SEC).toBe(60);
+  });
+
+  it('固定时长攻击保留 4.9 长战基准，生存校准仍必须留有压力', () => {
+    expect(TRIAL_MONSTER_ATK_BASE).toBeCloseTo(4.9, 6);
+    expect(TRIAL_REFERENCE_DAMAGE_FRACTION).toBeGreaterThan(0);
+    expect(TRIAL_REFERENCE_DAMAGE_FRACTION).toBeLessThan(1);
   });
 });

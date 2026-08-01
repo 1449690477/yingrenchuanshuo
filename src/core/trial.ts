@@ -13,11 +13,19 @@
  *   - 所有随机都来自 src/core/rng.ts（AGENTS.md 铁律 4）
  */
 
-import type { ClassId, Combatant, CombatBonuses, EquipmentInstance, Stats } from './types';
+import {
+  CLASS_IDS,
+  type ClassId,
+  type Combatant,
+  type CombatBonuses,
+  type EquipmentInstance,
+  type Stats,
+} from './types';
 import { Rng } from './rng';
 import { addStats, combatPower } from './formula';
 import {
   estimateDps,
+  estimateIncomingDps,
   simulateFight,
   type CombatTimelineEvent,
   type FightOptions,
@@ -47,7 +55,11 @@ import {
 import { applyEquipmentSetStats, resolveEquipmentSetBonuses } from './equipmentSets';
 import { getEquipment, requireEquipment } from '@/data/equipment';
 import { getEquipmentSet, getFieldEquipmentSet } from '@/data/equipmentSets';
-import { expectedGearStats, typicalQualityAt } from '@/data/expectedPower';
+import {
+  expectedGearStats,
+  expectedGearStatsFromDefinitions,
+  typicalQualityAt,
+} from '@/data/expectedPower';
 import {
   CRIT_RATE_CAP,
   MONSTER_ACC_BASE,
@@ -65,6 +77,7 @@ import {
   TRIAL_BRACKETS,
   TRIAL_DURATION_SEC,
   TRIAL_MONSTER_ATK_BASE,
+  TRIAL_REFERENCE_DAMAGE_FRACTION,
   TRIAL_RESET_HOUR_CST,
   TRIAL_TILTS,
   type TrialBracket,
@@ -168,6 +181,90 @@ export interface WeeklyTrialBoss {
 }
 
 /**
+ * 生存标定专用的真实定义选装玩家。
+ *
+ * 不能把它拿去标定 Boss 血量：定义选装不含典型强化/词条投入，直接
+ * 替换输出锚会让五段 Boss 血量下移约 6%～21%。两个锚回答不同问题，
+ * 必须物理分开。
+ */
+export function trialSurvivalReferenceCombatant(classId: ClassId, level: number): Combatant {
+  const stats = applyClassMods(
+    classId,
+    addStats(baseStatsFor(classId, level), expectedGearStatsFromDefinitions(level)),
+  );
+  return makePlayer('试炼生存标定玩家', level, stats);
+}
+
+/** Boss HP 输出标定专用：严格保留 v1 已上线的典型品质曲线。 */
+function trialOutputReferenceCombatant(classId: ClassId, level: number): Combatant {
+  const quality = typicalQualityAt(level);
+  const stats = applyClassMods(
+    classId,
+    addStats(baseStatsFor(classId, level), expectedGearStats(level, quality)),
+  );
+  return makePlayer('试炼输出标定玩家', level, stats);
+}
+
+function fixedDurationIncomingRatio(level: number, atk: number): number {
+  const attacker: Combatant = {
+    name: '固定时长承伤标定靶',
+    level,
+    element: 'none',
+    stats: {
+      atk,
+      def: 0,
+      hp: 1,
+      acc: Math.round(MONSTER_ACC_BASE + level * MONSTER_ACC_PER_LEVEL),
+      eva: 0,
+      critRate: MONSTER_CRIT_RATE.boss,
+      critDmg: MONSTER_BASE_CRIT_DMG,
+      spd: MONSTER_SPEED.boss,
+    },
+    currentHp: 1,
+  };
+  return Math.max(
+    ...CLASS_IDS.map((classId) => {
+      const reference = trialSurvivalReferenceCombatant(classId, level);
+      return (estimateIncomingDps(reference, attacker) * TRIAL_DURATION_SEC) / reference.stats.hp;
+    }),
+  );
+}
+
+/**
+ * 固定 60 秒 Boss 的实战攻击。
+ *
+ * 先从主线攻击曲线退回 4.9 的长战基准，再用最危险的倾向与五职业
+ * 基准玩家校准上限。二分只搜索整数攻击，输入相同必然得到相同结果；
+ * 较低的 shell/mirage 仍保留与 fury 的明显压力差，不是把三种倾向各自
+ * 夹到同一承伤。
+ */
+export function fixedDurationBossAttack(level: number, tiltAtkMul: number): number {
+  const cacheKey = `${level}:${tiltAtkMul}`;
+  const cached = fixedDurationAttackCache.get(cacheKey);
+  if (cached !== undefined) return cached;
+  const rawBase = monsterAtk(level, 'boss') * (TRIAL_MONSTER_ATK_BASE / MONSTER_ATK_BASE);
+  const maxTiltMul = Math.max(...TRIAL_TILTS.map((tilt) => tilt.atkMul));
+  let low = 0;
+  let high = Math.max(0, Math.ceil(rawBase));
+  while (low < high) {
+    const mid = Math.ceil((low + high) / 2);
+    const worstTiltAtk = Math.round(mid * maxTiltMul);
+    if (fixedDurationIncomingRatio(level, worstTiltAtk) <= TRIAL_REFERENCE_DAMAGE_FRACTION) {
+      low = mid;
+    } else {
+      high = mid - 1;
+    }
+  }
+  const result = Math.round(Math.min(rawBase, low) * tiltAtkMul);
+  fixedDurationAttackCache.set(cacheKey, result);
+  return result;
+}
+
+// 全部输入都是静态数值配置，透明记忆化不改变函数语义。不做这层时，
+// 榜单门禁扫 450 格会反复执行相同的二分与全装表选装，浪费数十秒。
+const fixedDurationAttackCache = new Map<string, number>();
+
+/**
  * 生成某周某分段的试炼 Boss。
  *
  * 属性以分段中位等级的怪物公式为基准，再叠加本周词条倾向的倍率；
@@ -190,9 +287,7 @@ export function weeklyTrialBoss(
   // 试炼固定打 60 秒，不能继承主线为缩短 TTK 而加上的攻击补偿；否则主线血量
   // 降低后战斗更短、总承伤近似不变，试炼却仍打满 60 秒，补偿会被重复计算。
   // 保留 monsterAtk 的等级/Boss 成长曲线，只把攻击基准归一到试炼自己的标尺。
-  const atk = Math.round(
-    monsterAtk(level, 'boss') * (TRIAL_MONSTER_ATK_BASE / MONSTER_ATK_BASE) * tilt.atkMul,
-  );
+  const atk = fixedDurationBossAttack(level, tilt.atkMul);
 
   // 先搭一个缺省血量的原型，用基准玩家期望 DPS 反推真正血量
   const protoStats: Stats = {
@@ -216,19 +311,17 @@ export function weeklyTrialBoss(
       : {}),
   };
 
-  const quality = typicalQualityAt(level);
-  const referenceStats = applyClassMods(
-    'swordsman',
-    addStats(baseStatsFor('swordsman', level), expectedGearStats(level, quality)),
-  );
-  const reference = makePlayer('基准玩家', level, referenceStats);
+  const reference = trialOutputReferenceCombatant('swordsman', level);
   // 技能轮转会按目标剩余生命截断过量伤害。若直接拿 hp=1 的原型标定，
   // 每次命中最多只记 1 点伤害，最终会把周常 Boss 的血量反推到几百点。
   // 标定阶段使用不会在 60 秒内死亡的同属性目标，最终再把算出的血量写回真实 Boss。
   const calibrationHp = Number.MAX_SAFE_INTEGER;
   const calibrationTarget: Combatant = {
     ...proto,
-    stats: { ...protoStats, hp: calibrationHp },
+    // 血量尺量的是玩家完整 60 秒 DPS，不是“被 Boss 打死前打了多少”。
+    // 只把目标 hp 改成无穷大仍会让它反击并提前终止估算，导致调低承伤
+    // 时 Boss 血量跟着变化。标定靶必须同时关闭攻击，把输出尺与生存尺物理隔离。
+    stats: { ...protoStats, atk: 0, critRate: 0, hp: calibrationHp },
     currentHp: calibrationHp,
   };
   const referenceDps = estimateDps(

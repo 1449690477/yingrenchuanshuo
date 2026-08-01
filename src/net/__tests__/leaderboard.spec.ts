@@ -12,6 +12,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   fetchTrialNeighborhood,
+  fetchTrialTop,
   submitTrialScore,
   trialEntryThreshold,
   trialNeighborhoodIsPreview,
@@ -22,6 +23,7 @@ import {
   type TrialSubmission,
 } from '../leaderboard';
 import { CP_FORMULA_VERSION } from '@/core/cpFormulaVersion';
+import { TRIAL_FORMULA_VERSION } from '@/core/trialFormulaVersion';
 import { combatPowerCeiling } from '@/core/combatPowerBound';
 import { NetRequestError } from '../supabase';
 
@@ -64,7 +66,14 @@ describe('submitTrialScore', () => {
     const client = stubClient(async (_name: string, opts: { body: unknown }) => {
       receivedBody = opts.body;
       return {
-        data: { damage: 142_000, rank: 313, total: 5211, verified: true, improved: true },
+        data: {
+          damage: 142_000,
+          rank: 313,
+          total: 5211,
+          verified: true,
+          improved: true,
+          formulaVersion: TRIAL_FORMULA_VERSION,
+        },
         error: null,
       };
     });
@@ -81,6 +90,7 @@ describe('submitTrialScore', () => {
       total: 5211,
       verified: true,
       improved: true,
+      formulaVersion: TRIAL_FORMULA_VERSION,
     });
   });
 
@@ -123,7 +133,14 @@ describe('submitTrialScore', () => {
 
   it('成绩不为负数（防御服务端异常值）', async () => {
     const client = stubClient(async () => ({
-      data: { damage: -50, rank: 1, total: 1, verified: true, improved: false },
+      data: {
+        damage: -50,
+        rank: 1,
+        total: 1,
+        verified: true,
+        improved: false,
+        formulaVersion: TRIAL_FORMULA_VERSION,
+      },
       error: null,
     }));
     const result = await submitTrialScore(client, submission);
@@ -132,7 +149,14 @@ describe('submitTrialScore', () => {
 
   it('调用的是 submit-trial 函数', async () => {
     const invoke = vi.fn(async () => ({
-      data: { damage: 1, rank: 1, total: 1, verified: true, improved: false },
+      data: {
+        damage: 1,
+        rank: 1,
+        total: 1,
+        verified: true,
+        improved: false,
+        formulaVersion: TRIAL_FORMULA_VERSION,
+      },
       error: null,
     }));
     await submitTrialScore(stubClient(invoke), submission);
@@ -140,6 +164,14 @@ describe('submitTrialScore', () => {
       'submit-trial',
       expect.objectContaining({ body: submission }),
     );
+  });
+
+  it('新页面连到旧 Edge 时不把成绩误标成已上传', async () => {
+    const client = stubClient(async () => ({
+      data: { damage: 1, rank: 1, total: 1, verified: true, improved: true },
+      error: null,
+    }));
+    await expect(submitTrialScore(client, submission)).rejects.toThrow('无法识别');
   });
 });
 
@@ -275,7 +307,12 @@ describe('fetchTrialNeighborhood 的 RPC 参数', () => {
 
     await fetchTrialNeighborhood(
       client,
-      { seasonId: 's1', weekIndex: 29, bracketId: 'feiyue' },
+      {
+        seasonId: 's1',
+        weekIndex: 29,
+        bracketId: 'feiyue',
+        formulaVersion: TRIAL_FORMULA_VERSION,
+      },
       'me-1',
     );
 
@@ -289,11 +326,57 @@ describe('fetchTrialNeighborhood 的 RPC 参数', () => {
 
     await fetchTrialNeighborhood(
       client,
-      { seasonId: 's1', weekIndex: 29, bracketId: 'feiyue', classId: 'catkin' },
+      {
+        seasonId: 's1',
+        weekIndex: 29,
+        bracketId: 'feiyue',
+        formulaVersion: TRIAL_FORMULA_VERSION,
+        classId: 'catkin',
+      },
       'me-1',
     );
 
     expect(calls[0]!.params.p_class_id).toBe('catkin');
+  });
+
+  it('新客户端只调用显式版本 RPC，漏版本不会静默回退旧榜', async () => {
+    const { client, calls } = rpcStubClient(() => []);
+    await fetchTrialNeighborhood(
+      client,
+      {
+        seasonId: 's1',
+        weekIndex: 29,
+        bracketId: 'feiyue',
+        formulaVersion: TRIAL_FORMULA_VERSION,
+      },
+      'me-1',
+    );
+    expect(calls[0]).toEqual(
+      expect.objectContaining({
+        name: 'trial_neighborhood_versioned',
+        params: expect.objectContaining({ p_formula_version: TRIAL_FORMULA_VERSION }),
+      }),
+    );
+  });
+
+  it('前 N 榜同样走显式版本 RPC', async () => {
+    const { client, calls } = rpcStubClient(() => []);
+    await fetchTrialTop(
+      client,
+      {
+        seasonId: 's1',
+        weekIndex: 29,
+        bracketId: 'feiyue',
+        formulaVersion: TRIAL_FORMULA_VERSION,
+      },
+      'me-1',
+    );
+    expect(calls[0]).toEqual(
+      expect.objectContaining({
+        name: 'trial_top_versioned',
+        params: expect.objectContaining({ p_formula_version: TRIAL_FORMULA_VERSION }),
+      }),
+    );
   });
 });
 

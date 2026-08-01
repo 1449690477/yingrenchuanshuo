@@ -2,17 +2,14 @@
 
 import type { Combatant, Stats } from './types';
 import { Rng } from './rng';
-import { addStats } from './formula';
 import { estimateDps } from './combat';
 import {
-  applyClassMods,
-  baseStatsFor,
-  makePlayer,
-  monsterAtk,
-  monsterDef,
-} from './progression';
-import { fnv1a32, trialBracketById, trialWeekIndex, type WeeklyTrialBoss } from './trial';
-import { expectedGearStats, typicalQualityAt } from '@/data/expectedPower';
+  fixedDurationBossAttack,
+  fnv1a32,
+  trialBracketById,
+  trialWeekIndex,
+  type WeeklyTrialBoss,
+} from './trial';
 import {
   MONSTER_ACC_BASE,
   MONSTER_ACC_PER_LEVEL,
@@ -36,6 +33,9 @@ import {
   type GuildDisplayStage,
 } from '@/data/guildRules';
 import { buildDefaultPlayerSkillKit } from './playerSkillKit';
+import { expectedGearStats, typicalQualityAt } from '@/data/expectedPower';
+import { addStats } from './formula';
+import { applyClassMods, baseStatsFor, makePlayer, monsterDef } from './progression';
 
 const HOUR_MS = 3_600_000;
 
@@ -84,7 +84,9 @@ export function guildExpeditionBoss(
   const level = bracket.bossLevel;
   const def = Math.round(monsterDef(level, 'boss') * tilt.defMul);
   const eva = Math.round(level * MONSTER_EVA_PER_LEVEL * tilt.evaMul);
-  const atk = Math.round(monsterAtk(level, 'boss') * tilt.atkMul);
+  // 远征同样是固定 60 秒挑战，与试炼共用独立承伤标尺；
+  // 不能继承主线为短 TTK 设置的攻击补偿。
+  const atk = fixedDurationBossAttack(level, tilt.atkMul);
   const protoStats: Stats = {
     atk,
     def,
@@ -116,13 +118,15 @@ export function guildExpeditionBoss(
     'swordsman',
     addStats(baseStatsFor('swordsman', level), expectedGearStats(level, quality)),
   );
-  const reference = makePlayer('公会基准成员', level, referenceStats);
+  const reference = makePlayer('公会输出标定成员', level, referenceStats);
   // 真实技能轮转会把伤害截断到目标剩余生命；hp=1 原型会把每次命中都压成 1 点，
   // 导致远征 Boss 反推血量严重偏低。标定时使用同属性的不死目标，再写回正式血量。
   const calibrationHp = Number.MAX_SAFE_INTEGER;
   const calibrationTarget: Combatant = {
     ...proto,
-    stats: { ...protoStats, hp: calibrationHp },
+    // 远征与试炼同为固定 60 秒输出制：标定靶只负责承接输出，
+    // 不能反击把基准玩家提前打死，否则 Boss 血量会暗中绑定到承伤尺。
+    stats: { ...protoStats, atk: 0, critRate: 0, hp: calibrationHp },
     currentHp: calibrationHp,
   };
   const referenceDps = estimateDps(

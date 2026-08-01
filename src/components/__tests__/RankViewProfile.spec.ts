@@ -33,3 +33,22 @@ describe('排行榜档案入口契约', () => {
     expect(peekSource).toContain('v-if="total && !isGuild"');
   });
 });
+
+describe('试炼公式版本展示契约', () => {
+  it('默认是当前公式，历史榜只能由玩家显式切换', () => {
+    expect(rankSource).toContain('lb.selectTrialBoardFormulaVersion(TRIAL_FORMULA_VERSION)');
+    expect(rankSource).toContain(
+      'lb.selectTrialBoardFormulaVersion(LEGACY_TRIAL_FORMULA_VERSION)',
+    );
+    expect(rankSource).toContain('当前公式 v{{ TRIAL_FORMULA_VERSION }}');
+    expect(rankSource).toContain('历史 v{{ LEGACY_TRIAL_FORMULA_VERSION }}');
+  });
+
+  it('历史分数明说不参与当前排名，新榜空态不冒充联机故障', () => {
+    expect(rankSource).toContain(
+      '历史成绩仅供回看，不参与当前排名；新旧公式伤害不可直接比较。',
+    );
+    expect(rankSource).toContain('新公式榜刚开启，完成一次试炼即可上榜。');
+    expect(rankSource).toContain('没有可回看的历史成绩。');
+  });
+});

@@ -24,6 +24,13 @@ create index trial_scores_board_idx
     damage desc
   );
 
+-- 旧 PWA 的全服总榜直接 SELECT 基表，无法携带公式版本。迁移窗口里只向这种
+-- 旧读取暴露 v1；新版必须走下面的显式版本 RPC。否则 Edge 开始写 v2 后，旧壳
+-- 会把两版伤害混排。service_role 仍绕过 RLS，写入与复算不受影响。
+drop policy if exists "trial readable" on public.trial_scores;
+create policy "trial readable" on public.trial_scores
+  for select using (trial_formula_version = 1);
+
 -- 旧 PWA 仍调用不带版本参数的 RPC。它只能看到旧公式 v1，不能在部署窗口
 -- 混入 v2。保留原函数名与签名，避免旧客户端直接 PGRST202。
 create or replace function public.trial_neighborhood(
@@ -50,7 +57,7 @@ language sql stable security invoker set search_path = public as $$
       p.display_name,
       t.class_id,
       t.damage,
-      row_number() over (order by t.damage desc, t.created_at asc) as r,
+      rank() over (order by t.damage desc) as r,
       count(*) over () as n
     from trial_scores t
     join profiles p on p.id = t.user_id
@@ -103,14 +110,14 @@ returns table (
   total bigint,
   is_me boolean
 )
-language sql stable security invoker set search_path = public as $$
+language sql stable security definer set search_path = public as $$
   with board as (
     select
       t.user_id,
       p.display_name,
       t.class_id,
       t.damage,
-      row_number() over (order by t.damage desc, t.created_at asc) as r,
+      rank() over (order by t.damage desc) as r,
       count(*) over () as n
     from trial_scores t
     join profiles p on p.id = t.user_id
@@ -140,6 +147,15 @@ language sql stable security invoker set search_path = public as $$
   order by b.r;
 $$;
 
+revoke all on function public.trial_neighborhood_versioned(
+  text,
+  int,
+  text,
+  smallint,
+  text,
+  uuid,
+  int
+) from public;
 grant execute on function public.trial_neighborhood_versioned(
   text,
   int,
@@ -160,3 +176,88 @@ comment on function public.trial_neighborhood_versioned(
   int
 ) is '按明确试炼公式版本返回邻域榜；版本参数不得省略。';
 
+-- 新版前 N 榜同样必须走版本化 RPC；不能继续直读基表，否则上述旧 PWA 的 v1
+-- RLS 会让新版看不到 v2。排名与 submit-trial 统一用“更高伤害人数 + 1”的并列名次。
+create or replace function public.trial_top_versioned(
+  p_season_id text,
+  p_week_index int,
+  p_bracket_id text,
+  p_formula_version smallint,
+  p_class_id text default null,
+  p_user_id uuid default null,
+  p_limit int default 100
+)
+returns table (
+  rank bigint,
+  user_id uuid,
+  display_name text,
+  bio text,
+  avatar_url text,
+  class_id text,
+  damage bigint,
+  total bigint,
+  is_me boolean
+)
+language sql stable security definer set search_path = public as $$
+  with board as (
+    select
+      t.user_id,
+      p.display_name,
+      p.bio,
+      p.avatar_url,
+      t.class_id,
+      t.damage,
+      rank() over (order by t.damage desc) as r,
+      count(*) over () as n
+    from trial_scores t
+    join profiles p on p.id = t.user_id
+    where t.season_id = p_season_id
+      and t.week_index = p_week_index
+      and t.bracket_id = p_bracket_id
+      and t.trial_formula_version = p_formula_version
+      and (p_class_id is null or t.class_id = p_class_id)
+      and t.verified
+  )
+  select
+    b.r as rank,
+    b.user_id,
+    b.display_name,
+    b.bio,
+    b.avatar_url,
+    b.class_id,
+    b.damage,
+    b.n as total,
+    (b.user_id = p_user_id) as is_me
+  from board b
+  order by b.damage desc, b.user_id
+  limit least(greatest(coalesce(p_limit, 100), 1), 100);
+$$;
+
+revoke all on function public.trial_top_versioned(
+  text,
+  int,
+  text,
+  smallint,
+  text,
+  uuid,
+  int
+) from public;
+grant execute on function public.trial_top_versioned(
+  text,
+  int,
+  text,
+  smallint,
+  text,
+  uuid,
+  int
+) to anon, authenticated;
+
+comment on function public.trial_top_versioned(
+  text,
+  int,
+  text,
+  smallint,
+  text,
+  uuid,
+  int
+) is '按明确试炼公式版本返回前 N 名；并列伤害共享名次。';

@@ -13,6 +13,7 @@ import type { ClassId, EquipmentInstance } from '@/core/types';
 import { NetRequestError, friendlyMessage } from './supabase';
 import { isPlausibleCombatPower } from '@/core/combatPowerBound';
 import { CP_FORMULA_VERSION } from '@/core/cpFormulaVersion';
+import { TRIAL_FORMULA_VERSION } from '@/core/trialFormulaVersion';
 
 // ─────────────────────────── 类型 ───────────────────────────
 
@@ -37,12 +38,16 @@ export interface TrialSubmitResult {
   verified: boolean;
   /** 是否刷新了本周个人最好成绩 */
   improved: boolean;
+  /** 服务端实际使用的试炼公式；也是客户端与 Edge 部署同步的握手。 */
+  formulaVersion: number;
 }
 
 export interface TrialBoardFilter {
   seasonId: string;
   weekIndex: number;
   bracketId: string;
+  /** 榜单公式版本必须显式选择，禁止新旧伤害静默混排。 */
+  formulaVersion: number;
   /** 限定职业子榜；缺省为该分段的全服总榜（docs/51 §3.4） */
   classId?: ClassId;
 }
@@ -191,9 +196,13 @@ export async function submitTrialScore(
     !body ||
     typeof body.damage !== 'number' ||
     typeof body.rank !== 'number' ||
-    typeof body.total !== 'number'
+    typeof body.total !== 'number' ||
+    typeof body.formulaVersion !== 'number'
   ) {
     throw new NetRequestError('服务端返回了无法识别的成绩，请稍后重试');
+  }
+  if (body.formulaVersion !== TRIAL_FORMULA_VERSION) {
+    throw new NetRequestError('排行榜服务仍是旧版本，请刷新页面后重试');
   }
   return {
     damage: Math.max(0, Math.round(body.damage)),
@@ -201,6 +210,7 @@ export async function submitTrialScore(
     total: body.total,
     verified: body.verified !== false,
     improved: body.improved === true,
+    formulaVersion: body.formulaVersion,
   };
 }
 
@@ -213,41 +223,38 @@ export async function fetchTrialTop(
   myUserId: string | null,
   limit = 100,
 ): Promise<TrialBoardRow[]> {
-  let query = client
-    .from('trial_scores')
-    .select('user_id, class_id, damage, created_at, profiles(display_name, bio, avatar_url)')
-    .eq('season_id', filter.seasonId)
-    .eq('week_index', filter.weekIndex)
-    .eq('bracket_id', filter.bracketId)
-    .eq('verified', true)
-    .order('damage', { ascending: false })
-    .order('created_at', { ascending: true })
-    .limit(limit);
-  if (filter.classId) query = query.eq('class_id', filter.classId);
-  const { data, error } = await query;
+  const { data, error } = await client.rpc('trial_top_versioned', {
+    p_season_id: filter.seasonId,
+    p_week_index: filter.weekIndex,
+    p_bracket_id: filter.bracketId,
+    p_formula_version: filter.formulaVersion,
+    p_class_id: filter.classId ?? null,
+    p_user_id: myUserId,
+    p_limit: limit,
+  });
   if (error) throw new NetRequestError(friendlyMessage(error.message, '榜单读取失败'));
 
-  return (data ?? []).map((row, index) => {
+  return (data ?? []).map((row: unknown) => {
     const r = row as {
+      rank: number;
       user_id: string;
+      display_name: string;
+      bio: string | null;
+      avatar_url: string | null;
       class_id: ClassId;
       damage: number;
-      profiles:
-        | { display_name: string; bio: string | null; avatar_url: string | null }
-        | { display_name: string; bio: string | null; avatar_url: string | null }[]
-        | null;
+      total: number;
     };
-    const profile = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles;
     return {
-      rank: index + 1,
+      rank: Number(r.rank),
       userId: r.user_id,
-      displayName: profile?.display_name ?? '无名旅人',
-      bio: profile?.bio ?? null,
-      avatarUrl: profile?.avatar_url ?? null,
+      displayName: r.display_name ?? '无名旅人',
+      bio: r.bio ?? null,
+      avatarUrl: r.avatar_url ?? null,
       classId: r.class_id,
       damage: Number(r.damage),
       isMe: r.user_id === myUserId,
-      total: 0,
+      total: Number(r.total),
     };
   });
 }
@@ -268,10 +275,11 @@ export async function fetchTrialNeighborhood(
   myUserId: string,
   radius = 5,
 ): Promise<TrialBoardRow[]> {
-  const { data, error } = await client.rpc('trial_neighborhood', {
+  const { data, error } = await client.rpc('trial_neighborhood_versioned', {
     p_season_id: filter.seasonId,
     p_week_index: filter.weekIndex,
     p_bracket_id: filter.bracketId,
+    p_formula_version: filter.formulaVersion,
     // 必须显式给 null：supabase-js 会丢掉值为 undefined 的键，而 PostgREST
     // 按「参数名集合」找函数，少一个键就报 PGRST202 函数不存在。
     p_class_id: filter.classId ?? null,

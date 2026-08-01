@@ -13,7 +13,9 @@ import {
   trialEquipmentSnapshotIssue,
   trialFightOptions,
   trialScoreSeed,
+  trialSurvivalReferenceCombatant,
   trialWeekIndex,
+  type TrialBuild,
   weeklyTrialBoss,
 } from '../trial';
 import { TRIAL_SEASON_ID, TRIAL_BRACKETS } from '../../data/trialRules';
@@ -21,13 +23,11 @@ import { judgeCheatEvidence } from '../cheatEvidence';
 import { CLASS_IDS, type ClassId, type EquipmentInstance } from '../types';
 import { affixValueRange, createInstance, itemBaseValue } from '../equipment';
 import { EQUIPMENT } from '@/data/equipment';
-import {
-  ENHANCE_GAIN_MAX,
-  ENHANCE_MAX,
-  EQUIPMENT_BASE_ROLL_MAX,
-  SLOT_ORDER,
-} from '@/data/constants';
+import { ENHANCE_GAIN_MAX, ENHANCE_MAX, EQUIPMENT_BASE_ROLL_MAX, SLOT_ORDER } from '@/data/constants';
 import { Rng } from '../rng';
+import { guildExpeditionBoss } from '../guildExpedition';
+import { combatPower } from '../formula';
+import { buildDefaultPlayerSkillKit } from '../playerSkillKit';
 
 /** 用一个固定周次，避免读数随真实时间漂移。 */
 const WEEK = trialWeekIndex(Date.parse('2026-07-30T12:00:00Z'));
@@ -80,9 +80,17 @@ describe('试炼伤害上界 · 不许误伤真实玩家', () => {
    *
    * 它实际验的只有一件事：上界 = 探针 × 本链自己的余量系数。
    */
-  it('上界 = 无词条探针 × 本链余量系数（与战力链无关，见 43ac74d）', () => {
+  it('诊断上界 = min(构筑探针 × 本链余量, Boss 结构上界)', () => {
     const raw = maxPlausibleTrialDamage(65, 'catkin', WEEK);
-    expect(trialDamageCeiling(65, 'catkin', WEEK)).toBeCloseTo(raw * TRIAL_DAMAGE_HEADROOM, 5);
+    const bossHp = weeklyTrialBoss(
+      TRIAL_SEASON_ID,
+      WEEK,
+      trialBracketFor(65).id,
+    ).combatant.stats.hp;
+    expect(trialDamageCeiling(65, 'catkin', WEEK)).toBeCloseTo(
+      Math.min(raw * TRIAL_DAMAGE_HEADROOM, bossHp),
+      5,
+    );
   });
 });
 
@@ -112,7 +120,7 @@ describe('试炼伤害上界 · 线上真实事故回归（绿玩，2026-07-30�
     const moonBossHp = weeklyTrialBoss(TRIAL_SEASON_ID, WEEK, trialBracketFor(13).id).combatant
       .stats.hp;
     const ceiling = trialDamageCeiling(13, 'catkin', WEEK);
-    expect(ceiling).toBeLessThan(moonBossHp);
+    expect(ceiling).toBeLessThanOrEqual(moonBossHp);
     expect(ceiling).toBeLessThan(1_489_904 / 10);
   });
 });
@@ -242,6 +250,49 @@ function legalBuild(classId: ClassId, level: number, seed: number, extreme: bool
   return { build, equipped };
 }
 
+/**
+ * 生存标尺只用真实定义选装的 `expectedGearStatsFromDefinitions`；Boss 血量另用
+ * 已上线的解析式输出锚。两者回答不同问题，不得再共用 helper，也不随
+ * 测试失败临时放宽。
+ */
+function referenceBuild(classId: ClassId, level: number): TrialBuild {
+  const combatant = trialSurvivalReferenceCombatant(classId, level);
+  return {
+    combatant,
+    skillMultiplier: 1,
+    skillKit: buildDefaultPlayerSkillKit(classId, level),
+    onHitTriggers: [],
+    onLethalTriggers: [],
+    onCritTriggers: [],
+    combatPower: combatPower(combatant.stats),
+    buildHash: `reference-${classId}-${level}`,
+  };
+}
+
+function weekForBossVariant(
+  bracketId: string,
+  tiltId: 'shell' | 'mirage' | 'fury',
+  element: 'fire' | 'ice' | 'thunder',
+): number {
+  for (let candidate = 0; candidate < 1024; candidate += 1) {
+    const boss = weeklyTrialBoss(TRIAL_SEASON_ID, candidate, bracketId);
+    if (boss.tilt.id === tiltId && boss.combatant.element === element) return candidate;
+  }
+  throw new Error(`${bracketId} 在 1024 周内没有生成 ${tiltId}/${element}`);
+}
+
+function weekForGuildBossVariant(
+  bracketId: string,
+  tiltId: 'shell' | 'mirage' | 'fury',
+  element: 'fire' | 'ice' | 'thunder',
+): number {
+  for (let candidate = 0; candidate < 1024; candidate += 1) {
+    const boss = guildExpeditionBoss(TRIAL_SEASON_ID, candidate, bracketId);
+    if (boss.tilt.id === tiltId && boss.combatant.element === element) return candidate;
+  }
+  throw new Error(`${bracketId} 远征在 1024 周内没有生成 ${tiltId}/${element}`);
+}
+
 describe('试炼成绩的结构上界 · damage 不可能超过 Boss 初始血量', () => {
   it('★ 配置契约：玩家只锁定 Boss，且 Boss 不得接入技能包或额外血池', () => {
     const { build } = legalBuild('kenshi', 65, 20260802, true);
@@ -324,49 +375,126 @@ describe('试炼成绩的结构上界 · damage 不可能超过 Boss 初始血�
     ).toBeGreaterThan(0);
   });
 
-  it('★ 固定时长生存标尺：3 倾向 × 5 段 × 5 职业的合法极值都能存活并打到满血上界', () => {
+  it('★ 伤害上界：3 倾向 × 3 元素 × 5 段 × 5 职业的合法极值都能打到满血', () => {
     const tiltIds = ['shell', 'mirage', 'fury'] as const;
+    const elements = ['fire', 'ice', 'thunder'] as const;
     let cells = 0;
 
     for (const bracket of TRIAL_BRACKETS) {
       for (const tiltId of tiltIds) {
-        let week: number | null = null;
-        for (let candidate = 0; candidate < 256; candidate += 1) {
-          if (weeklyTrialBoss(TRIAL_SEASON_ID, candidate, bracket.id).tilt.id === tiltId) {
-            week = candidate;
-            break;
+        for (const element of elements) {
+          const week = weekForBossVariant(bracket.id, tiltId, element);
+          for (const classId of CLASS_IDS) {
+            cells += 1;
+            const level = bracket.maxLevel;
+            const { build, equipped } = legalBuild(classId, level, 20260802, true);
+            expect(equipped.filter(Boolean).length, `${classId} @ ${bracket.id}`).toBe(
+              SLOT_ORDER.length,
+            );
+
+            const boss = weeklyTrialBoss(TRIAL_SEASON_ID, week, bracket.id).combatant;
+            const result = runTrial(
+              build,
+              boss,
+              trialScoreSeed(TRIAL_SEASON_ID, week, bracket.id, build.buildHash),
+            );
+            expect(
+              result.damage,
+              `${classId} @ ${bracket.id}/${tiltId}/${element} 只打出 ${result.damage}/${boss.stats.hp}`,
+            ).toBe(boss.stats.hp);
           }
-        }
-        expect(week, `${bracket.id} 在 256 周内没有生成 ${tiltId} 倾向`).not.toBeNull();
-
-        for (const classId of CLASS_IDS) {
-          cells += 1;
-          const level = bracket.maxLevel;
-          const { build, equipped } = legalBuild(classId, level, 20260802, true);
-          expect(equipped.filter(Boolean).length, `${classId} @ ${bracket.id}`).toBe(
-            SLOT_ORDER.length,
-          );
-
-          const boss = weeklyTrialBoss(TRIAL_SEASON_ID, week!, bracket.id).combatant;
-          const result = runTrial(
-            build,
-            boss,
-            trialScoreSeed(TRIAL_SEASON_ID, week!, bracket.id, build.buildHash),
-          );
-          expect(
-            result.survived,
-            `${classId} @ ${bracket.id}/${tiltId} 在 ${result.durationSec.toFixed(1)} 秒阵亡，` +
-              `固定 60 秒试炼错误继承了主线短战攻击补偿`,
-          ).toBe(true);
-          expect(
-            result.damage,
-            `${classId} @ ${bracket.id}/${tiltId} 只打出 ${result.damage}/${boss.stats.hp}`,
-          ).toBe(boss.stats.hp);
         }
       }
     }
 
-    expect(cells).toBe(TRIAL_BRACKETS.length * tiltIds.length * CLASS_IDS.length);
+    expect(cells).toBe(
+      TRIAL_BRACKETS.length * tiltIds.length * elements.length * CLASS_IDS.length,
+    );
+  }, 15_000);
+
+  it('★ 生存标尺：225 格基准玩家都活满 60 秒，且最险一格必须明显掉血', () => {
+    const tiltIds = ['shell', 'mirage', 'fury'] as const;
+    const elements = ['fire', 'ice', 'thunder'] as const;
+    const deaths: string[] = [];
+    let lowestHpRatio = 1;
+    let cells = 0;
+
+    for (const bracket of TRIAL_BRACKETS) {
+      for (const tiltId of tiltIds) {
+        for (const element of elements) {
+          const week = weekForBossVariant(bracket.id, tiltId, element);
+          for (const classId of CLASS_IDS) {
+            cells += 1;
+            const level = bracket.bossLevel;
+            const build = referenceBuild(classId, level);
+
+            const boss = weeklyTrialBoss(TRIAL_SEASON_ID, week, bracket.id).combatant;
+            const result = runTrial(
+              build,
+              boss,
+              trialScoreSeed(TRIAL_SEASON_ID, week, bracket.id, build.buildHash),
+            );
+            if (!result.survived) {
+              deaths.push(
+                `${classId} @ ${bracket.id}/${tiltId}/${element} 在 ${result.durationSec.toFixed(1)} 秒阵亡`,
+              );
+            }
+            lowestHpRatio = Math.min(
+              lowestHpRatio,
+              result.playerHpRemaining / result.playerHpMax,
+            );
+          }
+        }
+      }
+    }
+
+    expect(cells).toBe(
+      TRIAL_BRACKETS.length * tiltIds.length * elements.length * CLASS_IDS.length,
+    );
+    expect(deaths).toEqual([]);
+    expect(lowestHpRatio).toBeLessThan(0.6);
+  });
+
+  it('★ 公会远征同源标尺：225 格基准玩家都活满 60 秒，最险格仍有压力', () => {
+    const tiltIds = ['shell', 'mirage', 'fury'] as const;
+    const elements = ['fire', 'ice', 'thunder'] as const;
+    const deaths: string[] = [];
+    let lowestHpRatio = 1;
+    let cells = 0;
+
+    for (const bracket of TRIAL_BRACKETS) {
+      for (const tiltId of tiltIds) {
+        for (const element of elements) {
+          const week = weekForGuildBossVariant(bracket.id, tiltId, element);
+          for (const classId of CLASS_IDS) {
+            cells += 1;
+            const level = bracket.bossLevel;
+            const build = referenceBuild(classId, level);
+            const boss = guildExpeditionBoss(TRIAL_SEASON_ID, week, bracket.id).combatant;
+            const result = runTrial(
+              build,
+              boss,
+              trialScoreSeed(TRIAL_SEASON_ID, week, bracket.id, build.buildHash),
+            );
+            if (!result.survived) {
+              deaths.push(
+                `${classId} @ ${bracket.id}/${tiltId}/${element} 在 ${result.durationSec.toFixed(1)} 秒阵亡`,
+              );
+            }
+            lowestHpRatio = Math.min(
+              lowestHpRatio,
+              result.playerHpRemaining / result.playerHpMax,
+            );
+          }
+        }
+      }
+    }
+
+    expect(cells).toBe(
+      TRIAL_BRACKETS.length * tiltIds.length * elements.length * CLASS_IDS.length,
+    );
+    expect(deaths).toEqual([]);
+    expect(lowestHpRatio).toBeLessThan(0.6);
   });
 
   /**

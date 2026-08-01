@@ -176,9 +176,9 @@ describe('weeklyTrialBoss / 每周 Boss 生成', () => {
         buildDefaultPlayerSkillKit('swordsman', bracket.bossLevel),
         'boss',
       );
-      // 允许取整误差：血量 ≥ 基准输出 × 时长 × (余量-1)
-      expect(boss.stats.hp).toBeGreaterThanOrEqual(
-        dps * TRIAL_DURATION_SEC * (TRIAL_BOSS_HP_HEADROOM - 1),
+      // 精确锁住已上线的输出/HP 锚：生存攻击校准不得顺带改变分数天花板。
+      expect(boss.stats.hp).toBe(
+        Math.max(1, Math.ceil(dps * TRIAL_DURATION_SEC * TRIAL_BOSS_HP_HEADROOM)),
       );
     }
   });

@@ -49,6 +49,10 @@ import { TRIAL_SEASON_ID, type TrialBracket } from '@/data/trialRules';
 import { SLOT_ORDER } from '@/data/constants';
 import type { TrialBest } from '@/save/schema';
 import type { ClassId, EquipmentInstance } from '@/core/types';
+import {
+  LEGACY_TRIAL_FORMULA_VERSION,
+  TRIAL_FORMULA_VERSION,
+} from '@/core/trialFormulaVersion';
 
 export type LeaderboardStatus = 'unconfigured' | 'connecting' | 'ready' | 'offline';
 
@@ -101,6 +105,11 @@ export const useLeaderboardStore = defineStore('leaderboard', () => {
   // ─────────── 榜单缓存 ───────────
   const neighborhoodCache = ref<CacheSlot<TrialBoardRow[]> | null>(null);
   const topCache = ref<CacheSlot<TrialBoardRow[]> | null>(null);
+  /** 当前榜与历史榜必须显式切换；默认永远是当前公式。 */
+  const trialBoardFormulaVersion = ref(TRIAL_FORMULA_VERSION);
+  const viewingHistoricalTrialFormula = computed(
+    () => trialBoardFormulaVersion.value === LEGACY_TRIAL_FORMULA_VERSION,
+  );
   // myRank 不是裸数字：过渡期存在「战力是旧公式量的、与榜上的值不可比」这个
   // 真实状态，裸数字只能表达成一个编出来的名次（批3-3，见 net/leaderboard.ts）。
   const powerCache = ref<CacheSlot<{
@@ -164,7 +173,8 @@ export const useLeaderboardStore = defineStore('leaderboard', () => {
         (b) =>
           b.seasonId === TRIAL_SEASON_ID &&
           b.weekIndex === weekIndex.value &&
-          b.bracketId === bracket.value.id,
+          b.bracketId === bracket.value.id &&
+          b.formulaVersion === TRIAL_FORMULA_VERSION,
       ) ?? null
     );
   });
@@ -173,7 +183,12 @@ export const useLeaderboardStore = defineStore('leaderboard', () => {
   const lastWeekBest = computed<TrialBest | null>(() => {
     const list = game.save?.trial.bests ?? [];
     return (
-      list.find((b) => b.seasonId === TRIAL_SEASON_ID && b.weekIndex === weekIndex.value - 1) ??
+      list.find(
+        (b) =>
+          b.seasonId === TRIAL_SEASON_ID &&
+          b.weekIndex === weekIndex.value - 1 &&
+          b.formulaVersion === TRIAL_FORMULA_VERSION,
+      ) ??
       null
     );
   });
@@ -226,6 +241,7 @@ export const useLeaderboardStore = defineStore('leaderboard', () => {
         weekIndex: week,
         bracketId: currentBracket.id,
         classId: save.player.classId,
+        formulaVersion: TRIAL_FORMULA_VERSION,
         damage: result.damage,
         at: now,
         submitted: false,
@@ -301,6 +317,15 @@ export const useLeaderboardStore = defineStore('leaderboard', () => {
     return slot !== null && slot.key === key && Date.now() - slot.at < LEADERBOARD_CACHE_TTL_MS;
   }
 
+  function selectTrialBoardFormulaVersion(version: number): void {
+    if (![TRIAL_FORMULA_VERSION, LEGACY_TRIAL_FORMULA_VERSION].includes(version)) return;
+    if (trialBoardFormulaVersion.value === version) return;
+    trialBoardFormulaVersion.value = version;
+    neighborhoodCache.value = null;
+    topCache.value = null;
+    void refreshBoards(true);
+  }
+
   /**
    * 拉同职业邻域；行数不足就退回该分段全职业榜。
    *
@@ -341,8 +366,9 @@ export const useLeaderboardStore = defineStore('leaderboard', () => {
       weekIndex: weekIndex.value,
       bracketId: bracket.value.id,
       classId: classId.value,
+      formulaVersion: trialBoardFormulaVersion.value,
     };
-    const key = `${filter.seasonId}:${filter.weekIndex}:${filter.bracketId}:${filter.classId}`;
+    const key = `${filter.seasonId}:${filter.weekIndex}:${filter.bracketId}:${filter.classId}:v${filter.formulaVersion}`;
     boardsLoading.value = true;
     try {
       await Promise.all([
@@ -437,7 +463,12 @@ export const useLeaderboardStore = defineStore('leaderboard', () => {
         equipped: currentEquipped(),
       });
       if (result.verified) {
-        game.markTrialBestSubmitted(best.seasonId, best.weekIndex, best.bracketId);
+        game.markTrialBestSubmitted(
+          best.seasonId,
+          best.weekIndex,
+          best.bracketId,
+          best.formulaVersion,
+        );
       }
       // 榜单缓存立即失效，下一拍重新拉取让玩家看到自己的名次
       neighborhoodCache.value = null;
@@ -517,6 +548,9 @@ export const useLeaderboardStore = defineStore('leaderboard', () => {
     weekOverWeekGain,
     // 榜单数据
     neighborhoodCache,
+    trialBoardFormulaVersion,
+    viewingHistoricalTrialFormula,
+    selectTrialBoardFormulaVersion,
     // 登顶速度榜
     myMilestones,
     pendingMilestones,

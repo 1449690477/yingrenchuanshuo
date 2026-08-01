@@ -36,6 +36,10 @@ import type { ClassId, Element } from '@/core/types';
 import { AFFECTION_CHARACTERS } from '@/data/affection';
 import { CLASS_VISUALS } from '@/data/classVisuals';
 import { ELEMENT_LABELS } from '@/data/trialRules';
+import {
+  LEGACY_TRIAL_FORMULA_VERSION,
+  TRIAL_FORMULA_VERSION,
+} from '@/core/trialFormulaVersion';
 import { useGameStore } from '@/stores/game';
 import { useLeaderboardStore, type TrialChallengeOutcome } from '@/stores/leaderboard';
 import type { TrialSubmitResult } from '@/net/leaderboard';
@@ -286,6 +290,7 @@ const myPowerRank = computed(() => {
 
 /** 我的试炼名次与总人数（来自邻域行），用于「上位 N%」段位。 */
 const myStanding = computed(() => {
+  if (lb.viewingHistoricalTrialFormula) return null;
   const me = neighborhoodRows.value.find((r) => r.isMe);
   return me ? { rank: me.rank, total: me.total } : null;
 });
@@ -454,6 +459,7 @@ onUnmounted(() => {
             </span>
           </div>
         </div>
+
       </section>
 
       <TrialBattleScene
@@ -540,6 +546,37 @@ onUnmounted(() => {
             {{ tab.label }}
           </button>
         </div>
+
+        <div
+          v-if="boardTab === 'neighborhood' || boardTab === 'top'"
+          class="formula-switch"
+          role="group"
+          aria-label="试炼成绩版本"
+        >
+          <button
+            type="button"
+            :class="{ on: !lb.viewingHistoricalTrialFormula }"
+            @click="lb.selectTrialBoardFormulaVersion(TRIAL_FORMULA_VERSION)"
+          >
+            当前公式 v{{ TRIAL_FORMULA_VERSION }}
+          </button>
+          <button
+            type="button"
+            :class="{ on: lb.viewingHistoricalTrialFormula }"
+            @click="lb.selectTrialBoardFormulaVersion(LEGACY_TRIAL_FORMULA_VERSION)"
+          >
+            历史 v{{ LEGACY_TRIAL_FORMULA_VERSION }}
+          </button>
+        </div>
+        <p
+          v-if="
+            (boardTab === 'neighborhood' || boardTab === 'top') &&
+            lb.viewingHistoricalTrialFormula
+          "
+          class="board-note formula-history-note"
+        >
+          历史成绩仅供回看，不参与当前排名；新旧公式伤害不可直接比较。
+        </p>
 
         <!-- 联机状态横幅：静默降级，绝不阻塞 -->
         <div v-if="lb.status === 'unconfigured'" class="net-banner">
@@ -643,9 +680,13 @@ onUnmounted(() => {
         <!-- 空态：够得着的目标，从第一次挑战开始 -->
         <div v-else-if="boardEmpty" class="empty">
           <template v-if="boardTab === 'neighborhood'">
-            本周这个分段还没有人上榜 —— 你的成绩会是第一个。
+            <template v-if="lb.viewingHistoricalTrialFormula">
+              这个分段没有可回看的历史成绩。
+            </template>
+            <template v-else>新公式榜刚开启，完成一次试炼即可成为第一批上榜玩家。</template>
           </template>
-          <template v-else>本周还没有人上榜，虚位以待。</template>
+          <template v-else-if="lb.viewingHistoricalTrialFormula">没有可回看的历史成绩。</template>
+          <template v-else>新公式榜刚开启，完成一次试炼即可上榜。</template>
         </div>
 
         <!-- 试炼邻域 / 总榜 -->
@@ -1668,6 +1709,37 @@ onUnmounted(() => {
 
 .board-note b {
   color: var(--text);
+}
+
+.formula-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel-2);
+}
+
+.formula-switch button {
+  min-width: 0;
+  min-height: 32px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  color: var(--text-dim);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.formula-switch button.on {
+  background: var(--panel);
+  color: var(--pink);
+  box-shadow: var(--shadow-sm);
+}
+
+.formula-history-note {
+  border: 1px dashed color-mix(in srgb, var(--pink) 45%, var(--line));
 }
 
 /* 速度榜档位分页签。与 .board-note 同理放在限高榜体之外。 */

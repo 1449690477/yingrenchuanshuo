@@ -273,14 +273,16 @@ Deno.serve(async (req: Request) => {
       if (updateProfileError) return json({ error: '档案同步失败' }, 500);
     }
 
-    const { data: existing } = await admin
+    const { data: existing, error: existingError } = await admin
       .from('trial_scores')
-      .select('id, damage, verified')
+      .select('id, damage, verified, class_id')
       .eq('user_id', user.id)
       .eq('season_id', TRIAL_SEASON_ID)
       .eq('week_index', serverWeek)
       .eq('bracket_id', serverBracketId)
+      .eq('trial_formula_version', trialFormulaStamp.trial_formula_version)
       .maybeSingle();
+    if (existingError) return json({ error: '历史成绩读取失败' }, 500);
 
     // 永不倒退：只保留每人每周每分段的最好成绩。
     // 同分重提可修复旧版错误阈值留下的 verified=false，不允许低分洗白高分。
@@ -311,6 +313,7 @@ Deno.serve(async (req: Request) => {
       const { error: scoreError } = await admin
         .from('trial_scores')
         .update({
+          class_id: sub.classId,
           damage,
           build_hash: build.buildHash,
           verified,
@@ -323,6 +326,7 @@ Deno.serve(async (req: Request) => {
       const { error: scoreError } = await admin
         .from('trial_scores')
         .update({
+          class_id: sub.classId,
           build_hash: build.buildHash,
           verified: true,
           ...trialFormulaStamp,
@@ -336,6 +340,9 @@ Deno.serve(async (req: Request) => {
     let rank = 0;
     let total = 0;
     if (decision.bestVerified) {
+      // 唯一键不含职业：同周切职但没有刷新最佳时，保留的最高分仍属于旧职业；
+      // replace/reverify 已把行改成本次职业，只有 keep 要沿用既有行的职业桶。
+      const rankingClassId = decision.action === 'keep' ? existing!.class_id : sub.classId;
       const board = () =>
         admin
           .from('trial_scores')
@@ -343,10 +350,16 @@ Deno.serve(async (req: Request) => {
           .eq('season_id', TRIAL_SEASON_ID)
           .eq('week_index', serverWeek)
           .eq('bracket_id', serverBracketId)
-          .eq('class_id', sub.classId)
+          .eq('trial_formula_version', trialFormulaStamp.trial_formula_version)
+          .eq('class_id', rankingClassId)
           .eq('verified', true);
-      const { count: totalCount } = await board();
-      const { count: betterCount } = await board().gt('damage', decision.bestDamage);
+      const { count: totalCount, error: totalError } = await board();
+      if (totalError) return json({ error: '榜单人数读取失败' }, 500);
+      const { count: betterCount, error: rankError } = await board().gt(
+        'damage',
+        decision.bestDamage,
+      );
+      if (rankError) return json({ error: '榜单名次读取失败' }, 500);
       rank = (betterCount ?? 0) + 1;
       total = totalCount ?? 0;
     }
@@ -357,6 +370,7 @@ Deno.serve(async (req: Request) => {
       total,
       verified: decision.bestVerified,
       improved: decision.improved,
+      formulaVersion: trialFormulaStamp.trial_formula_version,
     });
   } catch (error) {
     return json({ error: `服务端复算失败：${(error as Error).message}` }, 500);
