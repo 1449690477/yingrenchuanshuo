@@ -1,0 +1,20 @@
+/**
+ * 周常试炼公式版本戳。
+ *
+ * `trial_scores.damage` 只保存最终伤害，不保存完整的逐帧战斗过程。技能轮转、
+ * 命中边界或持续伤害公式一旦变化，旧成绩就不能用新公式重新证明。因此每次改变
+ * `runTrial` 的生产行为，都必须同步提升此版本号；旧成绩保留展示，但审计只能用
+ * 产生它的那一版判据，绝不能拿当前上界反判历史结果。
+ *
+ * 1 = 四职业平均技能倍率模型（2026-08-01 剑士完整技能引擎上线前）
+ * 2 = 五职业真实技能轮转、触发与持续伤害模型
+ */
+export const TRIAL_FORMULA_VERSION = 2;
+
+/**
+ * 成绩版本戳的唯一构造点。insert、replace 与同分 reverify 都必须展开它，避免某条
+ * 写路径只改成绩却留下旧版本号，制造“合法版本戳 + 错公式数字”的不可审计数据。
+ */
+export function buildTrialFormulaStamp(): Readonly<{ trial_formula_version: number }> {
+  return { trial_formula_version: TRIAL_FORMULA_VERSION };
+}

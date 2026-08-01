@@ -22,6 +22,7 @@ import { z } from 'zod';
 import {
   buildCheatEvidenceRow,
   buildProfileProgress,
+  buildTrialFormulaStamp,
   buildTrialCombatant,
   CLASS_IDS,
   decideTrialScoreWrite,
@@ -245,6 +246,7 @@ Deno.serve(async (req: Request) => {
       level: sub.level,
       combatPower: build.combatPower,
     });
+    const trialFormulaStamp = buildTrialFormulaStamp();
     // ★ 判为不可信时**绝不把自报进度写进档案** —— 档案是下一次判定的尺子，
     //   让伪造值写进去等于亲手把尺子弄弯（2026-07-30 那次绕过的关键一环：
     //   伪造的 Lv81 先写进 profiles，后续判定便再也无从比对）。
@@ -302,6 +304,7 @@ Deno.serve(async (req: Request) => {
         damage,
         build_hash: build.buildHash,
         verified,
+        ...trialFormulaStamp,
       });
       if (scoreError) return json({ error: '成绩写入失败' }, 500);
     } else if (decision.action === 'replace') {
@@ -311,6 +314,7 @@ Deno.serve(async (req: Request) => {
           damage,
           build_hash: build.buildHash,
           verified,
+          ...trialFormulaStamp,
           created_at: new Date().toISOString(),
         })
         .eq('id', existing.id);
@@ -321,6 +325,7 @@ Deno.serve(async (req: Request) => {
         .update({
           build_hash: build.buildHash,
           verified: true,
+          ...trialFormulaStamp,
           created_at: new Date().toISOString(),
         })
         .eq('id', existing.id);
