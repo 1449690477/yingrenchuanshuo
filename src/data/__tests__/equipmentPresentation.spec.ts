@@ -49,6 +49,10 @@ const HAND_ANCHORS: Readonly<
     [145, 375, 120, 130],
     [435, 250, 145, 180],
   ],
+  kenshi: [
+    [145, 375, 120, 130],
+    [435, 250, 145, 180],
+  ],
 };
 
 function layerAppearance(id: string): Extract<EquipmentAppearance, { renderMode: 'layer' }> {
@@ -122,6 +126,7 @@ describe('装备职业表现与手部对位', () => {
       witch: '维斯塔焰心杖',
       shaman: '维斯塔燎天扇',
       catkin: '维斯塔焰羽爪',
+      kenshi: '维斯塔绯焰名刀',
     });
   });
 

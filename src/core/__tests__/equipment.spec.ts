@@ -321,7 +321,7 @@ describe('随机词条', () => {
     ]);
   });
 
-  it('十一条职业池配置、权重、基准值与中文名严格对应策划表', () => {
+  it('十五条职业池配置、权重、基准值与中文名严格对应策划表', () => {
     expect(
       Object.fromEntries(
         CLASS_IDS.map((classId) => [
@@ -445,6 +445,44 @@ describe('随机词条', () => {
           scalesWithLevel: true,
           decimals: 1,
           label: '灵巧',
+        },
+      ],
+      kenshi: [
+        {
+          key: 'kenshi_iai',
+          min: 0.59,
+          max: 0.59,
+          weight: 30,
+          scalesWithLevel: true,
+          decimals: 1,
+          label: '破甲',
+        },
+        {
+          key: 'kenshi_blade',
+          min: 27,
+          max: 27,
+          weight: 25,
+          scalesWithLevel: false,
+          decimals: 1,
+          label: '刀势',
+        },
+        {
+          key: 'kenshi_honor',
+          min: 7.8,
+          max: 7.8,
+          weight: 30,
+          scalesWithLevel: true,
+          decimals: 1,
+          label: '樱志',
+        },
+        {
+          key: 'kenshi_bushido',
+          min: 2,
+          max: 2,
+          weight: 25,
+          scalesWithLevel: false,
+          decimals: 1,
+          label: '武道',
         },
       ],
     });
@@ -758,9 +796,13 @@ describe('随机词条', () => {
       'sha_vitality',
       'sha_spirit',
       'cat_nimble',
+      'kenshi_iai',
+      'kenshi_honor',
     ]);
 
-    for (const spec of levelScaledSpecs) {
+    for (const spec of levelScaledSpecs.filter(
+      (entry) => AFFIX_RUNTIME_RULES[entry.key].generation === 'active',
+    )) {
       expect(spec.decimals, spec.key).toBe(1);
       const values = Array.from({ length: 100 }, (_, seed) =>
         rollAffixForKey(spec.key, 1, new Rng(seed + 1)),
@@ -781,16 +823,21 @@ describe('随机词条', () => {
     expect(lowDef).toBeLessThan(1);
   });
 
-  it('rollAffixForKey 可解析全部十一条职业词条', () => {
+  it('rollAffixForKey 可解析全部十五条职业词条', () => {
     const professionKeys = Object.values(PROFESSION_AFFIX_POOLS)
       .flat()
       .map((entry) => entry.key);
-    expect(professionKeys).toHaveLength(11);
-    for (const key of professionKeys) {
+    expect(professionKeys).toHaveLength(15);
+    for (const key of professionKeys.filter(
+      (candidate) => AFFIX_RUNTIME_RULES[candidate].generation === 'active',
+    )) {
       const affix = rollAffixForKey(key, 20, new Rng(42));
       expect(affix.key).toBe(key);
       expect(affix.value).toBeGreaterThan(0);
     }
+    expect(() => rollAffixForKey('kenshi_iai', 20, new Rng(42))).toThrow(
+      '[词条未开放] kenshi_iai',
+    );
   });
 
   it('掉落胚子始终位于 100%~120%，并能掷出精工与奇迹档', () => {

@@ -13,6 +13,8 @@ import {
   requireAffectionEquipment,
 } from '../affectionEquipment';
 
+const AFFECTION_EQUIPMENT_CLASS_IDS = CLASS_IDS.filter((classId) => classId !== 'kenshi');
+
 describe('心虹好感专属装备', () => {
   it('四位角色各有十件，覆盖八个部位与两件替换款', () => {
     expect(AFFECTION_EQUIPMENT_LIST).toHaveLength(40);
@@ -29,7 +31,7 @@ describe('心虹好感专属装备', () => {
       'belt',
       'shoes',
     ]);
-    for (const classId of CLASS_IDS) {
+    for (const classId of AFFECTION_EQUIPMENT_CLASS_IDS) {
       const entries = affectionEquipmentForClass(classId);
       expect(entries, classId).toHaveLength(10);
       expect(new Set(entries.map((entry) => entry.definition.slot)), classId).toEqual(
@@ -69,7 +71,7 @@ describe('心虹好感专属装备', () => {
   });
 
   it('四职业各十件的等级、解锁门槛与固定词条数值逐步成长', () => {
-    for (const classId of CLASS_IDS) {
+    for (const classId of AFFECTION_EQUIPMENT_CLASS_IDS) {
       const entries = affectionEquipmentForClass(classId);
       expect(entries).toHaveLength(10);
       for (const [index, entry] of entries.entries()) {
@@ -90,7 +92,7 @@ describe('心虹好感专属装备', () => {
   });
 
   it('掉落池随好感与等级逐步开放，第一件从新手期就可获得', () => {
-    for (const classId of CLASS_IDS) {
+    for (const classId of AFFECTION_EQUIPMENT_CLASS_IDS) {
       expect(eligibleAffectionEquipmentIds(classId, 0, 1)).toEqual([
         affectionEquipmentForClass(classId)[0]!.definition.id,
       ]);
@@ -99,6 +101,12 @@ describe('心虹好感专属装备', () => {
     }
     expect(() => eligibleAffectionEquipmentIds('witch', -1, 1)).toThrow('好感点数');
     expect(() => eligibleAffectionEquipmentIds('witch', 0, 0)).toThrow('玩家等级');
+  });
+
+  it('樱酱 P1 不伪造尚未制作的好感专属装备', () => {
+    expect(affectionEquipmentForClass('kenshi')).toEqual([]);
+    expect(affectionEquipmentIdsForClass('kenshi')).toEqual([]);
+    expect(eligibleAffectionEquipmentIds('kenshi', 9_999, 99)).toEqual([]);
   });
 
   it('四十张运行时图标均存在、透明且尺寸统一', async () => {

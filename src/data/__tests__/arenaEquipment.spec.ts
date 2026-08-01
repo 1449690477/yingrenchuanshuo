@@ -52,6 +52,7 @@ function instance(defId: string, uid: string): EquipmentInstance {
 }
 
 const SLOTS = ['weapon', 'head', 'body', 'ring'] as const;
+const ARENA_EQUIPMENT_CLASS_IDS = CLASS_IDS.filter((classId) => classId !== 'kenshi');
 
 function arenaIdsFor(classId: (typeof CLASS_IDS)[number]): string[] {
   return ARENA_EQUIPMENT_LIST.filter((d) => d.classId === classId).map((d) => d.id);
@@ -60,10 +61,11 @@ function arenaIdsFor(classId: (typeof CLASS_IDS)[number]): string[] {
 describe('圣痕装备定义', () => {
   it('16 件：4 职业 × 武器/头冠/衣装/戒指，品质跟随主线同期', () => {
     expect(ARENA_EQUIPMENT_LIST).toHaveLength(16);
-    for (const classId of CLASS_IDS) {
+    for (const classId of ARENA_EQUIPMENT_CLASS_IDS) {
       const pieces = ARENA_EQUIPMENT_LIST.filter((d) => d.classId === classId);
       expect(pieces.map((d) => d.slot).sort()).toEqual([...SLOTS].sort());
     }
+    expect(arenaIdsFor('kenshi')).toEqual([]);
     for (const def of ARENA_EQUIPMENT_LIST) {
       // 品质跟随当期主线顶（2026-07-30 品质平衡）：竞技场的回报是外观与
       // 场内套装效果，不是裸数值 —— docs/53 §零.3。等主线出圣器自然变 divine。

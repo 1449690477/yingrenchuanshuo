@@ -10,11 +10,13 @@ import {
   requireAffectionStory,
 } from '../affection';
 
+const COMPLETE_AFFECTION_CLASS_IDS = CLASS_IDS.filter((classId) => classId !== 'kenshi');
+
 describe('affection content', () => {
   it('四位成年角色各有 12 幕剧情、每幕 3 个等价回答和 6 种互动', () => {
     expect(AFFECTION_STORIES).toHaveLength(48);
 
-    for (const classId of CLASS_IDS) {
+    for (const classId of COMPLETE_AFFECTION_CLASS_IDS) {
       const character = AFFECTION_CHARACTERS[classId];
       expect(character.adult).toBe(true);
       expect(character.stories).toHaveLength(12);
@@ -118,7 +120,7 @@ describe('affection content', () => {
     const ids = AFFECTION_STORIES.map((story) => story.id);
     expect(new Set(ids).size).toBe(ids.length);
 
-    for (const classId of CLASS_IDS) {
+    for (const classId of COMPLETE_AFFECTION_CLASS_IDS) {
       const stories = AFFECTION_CHARACTERS[classId].stories;
       for (const [index, story] of stories.entries()) {
         const earlier = new Set(stories.slice(0, index).map((entry) => entry.id));
@@ -130,7 +132,7 @@ describe('affection content', () => {
   });
 
   it('第二批按 1+3、2+4、3+4+5 回忆，并覆盖每个来源章节的所有选择', () => {
-    for (const classId of CLASS_IDS) {
+    for (const classId of COMPLETE_AFFECTION_CLASS_IDS) {
       const character = AFFECTION_CHARACTERS[classId];
       const byId = new Map(character.stories.map((story) => [story.id, story]));
       for (const story of character.stories) {
@@ -176,6 +178,16 @@ describe('affection content', () => {
     }
   });
 
+  it('樱酱 P1 只开放成年边界与两种日常互动，不伪造尚未制作的剧情', () => {
+    expect(AFFECTION_CHARACTERS.kenshi).toMatchObject({
+      classId: 'kenshi',
+      adult: true,
+      name: '樱酱',
+    });
+    expect(AFFECTION_CHARACTERS.kenshi.interactions).toHaveLength(2);
+    expect(AFFECTION_CHARACTERS.kenshi.stories).toEqual([]);
+  });
+
   it('第三批每幕回响一个完整来源章节的三种历史选择', () => {
     for (const classId of CLASS_IDS) {
       const stories = AFFECTION_CHARACTERS[classId].stories;
@@ -215,7 +227,7 @@ describe('affection content', () => {
 
   it('R1b 演出标注：旧 36 幕每句角色台词都有心情 cue，强调标记全部闭合', () => {
     const VALID_MOODS = new Set(['calm', 'bright', 'shy', 'moved', 'playful']);
-    for (const classId of CLASS_IDS) {
+    for (const classId of COMPLETE_AFFECTION_CLASS_IDS) {
       const oldStories = AFFECTION_CHARACTERS[classId].stories.filter((story) => story.episode <= 9);
       expect(oldStories).toHaveLength(9);
       for (const story of oldStories) {

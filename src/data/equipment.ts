@@ -106,6 +106,7 @@ const THEMES: NamingTheme[] = [
       witch: '花羽魔杖',
       shaman: '樱信灵扇',
       catkin: '花铃晶爪',
+      kenshi: '樱枝太刀',
     },
   },
   {
@@ -138,6 +139,7 @@ const THEMES: NamingTheme[] = [
       witch: '甜云魔杖',
       shaman: '蜜铃灵槌',
       catkin: '蜂蜜键帽锤',
+      kenshi: '棉花糖太刀',
     },
   },
 
@@ -212,7 +214,7 @@ function weaponClassPresentations(
       classId,
       {
         name: `${qualityPrefix}${names[classId]}`,
-        icon: `assets/equipment/weapons/${appearanceId}/${classId}.png`,
+        icon: `assets/equipment/weapons/${appearanceId}/${classId === 'kenshi' ? 'catkin' : classId}.png`,
       },
     ]),
   ) as Record<ClassId, EquipmentClassPresentation>;
@@ -342,7 +344,8 @@ function buildEquipment(): Record<string, EquipmentDef> {
     const percentile = theme.quality === 'epic' ? 0.6 : theme.quality === 'legendary' ? 0.75 : 0.9;
     for (const item of theme.items) {
       const id = boutiqueEquipmentId(theme.id, item.slot, item.classId);
-      const iconName = item.classId ? `${item.slot}-${item.classId}.png` : `${item.slot}.png`;
+      const assetClassId = item.classId === 'kenshi' ? 'catkin' : item.classId;
+      const iconName = assetClassId ? `${item.slot}-${assetClassId}.png` : `${item.slot}.png`;
       const common = {
         id,
         name: item.name,

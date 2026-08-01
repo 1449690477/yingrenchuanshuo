@@ -229,14 +229,16 @@ describe('角色换装外观解析', () => {
         expect(appearance.slot).toBe(slot);
         expect(Object.keys(appearance.assets).sort()).toEqual([
           'catkin',
+          'kenshi',
           'shaman',
           'swordsman',
           'witch',
         ]);
         expect(new Set(Object.values(appearance.assets)).size).toBe(4);
         for (const [classId, asset] of Object.entries(appearance.assets)) {
+          const assetClassId = classId === 'kenshi' ? 'catkin' : classId;
           expect(asset).toBe(
-            `assets/characters/modular/${classId}/${regionId}-${slot}.png`,
+            `assets/characters/modular/${assetClassId}/${regionId}-${slot}.png`,
           );
         }
       }

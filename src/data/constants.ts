@@ -146,6 +146,7 @@ export const CLASS_BASE_STATS: Record<ClassId, Stats> = {
   witch: { atk: 18, def: 4, hp: 120, acc: 80, eva: 8, critRate: 8, critDmg: 50, spd: 0.9 },
   shaman: { atk: 10, def: 6, hp: 160, acc: 82, eva: 10, critRate: 6, critDmg: 50, spd: 1.1 },
   catkin: { atk: 13, def: 5, hp: 140, acc: 88, eva: 12, critRate: 10, critDmg: 50, spd: 1.25 },
+  kenshi: { atk: 15, def: 6, hp: 127, acc: 87, eva: 9, critRate: 9, critDmg: 50, spd: 1.15 },
 };
 
 /** 各职业每级成长（线性） */
@@ -154,6 +155,7 @@ export const CLASS_GROWTH: Record<ClassId, Pick<Stats, 'atk' | 'def' | 'hp'>> = 
   witch: { atk: 3.4, def: 0.8, hp: 22 },
   shaman: { atk: 1.9, def: 1.3, hp: 33 },
   catkin: { atk: 2.6, def: 1.0, hp: 28 },
+  kenshi: { atk: 2.8, def: 1.1, hp: 31.1 },
 };
 
 /**
@@ -187,6 +189,7 @@ export const CLASS_ATK_MUL: Record<ClassId, number> = {
   witch: 1.06,
   shaman: 0.86,
   catkin: 0.76,
+  kenshi: 0.85,
 };
 
 /** 命中与闪避每级成长（全职业相同） */
@@ -474,6 +477,15 @@ export const AFFIX_RUNTIME_RULES = {
   sha_spirit: ACTIVE_AFFIX_RUNTIME,
   cat_swift: ACTIVE_AFFIX_RUNTIME,
   cat_nimble: ACTIVE_AFFIX_RUNTIME,
+  kenshi_iai: {
+    generation: 'deferred',
+    settlement: 'deferred',
+    milestone: 'M3-4',
+    notice: '装备层破甲待 M3-4 伤害公式与服务端 CP 同步',
+  },
+  kenshi_blade: ACTIVE_AFFIX_RUNTIME,
+  kenshi_honor: ACTIVE_AFFIX_RUNTIME,
+  kenshi_bushido: ACTIVE_AFFIX_RUNTIME,
 } as const satisfies Readonly<Record<AffixKey, AffixRuntimeRule>>;
 
 export function isAffixGenerationActive(key: AffixKey): boolean {
@@ -698,6 +710,48 @@ export const PROFESSION_AFFIX_POOLS: Readonly<
       label: '灵巧',
     },
   ],
+  kenshi: [
+    {
+      key: 'kenshi_iai',
+      balanceRole: 'offense',
+      min: 0.59,
+      max: 0.59,
+      weight: 30,
+      scalesWithLevel: true,
+      decimals: 1,
+      label: '破甲',
+    },
+    {
+      key: 'kenshi_blade',
+      balanceRole: 'offense',
+      min: 27,
+      max: 27,
+      weight: 25,
+      scalesWithLevel: false,
+      decimals: 1,
+      label: '刀势',
+    },
+    {
+      key: 'kenshi_honor',
+      balanceRole: 'sustain',
+      min: 7.8,
+      max: 7.8,
+      weight: 30,
+      scalesWithLevel: true,
+      decimals: 1,
+      label: '樱志',
+    },
+    {
+      key: 'kenshi_bushido',
+      balanceRole: 'sustain',
+      min: 2,
+      max: 2,
+      weight: 25,
+      scalesWithLevel: false,
+      decimals: 1,
+      label: '武道',
+    },
+  ],
 };
 
 /** 词条中文名，UI 显示用 */
@@ -725,6 +779,10 @@ export const AFFIX_LABELS: Record<AffixKey, string> = {
   sha_spirit: '灵击',
   cat_swift: '疾风',
   cat_nimble: '灵巧',
+  kenshi_iai: '破甲',
+  kenshi_blade: '刀势',
+  kenshi_honor: '樱志',
+  kenshi_bushido: '武道',
 };
 
 /** 属性中文名 */
@@ -803,6 +861,12 @@ export const CLASS_INFO: Record<
     role: '高速连击 · 闪避反击',
     desc: '以猫爪印记串起高速连击，动作最灵活；血防较低，需要靠走位与爆发抢先解决敌人。',
     color: '#6d6bc8',
+  },
+  kenshi: {
+    name: '樱酱',
+    role: '均衡单体 · 破甲斩杀',
+    desc: '流浪的居合剑士少女。剑意越积越利，专斩残血之敌；攻防均衡，上手顺滑。',
+    color: '#7fb7e8',
   },
 };
 

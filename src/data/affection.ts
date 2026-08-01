@@ -2316,6 +2316,36 @@ export const AFFECTION_CHARACTERS: Readonly<Record<ClassId, AffectionCharacterDe
     ],
     stories: [...CATKIN_STORIES, ...affectionDateStories('catkin')],
   },
+  kenshi: {
+    classId: 'kenshi',
+    adult: true,
+    name: '樱酱',
+    roomTitle: '落樱道场',
+    personality: '飒爽又爱逞强，胜负欲写在脸上；嘴上说不用陪，练完却总会为你留一盏灯。',
+    boundaries: ['触碰刀鞘、刀穗或手部前先询问', '不拿她的刀与身高开玩笑'],
+    accent: '#7fb7e8',
+    glow: '#d8ecff',
+    hubBackgroundAsset: 'assets/affection/scenes/swordsman-training-dawn.webp',
+    interactions: [
+      interaction(
+        'morning',
+        '晨练邀约',
+        '陪她完成今日第一轮挥刀',
+        'bright',
+        'victory',
+        ['来得正好，樱色晨光里出刀最漂亮。', '这一轮你数着，我保证一刀不差。'],
+      ),
+      interaction(
+        'sword',
+        '擦拭刀身',
+        '先询问，再替刀穗重新系好',
+        'shy',
+        'cast',
+        ['可以。你问过了，所以可以。', '刀穗……麻烦你了。别系太紧。'],
+      ),
+    ],
+    stories: [],
+  },
 } as const;
 
 export const AFFECTION_STORIES: readonly AffectionStoryDefinition[] = Object.values(

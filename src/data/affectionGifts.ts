@@ -218,6 +218,7 @@ export const AFFECTION_GIFTS: Readonly<
       ],
     }),
   ],
+  kenshi: [],
 };
 
 export const AFFECTION_GIFT_LIST: readonly AffectionGiftDefinition[] =

@@ -17,6 +17,7 @@ export const CLASS_SIGIL_IDS: Readonly<Record<ClassId, string>> = {
   witch: 'sigil_witch',
   shaman: 'sigil_shaman',
   catkin: 'sigil_catkin',
+  kenshi: 'sigil_kenshi',
 };
 
 export interface RegionReforgeMaterials {

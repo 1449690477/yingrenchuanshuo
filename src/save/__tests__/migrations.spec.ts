@@ -431,7 +431,7 @@ describe('save migrations', () => {
     expect(migrated.player.name).toBe('v7 少女');
   });
 
-  it('v8 → v9 新增四角色好感、保底、剧情记录与触觉开关', () => {
+  it('v8 → 当前版本补齐五角色好感、保底、剧情记录与触觉开关', () => {
     const raw = v8Save();
     const migrated = migrate(raw);
 
@@ -439,6 +439,7 @@ describe('save migrations', () => {
     expect(migrated.settings.haptics).toBe(true);
     expect(Object.keys(migrated.affection.characters).sort()).toEqual([
       'catkin',
+      'kenshi',
       'shaman',
       'swordsman',
       'witch',
@@ -1358,6 +1359,29 @@ describe('save migrations', () => {
     expect(migrated.bag).toEqual(current.bag);
     expect(migrated.progress).toEqual(current.progress);
     expect(migrated.equipmentCodex).toEqual(current.equipmentCodex);
+  });
+
+  it('v18 → v19 新增樱酱空好感进度，不改写四名旧角色与玩家资产', () => {
+    const current = createSave('樱酱上线前旧档', 'catkin', 19, 1_800_000_000_000);
+    current.player.gold = 54_321;
+    current.affection.characters.catkin.points = 777;
+    const raw = structuredClone(current) as unknown as Record<string, unknown>;
+    delete (raw.affection as { characters: Record<string, unknown> }).characters.kenshi;
+    raw.version = 18;
+
+    const migrated = migrate(raw);
+
+    expect(migrated.version).toBe(SAVE_VERSION);
+    expect(migrated.player).toEqual(current.player);
+    expect(migrated.bag).toEqual(current.bag);
+    expect(migrated.progress).toEqual(current.progress);
+    expect(migrated.affection.characters.catkin).toEqual(current.affection.characters.catkin);
+    expect(migrated.affection.characters.kenshi).toEqual(current.affection.characters.kenshi);
+  });
+
+  it('当前版本可创建并严格校验 kenshi 职业档', () => {
+    const save = createSave('樱酱新号', 'kenshi', 19, 1_800_000_000_000);
+    expect(migrate(save as unknown as Record<string, unknown>)).toEqual(save);
   });
 
   it('当前版本不迁移，只做严格结构校验', () => {

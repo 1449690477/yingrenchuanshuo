@@ -66,7 +66,7 @@ export type { EquipmentCodexLedger } from '@/core/equipmentCodex';
 export type { EquipmentPresetState } from '@/core/equipmentPresets';
 
 /** 当前存档版本。加字段就 +1。 */
-export const SAVE_VERSION = 18;
+export const SAVE_VERSION = 19;
 
 export const SAVE_KEY = 'main';
 
@@ -211,7 +211,7 @@ export interface SaveData {
   encounters: EncounterState;
   /** 8 个定向装备副本共享的日次数与永久通关记录。 */
   equipmentDungeon: EquipmentDungeonState;
-  /** 四位可玩角色彼此独立的好感、剧情、保底与心虹图鉴。 */
+  /** 五位可玩角色彼此独立的好感、剧情、保底与心虹图鉴。 */
   affection: AffectionState;
   /** 周常试炼个人最好成绩（联机排行榜的本地纪录）。 */
   trial: TrialSave;
@@ -878,6 +878,7 @@ export const saveDataSchema = z
             witch: affectionCharacterProgressSchema,
             shaman: affectionCharacterProgressSchema,
             catkin: affectionCharacterProgressSchema,
+            kenshi: affectionCharacterProgressSchema,
           })
           .strict(),
       })

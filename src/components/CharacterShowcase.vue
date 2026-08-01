@@ -63,6 +63,11 @@ const previewLines: Record<ClassId, Readonly<Record<'greet' | 'pose' | 'celebrat
     pose: '这套装备很灵活，看我转一圈。',
     celebrate: '胜利！先练一次帅气的击掌姿势。',
   },
+  kenshi: {
+    greet: '刀穗已经系好。要从哪一式开始？',
+    pose: '蓝白剑光要和衣摆落在同一个拍子上。',
+    celebrate: '胜负已分——这一刀，收得还算漂亮。',
+  },
 };
 
 const skills = computed(() => visualSkillsFor(props.classId));

@@ -14,8 +14,9 @@ describe('R6 纸娃娃外观注册', () => {
         if (appearance?.renderMode !== 'layer') continue;
         for (const classId of CLASS_IDS) {
           const assetFamily = family === 'r6-set' ? 'r6-shadow' : family;
+          const assetClassId = classId === 'kenshi' ? 'catkin' : classId;
           expect(appearance.assets[classId]).toBe(
-            `assets/characters/modular/${classId}/${assetFamily}-${slot}.png`,
+            `assets/characters/modular/${assetClassId}/${assetFamily}-${slot}.png`,
           );
         }
       }

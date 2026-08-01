@@ -13,7 +13,9 @@ export type ReactStyle =
   /** 灵巫：顺着力道飘开，位移大但姿态不乱 */
   | 'drift'
   /** 喵喵：猫的本能，直接向后弹跳拉开距离 */
-  | 'hop';
+  | 'hop'
+  /** 樱酱：刀鞘横挡后顺势侧卸，保持居合重心 */
+  | 'parry';
 
 export interface ClassBattleMotion {
   /**
@@ -53,6 +55,12 @@ export const CLASS_BATTLE_MOTIONS: Readonly<Record<ClassId, ClassBattleMotion>> 
     reactStyle: 'hop',
     reactMs: 300,
     victoryMs: 1300,
+  },
+  kenshi: {
+    basicSequence: ['dash', 'attack', 'cast'],
+    reactStyle: 'parry',
+    reactMs: 280,
+    victoryMs: 1500,
   },
 };
 

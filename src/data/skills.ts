@@ -535,11 +535,309 @@ export const CATKIN_SKILLS: readonly Skill[] = [
   },
 ];
 
+export const KENSHI_SKILLS: readonly Skill[] = [
+  {
+    id: 'skill_kenshi_iai_draw',
+    name: '拔刀斩',
+    class: 'kenshi',
+    type: 'active',
+    element: 'none',
+    unlockLevel: 1,
+    cooldownSec: 3,
+    priority: 10,
+    effects: [damage(PRIMARY, 1.5)],
+    icon: 'assets/icons/skills/kenshi-iai-draw.png',
+    desc: '居合起手式，拔刀的瞬间斩出清亮剑气。',
+  },
+  {
+    id: 'skill_kenshi_sword_heart',
+    name: '剑心',
+    class: 'kenshi',
+    type: 'passive',
+    element: 'none',
+    unlockLevel: 4,
+    effects: [
+      {
+        kind: 'modifier',
+        target: SELF,
+        modifier: {
+          unit: 'percentage-points',
+          stat: 'critRate',
+          points: { base: 5, perLevel: 0.12, max: 10 },
+        },
+      },
+    ],
+    icon: 'assets/icons/skills/kenshi-sword-heart.png',
+    desc: '心剑合一，暴击率提高 5 个百分点。',
+  },
+  {
+    id: 'skill_kenshi_wind_thrust',
+    name: '追风突刺',
+    class: 'kenshi',
+    type: 'active',
+    element: 'thunder',
+    unlockLevel: 9,
+    cooldownSec: 5,
+    priority: 25,
+    effects: [damage(PRIMARY, 1.9, 0.06, { element: 'thunder' })],
+    icon: 'assets/icons/skills/kenshi-wind-thrust.png',
+    desc: '人随剑走，一道雷光刺穿单个敌人。',
+  },
+  {
+    id: 'skill_kenshi_white_blade',
+    name: '白刃步',
+    class: 'kenshi',
+    type: 'passive',
+    element: 'none',
+    unlockLevel: 14,
+    effects: [
+      {
+        kind: 'modifier',
+        target: SELF,
+        modifier: {
+          unit: 'ratio',
+          stat: 'spd',
+          ratio: { base: 0.04, perLevel: 0.0015, max: 0.1 },
+        },
+      },
+      {
+        kind: 'modifier',
+        target: SELF,
+        modifier: {
+          unit: 'percentage-points',
+          stat: 'dodgeChance',
+          points: { base: 5, perLevel: 0.15, max: 10 },
+        },
+      },
+    ],
+    icon: 'assets/icons/skills/kenshi-white-blade.png',
+    desc: '白刃出鞘的步法：攻速提高 4%，闪避率提高 5 个百分点。',
+  },
+  {
+    id: 'skill_kenshi_sakura_blizzard',
+    name: '樱吹雪',
+    class: 'kenshi',
+    type: 'active',
+    element: 'ice',
+    unlockLevel: 19,
+    cooldownSec: 7,
+    priority: 30,
+    effects: [damage(ALL_ENEMIES, 1.35, 0.06, { element: 'ice', hitWeights: [1, 1, 1] })],
+    icon: 'assets/icons/skills/kenshi-sakura-blizzard.png',
+    desc: '樱色剑气化作漫天飞雪，三段扫过全体敌人。',
+  },
+  {
+    id: 'skill_kenshi_armor_break',
+    name: '破甲斩',
+    class: 'kenshi',
+    type: 'active',
+    element: 'none',
+    unlockLevel: 24,
+    cooldownSec: 9,
+    priority: 40,
+    effects: [damage(PRIMARY, 1.8, 0.06, { defenseIgnoreRatio: 0.25 })],
+    icon: 'assets/icons/skills/kenshi-armor-break.png',
+    desc: '势大力沉的一斩，无视目标 25% 防御。',
+  },
+  {
+    id: 'skill_kenshi_sword_intent',
+    name: '剑意',
+    class: 'kenshi',
+    type: 'passive',
+    element: 'none',
+    unlockLevel: 30,
+    effects: [
+      {
+        kind: 'trigger',
+        event: 'after-skill-resolved',
+        effects: [
+          {
+            kind: 'apply-status',
+            target: SELF,
+            statusId: 'kenshi_sword_intent',
+            stacks: 1,
+            maxStacks: 5,
+            durationSec: 12,
+            refresh: 'duration',
+          },
+        ],
+      },
+    ],
+    icon: 'assets/icons/skills/kenshi-sword-intent.png',
+    desc: '每次直接伤害技能施放后积攒 1 层剑意，最多 5 层，12 秒后消散。',
+  },
+  {
+    id: 'skill_kenshi_iai_flash',
+    name: '居合·一闪',
+    class: 'kenshi',
+    type: 'active',
+    element: 'ice',
+    unlockLevel: 35,
+    cooldownSec: 8,
+    priority: 60,
+    castWhen: {
+      kind: 'status-stacks-at-least',
+      statusId: 'kenshi_sword_intent',
+      stacks: 2,
+    },
+    effects: [
+      damage(PRIMARY, 2.4, 0.06, { element: 'ice', defenseIgnoreRatio: 0.3 }),
+      {
+        kind: 'consume-status',
+        target: SELF,
+        statusId: 'kenshi_sword_intent',
+        stacks: 2,
+      },
+    ],
+    icon: 'assets/icons/skills/kenshi-iai-flash.png',
+    desc: '剑意满 2 层时可拔刀一闪，无视 30% 防御并消耗 2 层剑意。',
+  },
+  {
+    id: 'skill_kenshi_sword_storm',
+    name: '剑气纵横',
+    class: 'kenshi',
+    type: 'active',
+    element: 'none',
+    unlockLevel: 42,
+    cooldownSec: 9,
+    priority: 50,
+    effects: [
+      damage(ALL_ENEMIES, 1.55),
+      {
+        kind: 'control',
+        target: ALL_ENEMIES,
+        control: 'slow',
+        chance: 1,
+        durationSec: 3,
+        strengthRatio: 0.15,
+      },
+    ],
+    icon: 'assets/icons/skills/kenshi-sword-storm.png',
+    desc: '剑气横扫全场，并使全体敌人减速 15%、持续 3 秒。',
+  },
+  {
+    id: 'skill_kenshi_swallow_return',
+    name: '燕返',
+    class: 'kenshi',
+    type: 'active',
+    element: 'none',
+    unlockLevel: 50,
+    cooldownSec: 12,
+    priority: 70,
+    effects: [
+      damage(PRIMARY, 3.2),
+      {
+        kind: 'conditional',
+        when: { kind: 'target-hp-at-most', ratio: 0.3 },
+        effects: [
+          {
+            kind: 'modifier',
+            target: SELF,
+            modifier: { unit: 'ratio', stat: 'damageDone', ratio: { base: 0.5 } },
+          },
+        ],
+      },
+    ],
+    icon: 'assets/icons/skills/kenshi-swallow-return.png',
+    desc: '燕返之剑：目标生命低于 30% 时，本次伤害提高 50%。',
+  },
+  {
+    id: 'skill_kenshi_no_self',
+    name: '无我',
+    class: 'kenshi',
+    type: 'passive',
+    element: 'none',
+    unlockLevel: 58,
+    effects: [
+      {
+        kind: 'conditional',
+        when: { kind: 'target-hp-at-most', ratio: 0.4 },
+        effects: [
+          {
+            kind: 'modifier',
+            target: SELF,
+            modifier: {
+              unit: 'ratio',
+              stat: 'damageDone',
+              ratio: { base: 0.1, perLevel: 0.002, max: 0.15 },
+            },
+          },
+        ],
+      },
+    ],
+    icon: 'assets/icons/skills/kenshi-no-self.png',
+    desc: '进入无我之境：对生命低于 40% 的目标伤害提高 10%。',
+  },
+  {
+    id: 'skill_kenshi_ice_heart',
+    name: '冰心斩',
+    class: 'kenshi',
+    type: 'active',
+    element: 'ice',
+    unlockLevel: 66,
+    cooldownSec: 13,
+    priority: 80,
+    effects: [
+      damage(ALL_ENEMIES, 2.9, 0.06, { element: 'ice', hitWeights: [1, 1] }),
+      {
+        kind: 'control',
+        target: ALL_ENEMIES,
+        control: 'freeze',
+        chance: 1,
+        durationSec: 1.5,
+      },
+    ],
+    icon: 'assets/icons/skills/kenshi-ice-heart.png',
+    desc: '冰心一剑两段横扫全体，并将敌人冰冻 1.5 秒。',
+  },
+  {
+    id: 'skill_kenshi_sword_saint',
+    name: '剑圣之心',
+    class: 'kenshi',
+    type: 'passive',
+    element: 'none',
+    unlockLevel: 76,
+    effects: [
+      {
+        kind: 'modifier',
+        target: SELF,
+        modifier: { unit: 'percentage-points', stat: 'critDmg', points: { base: 15 } },
+      },
+    ],
+    icon: 'assets/icons/skills/kenshi-sword-saint.png',
+    desc: '剑圣之心：暴击伤害提高 15%。',
+  },
+  {
+    id: 'skill_kenshi_thousand_sakura',
+    name: '奥义·千樱居合',
+    class: 'kenshi',
+    type: 'active',
+    element: 'ice',
+    unlockLevel: 88,
+    cooldownSec: 20,
+    priority: 100,
+    effects: [
+      damage(ALL_ENEMIES, 4.8, 0.06, {
+        element: 'ice',
+        hitWeights: Array<number>(5).fill(1),
+        statusScaling: {
+          statusId: 'kenshi_sword_intent',
+          damageRatioPerStack: 0.12,
+          consume: 'all',
+        },
+      }),
+    ],
+    icon: 'assets/icons/skills/kenshi-thousand-sakura.png',
+    desc: '千樱齐放的终极居合：先快照全部剑意，每层使总伤害提高 12%，结算后统一消耗。',
+  },
+];
+
 const SKILLS_BY_CLASS: Readonly<Record<ClassId, readonly Skill[]>> = {
   swordsman: SWORDSMAN_SKILLS,
   witch: WITCH_SKILLS,
   shaman: SHAMAN_SKILLS,
   catkin: CATKIN_SKILLS,
+  kenshi: KENSHI_SKILLS,
 };
 
 export const ALL_SKILLS: readonly Skill[] = Object.values(SKILLS_BY_CLASS).flat();
@@ -599,12 +897,14 @@ const VISUAL_SKILLS_BY_CLASS: Readonly<Record<ClassId, readonly VisualSkill[]>> 
   witch: VISUAL_SKILLS.filter((skill) => skill.class === 'witch'),
   shaman: VISUAL_SKILLS.filter((skill) => skill.class === 'shaman'),
   catkin: VISUAL_SKILLS.filter((skill) => skill.class === 'catkin'),
+  kenshi: VISUAL_SKILLS.filter((skill) => skill.class === 'kenshi'),
 };
 
 export const SWORDSMAN_VISUAL_SKILLS = VISUAL_SKILLS_BY_CLASS.swordsman;
 export const WITCH_VISUAL_SKILLS = VISUAL_SKILLS_BY_CLASS.witch;
 export const SHAMAN_VISUAL_SKILLS = VISUAL_SKILLS_BY_CLASS.shaman;
 export const CATKIN_VISUAL_SKILLS = VISUAL_SKILLS_BY_CLASS.catkin;
+export const KENSHI_VISUAL_SKILLS = VISUAL_SKILLS_BY_CLASS.kenshi;
 
 export function visualSkillsFor(classId: ClassId): readonly VisualSkill[] {
   return VISUAL_SKILLS_BY_CLASS[classId];

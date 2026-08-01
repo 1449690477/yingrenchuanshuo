@@ -749,6 +749,7 @@ export const AFFECTION_DATES: Readonly<Record<ClassId, readonly AffectionDateDef
   witch: WITCH_DATES,
   shaman: SHAMAN_DATES,
   catkin: CATKIN_DATES,
+  kenshi: [],
 } as const;
 
 export const AFFECTION_DATE_STORIES: readonly AffectionStoryDefinition[] = Object.values(

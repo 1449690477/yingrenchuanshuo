@@ -3,8 +3,10 @@ import { CLASS_IDS } from '@/core/types';
 import { autoBattleSkillCards } from '../skillCards';
 import { battleRhythmSkills } from '../skills';
 
+const COMPLETE_VISUAL_CLASS_IDS = CLASS_IDS.filter((classId) => classId !== 'kenshi');
+
 describe('自动技能演出卡组', () => {
-  it.each(CLASS_IDS)('%s 在低等级也稳定提供至少四张可读卡片', (classId) => {
+  it.each(COMPLETE_VISUAL_CLASS_IDS)('%s 在低等级也稳定提供至少四张可读卡片', (classId) => {
     const cards = autoBattleSkillCards(classId, 1);
     expect(cards.length).toBeGreaterThanOrEqual(4);
     expect(cards[0]).toMatchObject({
@@ -14,6 +16,16 @@ describe('自动技能演出卡组', () => {
     });
     expect(new Set(cards.map((card) => card.id)).size).toBe(cards.length);
     expect(cards.every((card) => card.iconAsset.length > 0)).toBe(true);
+  });
+
+  it('樱酱 P1 只显示基础攻击，不伪造尚未制作的技能视觉卡', () => {
+    expect(autoBattleSkillCards('kenshi', 99)).toEqual([
+      expect.objectContaining({
+        id: 'basic-kenshi',
+        mode: 'basic',
+        kind: '基础',
+      }),
+    ]);
   });
 
   it.each(CLASS_IDS)('%s 的自动卡严格映射到同一节奏技能 ID', (classId) => {

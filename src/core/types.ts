@@ -8,9 +8,9 @@
 // ─────────────────────────── 枚举类 ───────────────────────────
 
 /** 稳定职业 ID；显示名可以改，存档里的 ID 不可随角色改名变化。 */
-export const CLASS_IDS = ['swordsman', 'witch', 'shaman', 'catkin'] as const;
+export const CLASS_IDS = ['swordsman', 'witch', 'shaman', 'catkin', 'kenshi'] as const;
 
-/** 四职业。catkin 的暂定显示名为「喵喵」。 */
+/** 五职业。catkin 的显示名为「喵喵」；kenshi 的显示名为「樱酱」。 */
 export type ClassId = (typeof CLASS_IDS)[number];
 
 /** 精品商店换装系列。稳定 ID 会写入装备定义，新增时只能追加。 */
@@ -104,7 +104,11 @@ export type AffixKey =
   | 'sha_ward'
   | 'sha_spirit'
   | 'cat_swift'
-  | 'cat_nimble';
+  | 'cat_nimble'
+  | 'kenshi_iai'
+  | 'kenshi_blade'
+  | 'kenshi_honor'
+  | 'kenshi_bushido';
 
 /** 静态装备模板上的固定词条；不进入洗练，因此品阶仅用于可选展示。 */
 export interface FixedAffix {

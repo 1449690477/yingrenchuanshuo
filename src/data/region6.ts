@@ -176,6 +176,7 @@ export const REGION_6_EQUIPMENT_THEME: Region6EquipmentThemeSpec = {
     witch: '幽烬祷星杖',
     shaman: '玄铃镇影扇',
     catkin: '夜影裂石爪',
+    kenshi: '幽石镇魂刀',
   },
 };
 
@@ -211,6 +212,7 @@ export const REGION_6_SET_WEAPON_NAMES: Readonly<Record<ClassId, string>> = {
   witch: '诺瓦虚星杖',
   shaman: '诺瓦镇魂扇',
   catkin: '诺瓦影缚爪',
+  kenshi: '诺瓦幽界太刀',
 };
 
 export function region6SetEquipmentId(slot: (typeof REGION_6_SET_SLOTS)[number]): string {

@@ -174,6 +174,7 @@ const CLASS_LABEL: Record<ClassId, string> = {
   witch: '魔女',
   shaman: '萨满',
   catkin: '喵喵',
+  kenshi: '樱酱',
 };
 </script>
 

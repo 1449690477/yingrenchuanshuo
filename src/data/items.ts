@@ -114,6 +114,17 @@ export const ITEMS: Record<string, ItemDef> = {
         420,
         '刻着爪与铃铛的徽章，唤出属于喵喵的力量。',
       ),
+      {
+        ...mat(
+          'sigil_kenshi',
+          '樱酱徽记',
+          'rare',
+          420,
+          '刻着樱与刀穗的徽章，唤出属于樱酱的居合剑意。',
+        ),
+        // P1 显式复用同为猫耳职业的正式徽记图；P2 再替换专属刀穗图标。
+        icon: 'assets/items/sigil_catkin.png',
+      },
       mat(
         'crystal_resonance',
         '同调结晶',

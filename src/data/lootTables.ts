@@ -35,6 +35,7 @@ const REFORGE_DROP = {
     witch: 'sigil_witch',
     shaman: 'sigil_shaman',
     catkin: 'sigil_catkin',
+    kenshi: 'sigil_kenshi',
   },
 } as const;
 

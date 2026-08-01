@@ -276,6 +276,7 @@ export const REGION_34_EQUIPMENT_THEMES: readonly Region34EquipmentThemeSpec[] =
       witch: '幽晶魔导球',
       shaman: '虫翅灵扇',
       catkin: '幽晶裂爪',
+      kenshi: '晶壳太刀',
     },
   },
   {
@@ -297,6 +298,7 @@ export const REGION_34_EQUIPMENT_THEMES: readonly Region34EquipmentThemeSpec[] =
       witch: '月泪星杖',
       shaman: '永眠轮扇',
       catkin: '月铠巨爪',
+      kenshi: '月泪太刀',
     },
   },
 ];

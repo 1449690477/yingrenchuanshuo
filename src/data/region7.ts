@@ -176,6 +176,7 @@ export const REGION_7_EQUIPMENT_THEME: Region7EquipmentThemeSpec = {
     witch: '月蚀绯星杖',
     shaman: '赤雾引魂扇',
     catkin: '血月裂魂双爪',
+    kenshi: '血月断魂刀',
   },
 };
 
@@ -212,6 +213,7 @@ export const REGION_7_SET_WEAPON_NAMES: Readonly<Record<ClassId, string>> = {
   witch: '莉莉姆血星杖',
   shaman: '莉莉姆唤月扇',
   catkin: '莉莉姆绯月双爪',
+  kenshi: '莉莉姆绯月太刀',
 };
 
 export const REGION_7_COMPLETION_TITLE = '血月的眷属';

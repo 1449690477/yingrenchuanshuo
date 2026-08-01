@@ -17,6 +17,8 @@ import {
   arenaShopEntryPrice,
 } from '../arenaShop';
 
+const ARENA_SHOP_CLASS_IDS = CLASS_IDS.filter((classId) => classId !== 'kenshi');
+
 describe('荣誉商店货架', () => {
   it('16 个货架：4 职业 × 4 部位，定价与 docs/53 §4.1 一致', () => {
     expect(ARENA_SHOP_ENTRIES).toHaveLength(16);
@@ -28,13 +30,14 @@ describe('荣誉商店货架', () => {
   });
 
   it('每职业全套 4800：人人可得，只是快慢有别', () => {
-    for (const classId of CLASS_IDS) {
+    for (const classId of ARENA_SHOP_CLASS_IDS) {
       const total = ARENA_SHOP_ENTRIES.filter((e) => e.classId === classId).reduce(
         (sum, e) => sum + e.price,
         0,
       );
       expect(total).toBe(4800);
     }
+    expect(ARENA_SHOP_ENTRIES.some((entry) => entry.classId === 'kenshi')).toBe(false);
   });
 
   it('货架 id 唯一且格式稳定', () => {

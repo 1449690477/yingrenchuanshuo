@@ -37,4 +37,9 @@ export const CLASS_VISUALS: Record<ClassId, ClassVisual> = {
     portrait: 'assets/characters/catkin-sakura.png',
     castPortrait: 'assets/characters/catkin-sakura-cast.png',
   },
+  kenshi: {
+    symbol: '🌸',
+    portrait: 'assets/characters/kenshi-sakura.png',
+    castPortrait: 'assets/characters/kenshi-sakura-cast.png',
+  },
 };

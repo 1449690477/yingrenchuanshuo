@@ -14,8 +14,9 @@ describe('R7 纸娃娃外观注册', () => {
         if (appearance?.renderMode !== 'layer') continue;
         for (const classId of CLASS_IDS) {
           const assetFamily = family === 'r7-set' ? 'r7-bloodmoon' : family;
+          const assetClassId = classId === 'kenshi' ? 'catkin' : classId;
           expect(appearance.assets[classId]).toBe(
-            `assets/characters/modular/${classId}/${assetFamily}-${slot}.png`,
+            `assets/characters/modular/${assetClassId}/${assetFamily}-${slot}.png`,
           );
         }
       }

@@ -251,6 +251,11 @@ export function applyAffix(stats: Stats, affix: FixedAffix): Stats {
       return addStats(stats, { spd: affix.value });
     case 'cat_nimble':
       return addStats(stats, { eva: affix.value });
+    case 'kenshi_blade':
+      return addStats(stats, { critDmg: affix.value });
+    case 'kenshi_honor':
+      return addStats(stats, { hp: affix.value });
+    // kenshi_iai（破甲）在 M3-4 前保持 deferred，不进入任何结算分支。
     default:
       // 独立战斗词条不能混入八项基础属性。
       return stats;
@@ -290,6 +295,7 @@ export function applyCombatAffix(bonuses: CombatBonuses, affix: FixedAffix): Com
   switch (affix.key) {
     case 'dmgReduce':
     case 'sha_ward':
+    case 'kenshi_bushido':
       return addCombatBonuses(bonuses, { damageReduction: affix.value });
     case 'lifesteal':
     case 'sha_drain':

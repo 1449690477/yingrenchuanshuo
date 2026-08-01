@@ -190,9 +190,12 @@ function buildDungeonEntry(
   };
 }
 
-function buildArenaEntry(classId: ClassId): SetCodexEntry {
+function buildArenaEntry(classId: ClassId): SetCodexEntry | null {
   const definition = ARENA_EQUIPMENT_SET;
   const classDefs = arenaEquipmentForClass(classId);
+  // 第五职业 P1 尚未制作圣痕装备。完整缺席代表该职业尚未开放本套装；
+  // 若只缺部分槽位则仍视为配置错误，不能拿别的职业装备兜底。
+  if (classDefs.length === 0) return null;
   const pieces = definition.pieceSlots.map((slot) => {
     const def = classDefs.find((d) => d.slot === slot);
     if (!def) throw new Error(`[配置错误] 圣痕套缺少 ${classId} 的槽位 ${slot}`);
@@ -216,8 +219,8 @@ function buildArenaEntry(classId: ClassId): SetCodexEntry {
 }
 
 /**
- * 全部套装的图鉴装配：3 区域套（按区域序号）+ 4 副本套（按解锁等级）+ 圣痕套。
- * classId 只影响职业专属部位（武器 / 衣装）展示哪一件，不影响收录口径。
+ * 全部套装的图鉴装配：3 区域套（按区域序号）+ 4 副本套（按解锁等级）+
+ * 当前职业已经实际配置的圣痕套。
  */
 export function buildSetCodex(classId: ClassId): SetCodexEntry[] {
   const regionEntries = REGION_SET_META.map((meta) => buildRegionEntry(meta));
@@ -229,7 +232,10 @@ export function buildSetCodex(classId: ClassId): SetCodexEntry[] {
         requireEquipmentDungeonTier(b.tierId).unlockLevel,
     )
     .map((definition) => buildDungeonEntry(definition, classId));
-  return [...regionEntries, ...dungeonEntries, buildArenaEntry(classId)];
+  const arenaEntry = buildArenaEntry(classId);
+  return arenaEntry
+    ? [...regionEntries, ...dungeonEntries, arenaEntry]
+    : [...regionEntries, ...dungeonEntries];
 }
 
 /** 进度计算的存档快照输入：只取所需字段，视图直接传入 store 的响应式对象即可。 */

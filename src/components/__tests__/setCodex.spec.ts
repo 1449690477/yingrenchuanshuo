@@ -53,8 +53,7 @@ describe('套装图鉴装配（buildSetCodex）', () => {
   it('收录全部套装：3 区域 + 4 副本 + 1 竞技场，分组顺序固定', () => {
     for (const classId of CLASS_IDS) {
       const entries = buildSetCodex(classId);
-      expect(entries.length).toBe(8);
-      expect(entries.map((entry) => entry.group)).toEqual([
+      const expectedGroups = [
         'region',
         'region',
         'region',
@@ -62,8 +61,9 @@ describe('套装图鉴装配（buildSetCodex）', () => {
         'dungeon',
         'dungeon',
         'dungeon',
-        'arena',
-      ]);
+        ...(classId === 'kenshi' ? [] : ['arena']),
+      ];
+      expect(entries.map((entry) => entry.group)).toEqual(expectedGroups);
       expect(new Set(entries.map((entry) => entry.setId)).size).toBe(entries.length);
     }
   });
@@ -155,7 +155,7 @@ describe('套装图鉴装配（buildSetCodex）', () => {
   });
 
   it('圣痕套标注仅竞技场生效，部位按当前职业出四件', () => {
-    for (const classId of CLASS_IDS) {
+    for (const classId of CLASS_IDS.filter((id) => id !== 'kenshi')) {
       const arena = entryOf(buildSetCodex(classId), ARENA_SET_ID);
       expect(arena.group).toBe('arena');
       expect(arena.arenaOnly).toBe(true);
@@ -164,6 +164,7 @@ describe('套装图鉴装配（buildSetCodex）', () => {
       expect(arena.sourceLines.join('')).toContain('荣誉商店');
       expect(arena.sourceLines.join('')).toContain('只在竞技场');
     }
+    expect(buildSetCodex('kenshi').some((entry) => entry.setId === ARENA_SET_ID)).toBe(false);
   });
 
   it('分组标签覆盖全部组且无遗漏', () => {

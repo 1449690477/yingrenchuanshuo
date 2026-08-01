@@ -17,6 +17,7 @@ const REFORGE_MATERIAL_IDS = [
   'sigil_witch',
   'sigil_shaman',
   'sigil_catkin',
+  'sigil_kenshi',
   'crystal_resonance',
 ] as const;
 
@@ -25,15 +26,18 @@ const SIGIL_BY_CLASS: Readonly<Record<ClassId, string>> = {
   witch: 'sigil_witch',
   shaman: 'sigil_shaman',
   catkin: 'sigil_catkin',
+  kenshi: 'sigil_kenshi',
 };
 
 describe('词条洗练材料产出', () => {
-  it('7 种洗练材料及其正式图标均已登记', () => {
+  it('8 种洗练材料及其正式图标均已登记', () => {
     for (const itemId of REFORGE_MATERIAL_IDS) {
       const item = ITEMS[itemId];
       expect(item, itemId).toBeDefined();
       expect(item!.kind, itemId).toBe('material');
-      expect(item!.icon, itemId).toBe(`assets/items/${itemId}.png`);
+      expect(item!.icon, itemId).toBe(
+        itemId === 'sigil_kenshi' ? 'assets/items/sigil_catkin.png' : `assets/items/${itemId}.png`,
+      );
       expect(existsSync(resolve('public', item!.icon)), `${itemId} → ${item!.icon}`).toBe(true);
     }
   });

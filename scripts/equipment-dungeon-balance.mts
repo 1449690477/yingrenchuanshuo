@@ -234,6 +234,17 @@ const KNOWN_RESIDUALS: readonly KnownResidual[] = [
   { tier: 'violet', depth: 5, classId: 'swordsman', metric: 'duration', owner: '小数', deadline: '下次深度反标定（新内容开放或 P0 复标）', reason: 'd5 挣扎层磨局：入场模型胜率 0.8%，赢局均时 73.2s（90s 硬上限内）' },
   { tier: 'violet', depth: 5, classId: 'witch', metric: 'duration', owner: '小数', deadline: '下次深度反标定（新内容开放或 P0 复标）', reason: 'd5 挣扎层磨局：入场模型胜率 11.8%，赢局均时 79.7s（90s 硬上限内）' },
   { tier: 'violet', depth: 5, classId: 'shaman', metric: 'duration', owner: '小数', deadline: '下次深度反标定（新内容开放或 P0 复标）', reason: 'd5 挣扎层磨局：入场模型胜率 1.9%，赢局均时 73.5s（90s 硬上限内）' },
+  {
+    tier: 'violet',
+    depth: 5,
+    classId: 'kenshi',
+    metric: 'duration',
+    owner: '小雪',
+    deadline: 'M3-4 樱酱技能执行器接入后复核；若均时回落则自动失效',
+    reason:
+      'd5 挣扎层磨局：P1 统一技能倍率口径下胜率约 14%，赢局均时约 76.6s（90s 硬上限内）；' +
+      '胜率带继续硬约束，待破甲/斩杀真实执行器接入后复核时长',
+  },
   { tier: 'auric', depth: 5, classId: 'witch', metric: 'duration', owner: '小数', deadline: '下次深度反标定（新内容开放或 P0 复标）', reason: 'd5 挣扎层磨局：入场模型胜率 0.3%，赢局均时 68.6s（90s 硬上限内）' },
   { tier: 'auric', depth: 5, classId: 'catkin', metric: 'duration', owner: '小数', deadline: '下次深度反标定（新内容开放或 P0 复标）', reason: 'd5 挣扎层磨局：入场模型胜率 0.5%，赢局均时 73.0s（90s 硬上限内）' },
 ];

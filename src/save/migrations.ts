@@ -297,6 +297,30 @@ export const migrations: Record<number, Migration> = {
     version: 18,
     equipmentPresets: createEquipmentPresetState(),
   }),
+  /** v19：新增第五职业樱酱，并为旧档建立她独立的空好感进度。 */
+  18: (save) => {
+    if (
+      typeof save.lastActiveAt !== 'number' ||
+      !Number.isFinite(save.lastActiveAt) ||
+      save.lastActiveAt < 0
+    ) {
+      throw new MigrationError(18, 'lastActiveAt 缺失或格式错误');
+    }
+    const affection = asObject(save.affection, 18, 'affection');
+    const characters = asObject(affection.characters, 18, 'affection.characters');
+    const initialKenshi = createAffectionState(save.lastActiveAt, AFFECTION_RULES).characters.kenshi;
+    return {
+      ...save,
+      version: 19,
+      affection: {
+        ...affection,
+        characters: {
+          ...characters,
+          kenshi: initialKenshi,
+        },
+      },
+    };
+  },
 };
 
 function migrateV10Save(

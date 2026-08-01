@@ -24,20 +24,23 @@ import {
   IMPRINT_CRYSTAL_IDS,
 } from '../imprintRules';
 
-describe('装备副本 80 件装备矩阵', () => {
-  it('精确生成 80 件且 ID、名称、图标路径各自唯一', () => {
-    expect(EQUIPMENT_DUNGEON_GEAR_LIST).toHaveLength(80);
+describe('装备副本 88 件装备矩阵', () => {
+  it('精确生成 88 件，ID/名称唯一，樱酱 P1 只复用八张已登记图层', () => {
+    expect(EQUIPMENT_DUNGEON_GEAR_LIST).toHaveLength(88);
     for (const field of ['id', 'name', 'icon'] as const) {
-      expect(new Set(EQUIPMENT_DUNGEON_GEAR_LIST.map((item) => item[field])).size).toBe(80);
+      const expectedUniqueCount = field === 'icon' ? 80 : 88;
+      expect(new Set(EQUIPMENT_DUNGEON_GEAR_LIST.map((item) => item[field])).size).toBe(
+        expectedUniqueCount,
+      );
     }
   });
 
-  it('每档 20 件：4 职业武器 + 4 职业礼服 + 6 部位各 2 款', () => {
+  it('每档 22 件：5 职业武器 + 5 职业礼服 + 6 部位各 2 款', () => {
     for (const tier of EQUIPMENT_DUNGEON_TIERS) {
       const tierItems = EQUIPMENT_DUNGEON_GEAR_LIST.filter((item) => item.quality === tier.quality);
-      expect(tierItems, tier.id).toHaveLength(20);
-      expect(tierItems.filter((item) => item.slot === 'weapon')).toHaveLength(4);
-      expect(tierItems.filter((item) => item.slot === 'body')).toHaveLength(4);
+      expect(tierItems, tier.id).toHaveLength(22);
+      expect(tierItems.filter((item) => item.slot === 'weapon')).toHaveLength(5);
+      expect(tierItems.filter((item) => item.slot === 'body')).toHaveLength(5);
       for (const slot of SLOT_ORDER.filter(
         (candidate) => candidate !== 'weapon' && candidate !== 'body',
       )) {
@@ -219,7 +222,7 @@ describe('8 门户 × 4 档装备副本', () => {
     const highGear = EQUIPMENT_DUNGEON_GEAR_LIST.filter(
       (item) => item.quality === 'legendary' || item.quality === 'mythic',
     );
-    expect(highGear).toHaveLength(40);
+    expect(highGear).toHaveLength(44);
     for (const item of highGear) {
       expect(requireEquipment(item.id).id).toBe(item.id);
     }

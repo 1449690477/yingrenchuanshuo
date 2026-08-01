@@ -144,6 +144,17 @@ const CLASS_GEAR: Readonly<
     attackCopy: '交错爪痕中央弹出猫爪星印',
     interactionCopy: '俏皮转身，尾端留下短暂心形光迹',
   },
+  kenshi: {
+    weaponNoun: '落樱居合刀',
+    dressNoun: '白樱羽织礼裙',
+    // P1 只登记数据，显式复用现有猫耳素材；P2 再替换专属视觉键。
+    weaponVisualKey: 'weapon-catkin',
+    bodyVisualKey: 'body-catkin',
+    weaponAffix: 'critDmg',
+    bodyAffix: 'hp',
+    attackCopy: '蓝白刀光穿过樱瓣后瞬间归鞘',
+    interactionCopy: '按住刀鞘行武士礼，白樱沿羽织轻落',
+  },
 };
 
 const TIER_CLASS_PREFIX: Readonly<Record<EquipmentDungeonTierId, Record<ClassId, string>>> = {
@@ -152,24 +163,28 @@ const TIER_CLASS_PREFIX: Readonly<Record<EquipmentDungeonTierId, Record<ClassId,
     witch: '晴蓝糖星',
     shaman: '晴蓝祈愿',
     catkin: '晴蓝猫糖',
+    kenshi: '晴蓝樱刀',
   },
   violet: {
     swordsman: '月紫誓约',
     witch: '月紫星仪',
     shaman: '月紫祷歌',
     catkin: '月紫兔影',
+    kenshi: '月紫樱刀',
   },
   auric: {
     swordsman: '琥珀王庭',
     witch: '琥珀天穹',
     shaman: '琥珀圣歌',
     catkin: '琥珀蔷薇',
+    kenshi: '琥珀樱刀',
   },
   crimson: {
     swordsman: '绯樱典藏',
     witch: '绯樱秘藏',
     shaman: '绯樱圣藏',
     catkin: '绯樱珍藏',
+    kenshi: '绯樱名刀',
   },
 };
 

@@ -28,11 +28,12 @@ const favoriteGift = {
 const gearPool = ['eq_heart_a', 'eq_heart_b', 'eq_heart_c'];
 
 describe('affection state', () => {
-  it('为四职业建立彼此独立的完整记录', () => {
+  it('为五职业建立彼此独立的完整记录', () => {
     const state = createAffectionState(afterReset, AFFECTION_RULES);
 
     expect(Object.keys(state.characters).sort()).toEqual([
       'catkin',
+      'kenshi',
       'shaman',
       'swordsman',
       'witch',
@@ -40,6 +41,7 @@ describe('affection state', () => {
     state.characters.witch.points = 77;
     expect(state.characters.swordsman.points).toBe(0);
     expect(state.characters.catkin.discoveredGearIds).toEqual([]);
+    expect(state.characters.kenshi.discoveredGearIds).toEqual([]);
   });
 
   it('北京时间 04:00 日切且刷新不修改原状态', () => {

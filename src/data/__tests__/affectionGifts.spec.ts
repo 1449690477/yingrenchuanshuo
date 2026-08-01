@@ -13,12 +13,14 @@ import {
 } from '../affectionGifts';
 import { requireAffectionStory } from '../affection';
 
+const COMPLETE_AFFECTION_CLASS_IDS = CLASS_IDS.filter((classId) => classId !== 'kenshi');
+
 describe('好感第三批礼物偏好', () => {
   it('四位角色各有偏爱、喜欢、普通三档正向礼物', () => {
     expect(AFFECTION_GIFT_LIST).toHaveLength(12);
     expect(new Set(AFFECTION_GIFT_LIST.map((entry) => entry.id)).size).toBe(12);
 
-    for (const classId of CLASS_IDS) {
+    for (const classId of COMPLETE_AFFECTION_CLASS_IDS) {
       const gifts = affectionGiftsForClass(classId);
       expect(gifts).toHaveLength(3);
       expect(gifts.map((entry) => entry.preference)).toEqual([
@@ -37,6 +39,7 @@ describe('好感第三批礼物偏好', () => {
         expect(requireAffectionGift(classId, gift.id)).toBe(gift);
       }
     }
+    expect(AFFECTION_GIFTS.kenshi).toEqual([]);
   });
 
   it('礼物成本只使用前两章真实掉落材料，不占用强化成长材料', () => {

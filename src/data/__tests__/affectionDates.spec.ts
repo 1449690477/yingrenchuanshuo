@@ -17,10 +17,12 @@ import {
   findAffectionDate,
 } from '../affectionDates';
 
+const COMPLETE_AFFECTION_CLASS_IDS = CLASS_IDS.filter((classId) => classId !== 'kenshi');
+
 describe('A-4 约会日程：四角色第十二批约会剧情', () => {
   it('四角色各三幕，依次对应上午/午后/夜晚，时段文案齐备', () => {
     expect(AFFECTION_DATE_STORIES).toHaveLength(12);
-    for (const classId of CLASS_IDS) {
+    for (const classId of COMPLETE_AFFECTION_CLASS_IDS) {
       const dates = AFFECTION_DATES[classId];
       expect(dates).toHaveLength(3);
       expect(dates.map((date) => date.slot)).toEqual(['morning', 'afternoon', 'night']);
@@ -34,7 +36,7 @@ describe('A-4 约会日程：四角色第十二批约会剧情', () => {
   });
 
   it('幕次 10/11/12，门槛 3000/3500/4100，严格线性前置且一次性 +60', () => {
-    for (const classId of CLASS_IDS) {
+    for (const classId of COMPLETE_AFFECTION_CLASS_IDS) {
       const dates = AFFECTION_DATES[classId];
       expect(dates.map((date) => date.story.episode)).toEqual([10, 11, 12]);
       expect(dates.map((date) => date.story.unlockPoints)).toEqual([3_000, 3_500, 4_100]);
@@ -78,7 +80,7 @@ describe('A-4 约会日程：四角色第十二批约会剧情', () => {
   it('第十二幕各绑定一张纯物件 CG，场景与 CG 均为唯一运行时路径', () => {
     const scenes = new Set<string>();
     const cgs: string[] = [];
-    for (const classId of CLASS_IDS) {
+    for (const classId of COMPLETE_AFFECTION_CLASS_IDS) {
       const dates = AFFECTION_DATES[classId];
       expect(dates[2]!.story.cgAsset).toBeDefined();
       for (const date of dates) {
@@ -97,13 +99,14 @@ describe('A-4 约会日程：四角色第十二批约会剧情', () => {
   });
 
   it('约会剧情并入主数据后可被奖励管线原样查找与解锁', () => {
-    for (const classId of CLASS_IDS) {
+    for (const classId of COMPLETE_AFFECTION_CLASS_IDS) {
       expect(affectionDateStories(classId).map((story) => story.episode)).toEqual([10, 11, 12]);
       for (const date of AFFECTION_DATES[classId]) {
         expect(requireAffectionStory(classId, date.story.id)).toBe(date.story);
       }
     }
     expect(AFFECTION_STORIES).toHaveLength(48);
+    expect(AFFECTION_DATES.kenshi).toEqual([]);
   });
 
   it('完成奖励严格一次性：心意不足/前置缺失/重复完成全部被拒', () => {

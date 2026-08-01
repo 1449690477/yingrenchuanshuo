@@ -729,7 +729,7 @@ function simulateDays(cls: ClassId, days: number): DayRecord[] {
 }
 
 // ──────────────────────────────────────────────────────────
-// 3. 四职业挂机效率对比
+// 3. 全职业挂机效率对比
 // ──────────────────────────────────────────────────────────
 
 function classBalance() {
@@ -752,14 +752,16 @@ function classBalance() {
       魔女: kps.witch.toFixed(3),
       灵巫: kps.shaman.toFixed(3),
       喵喵: kps.catkin.toFixed(3),
+      樱酱: kps.kenshi.toFixed(3),
       剑姬偏离: dev(kps.swordsman),
       魔女偏离: dev(kps.witch),
       灵巫偏离: dev(kps.shaman),
       喵喵偏离: dev(kps.catkin),
+      樱酱偏离: dev(kps.kenshi),
     };
   });
 
-  console.log('\n【四职业挂机效率】偏离超过 ±20% 需要调整（docs/13 第四节）\n');
+  console.log('\n【全职业挂机效率】偏离超过 ±20% 需要调整（docs/13 第四节）\n');
   console.table(rows);
   return { rows, maxDeviation };
 }

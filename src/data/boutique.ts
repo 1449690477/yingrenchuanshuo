@@ -32,11 +32,13 @@ const weapons = (
   witch: Omit<BoutiqueItemSpec, 'slot' | 'category' | 'classId'>,
   shaman: Omit<BoutiqueItemSpec, 'slot' | 'category' | 'classId'>,
   catkin: Omit<BoutiqueItemSpec, 'slot' | 'category' | 'classId'>,
+  kenshi: Omit<BoutiqueItemSpec, 'slot' | 'category' | 'classId'>,
 ): BoutiqueItemSpec[] => [
   { ...swordsman, slot: 'weapon', category: 'weapon', classId: 'swordsman' },
   { ...witch, slot: 'weapon', category: 'weapon', classId: 'witch' },
   { ...shaman, slot: 'weapon', category: 'weapon', classId: 'shaman' },
   { ...catkin, slot: 'weapon', category: 'weapon', classId: 'catkin' },
+  { ...kenshi, slot: 'weapon', category: 'weapon', classId: 'kenshi' },
 ];
 
 export const BOUTIQUE_THEMES: Readonly<Record<BoutiqueThemeId, BoutiqueTheme>> = {
@@ -61,6 +63,7 @@ export const BOUTIQUE_THEMES: Readonly<Record<BoutiqueThemeId, BoutiqueTheme>> =
       witch: 'assets/effects/boutique/berry-cream-witch.png',
       shaman: 'assets/effects/boutique/berry-cream-shaman.png',
       catkin: 'assets/effects/boutique/berry-cream-catkin.png',
+      kenshi: 'assets/effects/boutique/berry-cream-catkin.png',
     },
     items: [
       ...weapons(
@@ -83,6 +86,11 @@ export const BOUTIQUE_THEMES: Readonly<Record<BoutiqueThemeId, BoutiqueTheme>> =
           name: '草莓奶霜糖晶爪',
           price: 1_350_000,
           uniqueEffect: '攻击换肤：草莓心晶在双爪交错处迸开。',
+        },
+        {
+          name: '草莓奶霜樱太刀',
+          price: 1_350_000,
+          uniqueEffect: '攻击换肤：粉白糖晶沿居合刀光轻快绽开。',
         },
       ),
       {
@@ -157,6 +165,7 @@ export const BOUTIQUE_THEMES: Readonly<Record<BoutiqueThemeId, BoutiqueTheme>> =
       witch: 'assets/effects/boutique/moon-sugar-witch.png',
       shaman: 'assets/effects/boutique/moon-sugar-shaman.png',
       catkin: 'assets/effects/boutique/moon-sugar-catkin.png',
+      kenshi: 'assets/effects/boutique/moon-sugar-catkin.png',
     },
     items: [
       ...weapons(
@@ -179,6 +188,11 @@ export const BOUTIQUE_THEMES: Readonly<Record<BoutiqueThemeId, BoutiqueTheme>> =
           name: '月桂星糖月兔爪',
           price: 6_800_000,
           uniqueEffect: '攻击换肤：月兔新月沿蓝紫晶爪跃出。',
+        },
+        {
+          name: '月桂星糖居合刀',
+          price: 6_800_000,
+          uniqueEffect: '攻击换肤：奶金月弧随归鞘声连成星座线。',
         },
       ),
       {
@@ -253,6 +267,7 @@ export const BOUTIQUE_THEMES: Readonly<Record<BoutiqueThemeId, BoutiqueTheme>> =
       witch: 'assets/effects/boutique/rose-night-witch.png',
       shaman: 'assets/effects/boutique/rose-night-shaman.png',
       catkin: 'assets/effects/boutique/rose-night-catkin.png',
+      kenshi: 'assets/effects/boutique/rose-night-catkin.png',
     },
     items: [
       ...weapons(
@@ -275,6 +290,11 @@ export const BOUTIQUE_THEMES: Readonly<Record<BoutiqueThemeId, BoutiqueTheme>> =
           name: '绯樱星愿蔷薇爪',
           price: 22_000_000,
           uniqueEffect: '攻击换肤：赤金蔷薇在交错爪痕中央盛开。',
+        },
+        {
+          name: '绯樱星愿名刀',
+          price: 22_000_000,
+          uniqueEffect: '攻击换肤：赤金樱瓣沿一线居合剑痕依次盛开。',
         },
       ),
       {

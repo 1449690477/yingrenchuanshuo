@@ -177,6 +177,7 @@ export const REGION_5_EQUIPMENT_THEME: Region5EquipmentThemeSpec = {
     witch: '熔晶焰心杖',
     shaman: '赤羽祭火扇',
     catkin: '绯焰裂晶爪',
+    kenshi: '绯金居合刀',
   },
 };
 
@@ -210,6 +211,7 @@ export const REGION_5_SET_WEAPON_NAMES: Readonly<Record<ClassId, string>> = {
   witch: '维斯塔焰心杖',
   shaman: '维斯塔燎天扇',
   catkin: '维斯塔焰羽爪',
+  kenshi: '维斯塔绯焰名刀',
 };
 
 export function region5SetEquipmentId(

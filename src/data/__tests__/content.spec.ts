@@ -89,6 +89,42 @@ describe('区域 1–5 内容完整性', () => {
     }
     expect(CLASS_VISUALS.witch.portrait).toBe('assets/characters/witch-sakura.png');
     expect(CLASS_VISUALS.witch.castPortrait).toBe('assets/characters/witch-sakura-cast.png');
+    expect(CLASS_VISUALS.kenshi.portrait).toBe('assets/characters/kenshi-sakura.png');
+    expect(CLASS_VISUALS.kenshi.castPortrait).toBe('assets/characters/kenshi-sakura-cast.png');
+  });
+
+  it('樱酱主立绘与拔刀施法立绘均为 640×960 RGBA，四角透明且无明显绿幕残留', async () => {
+    for (const asset of [CLASS_VISUALS.kenshi.portrait, CLASS_VISUALS.kenshi.castPortrait]) {
+      expect(asset).not.toBeNull();
+      const { data, info } = await sharp(resolve('public', asset!))
+        .ensureAlpha()
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+      expect({ width: info.width, height: info.height, channels: info.channels }, asset!).toEqual({
+        width: 640,
+        height: 960,
+        channels: 4,
+      });
+      const cornerAlpha = [
+        data[3],
+        data[(info.width - 1) * info.channels + 3],
+        data[(info.height - 1) * info.width * info.channels + 3],
+        data[(info.height * info.width - 1) * info.channels + 3],
+      ];
+      expect(cornerAlpha, `${asset} 四角透明`).toEqual([0, 0, 0, 0]);
+
+      let visible = 0;
+      let greenResidue = 0;
+      for (let offset = 0; offset < data.length; offset += info.channels) {
+        const [red, green, blue, alpha] = data.subarray(offset, offset + info.channels);
+        if (!alpha) continue;
+        visible += 1;
+        if (green! > 210 && green! > red! * 1.4 && green! > blue! * 1.4) {
+          greenResidue += 1;
+        }
+      }
+      expect(greenResidue / visible, `${asset} 绿幕残留比例`).toBeLessThanOrEqual(0.0005);
+    }
   });
 
   it('魔女首批技能特效配置与文件完整', () => {
@@ -156,8 +192,8 @@ describe('区域 1–5 内容完整性', () => {
     expect(ALL_CHAPTERS).toHaveLength(35);
     expect(Object.keys(STAGES)).toHaveLength(210);
     expect(Object.keys(MONSTERS)).toHaveLength(168);
-    // 既有 329 件 + R7 普通 16 件 + 血月套 8 件。
-    expect(Object.keys(EQUIPMENT)).toHaveLength(353);
+    // 既有 353 件 + 樱酱副本装备 8 件 + 三套珍品武器 3 件。
+    expect(Object.keys(EQUIPMENT)).toHaveLength(364);
     expect(Object.keys(LOOT_TABLES)).toHaveLength(105);
   });
 
@@ -538,10 +574,10 @@ describe('区域 1–5 内容完整性', () => {
     }
   });
 
-  it('珍品商店 35 件定义中，喵喵额外可见纸箱键帽专属两件且价格与词条合法', () => {
+  it('珍品商店 38 件定义中，喵喵额外可见纸箱键帽专属两件且价格与词条合法', () => {
     expect(BOUTIQUE_THEME_LIST).toHaveLength(4);
-    expect(SHOP_OFFERS).toHaveLength(35);
-    expect(new Set(SHOP_OFFERS.map((offer) => offer.id)).size).toBe(35);
+    expect(SHOP_OFFERS).toHaveLength(38);
+    expect(new Set(SHOP_OFFERS.map((offer) => offer.id)).size).toBe(38);
 
     for (const classId of CLASS_IDS) {
       const visible = SHOP_OFFERS.filter((offer) => {
@@ -698,10 +734,12 @@ describe('区域 1–5 内容完整性', () => {
 
   it('全部物品都引用真实存在的正式图标', () => {
     // 数量断言的作用是「加物品时逼人来看一眼图标」，不是锁死内容规模。
-    // 2026-07-30 加入 5 个烙印材料（docs/58 §3.1）后 50 → 55。
-    expect(Object.keys(ITEMS)).toHaveLength(55);
+    // 2026-08-01 加入樱酱专属印记后 55 → 56；P1 显式复用喵喵印记图标。
+    expect(Object.keys(ITEMS)).toHaveLength(56);
     for (const [id, item] of Object.entries(ITEMS)) {
-      expect(item.icon).toBe(`assets/items/${id}.png`);
+      const expectedIcon =
+        id === 'sigil_kenshi' ? 'assets/items/sigil_catkin.png' : `assets/items/${id}.png`;
+      expect(item.icon).toBe(expectedIcon);
       expect(existsSync(resolve('public', item.icon)), `${id} → ${item.icon}`).toBe(true);
     }
   });

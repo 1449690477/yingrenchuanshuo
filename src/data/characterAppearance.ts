@@ -92,6 +92,8 @@ const classAssets = (fileName: string): Record<ClassId, string> => ({
   witch: `assets/characters/modular/witch/${fileName}.png`,
   shaman: `assets/characters/modular/shaman/${fileName}.png`,
   catkin: `assets/characters/modular/catkin/${fileName}.png`,
+  // P1 明确复用现有猫耳角色层，P2 资产齐后再原位替换为 kenshi 专属路径。
+  kenshi: `assets/characters/modular/catkin/${fileName}.png`,
 });
 
 const sameTransform = (transform: LayerTransform): Record<ClassId, LayerTransform> => ({
@@ -99,6 +101,7 @@ const sameTransform = (transform: LayerTransform): Record<ClassId, LayerTransfor
   witch: transform,
   shaman: transform,
   catkin: transform,
+  kenshi: transform,
 });
 
 /**
@@ -113,14 +116,15 @@ function boutiqueClassAssets(
   classId?: ClassId,
 ): Partial<Record<ClassId, string>> {
   if (classId) {
+    const assetClassId = classId === 'kenshi' ? 'catkin' : classId;
     return {
-      [classId]: `assets/characters/modular/shop/${themeId}/${classId}-${slot}.png`,
+      [classId]: `assets/characters/modular/shop/${themeId}/${assetClassId}-${slot}.png`,
     };
   }
   return Object.fromEntries(
     CLASS_IDS.map((candidate) => [
       candidate,
-      `assets/characters/modular/shop/${themeId}/${candidate}-${slot}.png`,
+      `assets/characters/modular/shop/${themeId}/${candidate === 'kenshi' ? 'catkin' : candidate}-${slot}.png`,
     ]),
   ) as Record<ClassId, string>;
 }
@@ -168,6 +172,7 @@ function dungeonClassAssets(
     witch: `assets/characters/modular/dungeon/${tierId}/witch-${slot}.png`,
     shaman: `assets/characters/modular/dungeon/${tierId}/shaman-${slot}.png`,
     catkin: `assets/characters/modular/dungeon/${tierId}/catkin-${slot}.png`,
+    kenshi: `assets/characters/modular/dungeon/${tierId}/catkin-${slot}.png`,
   };
 }
 
@@ -242,7 +247,7 @@ function buildRegion5SetAppearances(): Record<string, EquipmentAppearance> {
       assets: Object.fromEntries(
         CLASS_IDS.map((classId) => [
           classId,
-          `assets/characters/modular/${classId}/r5-crimson-${slot}.png`,
+          `assets/characters/modular/${classId === 'kenshi' ? 'catkin' : classId}/r5-crimson-${slot}.png`,
         ]),
       ) as Record<ClassId, string>,
       transforms: alignedTransforms,
@@ -266,7 +271,7 @@ function buildRegion6SetAppearances(): Record<string, EquipmentAppearance> {
       assets: Object.fromEntries(
         CLASS_IDS.map((classId) => [
           classId,
-          `assets/characters/modular/${classId}/r6-shadow-${slot}.png`,
+          `assets/characters/modular/${classId === 'kenshi' ? 'catkin' : classId}/r6-shadow-${slot}.png`,
         ]),
       ) as Record<ClassId, string>,
       transforms: alignedTransforms,
@@ -290,7 +295,7 @@ function buildRegion7SetAppearances(): Record<string, EquipmentAppearance> {
       assets: Object.fromEntries(
         CLASS_IDS.map((classId) => [
           classId,
-          `assets/characters/modular/${classId}/r7-bloodmoon-${slot}.png`,
+          `assets/characters/modular/${classId === 'kenshi' ? 'catkin' : classId}/r7-bloodmoon-${slot}.png`,
         ]),
       ) as Record<ClassId, string>,
       transforms: alignedTransforms,
@@ -441,6 +446,7 @@ export const CHARACTER_BASE_ASSETS: Readonly<Record<ClassId, string>> = {
   witch: 'assets/characters/modular/witch/base.png',
   shaman: 'assets/characters/modular/shaman/base.png',
   catkin: 'assets/characters/modular/catkin/base.png',
+  kenshi: 'assets/characters/modular/catkin/base.png',
 };
 
 /**
@@ -453,6 +459,7 @@ export const CHARACTER_BASE_NOSHOES_ASSETS: Readonly<Record<ClassId, string>> = 
   witch: 'assets/characters/modular/witch/base-noshoes.png',
   shaman: 'assets/characters/modular/shaman/base-noshoes.png',
   catkin: 'assets/characters/modular/catkin/base-noshoes.png',
+  kenshi: 'assets/characters/modular/catkin/base-noshoes.png',
 };
 
 export const BASIC_ATTACK_EFFECTS: Readonly<Record<ClassId, string>> = {
@@ -460,6 +467,7 @@ export const BASIC_ATTACK_EFFECTS: Readonly<Record<ClassId, string>> = {
   witch: 'assets/effects/basic/witch-spark.png',
   shaman: 'assets/effects/basic/shaman-wisp.png',
   catkin: 'assets/effects/basic/catkin-paw.png',
+  kenshi: 'assets/effects/basic/catkin-paw.png',
 };
 
 export interface ResolvedAppearanceLayer {

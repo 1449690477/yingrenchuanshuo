@@ -666,6 +666,14 @@ const SEEDS: Readonly<Record<ClassId, TierSeeds>> = {
   witch: WITCH_INTERLUDES,
   shaman: SHAMAN_INTERLUDES,
   catkin: CATKIN_INTERLUDES,
+  kenshi: {
+    'first-meeting': [],
+    familiar: [],
+    'in-sync': [],
+    'heart-flutter': [],
+    devoted: [],
+    vow: [],
+  },
 };
 
 const TIER_IDS = AFFECTION_RULES.tiers.map((tier) => tier.id) as AffectionTierId[];
