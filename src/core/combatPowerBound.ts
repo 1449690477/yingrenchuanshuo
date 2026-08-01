@@ -31,20 +31,30 @@
 
 import { expectedBuildCp } from '../data/expectedPower';
 import { EQUIPMENT } from '../data/equipment';
-import { ENHANCE_GAIN_MAX, ENHANCE_MAX, SLOT_ORDER } from '../data/constants';
+import {
+  ENHANCE_GAIN_MAX,
+  ENHANCE_MAX,
+  EQUIPMENT_BASE_ROLL_MAX,
+  PROFESSION_AFFIX_POOLS,
+  QUALITY_AFFIX_COUNT,
+  SLOT_ORDER,
+} from '../data/constants';
 import { buildTrialCombatant } from './trial';
-import { itemBaseValue, REGIONAL_BLANK_ID } from './equipment';
-import type { ClassId, EquipmentInstance, EquipSlot } from './types';
+import { affixValueRange, itemBaseValue, REGIONAL_BLANK_ID } from './equipment';
+import type { Affix, AffixKey, ClassId, EquipmentInstance, EquipSlot } from './types';
 
 /**
- * 词条与套装效果的余量。
+ * 套装静态加成与版本漂移的余量。**词条不再走这里** —— 2026-08-01 起
+ * 探针本身带满 T5 词条（见下方 A 版构造），这只剩两件事要兜：
+ * ①套装静态加成（不进探针的那部分）②客户端与 Edge 打包版本短暂不一致。
  *
- * 结构上界那套探针**不带词条**（词条值域按品阶随机，不适合塞进一个
- * 「最强」构造里），而全 T5 词条相对新掉落词条最多再 +25%
- * （见 TYPICAL_AFFIX_CP_MUL 的注释与洗练验收实测）。取 1.5 留出
- * 词条 + 将来新套装静态加成的空间。
+ * 为什么必须收窄：CP 换乘法尺后实测「满 T5 真人 ÷ 无词条探针」最高 2.40
+ * （小满 17:52 从上方保证的解析值；小榜 17:53 实构 build 读到 1.48），
+ * 旧口径「探针不带词条 × 1.5」在新尺下**拦真人** —— 12 格全被拦，
+ * 而 sync-profile 撞上界是 500 + 记一条作弊证据（小督 17:55 链路实查）。
+ * 词条进了探针之后，这个系数只需覆盖 ①②，取小督 09:26 口径带 1.1~1.3 的中值。
  */
-export const COMBAT_POWER_HEADROOM = 1.5;
+export const COMBAT_POWER_HEADROOM = 1.2;
 
 /** 该槽位在该等级能穿到的最强定义：按真实基准值排序，不按名字或品质猜。 */
 function strongestDefFor(slot: EquipSlot, level: number, classId: ClassId) {
@@ -72,17 +82,20 @@ function strongestDefFor(slot: EquipSlot, level: number, classId: ClassId) {
 }
 
 /** 物理上最强的一件：基础值满掷 + 全 +15 且每级都掷出最高增益。 */
-function maxedInstance(defId: string, uid: string): EquipmentInstance {
+function maxedInstance(defId: string, uid: string, affixes: readonly Affix[]): EquipmentInstance {
   return {
     uid,
     defId,
     enhance: ENHANCE_MAX,
-    baseRollPermille: 1000,
+    // ⚠ 满掷是 EQUIPMENT_BASE_ROLL_MAX(1200)，不是 1000。
+    // 旧探针写 1000 —— 「奇迹」档（1121~1200‰）的真实掉落能越过探针，
+    // 上界从下方漏风。这不是本次换尺暴露的，是一直就错的。
+    baseRollPermille: EQUIPMENT_BASE_ROLL_MAX,
     // 每级都掷「奇迹」档上限，累计会撞上 ENHANCE_TOTAL_GAIN_CAP_PERMILLE，
     // 也就是强化倍率的结构性天花板 ×2.35
     enhanceGainPermille: Array<number>(ENHANCE_MAX).fill(ENHANCE_GAIN_MAX),
     enhanceLuck: {},
-    affixes: [],
+    affixes: [...affixes],
     reforgeResonance: 0,
     locked: false,
   };
@@ -99,23 +112,71 @@ const maxCpCache = new Map<string, number>();
  *
  * 结果按 (等级, 职业) 记忆化：Edge Function 每次上报都会调它。
  */
+/**
+ * A 版词条构造（2026-08-01，小满 09:21 六条口径 + 小督 09:25 上界法）：
+ * 每槽按该件品质的词条容量塞满 **同一个键** 的 T5 满值，对候选键逐一
+ * 全量重算取最大 —— 「纯键取最大」。
+ *
+ * 为什么是纯键而不是搜索混合：小满实测纯 spd / 纯 hp 分别是输出侧与
+ * 生存侧的全局最大、混合更差（几何平均的两轴各自被单键推到头）；
+ * 候选键取通用池全集 ∪ 该职业专属池 —— 是真实可掉键的**超集**，
+ * 超集上的最大值只会 ≥ 真实最优，上界方向永远安全。
+ *
+ * 词条值取 affixValueRange(key, L, 5).max，**不再额外乘 1.03** ——
+ * 值域公式里 ±3% 方差已含在 max 里，再乘一次就是把方差算两遍
+ * （小榜 17:55 抓过这个：spd T5 的 min 与 max 四舍五入后同为 0.05）。
+ */
+const GENERIC_PROBE_KEYS: readonly AffixKey[] = [
+  'atk', 'def', 'hp', 'acc', 'eva', 'critRate', 'critDmg', 'spd',
+  'dmgReduce', 'elemDmg', 'lifesteal', 'skillMul',
+];
+
+function probeKeysFor(classId: ClassId): readonly AffixKey[] {
+  const profession = PROFESSION_AFFIX_POOLS[classId].map((entry) => entry.key);
+  return [...GENERIC_PROBE_KEYS, ...profession];
+}
+
+function pureAffixesFor(key: AffixKey, level: number, quality: string): Affix[] {
+  const count = QUALITY_AFFIX_COUNT[quality as keyof typeof QUALITY_AFFIX_COUNT] ?? 0;
+  const value = affixValueRange(key, level, 5).max;
+  return Array.from({ length: count }, () => ({
+    key,
+    tier: 5 as const,
+    value,
+    // elemDmg 与 wit_elem（魔女专属，内部同走元素伤害结算）必须绑元素，
+    // 否则 applyCombatAffix 直接抛错。选哪一系对上界无差 —— 参考怪无属性，
+    // elementMultiplier 对三系一视同仁。
+    ...(key === 'elemDmg' || key === 'wit_elem' ? { element: 'fire' as const } : {}),
+  }));
+}
+
 export function structuralMaxCombatPower(level: number, classId: ClassId): number {
-  const key = `${level}:${classId}`;
-  const cached = maxCpCache.get(key);
+  const cacheKey = `${level}:${classId}`;
+  const cached = maxCpCache.get(cacheKey);
   if (cached !== undefined) return cached;
 
-  const equipped = SLOT_ORDER.map((slot, index) => {
-    const defId = strongestDefFor(slot, level, classId);
-    return defId ? maxedInstance(defId, `cp-ceiling-${index}`) : null;
-  });
-  const cp = buildTrialCombatant({
-    name: '上界探针',
-    classId,
-    level,
-    equipped,
-  }).combatPower;
-  maxCpCache.set(key, cp);
-  return cp;
+  const slotDefs = SLOT_ORDER.map((slot) => strongestDefFor(slot, level, classId));
+  let max = 0;
+  for (const affixKey of probeKeysFor(classId)) {
+    const equipped = slotDefs.map((defId, index) => {
+      if (!defId) return null;
+      const def = EQUIPMENT[defId]!;
+      return maxedInstance(
+        defId,
+        `cp-ceiling-${index}`,
+        pureAffixesFor(affixKey, level, def.quality),
+      );
+    });
+    const cp = buildTrialCombatant({
+      name: '上界探针',
+      classId,
+      level,
+      equipped,
+    }).combatPower;
+    if (cp > max) max = cp;
+  }
+  maxCpCache.set(cacheKey, max);
+  return max;
 }
 
 /** 该等级该职业允许出现的最高战力。 */
