@@ -8,7 +8,49 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-export const DOC = path.join(ROOT, 'docs', '34-协作聊天室.md');
+const CHAT_DOC_NAME = '34-协作聊天室.md';
+
+/**
+ * linked worktree 的源码各有一份，但聊天室必须只有一份。
+ * Git 在 linked worktree 的 `.git` 文件里记录管理目录，并通过 `commondir`
+ * 指回主工作树的共享 `.git`；以它的父目录作为公共聊天室根目录。
+ */
+export function resolveChatRoot(localRoot) {
+  const root = path.resolve(localRoot);
+  const gitMarker = path.join(root, '.git');
+  if (!fs.existsSync(gitMarker)) return root;
+
+  const markerStat = fs.statSync(gitMarker);
+  if (markerStat.isDirectory()) return root;
+  if (!markerStat.isFile()) throw new Error(`无法识别 Git 元数据：${gitMarker}`);
+
+  const marker = fs.readFileSync(gitMarker, 'utf8').trim();
+  const match = marker.match(/^gitdir:\s*(.+)$/i);
+  if (!match) throw new Error(`linked worktree 的 .git 文件格式无效：${gitMarker}`);
+
+  const worktreeGitDir = path.resolve(root, match[1].trim());
+  const commonDirFile = path.join(worktreeGitDir, 'commondir');
+  if (!fs.existsSync(commonDirFile)) {
+    throw new Error(`linked worktree 缺少 commondir，拒绝退回本地聊天室：${commonDirFile}`);
+  }
+
+  const commonDirRef = fs.readFileSync(commonDirFile, 'utf8').trim();
+  if (!commonDirRef) throw new Error(`linked worktree 的 commondir 为空：${commonDirFile}`);
+  const commonDir = path.resolve(worktreeGitDir, commonDirRef);
+  if (path.basename(commonDir).toLowerCase() !== '.git') {
+    throw new Error(`Git 公共目录不是标准 .git，无法定位唯一聊天室：${commonDir}`);
+  }
+
+  const sharedRoot = path.dirname(commonDir);
+  const sharedDoc = path.join(sharedRoot, 'docs', CHAT_DOC_NAME);
+  if (!fs.existsSync(sharedDoc)) {
+    throw new Error(`Git 主工作树缺少公共聊天室文档：${sharedDoc}`);
+  }
+  return sharedRoot;
+}
+
+export const CHAT_ROOT = resolveChatRoot(ROOT);
+export const DOC = path.join(CHAT_ROOT, 'docs', CHAT_DOC_NAME);
 export const CLAIMS_START = '<!-- chat:claims:start -->';
 export const CLAIMS_END = '<!-- chat:claims:end -->';
 export const TYPES = ['显名', '进度', '占用', '释放', '求助', '决策', '预警', '聊天'];
@@ -17,7 +59,8 @@ const CLAIM_LINE = /^- \*\*(.+?)\*\*: (.*)$/;
 const MSG_LINE = /^- \[(.+?)\] 【(.+?)】\*\*(.+?)\*\*：(.*)$/;
 
 export function readDoc() {
-  if (!fs.existsSync(DOC)) throw new Error(`找不到 ${path.relative(ROOT, DOC)}，聊天室文档不存在`);
+  if (!fs.existsSync(DOC))
+    throw new Error(`找不到 ${path.relative(CHAT_ROOT, DOC)}，聊天室文档不存在`);
   return fs.readFileSync(DOC, 'utf8');
 }
 
@@ -35,7 +78,14 @@ export function parseClaims(doc) {
   if (start === -1 || end === -1) return claims;
   for (const line of doc.slice(start, end).split('\n')) {
     const m = line.trim().match(CLAIM_LINE);
-    if (m) claims.set(m[1], m[2].split('、').map((s) => s.trim()).filter(Boolean));
+    if (m)
+      claims.set(
+        m[1],
+        m[2]
+          .split('、')
+          .map((s) => s.trim())
+          .filter(Boolean),
+      );
   }
   return claims;
 }
@@ -146,7 +196,8 @@ export function getState() {
   const claims = parseClaims(doc);
   const messages = parseMessages(doc);
   const members = new Map();
-  for (const m of messages) if (!members.has(m.name)) members.set(m.name, { name: m.name, lastSeen: m.ts });
+  for (const m of messages)
+    if (!members.has(m.name)) members.set(m.name, { name: m.name, lastSeen: m.ts });
   for (const [name, files] of claims) {
     const mem = members.get(name) ?? { name, lastSeen: null };
     mem.files = files;
