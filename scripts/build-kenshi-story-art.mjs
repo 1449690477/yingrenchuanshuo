@@ -290,7 +290,9 @@ async function buildContactSheet() {
     );
     const scene = await sharp(abs(path))
       .resize(308, 205, { fit: 'cover', position: 'centre' })
-      .webp({ quality: 88 })
+      // 联系图最终是 PNG；中间再做一次有损 WebP 编码会把平台编码器差异放大到单卡可见色差。
+      // 使用无损 PNG 只消除这层无意义的二次有损，不改变 16 张运行时 WebP 场景。
+      .png({ compressionLevel: 9 })
       .toBuffer();
     cards.push(
       await sharp(label)
