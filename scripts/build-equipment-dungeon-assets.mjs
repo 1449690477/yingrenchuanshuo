@@ -43,13 +43,6 @@ const REFERENCE_THEME = {
   auric: 'rose-night',
   crimson: 'rose-night',
 };
-const KENSHI_DUNGEON_APPEARANCE = {
-  azure: 'r2',
-  violet: 'r6-shadow',
-  auric: 'r7-bloodmoon',
-  crimson: 'r5-crimson',
-};
-
 function run(command, args) {
   return new Promise((resolvePromise, reject) => {
     const child = spawn(command, args, { cwd: ROOT, stdio: 'inherit' });
@@ -136,9 +129,8 @@ function equipmentIconSource(tier, iconKey) {
     };
   }
   if (iconKey === 'weapon-kenshi') {
-    const appearance = KENSHI_DUNGEON_APPEARANCE[tier];
     return {
-      source: resolve(`art-source/characters/kenshi/regions/${appearance}-weapon-alpha.png`),
+      source: resolve(`art-source/characters/kenshi/wearables/dungeon/${tier}-weapon-alpha.png`),
       sourceHasAlpha: true,
     };
   }
@@ -149,8 +141,9 @@ function equipmentIconSource(tier, iconKey) {
 }
 
 async function buildRegisteredKenshiLayer(tier, slot) {
-  const family =
-    slot === 'body' ? `dungeon/${tier}-body` : `regions/${KENSHI_DUNGEON_APPEARANCE[tier]}-${slot}`;
+  const family = slot === 'body'
+    ? `dungeon/${tier}-body`
+    : `wearables/dungeon/${tier}-${slot}`;
   const source = resolve(`art-source/characters/kenshi/${family}-alpha.png`);
   const output = resolve(`public/assets/characters/modular/dungeon/${tier}/kenshi-${slot}.png`);
   await mkdir(dirname(output), { recursive: true });

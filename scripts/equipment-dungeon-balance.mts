@@ -1,6 +1,12 @@
 import { CLASS_IDS, type ClassId, type EquipmentDef, type EquipmentInstance } from '../src/core/types';
 import { addStats, combatPower } from '../src/core/formula';
-import { createInstance, totalEquipStats } from '../src/core/equipment';
+import {
+  addCombatBonuses,
+  createInstance,
+  totalEquipCombatBonuses,
+  totalEquipStats,
+  weaponElementOf,
+} from '../src/core/equipment';
 import {
   applyEquipmentSetStats,
   resolveEquipmentSetBonuses,
@@ -40,11 +46,19 @@ import {
   EQUIPMENT_DUNGEON_TIERS,
   type EquipmentDungeonTierId,
 } from '../src/data/equipmentDungeonGear';
-import { getEquipmentSet } from '../src/data/equipmentSets';
+import { getFieldEquipmentSet } from '../src/data/equipmentSets';
 
 const NOW = Date.parse('2026-07-28T12:00:00+08:00');
 const REAL_PACE_RUNS = 60;
-const RUNS = 120;
+const BUILD_SAMPLES = 12;
+const RUNS_PER_BUILD = 10;
+const RUNS = BUILD_SAMPLES * RUNS_PER_BUILD;
+
+function nearestRank(values: readonly number[], percentile: number): number {
+  if (values.length === 0) return Number.POSITIVE_INFINITY;
+  const sorted = [...values].sort((left, right) => left - right);
+  return sorted[Math.max(0, Math.ceil(percentile * sorted.length) - 1)]!;
+}
 /**
  * 入场玩家的强化档：**固定 +9，不再逐档手填**。
  *
@@ -96,14 +110,17 @@ function entryInstances(
   tierId: EquipmentDungeonTierId,
   classId: ClassId,
   atLevel = depthNominalLevel(tierId, 1),
+  sampleIndex = 0,
 ): EquipmentInstance[] {
-  const rng = new Rng(90_000 + CLASS_IDS.indexOf(classId) * 997);
+  // 各职业必须吃同一组构筑种子。旧量具把 classIndex 混进 seed，横向比较同时
+  // 掺入了装备运气；一套灵巫恰好抽到 7 个生存词条就会被误判为职业过强。
+  const rng = new Rng(90_000 + sampleIndex * 997);
   const enhance = TYPICAL_ENHANCE;
   return entryDefinitions(tierId, atLevel).map((definition, index) => {
     const instance = createInstance(
       definition,
       rng,
-      `balance-${tierId}-${classId}-${index}`,
+      `balance-${tierId}-${classId}-${sampleIndex}-${index}`,
       classId,
     );
     instance.enhance = enhance;
@@ -122,12 +139,13 @@ function playerFor(
   tierId: EquipmentDungeonTierId,
   classId: ClassId,
   atLevel = depthNominalLevel(tierId, 1),
+  sampleIndex = 0,
 ) {
-  const equipment = entryInstances(tierId, classId, atLevel);
+  const equipment = entryInstances(tierId, classId, atLevel, sampleIndex);
   const setResolution = resolveEquipmentSetBonuses(
     equipment,
     (id) => EQUIPMENT[id],
-    getEquipmentSet,
+    getFieldEquipmentSet,
   );
   const stats = applyClassMods(
     classId,
@@ -139,14 +157,28 @@ function playerFor(
       setResolution,
     ),
   );
+  const combatBonuses = addCombatBonuses(
+    totalEquipCombatBonuses(equipment, (id) => EQUIPMENT[id], classId),
+    setResolution.combatBonuses,
+  );
+  const weapon = equipment.find((instance) => requireEquipment(instance.defId).slot === 'weapon');
   return {
-    combatant: makePlayer(classId, atLevel, stats),
+    combatant: makePlayer(
+      classId,
+      atLevel,
+      stats,
+      weapon ? weaponElementOf(requireEquipment(weapon.defId)) : 'none',
+      combatBonuses,
+    ),
     cp: combatPower(stats),
     skillKit: buildDefaultPlayerSkillKit(
       classId,
       atLevel,
       setResolution.skillMultiplierBonus,
     ),
+    onHitTriggers: setResolution.onHitTriggers,
+    onLethalTriggers: setResolution.onLethalTriggers,
+    onCritTriggers: setResolution.onCritTriggers,
   };
 }
 
@@ -155,7 +187,7 @@ function playerFor(
  *
  * 翻 true 的前提是四条同时成立，我复跑确认过：
  *   ①各深度胜率落进「三走一试一挣」的设计带；②均时随深度单调且不超 67.5s；
- *   ③结果侧四职业胜率极差 ≤50pp；④两条读 CP 的带宽门禁已具名降级。
+ *   ③结果侧五职业胜率极差 ≤50pp；④两条读 CP 的带宽门禁已具名降级。
  * 仍有两条**具名豁免**（见 KNOWN_RESIDUALS），它们有理由、有负责人、有过期条件。
  *
  * ── 以下是翻 true 之前的历史说明，保留以备回溯 ──
@@ -205,53 +237,7 @@ interface KnownResidual {
   deadline: string;
 }
 
-const KNOWN_RESIDUALS: readonly KnownResidual[] = [
-  {
-    tier: 'auric',
-    depth: 5,
-    classId: 'shaman',
-    metric: 'duration',
-    reason:
-      'd5 挣扎层的磨局（docs/66 §八「已知残留」）：入场模型胜率 1.1%，能赢的都是' +
-      '极限磨局（83.0s，90s 硬上限内）。67.5s 是「预留 25% 给职业与运气方差」的中位' +
-      '目标，磨赢型职业（灵巫）的赢局均值天然超它；胜率带已约束「该不该赢」，' +
-      '这里只反映「赢的局拖多久」。随 C2 灵巫词条重标（批 2 后独立绿批）复核。',
-    owner: '小数',
-    deadline: '批 2 后（C2 灵巫词条重标时复核；若届时无赢局或均时回落则自动失效）',
-  },
-  {
-    tier: 'auric',
-    depth: 4,
-    classId: 'shaman',
-    metric: 'duration',
-    reason:
-      '同 auric d5 shaman：灵巫磨赢机制在 d4 对抗层的体现，赢局均时 69.6s（90s 硬上限内）。' +
-      '与 auric d5 shaman 同一修复触发器（C2 灵巫词条重标）。',
-    owner: '小数',
-    deadline: '批 2 后（C2 灵巫词条重标时复核）',
-  },
-  // 批 2-4 P0-2b 反标定定稿：DEPTH_ENCOUNTER_BASE={hp:1.42, atk:1.15}、
-  // DEPTH_ATK_TARGET[3]=1.24（d4 档）。胜率带全部绿；d4/d5 的「赢局磨时」是
-  // 挣扎层/对抗层的设计内形态（d5 入场模型胜率 0~12%，能赢的局都是极限磨局），
-  // 在授权旋钮（base2 两轴 + DEPTH_ATK_TARGET 曲线）内无法同时约束胜率与均时，
-  // 故按 docs/66 契约具名登记，到期复检不自动转硬失败。
-  { tier: 'violet', depth: 5, classId: 'swordsman', metric: 'duration', owner: '小数', deadline: '下次深度反标定（新内容开放或 P0 复标）', reason: 'd5 挣扎层磨局：入场模型胜率 0.8%，赢局均时 73.2s（90s 硬上限内）' },
-  { tier: 'violet', depth: 5, classId: 'witch', metric: 'duration', owner: '小数', deadline: '下次深度反标定（新内容开放或 P0 复标）', reason: 'd5 挣扎层磨局：入场模型胜率 11.8%，赢局均时 79.7s（90s 硬上限内）' },
-  { tier: 'violet', depth: 5, classId: 'shaman', metric: 'duration', owner: '小数', deadline: '下次深度反标定（新内容开放或 P0 复标）', reason: 'd5 挣扎层磨局：入场模型胜率 1.9%，赢局均时 73.5s（90s 硬上限内）' },
-  {
-    tier: 'violet',
-    depth: 5,
-    classId: 'kenshi',
-    metric: 'duration',
-    owner: '小雪',
-    deadline: 'M3-4 樱酱技能执行器接入后复核；若均时回落则自动失效',
-    reason:
-      'd5 挣扎层磨局：P1 统一技能倍率口径下胜率约 14%，赢局均时约 76.6s（90s 硬上限内）；' +
-      '胜率带继续硬约束，待破甲/斩杀真实执行器接入后复核时长',
-  },
-  { tier: 'auric', depth: 5, classId: 'witch', metric: 'duration', owner: '小数', deadline: '下次深度反标定（新内容开放或 P0 复标）', reason: 'd5 挣扎层磨局：入场模型胜率 0.3%，赢局均时 68.6s（90s 硬上限内）' },
-  { tier: 'auric', depth: 5, classId: 'catkin', metric: 'duration', owner: '小数', deadline: '下次深度反标定（新内容开放或 P0 复标）', reason: 'd5 挣扎层磨局：入场模型胜率 0.5%，赢局均时 73.0s（90s 硬上限内）' },
-];
+const KNOWN_RESIDUALS: readonly KnownResidual[] = [];
 
 function residualOf(
   tier: string,
@@ -283,6 +269,19 @@ const DEPTH_WIN_BANDS: readonly { min: number; max: number }[] = [
   { min: 0.0, max: 0.35 }, // d5 挣扎层：入场模型本就不该过
 ];
 
+/**
+ * 同一职业的 12 套合法构筑也必须落在可解释的分布里，不能让总平均吞掉坏构筑。
+ * d1~d3 约束弱构筑的 P10；d4 既防彻底不可玩，也防强构筑无脑碾压；
+ * d5 允许弱构筑全败，但强构筑 P90 也不能越过 60%，保留毕业前的挑战价值。
+ */
+const BUILD_WINRATE_BANDS: readonly { p10Min: number; p90Max: number }[] = [
+  { p10Min: 0.95, p90Max: 1 },
+  { p10Min: 0.85, p90Max: 1 },
+  { p10Min: 0.65, p90Max: 1 },
+  { p10Min: 0.05, p90Max: 0.98 },
+  { p10Min: 0, p90Max: 0.6 },
+];
+
 /** 每档每职业每深度的战力比，供 G-12 的两条带宽门禁使用（docs/66 §6.2）。 */
 const ratiosByDepth = new Map<number, { tier: string; classId: string; ratio: number }[]>();
 /** 结果侧读数（不经过 CP），顶替降级掉的两条带宽门禁做拦截。 */
@@ -293,17 +292,24 @@ for (const tier of EQUIPMENT_DUNGEON_TIERS) {
  for (let depth = 1; depth <= DEPTH_PER_TIER; depth += 1) {
   if (!isDepthOpen(tier.id, depth)) continue;
   for (const classId of CLASS_IDS) {
-    const player = playerFor(tier.id, classId);
+    const players = Array.from({ length: BUILD_SAMPLES }, (_, sampleIndex) =>
+      playerFor(tier.id, classId, undefined, sampleIndex),
+    );
     let wins = 0;
     let totalDurationMs = 0;
     let worstPortal = '';
     let worstWins = RUNS + 1;
+    const buildWins = Array<number>(BUILD_SAMPLES).fill(0);
+    const buildDurationMs = Array<number>(BUILD_SAMPLES).fill(0);
 
     for (const stage of EQUIPMENT_DUNGEON_STAGE_LIST.filter(
       (candidate) => candidate.tierId === tier.id,
     )) {
       let stageWins = 0;
       for (let run = 0; run < RUNS; run += 1) {
+        const sampleIndex = Math.floor(run / RUNS_PER_BUILD);
+        const sampleRun = run % RUNS_PER_BUILD;
+        const player = players[sampleIndex]!;
         const state = createEquipmentDungeonState(NOW);
         // 深度链：要打第 d 层就得先通过 d-1 层（docs/66）。
         // 旧的 previousStageId 档位链已被它取代。
@@ -317,13 +323,18 @@ for (const tier of EQUIPMENT_DUNGEON_TIERS) {
           player: player.combatant,
           classId,
           playerSkillKit: player.skillKit,
-          rngState: 10_000 + run * 73 + stage.id.length * 101,
+          playerOnHitTriggers: player.onHitTriggers,
+          playerOnLethalTriggers: player.onLethalTriggers,
+          playerOnCritTriggers: player.onCritTriggers,
+          rngState: 10_000 + sampleIndex * 7_919 + sampleRun * 73 + stage.id.length * 101,
           now: NOW,
         });
         if (result.ok && result.win) {
           wins += 1;
           stageWins += 1;
           totalDurationMs += result.durationMs;
+          buildWins[sampleIndex] = buildWins[sampleIndex]! + 1;
+          buildDurationMs[sampleIndex] = buildDurationMs[sampleIndex]! + result.durationMs;
         }
       }
       if (stageWins < worstWins) {
@@ -335,7 +346,19 @@ for (const tier of EQUIPMENT_DUNGEON_TIERS) {
     const totalRuns = RUNS * SLOT_ORDER.length;
     const winRate = wins / totalRuns;
     const averageSeconds = wins > 0 ? totalDurationMs / wins / 1000 : Number.POSITIVE_INFINITY;
-    const cpRatio = player.cp / depthRecommendCp(tier.id, depth);
+    const runsPerBuildAcrossPortals = RUNS_PER_BUILD * SLOT_ORDER.length;
+    const buildWinRates = buildWins.map((buildWinCount) => buildWinCount / runsPerBuildAcrossPortals);
+    const buildWinningSeconds = buildWins.flatMap((buildWinCount, sampleIndex) =>
+      buildWinCount > 0 ? [buildDurationMs[sampleIndex]! / buildWinCount / 1000] : [],
+    );
+    const buildWinP10 = nearestRank(buildWinRates, 0.1);
+    const buildWinP50 = nearestRank(buildWinRates, 0.5);
+    const buildWinP90 = nearestRank(buildWinRates, 0.9);
+    const buildDurationP10 = nearestRank(buildWinningSeconds, 0.1);
+    const buildDurationP50 = nearestRank(buildWinningSeconds, 0.5);
+    const buildDurationP90 = nearestRank(buildWinningSeconds, 0.9);
+    const meanCp = players.reduce((sum, player) => sum + player.cp, 0) / players.length;
+    const cpRatio = meanCp / depthRecommendCp(tier.id, depth);
     if (!ratiosByDepth.has(depth)) ratiosByDepth.set(depth, []);
     ratiosByDepth.get(depth)!.push({ tier: tier.id, classId, ratio: cpRatio });
     if (!winRatesByDepth.has(depth)) winRatesByDepth.set(depth, []);
@@ -348,8 +371,10 @@ for (const tier of EQUIPMENT_DUNGEON_TIERS) {
         `胜率 ${(winRate * 100).toFixed(1)}%`,
         `最难 ${worstPortal} ${(worstWins / RUNS * 100).toFixed(1)}%`,
         `胜局均时 ${averageSeconds.toFixed(1)}s`,
-        `战力 ${player.cp}`,
+        `平均战力 ${meanCp.toFixed(0)}`,
         `战力比 ${cpRatio.toFixed(2)}`,
+        `构筑胜率P10/50/90 ${(buildWinP10 * 100).toFixed(0)}/${(buildWinP50 * 100).toFixed(0)}/${(buildWinP90 * 100).toFixed(0)}%`,
+        `构筑胜局时长P10/50/90 ${buildDurationP10.toFixed(1)}/${buildDurationP50.toFixed(1)}/${buildDurationP90.toFixed(1)}s`,
       ].join(' | '),
     );
     /*
@@ -392,6 +417,20 @@ for (const tier of EQUIPMENT_DUNGEON_TIERS) {
         failed = true;
       }
     }
+    const buildBand = BUILD_WINRATE_BANDS[depth - 1];
+    if (!buildBand) throw new Error(`[配置错误] 缺少 d${depth} 的构筑分位带`);
+    if (buildWinP10 < buildBand.p10Min) {
+      console.log(
+        `  ✗ 构筑塌底：${tier.id} d${depth} ${classId} P10 ${(buildWinP10 * 100).toFixed(0)}% < ${(buildBand.p10Min * 100).toFixed(0)}%`,
+      );
+      failed = true;
+    }
+    if (buildWinP90 > buildBand.p90Max) {
+      console.log(
+        `  ✗ 构筑碾压：${tier.id} d${depth} ${classId} P90 ${(buildWinP90 * 100).toFixed(0)}% > ${(buildBand.p90Max * 100).toFixed(0)}%`,
+      );
+      failed = true;
+    }
     /*
      * 均时上限：90 秒硬上限的 75%，留 25% 给职业与运气的方差。
      *
@@ -413,6 +452,12 @@ for (const tier of EQUIPMENT_DUNGEON_TIERS) {
         );
         failed = true;
       }
+    }
+    if (Number.isFinite(buildDurationP90) && buildDurationP90 > 90 * 0.75) {
+      console.log(
+        `  ✗ 慢构筑：${tier.id} d${depth} ${classId} 胜局时长 P90 ${buildDurationP90.toFixed(1)}s > 67.5s`,
+      );
+      failed = true;
     }
   }
  }
@@ -483,7 +528,7 @@ for (const [depth, rows] of [...ratiosByDepth].sort((a, b) => a[0] - b[0])) {
 }
 
 /*
- * ★ 顶替两条带宽门禁的**结果侧**断言：同档同深，四职业胜率极差。
+ * ★ 顶替两条带宽门禁的**结果侧**断言：同档同深，五职业胜率极差。
  *
  * 它完全不经过 CP —— 胜率是直接观测量，不受暴击定价与等级段尺度漂移影响。
  * 门禁的意义在于抓「某个职业在这一层被系统性针对」，
@@ -505,7 +550,7 @@ for (const [depth, rows] of [...winRatesByDepth].sort((a, b) => a[0] - b[0])) {
     const spread = Math.max(...values) - Math.min(...values);
     if (spread > CLASS_WINRATE_SPREAD_LIMIT) {
       console.log(
-        `  ✗ d${depth} ${tierId} 四职业胜率极差 ${(spread * 100).toFixed(0)}pp > ${CLASS_WINRATE_SPREAD_LIMIT * 100}pp`,
+        `  ✗ d${depth} ${tierId} 五职业胜率极差 ${(spread * 100).toFixed(0)}pp > ${CLASS_WINRATE_SPREAD_LIMIT * 100}pp`,
       );
       failed = true;
     }
