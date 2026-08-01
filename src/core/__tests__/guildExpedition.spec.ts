@@ -10,7 +10,16 @@ import {
   guildWeekKey,
 } from '../guildExpedition';
 import { GUILD_CONTRIBUTION_MAX, GUILD_WEEKLY_TARGET_PER_MEMBER } from '@/data/guildRules';
-import { TRIAL_BRACKETS } from '@/data/trialRules';
+import {
+  TRIAL_BOSS_HP_HEADROOM,
+  TRIAL_BRACKETS,
+  TRIAL_DURATION_SEC,
+} from '@/data/trialRules';
+import { estimateDps } from '../combat';
+import { addStats } from '../formula';
+import { applyClassMods, baseStatsFor, makePlayer } from '../progression';
+import { expectedGearStats, typicalQualityAt } from '@/data/expectedPower';
+import { buildDefaultPlayerSkillKit } from '../playerSkillKit';
 
 describe('公会远征时间边界', () => {
   it('按北京时间 04:00 切日', () => {
@@ -33,6 +42,35 @@ describe('公会远征确定性与归一化', () => {
     expect(low.combatant.element).toBe(high.combatant.element);
     expect(low.tilt.id).toBe(high.tilt.id);
     expect(high.combatant.stats.hp).toBeGreaterThan(low.combatant.stats.hp);
+  });
+
+  it('远征首领血量按完整真实技能轮转标定，不受 1HP 原型过量截断', () => {
+    for (const bracket of TRIAL_BRACKETS) {
+      const boss = guildExpeditionBoss('s1', 8, bracket.id).combatant;
+      const quality = typicalQualityAt(bracket.bossLevel);
+      const reference = makePlayer(
+        '公会基准成员',
+        bracket.bossLevel,
+        applyClassMods(
+          'swordsman',
+          addStats(
+            baseStatsFor('swordsman', bracket.bossLevel),
+            expectedGearStats(bracket.bossLevel, quality),
+          ),
+        ),
+      );
+      const dps = estimateDps(
+        reference,
+        boss,
+        1,
+        [],
+        buildDefaultPlayerSkillKit('swordsman', bracket.bossLevel),
+        'boss',
+      );
+      expect(boss.stats.hp).toBeGreaterThanOrEqual(
+        dps * TRIAL_DURATION_SEC * (TRIAL_BOSS_HP_HEADROOM - 1),
+      );
+    }
   });
 
   it('主题种子和挑战种子同输入可复现', () => {

@@ -6,7 +6,6 @@ import { addStats } from './formula';
 import { estimateDps } from './combat';
 import {
   applyClassMods,
-  averageSkillMultiplier,
   baseStatsFor,
   makePlayer,
   monsterAtk,
@@ -36,6 +35,7 @@ import {
   GUILD_WEEKLY_TARGET_PER_MEMBER,
   type GuildDisplayStage,
 } from '@/data/guildRules';
+import { buildDefaultPlayerSkillKit } from './playerSkillKit';
 
 const HOUR_MS = 3_600_000;
 
@@ -117,7 +117,22 @@ export function guildExpeditionBoss(
     addStats(baseStatsFor('swordsman', level), expectedGearStats(level, quality)),
   );
   const reference = makePlayer('公会基准成员', level, referenceStats);
-  const referenceDps = estimateDps(reference, proto, averageSkillMultiplier(level));
+  // 真实技能轮转会把伤害截断到目标剩余生命；hp=1 原型会把每次命中都压成 1 点，
+  // 导致远征 Boss 反推血量严重偏低。标定时使用同属性的不死目标，再写回正式血量。
+  const calibrationHp = Number.MAX_SAFE_INTEGER;
+  const calibrationTarget: Combatant = {
+    ...proto,
+    stats: { ...protoStats, hp: calibrationHp },
+    currentHp: calibrationHp,
+  };
+  const referenceDps = estimateDps(
+    reference,
+    calibrationTarget,
+    1,
+    [],
+    buildDefaultPlayerSkillKit('swordsman', level),
+    'boss',
+  );
   const hp = Math.max(1, Math.ceil(referenceDps * TRIAL_DURATION_SEC * TRIAL_BOSS_HP_HEADROOM));
 
   return {
