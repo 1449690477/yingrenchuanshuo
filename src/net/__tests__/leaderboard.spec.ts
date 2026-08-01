@@ -22,7 +22,22 @@ import {
   type TrialSubmission,
 } from '../leaderboard';
 import { CP_FORMULA_VERSION } from '@/core/cpFormulaVersion';
+import { combatPowerCeiling } from '@/core/combatPowerBound';
 import { NetRequestError } from '../supabase';
+
+/**
+ * 战力测试用的两个数：**从上界推导，不写死**。
+ *
+ * 原来这里是 PLAUSIBLE_CP / 95_000 —— 只在当时那把尺下成立的魔法数。战力公式一重定价，
+ * 它们要么变成「物理上不可能」（上界过滤把它们剔掉，测试红），要么需要有人
+ * 重新挑一对数。2026-08-01 批3 合批时就撞上了：**整次合并唯一的冲突就是这两行**。
+ *
+ * 这几条测试要的性质是「真实可达且不越界」与「他比我高」，**不是某个具体数值**。
+ * 从 combatPowerCeiling 推导之后，任何一把尺下都自动成立。
+ */
+const PLAUSIBLE_CP = Math.floor(combatPowerCeiling(78, 'swordsman') * 0.5);
+/** 比我高一点、同样在上界内 —— 名次测试要的「排在我上面的人」。 */
+const RIVAL_CP = Math.floor(combatPowerCeiling(78, 'swordsman') * 0.6);
 
 type InvokeStub = (
   name: string,
@@ -394,7 +409,7 @@ describe('fetchPowerTop 过滤掉物理上不可能的战力', () => {
     avatar_url: null,
     class_id: 'swordsman',
     level: 78,
-    combat_power: 90_000,
+    combat_power: PLAUSIBLE_CP,
     cp_formula_version: CP_FORMULA_VERSION,
   };
   const forged = { ...honest, id: 'forged', display_name: '自填哥', combat_power: 999_999_999 };
@@ -410,7 +425,7 @@ describe('fetchPowerTop 过滤掉物理上不可能的战力', () => {
   });
 
   it('真实玩家一个都不能少 —— 满配肝帝必须留在榜上', async () => {
-    // 90000 已接近 Lv78 的结构上界，属于真实可达
+    // 上界的一半，任何一把尺下都属于真实可达
     const { client } = powerStub([honest]);
 
     const rows = await fetchPowerTop(client, 'honest');
@@ -428,7 +443,7 @@ describe('fetchPowerTop 过滤掉物理上不可能的战力', () => {
   });
 
   it('等级伪造也拦得住：等级越界的行直接不进榜', async () => {
-    const { client } = powerStub([{ ...honest, id: 'lvhack', level: 999, combat_power: 90_000 }]);
+    const { client } = powerStub([{ ...honest, id: 'lvhack', level: 999, combat_power: PLAUSIBLE_CP }]);
 
     const rows = await fetchPowerTop(client, null);
 
@@ -525,28 +540,28 @@ describe('fetchMyPowerRank 与榜单同口径', () => {
   const rival = {
     level: 78,
     class_id: 'swordsman' as const,
-    combat_power: 95_000,
+    combat_power: RIVAL_CP,
     cp_formula_version: CP_FORMULA_VERSION,
   };
 
   it('没登录时不给名次，而不是给第 1 名', async () => {
     const { client } = rankStub(null, []);
-    expect(await fetchMyPowerRank(client, null, 90_000)).toEqual({ kind: 'unranked' });
+    expect(await fetchMyPowerRank(client, null, PLAUSIBLE_CP)).toEqual({ kind: 'unranked' });
   });
 
   it('查无档案时不给名次', async () => {
     const { client } = rankStub(null, []);
-    expect(await fetchMyPowerRank(client, 'me', 90_000)).toEqual({ kind: 'unranked' });
+    expect(await fetchMyPowerRank(client, 'me', PLAUSIBLE_CP)).toEqual({ kind: 'unranked' });
   });
 
   it('★ 我的战力还是旧公式量的：明说不可比，不编一个名次出来', async () => {
     const { client } = rankStub({ cp_formula_version: CP_FORMULA_VERSION - 1 }, [rival]);
-    expect(await fetchMyPowerRank(client, 'me', 90_000)).toEqual({ kind: 'staleFormula' });
+    expect(await fetchMyPowerRank(client, 'me', PLAUSIBLE_CP)).toEqual({ kind: 'staleFormula' });
   });
 
   it('比我高的人数 + 1', async () => {
     const { client } = rankStub({ cp_formula_version: CP_FORMULA_VERSION }, [rival, rival]);
-    expect(await fetchMyPowerRank(client, 'me', 90_000)).toEqual({
+    expect(await fetchMyPowerRank(client, 'me', PLAUSIBLE_CP)).toEqual({
       kind: 'ranked',
       rank: 3,
       exact: true,
@@ -558,7 +573,7 @@ describe('fetchMyPowerRank 与榜单同口径', () => {
     const { client } = rankStub({ cp_formula_version: CP_FORMULA_VERSION }, [forgedAbove, rival]);
 
     // 两行都比我高，但伪造那行会被上界剔掉，所以是第 2 名不是第 3 名
-    expect(await fetchMyPowerRank(client, 'me', 90_000)).toEqual({
+    expect(await fetchMyPowerRank(client, 'me', PLAUSIBLE_CP)).toEqual({
       kind: 'ranked',
       rank: 2,
       exact: true,
@@ -568,10 +583,10 @@ describe('fetchMyPowerRank 与榜单同口径', () => {
   it('★ 只数当前公式版本的人', async () => {
     const { client, log } = rankStub({ cp_formula_version: CP_FORMULA_VERSION }, []);
 
-    await fetchMyPowerRank(client, 'me', 90_000);
+    await fetchMyPowerRank(client, 'me', PLAUSIBLE_CP);
 
     expect(log.eq).toContainEqual(['cp_formula_version', CP_FORMULA_VERSION]);
-    expect(log.gt).toContainEqual(['combat_power', 90_000]);
+    expect(log.gt).toContainEqual(['combat_power', PLAUSIBLE_CP]);
   });
 });
 
