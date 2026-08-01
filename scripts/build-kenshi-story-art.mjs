@@ -23,7 +23,7 @@ const CONTACT_GUARD_LAYOUT = Object.freeze({
   columns: 4,
   rows: 4,
   cardWidth: 16,
-  cardHeight: 16,
+  cardHeight: 20,
   previewHeight: 16,
   cardCount: 16,
   channels: 3,
@@ -103,6 +103,17 @@ async function decodedRgb(input) {
   });
 }
 
+async function losslessContactPng(image) {
+  return image.png({ compressionLevel: 9, palette: false }).toBuffer();
+}
+
+async function assertTruecolorContactPng(input, label) {
+  const metadata = await sharp(input).metadata();
+  if (metadata.format !== 'png' || metadata.isPalette === true) {
+    throw new Error(`[樱酱剧情美术] 联系图必须是无损 truecolor PNG：${label}`);
+  }
+}
+
 async function pixelDigest(input) {
   const { data, info } = await decodedRgb(input);
   return digest(Buffer.concat([Buffer.from(`${info.width}x${info.height}:`), data]));
@@ -174,6 +185,10 @@ function assertDecodedContactPreviewEquivalent(actual, expected, label, layout) 
 }
 
 async function assertContactPreviewEquivalent(path, rebuilt) {
+  await Promise.all([
+    assertTruecolorContactPng(abs(path), `${path}/actual`),
+    assertTruecolorContactPng(rebuilt, `${path}/rebuilt`),
+  ]);
   assertDecodedContactPreviewEquivalent(
     await decodedRgb(abs(path)),
     await decodedRgb(rebuilt),
@@ -182,31 +197,72 @@ async function assertContactPreviewEquivalent(path, rebuilt) {
   );
 }
 
-function contactGuardFixture({ changedCard = null, color = [255, 64, 96], shift = 0 } = {}) {
+async function contactGuardFixture({
+  changedCard = null,
+  color = [255, 64, 96],
+  shift = 0,
+  footerVariant = 0,
+} = {}) {
   const layout = CONTACT_GUARD_LAYOUT;
-  const width = layout.columns * layout.cardWidth;
-  const height = layout.rows * layout.cardHeight;
-  const data = Buffer.alloc(width * height * layout.channels, 238);
+  const cards = [];
   for (let card = 0; card < layout.cardCount; card += 1) {
-    const cardLeft = (card % layout.columns) * layout.cardWidth;
-    const cardTop = Math.floor(card / layout.columns) * layout.cardHeight;
+    const data = Buffer.alloc(layout.cardWidth * layout.cardHeight * layout.channels, 238);
     const cardColor = card === changedCard ? color : [255, 64, 96];
     const cardShift = card === changedCard ? shift : 0;
-    const drawLeft = cardLeft + 4 + cardShift;
-    const drawRight = cardLeft + 12 + cardShift;
-    if (drawLeft < cardLeft || drawRight > cardLeft + layout.cardWidth) {
+    const drawLeft = 4 + cardShift;
+    const drawRight = 12 + cardShift;
+    if (drawLeft < 0 || drawRight > layout.cardWidth) {
       throw new Error(`[樱酱剧情美术] 联系图测试图形越出 card=${card}`);
     }
-    for (let y = cardTop + 4; y < cardTop + 12; y += 1) {
+    for (let y = 4; y < 12; y += 1) {
       for (let x = drawLeft; x < drawRight; x += 1) {
-        const offset = (y * width + x) * layout.channels;
+        const offset = (y * layout.cardWidth + x) * layout.channels;
         data[offset] = cardColor[0];
         data[offset + 1] = cardColor[1];
         data[offset + 2] = cardColor[2];
       }
     }
+    for (let y = layout.previewHeight; y < layout.cardHeight; y += 1) {
+      for (let x = 0; x < layout.cardWidth; x += 1) {
+        if ((x + y + footerVariant + card) % 3 !== 0) continue;
+        const offset = (y * layout.cardWidth + x) * layout.channels;
+        data[offset] = footerVariant === 0 ? 32 : 224;
+        data[offset + 1] = footerVariant === 0 ? 48 : 24;
+        data[offset + 2] = footerVariant === 0 ? 64 : 192;
+      }
+    }
+    cards.push(
+      await losslessContactPng(
+        sharp(data, {
+          raw: {
+            width: layout.cardWidth,
+            height: layout.cardHeight,
+            channels: layout.channels,
+          },
+        }),
+      ),
+    );
   }
-  return { data, info: { width, height, channels: layout.channels }, layout };
+  const width = layout.columns * layout.cardWidth;
+  const height = layout.rows * layout.cardHeight;
+  const contact = await losslessContactPng(
+    sharp({
+      create: {
+        width,
+        height,
+        channels: layout.channels,
+        background: { r: 238, g: 238, b: 238 },
+      },
+    }).composite(
+      cards.map((input, card) => ({
+        input,
+        left: (card % layout.columns) * layout.cardWidth,
+        top: Math.floor(card / layout.columns) * layout.cardHeight,
+      })),
+    ),
+  );
+  await assertTruecolorContactPng(contact, '联系图编码门禁样本');
+  return { ...(await decodedRgb(contact)), layout };
 }
 
 function expectContactGuardRejects(name, actual, rebuilt, layout) {
@@ -226,12 +282,18 @@ function expectContactGuardRejects(name, actual, rebuilt, layout) {
   if (!rejected) throw new Error(`[樱酱剧情美术] 联系图逐卡门禁未拒绝：${name}`);
 }
 
-function verifyContactComparisonGuard() {
-  const base = contactGuardFixture();
+async function verifyContactComparisonGuard() {
+  const base = await contactGuardFixture();
   assertDecodedContactPreviewEquivalent(base, base, '联系图逐卡同图自检', base.layout);
-  const recolored = contactGuardFixture({ changedCard: 0, color: [64, 96, 255] });
+  const differentFooter = await contactGuardFixture({ footerVariant: 1 });
+  assertDecodedContactPreviewEquivalent(base, differentFooter, '联系图字体区隔离自检', base.layout);
+  const recolored = await contactGuardFixture({
+    changedCard: 0,
+    color: [64, 96, 255],
+    footerVariant: 1,
+  });
   expectContactGuardRejects('单卡明显改色', base, recolored, base.layout);
-  const shifted = contactGuardFixture({ changedCard: 0, shift: 3 });
+  const shifted = await contactGuardFixture({ changedCard: 0, shift: 3, footerVariant: 1 });
   expectContactGuardRejects('单卡 3px 位移', base, shifted, base.layout);
 }
 
@@ -288,50 +350,45 @@ async function buildContactSheet() {
     const label = Buffer.from(
       `<svg xmlns="http://www.w3.org/2000/svg" width="${layout.cardWidth}" height="${layout.cardHeight}"><rect width="${layout.cardWidth}" height="${layout.cardHeight}" fill="#eef4fc"/><text x="${layout.cardWidth / 2}" y="238" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#302947">${slug}</text></svg>`,
     );
-    const scene = await sharp(abs(path))
-      .resize(308, 205, { fit: 'cover', position: 'centre' })
-      // 联系图最终是 PNG；中间再做一次有损 WebP 编码会把平台编码器差异放大到单卡可见色差。
-      // 使用无损 PNG 只消除这层无意义的二次有损，不改变 16 张运行时 WebP 场景。
-      .png({ compressionLevel: 9 })
-      .toBuffer();
+    // 联系图三段都必须保持 truecolor 无损：系统字体只应影响底部文字区，不能通过
+    // 有损 WebP 或调色板训练把平台差异扩散到上方预览。16 张运行时 WebP 不经过此链。
+    const scene = await losslessContactPng(
+      sharp(abs(path)).resize(308, 205, { fit: 'cover', position: 'centre' }),
+    );
     cards.push(
-      await sharp(label)
-        .composite([{ input: scene, left: 6, top: 6 }])
-        .png({ compressionLevel: 9, palette: true, quality: 92 })
-        .toBuffer(),
+      await losslessContactPng(sharp(label).composite([{ input: scene, left: 6, top: 6 }])),
     );
   }
-  const contact = await sharp({
-    create: {
-      width: layout.columns * layout.cardWidth,
-      height: layout.rows * layout.cardHeight,
-      channels: 4,
-      background: { r: 238, g: 244, b: 252, alpha: 1 },
-    },
-  })
-    .composite(
+  const contact = await losslessContactPng(
+    sharp({
+      create: {
+        width: layout.columns * layout.cardWidth,
+        height: layout.rows * layout.cardHeight,
+        channels: 4,
+        background: { r: 238, g: 244, b: 252, alpha: 1 },
+      },
+    }).composite(
       cards.map((input, index) => ({
         input,
         left: (index % layout.columns) * layout.cardWidth,
         top: Math.floor(index / layout.columns) * layout.cardHeight,
       })),
-    )
-    .png({ compressionLevel: 9, palette: true, quality: 92 })
-    .toBuffer();
+    ),
+  );
   const path = 'art-source/qa/kenshi-story-contact.png';
   if (CHECK) {
     if (!existsSync(abs(path))) {
       throw new Error(`[樱酱剧情美术] 联系图未更新：${path}`);
     }
-    // 场景本体仍由 writeOrCheck 做精确像素重建；这里只为二次缩放/调色板量化后的
-    // QA 联系图预览接受小于一个色阶的跨平台误差。
+    // 场景本体仍由 writeOrCheck 做精确像素重建；这里只为无损二次缩放后的
+    // QA 联系图预览接受小于一个色阶的跨平台取整误差。
     await assertContactPreviewEquivalent(path, contact);
   } else {
     writeFileSync(abs(path), contact);
   }
 }
 
-if (CHECK) verifyContactComparisonGuard();
+if (CHECK) await verifyContactComparisonGuard();
 await buildContactSheet();
 
 console.log(
