@@ -27,7 +27,17 @@ import crypto from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath, URL } from 'node:url';
 import { setInterval } from 'node:timers';
-import { ROOT, DOC, TYPES, getState, say, claim, release } from './chat-core.mjs';
+import {
+  ROOT,
+  DOC,
+  TYPES,
+  readDoc,
+  ruleLines,
+  getState,
+  say,
+  claim,
+  release,
+} from './chat-core.mjs';
 
 const UI_FILE = path.join(path.dirname(fileURLToPath(import.meta.url)), 'chat-ui.html');
 const PUBLIC_DIR = path.join(ROOT, 'public');
@@ -107,20 +117,24 @@ function checkToken(req, url) {
 
 const HELP = {
   name: '樱刃传说 · AI 协作聊天室',
-  about: '多个 AI 在同一工作区协作的公共频道。所有状态持久化在 docs/34-协作聊天室.md，与 npm run chat CLI 完全互通。',
-  auth: TOKEN ? '写接口需要请求头 x-chat-token 或 ?token= 参数' : '当前未设置 CHAT_TOKEN，写接口开放（建议仅在受信网络使用）',
+  about:
+    '多个 AI 与 linked worktree 共用的唯一公共频道。所有状态持久化在 Git 主工作树的 docs/34-协作聊天室.md，与 npm run chat CLI 完全互通。',
+  auth: TOKEN
+    ? '写接口需要请求头 x-chat-token 或 ?token= 参数'
+    : '当前未设置 CHAT_TOKEN，写接口开放（建议仅在受信网络使用）',
   websocket: {
     url: 'ws://<host>:<port>/ws',
     heartbeat: `服务端每 ${HEARTBEAT_MS / 1000} 秒发协议 ping 和应用级 {"kind":"ping"}；请回 {"kind":"pong"}；${STALE_MS / 1000} 秒无回包断开`,
     push: '数据源变化时推送 {"kind":"state", "claims":[...], "messages":[...], "members":[...]}',
   },
   endpoints: {
-    'GET /api/state': '返回 { now, claims: [{name, files}], messages: [{ts, type, name, text}], members }',
+    'GET /api/state':
+      '返回 { now, claims: [{name, files}], messages: [{ts, type, name, text}], members }',
     'POST /api/say': '{ name, type?, text } — type 可选：' + TYPES.join('/'),
     'POST /api/claim': '{ name, files: [...] } — 占用文件，冲突返回 409 { error, conflicts }',
     'POST /api/release': '{ name, files? } — 释放文件，省略 files 则全部释放',
   },
-  rules: ['开工先 GET /api/state 看谁占着什么', '动手前先 claim，提交后立刻 release', '占用要具体到文件'],
+  rules: ruleLines(readDoc()),
 };
 
 // ── WebSocket（手写 RFC6455，零依赖）─────────────────────
@@ -208,10 +222,10 @@ function consumeFrames(socket, state) {
     }
     if (opcode === 0x9) {
       // ping → pong
-      if (!socket.destroyed) socket.write(wsEncode(0xA, payload));
+      if (!socket.destroyed) socket.write(wsEncode(0xa, payload));
       continue;
     }
-    if (opcode === 0xA) continue; // pong
+    if (opcode === 0xa) continue; // pong
     if (opcode === 0x1 || opcode === 0x0) {
       state.text += payload.toString('utf8');
       if (fin) {
@@ -249,16 +263,23 @@ const server = http.createServer(async (req, res) => {
       if (!file.startsWith(PUBLIC_DIR) || !fs.existsSync(file) || !fs.statSync(file).isFile()) {
         return send(res, 404, { error: '素材不存在' });
       }
-      return send(res, 200, fs.readFileSync(file), { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream' });
+      return send(res, 200, fs.readFileSync(file), {
+        'Content-Type': MIME[path.extname(file)] || 'application/octet-stream',
+      });
     }
 
     // ── 只读 API ────────────────────────────────────────
-    if (req.method === 'GET' && route === '/api/state') return send(res, 200, { ok: true, ...getState() });
+    if (req.method === 'GET' && route === '/api/state')
+      return send(res, 200, { ok: true, ...getState() });
     if (req.method === 'GET' && route === '/api/help') return send(res, 200, { ok: true, ...HELP });
 
     // ── 写 API（远程 AI 接入点）──────────────────────────
     if (req.method === 'POST' && route.startsWith('/api/')) {
-      if (!checkToken(req, url)) return send(res, 401, { ok: false, error: '令牌无效：请带 x-chat-token 头或 ?token= 参数' });
+      if (!checkToken(req, url))
+        return send(res, 401, {
+          ok: false,
+          error: '令牌无效：请带 x-chat-token 头或 ?token= 参数',
+        });
       const body = await readBody(req);
       if (route === '/api/say') {
         const { type } = say(body.name, body.type, body.text);
@@ -271,7 +292,8 @@ const server = http.createServer(async (req, res) => {
           pushState();
           return send(res, 200, { ok: true, added, ...getState() });
         } catch (err) {
-          if (err.conflicts) return send(res, 409, { ok: false, error: err.message, conflicts: err.conflicts });
+          if (err.conflicts)
+            return send(res, 409, { ok: false, error: err.message, conflicts: err.conflicts });
           throw err;
         }
       }
@@ -303,7 +325,10 @@ server.on('upgrade', (req, socket) => {
     socket.destroy();
     return;
   }
-  const accept = crypto.createHash('sha1').update(key + WS_GUID).digest('base64');
+  const accept = crypto
+    .createHash('sha1')
+    .update(key + WS_GUID)
+    .digest('base64');
   socket.write(
     'HTTP/1.1 101 Switching Protocols\r\n' +
       'Upgrade: websocket\r\nConnection: Upgrade\r\n' +
@@ -352,5 +377,7 @@ server.listen(port, host, () => {
   console.log(`樱刃传说 · AI 协作聊天室已开服`);
   console.log(`  本地围观:  http://localhost:${port}/`);
   console.log(`  实时推送:  ws://<本机IP>:${port}/ws（${HEARTBEAT_MS / 1000} 秒心跳）`);
-  console.log(`  远程接入:  http://<本机IP>:${port}/api/help${TOKEN ? '（已启用 CHAT_TOKEN 校验）' : '（未设 CHAT_TOKEN，写接口开放）'}`);
+  console.log(
+    `  远程接入:  http://<本机IP>:${port}/api/help${TOKEN ? '（已启用 CHAT_TOKEN 校验）' : '（未设 CHAT_TOKEN，写接口开放）'}`,
+  );
 });
