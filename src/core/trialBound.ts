@@ -123,7 +123,12 @@ export function maxPlausibleTrialDamage(
   return damage;
 }
 
-/** 该等级该职业允许出现的最高试炼伤害（含词条余量）。 */
+/**
+ * 该等级该职业的满配伤害探针（含词条余量）。
+ *
+ * 只用于平衡诊断；反作弊最终判定必须使用 `trialBracketDamageCeiling` 的 Boss
+ * 物理血量上界，不能再拿构筑探针拒绝真实玩家。
+ */
 export function trialDamageCeiling(
   level: number,
   classId: ClassId,
@@ -133,7 +138,7 @@ export function trialDamageCeiling(
 }
 
 /**
- * ★ 判据实际使用的上界：**权威等级所在分段的段顶**，而不是权威等级本身。
+ * ★ 判据实际使用的上界：**权威等级所在分段 Boss 的初始血量**。
  *
  * ## 为什么必须放宽到段顶 —— 这条是拿一次真实的误伤风险换来的
  *
@@ -151,25 +156,21 @@ export function trialDamageCeiling(
  * 而受害者恰恰是升级最快的新玩家。这正是老板划的红线：
  * 「不要一搞就给正常玩家触发数值异常」。
  *
- * 改用段顶之后，**同一分段内的等级滞后被完全免疫**（整段共用一把尺），
- * 而判据要抓的「跨分段伪造」丝毫不受影响：分段之间差着数量级。
- * 复核：绿玩（权威 Lv13、报 1,489,904）按段顶 Lv23 的上界 146,106 计，
- * 仍然超 10.2 倍，照样抓得住。
+ * `runTrial` 的成绩只累计玩家对 Boss 的实际扣血，伤害段会按剩余血量截断；
+ * `trialFightOptions` 又明确禁止 Boss 技能包/额外召唤血池。因此任何真实成绩都
+ * 必然 `<= Boss 初始血量`。直接用这条结构上界，既不会因为职业、装备词条或
+ * 数值校准误伤满分玩家，也仍能拒绝来自更高分段 Boss 的跨段伪造。
  *
- * ## 残留风险与它的处置
- *
- * **跨分段**的滞后（例如权威 Lv23 而实际已 Lv30）仍会被判不可信。
- * 但那种超额是小幅的，落在 PUBLISH_MIN_OVERAGE 之下 —— **只隐藏、不公示**，
- * 且玩家下次同步后重交即可自愈。根治要靠提交前先同步档案
- * （stores/leaderboard.ts 的 submitBest 应先调 upsertProfile），那在别人名下，已另行提出。
+ * 同一分段共用同一个 Boss，档案在段内滞后也天然免疫。跨分段升级时仍应在提交
+ * 前同步档案；若档案尚未更新，拒绝的是错误分段提交，而不是同分段的合法满伤。
  */
 export function trialBracketDamageCeiling(
   authoritativeLevel: number,
-  classId: ClassId,
+  _classId: ClassId,
   weekIndex: number,
 ): number {
   const bracket = trialBracketFor(authoritativeLevel);
-  return trialDamageCeiling(bracket.maxLevel, classId, weekIndex);
+  return weeklyTrialBoss(TRIAL_SEASON_ID, weekIndex, bracket.id).combatant.stats.hp;
 }
 
 /**
@@ -177,7 +178,7 @@ export function trialBracketDamageCeiling(
  *
  * @param level **权威等级**（profiles.level，由 sync-profile 从真实存档写入），
  *              绝不能传客户端本次自报的等级 —— 那正是被伪造的那个值。
- *              判据会自动放宽到该等级所在分段的段顶，理由见
+ *              判据会使用该等级所在分段 Boss 的物理血量上界，理由见
  *              trialBracketDamageCeiling。
  */
 export function isPlausibleTrialDamage(

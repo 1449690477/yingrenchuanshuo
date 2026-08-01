@@ -39,6 +39,18 @@ describe('试炼伤害上界 · 不许误伤真实玩家', () => {
     expect(isPlausibleTrialDamage(bossHp, 81, 'swordsman', WEEK)).toBe(true);
   });
 
+  it('★ 审核上界就是权威分段 Boss 满血，不再用无词条构筑探针卡真实满分', () => {
+    for (const bracket of TRIAL_BRACKETS) {
+      const bossHp = weeklyTrialBoss(TRIAL_SEASON_ID, WEEK, bracket.id).combatant.stats.hp;
+      for (const classId of CLASS_IDS) {
+        expect(
+          trialBracketDamageCeiling(bracket.minLevel, classId, WEEK),
+          `${classId} @ ${bracket.id}`,
+        ).toBe(bossHp);
+      }
+    }
+  });
+
   it('上界随等级单调不减 —— 高等级不该比低等级更容易被判违规', () => {
     let prev = 0;
     for (const lv of [13, 30, 45, 60, 81]) {
@@ -84,8 +96,10 @@ describe('试炼伤害上界 · 线上真实事故回归（绿玩，2026-07-30�
     expect(isPlausibleTrialDamage(1_489_904, 13, 'catkin', WEEK)).toBe(false);
   });
 
-  it('同一条成绩换成真实的 Lv81 玩家 → 判定为合法（不能一刀切）', () => {
-    expect(isPlausibleTrialDamage(1_489_904, 81, 'swordsman', WEEK)).toBe(true);
+  it('当前公式的王冠段满血成绩属于真实 Lv81 玩家 → 判定为合法（不能一刀切）', () => {
+    const crown = trialBracketFor(81);
+    const currentBossHp = weeklyTrialBoss(TRIAL_SEASON_ID, WEEK, crown.id).combatant.stats.hp;
+    expect(isPlausibleTrialDamage(currentBossHp, 81, 'swordsman', WEEK)).toBe(true);
   });
 
   /**
@@ -152,7 +166,7 @@ describe('试炼判据 · 会话内升级滞后不得误伤（老板红线）', 
     expect(forged / bound).toBeGreaterThan(10); // 仍达「极端倍率单次即可公示」
   });
 
-  it('段顶上界对同段内所有等级是同一个数 —— 整段共用一把尺才谈得上免疫', () => {
+  it('Boss 血量上界对同段内所有等级是同一个数 —— 整段共用一把尺才谈得上免疫', () => {
     const bracket = trialBracketFor(60);
     const atBottom = trialBracketDamageCeiling(bracket.minLevel, 'catkin', WEEK);
     const atTop = trialBracketDamageCeiling(bracket.maxLevel, 'catkin', WEEK);
