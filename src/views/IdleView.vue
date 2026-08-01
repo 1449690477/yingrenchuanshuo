@@ -9,6 +9,7 @@ import { useGameStore } from '@/stores/game';
 import { useInventoryStore } from '@/stores/inventory';
 import { usePlayerStore } from '@/stores/player';
 import { useStageStore } from '@/stores/stage';
+import { useUiStore } from '@/stores/ui';
 import { idleEfficiencyPresentation } from '@/ui/idleEfficiencyPresentation';
 import { requireChapter, requireRegionOfChapter } from '@/data/regions';
 import { requireMonster } from '@/data/monsters';
@@ -34,7 +35,10 @@ import ItemPeekSheet from '@/components/ItemPeekSheet.vue';
 import EquipmentAdvancementPanel from '@/components/EquipmentAdvancementPanel.vue';
 import ReforgeStudio from '@/components/reforge/ReforgeStudio.vue';
 import ElementMatchupGuide from '@/components/ElementMatchupGuide.vue';
+import Region5GrowthTrack from '@/components/Region5GrowthTrack.vue';
 import { ELEMENT_LABELS } from '@/ui/elementMatchupPresentation';
+import { REGION_5_FRAGMENT_ID } from '@/data/region5';
+import { region5GrowthSnapshot } from '@/data/region5Growth';
 import type { EquipmentInstance } from '@/core/types';
 import type { ItemDef } from '@/data/items';
 
@@ -47,6 +51,7 @@ const activeClassId = computed(() => {
 });
 const inventory = useInventoryStore();
 const stage = useStageStore();
+const ui = useUiStore();
 const showStages = ref(false);
 const showEncounters = ref(false);
 const showEncounterJournal = ref(false);
@@ -166,6 +171,23 @@ const region = computed(() => requireRegionOfChapter(stage.current.chapterId));
 const chapter = computed(() => requireChapter(stage.current.chapterId));
 const chapterMapUrl = computed(() => `${import.meta.env.BASE_URL}${chapter.value.mapAsset}`);
 const battleMapUrl = computed(() => `${import.meta.env.BASE_URL}${chapter.value.battleAsset}`);
+
+/**
+ * R5 的真实成长此前分散在等级倍率、碎片和永久图鉴三处，玩家只看到平缓面板。
+ * 这里只做只读投影；切走 R5 后整块不渲染，不给其他区域伪造同一套目标。
+ */
+const region5Growth = computed(() => {
+  if (region.value.id !== 'r5' || !player.player) return null;
+  return region5GrowthSnapshot({
+    playerLevel: player.player.level,
+    currentFragments: inventory.bag?.items[REGION_5_FRAGMENT_ID] ?? 0,
+    discoveredDefIds: inventory.discoveredDefIds,
+  });
+});
+
+function openRegion5Forge(): void {
+  ui.setTab('bag');
+}
 
 /** 本关怪物图鉴，用于挑选当前目标之外的纵深陪衬。 */
 const monsters = computed(() => {
@@ -437,6 +459,12 @@ function openLootEntry(entry: { itemId: string; isEquipment: boolean; count: num
       </div>
       <div v-if="stage.cleared" class="cleared">✓ 本关已通关，可继续挂机刷材料</div>
     </section>
+
+    <Region5GrowthTrack
+      v-if="region5Growth"
+      :snapshot="region5Growth"
+      @open-forge="openRegion5Forge"
+    />
 
     <button
       v-if="stage.pendingEncounters.length > 0"

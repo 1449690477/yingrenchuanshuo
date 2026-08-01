@@ -52,6 +52,11 @@ import {
 import { REGION_5_FRAGMENT_LOOT_SOURCES } from '../src/data/region5Loot';
 import { STAGES } from '../src/data/stages';
 import { expectedLoot } from '../src/core/loot';
+import { expectedBuildCp } from '../src/data/expectedPower';
+import {
+  REGION_5_LEGENDARY_LEVEL,
+  REGION_5_RHYTHM_LEVEL,
+} from '../src/data/region5Growth';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = resolve(__dirname, 'out');
@@ -507,10 +512,49 @@ function main(): void {
     };
   });
 
+  const growthLevels = [40, REGION_5_RHYTHM_LEVEL, 50, REGION_5_LEGENDARY_LEVEL] as const;
+  const growthRows = growthLevels.map((level) => ({
+    等级: level,
+    典型战力: Math.round(expectedBuildCp(level, CLASS_ID)),
+    挂机技能倍率: averageSkillMultiplier(level),
+  }));
+  const cpAt = (level: number) => expectedBuildCp(level, CLASS_ID);
+  const rhythmJump =
+    averageSkillMultiplier(REGION_5_RHYTHM_LEVEL) /
+    averageSkillMultiplier(REGION_5_RHYTHM_LEVEL - 1);
+  const preLegendaryGrowth = cpAt(REGION_5_LEGENDARY_LEVEL - 1) / cpAt(40);
+  const legendaryJump =
+    cpAt(REGION_5_LEGENDARY_LEVEL) / cpAt(REGION_5_LEGENDARY_LEVEL - 1);
+  const totalGrowth = cpAt(52) / cpAt(40);
+
   console.log(
     `\n【R5 经济模拟】${SAMPLE_SIZE} 个固定种子，${HOURS_PER_EFFECTIVE_DAY} 小时/有效日\n`,
   );
   console.table(kpsRows);
+  console.log('Lv40～52 可见成长锚点：');
+  console.table(growthRows);
+  console.table([
+    {
+      指标: `Lv40→${REGION_5_LEGENDARY_LEVEL - 1} 普通传说前面板成长`,
+      倍率: round(preLegendaryGrowth),
+      口径: '观察值（docs/73 B1 明确不设硬门禁）',
+    },
+    {
+      指标: `Lv${REGION_5_RHYTHM_LEVEL} 挂机节奏跃迁`,
+      倍率: round(rhythmJump),
+      口径: '玩家可见节点',
+    },
+    {
+      指标: `Lv${REGION_5_LEGENDARY_LEVEL} 普通传说品质跃迁`,
+      倍率: round(legendaryJump),
+      口径: '观察值（不改品质带）',
+    },
+    {
+      指标: 'Lv40→52 面板总成长',
+      倍率: round(totalGrowth),
+      口径: '观察值',
+    },
+  ]);
   console.table([
     {
       目标: `${FRAGMENT_TARGET} 绯焰碎片`,
@@ -548,6 +592,13 @@ function main(): void {
     legendaryDays,
     legendaryPityShare:
       legendaryDropEvents > 0 ? legendaryPityEvents / legendaryDropEvents : 0,
+    growth: {
+      rows: growthRows,
+      preLegendaryGrowth,
+      rhythmJump,
+      legendaryJump,
+      totalGrowth,
+    },
     sources: sourceRows,
     enhance: enhanceRows,
     averageEnhanceAttempts: average(
