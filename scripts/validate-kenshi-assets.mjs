@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import sharp from 'sharp';
@@ -73,6 +74,12 @@ const ARENA_SLUGS = [
   'blinkbloom-whitefeather-garb',
   'blinkbloom-return-ring',
 ];
+const ARENA_WEARABLE_SLOTS = {
+  'blinkbloom-boundary-katana': 'weapon',
+  'blinkbloom-snowear-crown': 'head',
+  'blinkbloom-whitefeather-garb': 'body',
+  'blinkbloom-return-ring': 'ring',
+};
 const AFFECTION_EQUIPMENT_SLUGS = [
   'snow-sakura-cat-ear-ribbon',
   'blue-bell-swordheart-necklace',
@@ -85,6 +92,18 @@ const AFFECTION_EQUIPMENT_SLUGS = [
   'moonblue-lantern-date-kimono',
   'thousand-sakura-homecoming-blade',
 ];
+const AFFECTION_WEARABLE_SLOTS = {
+  'snow-sakura-cat-ear-ribbon': 'head',
+  'blue-bell-swordheart-necklace': 'necklace',
+  'side-by-side-sheath-bracelet': 'bracelet',
+  'homeward-sakura-ring': 'ring',
+  'iai-tassel-belt': 'belt',
+  'snowstep-sakura-sandals': 'shoes',
+  'white-feather-guardian-kimono': 'body',
+  'heart-rainbow-frost-sakura-katana': 'weapon',
+  'moonblue-lantern-date-kimono': 'body',
+  'thousand-sakura-homecoming-blade': 'weapon',
+};
 const AFFECTION_GIFT_IDS = [
   'gift_kenshi_moonwhite_whetstone_case',
   'gift_kenshi_twin_sakura_tassel_case',
@@ -162,7 +181,17 @@ const contractGroups = {
       ),
     ),
   ],
-  arena: ARENA_SLUGS.map((slug) => icon(`assets/equipment/arena/kenshi/${slug}.png`)),
+  arena: [
+    ...ARENA_SLUGS.map((slug) => icon(`assets/equipment/arena/kenshi/${slug}.png`)),
+    ...Object.entries(ARENA_WEARABLE_SLOTS).map(([slug, slot]) =>
+      layer(`assets/characters/modular/arena/kenshi/${slug}.png`, {
+        maxBytes: slot === 'body' ? 560 * 1024 : 300 * 1024,
+        footAnchor: slot === 'body',
+        handAnchor: slot === 'weapon',
+        wearableSlot: slot,
+      }),
+    ),
+  ],
   skills: [
     ...SKILL_SLUGS.map((slug) => icon(`assets/icons/skills/kenshi-${slug}.png`)),
     ...ACTIVE_SKILL_SLUGS.map((slug) => effect(`assets/effects/kenshi-${slug}.png`)),
@@ -171,6 +200,14 @@ const contractGroups = {
   affection: [
     ...AFFECTION_EQUIPMENT_SLUGS.map((slug) =>
       icon(`assets/equipment/affection/kenshi/${slug}.png`),
+    ),
+    ...Object.entries(AFFECTION_WEARABLE_SLOTS).map(([slug, slot]) =>
+      layer(`assets/characters/modular/affection/kenshi/${slug}.png`, {
+        maxBytes: slot === 'body' ? 560 * 1024 : 300 * 1024,
+        footAnchor: slot === 'body',
+        handAnchor: slot === 'weapon',
+        wearableSlot: slot,
+      }),
     ),
     ...AFFECTION_GIFT_IDS.map((id) => icon(`assets/affection/gifts/${id}.png`)),
     ...AFFECTION_SCENE_SLUGS.map((slug) => scene(`assets/affection/scenes/${slug}.webp`)),
@@ -185,9 +222,9 @@ const EXPECTED_GROUP_COUNTS = {
   regionWeaponIcons: 10,
   boutique: 18,
   dungeon: 24,
-  arena: 4,
+  arena: 8,
   skills: 24,
-  affection: 29,
+  affection: 39,
 };
 
 const CONTRACT_ASSETS = Object.values(contractGroups).flat();
@@ -198,6 +235,24 @@ const HAND_ANCHORS = [
 ];
 
 const errors = [];
+const rgbaHashes = new Map();
+const layerAlphaHashes = new Map();
+const CLEAN_COMPONENT_ICONS = new Set([
+  'assets/equipment/arena/kenshi/blinkbloom-snowear-crown.png',
+  'assets/equipment/arena/kenshi/blinkbloom-whitefeather-garb.png',
+  'assets/equipment/arena/kenshi/blinkbloom-return-ring.png',
+  'assets/equipment/affection/kenshi/homeward-sakura-ring.png',
+  'assets/equipment/affection/kenshi/moonblue-lantern-date-kimono.png',
+  'assets/equipment/affection/kenshi/white-feather-guardian-kimono.png',
+]);
+const SLOT_RECTS = {
+  head: [295, 65, 210, 190],
+  necklace: [225, 205, 190, 205],
+  bracelet: [70, 325, 180, 220],
+  ring: [395, 325, 185, 220],
+  belt: [175, 340, 290, 220],
+  shoes: [135, 715, 370, 230],
+};
 
 function fail(message) {
   errors.push(message);
@@ -208,8 +263,8 @@ function validateContractShape() {
     const actual = contractGroups[group].length;
     if (actual !== expected) fail(`[合同数量] ${group}: 期望 ${expected}，实际 ${actual}`);
   }
-  if (CONTRACT_ASSETS.length !== 143) {
-    fail(`[合同数量] 樱酱角色运行时必须精确 143 项，实际 ${CONTRACT_ASSETS.length}`);
+  if (CONTRACT_ASSETS.length !== 157) {
+    fail(`[合同数量] 樱酱角色运行时必须精确 157 项，实际 ${CONTRACT_ASSETS.length}`);
   }
   const paths = CONTRACT_ASSETS.map((entry) => entry.path);
   if (new Set(paths).size !== paths.length) {
@@ -255,6 +310,50 @@ function alphaInRect(data, info, [left, top, width, height]) {
   return count;
 }
 
+function digest(buffer) {
+  return createHash('sha256').update(buffer).digest('hex');
+}
+
+function recordHash(map, hash, path) {
+  const paths = map.get(hash) ?? [];
+  paths.push(path);
+  map.set(hash, paths);
+}
+
+function alphaComponentAreas(data, info) {
+  const pixels = info.width * info.height;
+  const visited = new Uint8Array(pixels);
+  const queue = new Int32Array(pixels);
+  const areas = [];
+  for (let start = 0; start < pixels; start += 1) {
+    if (visited[start] || data[start * info.channels + 3] <= 20) continue;
+    let head = 0;
+    let tail = 0;
+    let area = 0;
+    queue[tail++] = start;
+    visited[start] = 1;
+    while (head < tail) {
+      const index = queue[head++];
+      area += 1;
+      const x = index % info.width;
+      const y = Math.floor(index / info.width);
+      const neighbors = [
+        x > 0 ? index - 1 : -1,
+        x + 1 < info.width ? index + 1 : -1,
+        y > 0 ? index - info.width : -1,
+        y + 1 < info.height ? index + info.width : -1,
+      ];
+      for (const next of neighbors) {
+        if (next < 0 || visited[next] || data[next * info.channels + 3] <= 20) continue;
+        visited[next] = 1;
+        queue[tail++] = next;
+      }
+    }
+    areas.push(area);
+  }
+  return areas.sort((a, b) => b - a);
+}
+
 async function validateAsset(entry) {
   const filePath = resolve(PUBLIC_ROOT, entry.path);
   if (!existsSync(filePath)) {
@@ -294,6 +393,18 @@ async function validateAsset(entry) {
     return;
   }
   const { data, info } = pixels;
+  recordHash(
+    rgbaHashes,
+    digest(Buffer.concat([Buffer.from(`${info.width}x${info.height}:`), data])),
+    entry.path,
+  );
+  if (entry.kind === 'layer') {
+    const alpha = Buffer.alloc(info.width * info.height);
+    for (let index = 0; index < alpha.length; index += 1) {
+      alpha[index] = data[index * info.channels + 3] ?? 0;
+    }
+    recordHash(layerAlphaHashes, digest(alpha), entry.path);
+  }
   const corners = [
     data[3],
     data[(info.width - 1) * info.channels + 3],
@@ -317,6 +428,14 @@ async function validateAsset(entry) {
     if (bounds.minX < 12 || bounds.minY < 12 || bounds.maxX > 243 || bounds.maxY > 243) {
       fail(`[图标边距] ${entry.path}: bbox=${bounds.minX},${bounds.minY},${bounds.maxX},${bounds.maxY}，要求四边至少 12px`);
     }
+    if (CLEAN_COMPONENT_ICONS.has(entry.path)) {
+      const components = alphaComponentAreas(data, info);
+      if (components.length !== 1) {
+        fail(
+          `[图集碎片] ${entry.path}: 可见连通域 ${components.length} 个（${components.slice(0, 5).join('/')}），要求清理到 1 个主体`,
+        );
+      }
+    }
   }
   if (entry.footAnchor) {
     const centerX = (bounds.minX + bounds.maxX) / 2;
@@ -331,6 +450,27 @@ async function validateAsset(entry) {
     const intersections = HAND_ANCHORS.map((anchor) => alphaInRect(data, info, anchor));
     if (Math.max(...intersections) <= 150) {
       fail(`[持刀锚点] ${entry.path}: 左/右手相交像素=${intersections.join('/')}，至少一侧必须 >150`);
+    }
+  }
+  if (entry.wearableSlot && SLOT_RECTS[entry.wearableSlot]) {
+    const visible = alphaInRect(data, info, SLOT_RECTS[entry.wearableSlot]);
+    if (visible <= 80) {
+      fail(
+        `[穿戴槽位] ${entry.path}: ${entry.wearableSlot} 对应区域仅 ${visible} 个可见像素`,
+      );
+    }
+  }
+}
+
+function validateNoDuplicatePixels() {
+  for (const [hash, paths] of rgbaHashes) {
+    if (paths.length > 1) {
+      fail(`[像素复用] RGBA ${hash.slice(0, 10)}：${paths.join(' = ')}`);
+    }
+  }
+  for (const [hash, paths] of layerAlphaHashes) {
+    if (paths.length > 1) {
+      fail(`[轮廓复用] alpha ${hash.slice(0, 10)}：${paths.join(' = ')}`);
     }
   }
 }
@@ -419,11 +559,12 @@ validateSourceWiring();
 for (const entry of [...CONTRACT_ASSETS, ...STANDALONE_REQUIRED]) {
   await validateAsset(entry);
 }
+validateNoDuplicatePixels();
 
 if (errors.length > 0) {
   console.error(`\n樱酱资产门禁失败：${errors.length} 项\n`);
   for (const error of errors) console.error(`- ${error}`);
   process.exitCode = 1;
 } else {
-  console.log('樱酱资产门禁通过：143 项角色运行时资产 + 1 枚独立职业徽记。');
+  console.log('樱酱资产门禁通过：157 项角色运行时资产 + 1 枚独立职业徽记，RGBA/轮廓零复用。');
 }

@@ -457,15 +457,27 @@ function affectionAffixValue(key: AffixKey, level: number, collectionIndex: numb
   }
 }
 
+/**
+ * 心虹装备的专属纸娃娃外观 id。
+ *
+ * 樱酱的十件珍藏各自拥有独立可穿层，不能继续借用精品店主题外观；
+ * 其余职业仍沿用已验收的精品主题，待各自美术批次补齐后再迁移。
+ */
+export function affectionAppearanceId(classId: ClassId, slug: string): string {
+  return `affection-${classId}-${slug}`;
+}
+
 function buildDefinition(
   spec: AffectionEquipmentSpec,
   collectionIndex: number,
 ): AffectionEquipmentDefinition {
   const id = `eq_affection_${spec.classId}_${spec.slug}`;
   const appearanceId =
-    spec.slot === 'weapon'
-      ? boutiqueAppearanceId(spec.appearanceTheme, spec.slot, spec.classId)
-      : boutiqueAppearanceId(spec.appearanceTheme, spec.slot);
+    spec.classId === 'kenshi'
+      ? affectionAppearanceId(spec.classId, spec.slug)
+      : spec.slot === 'weapon'
+        ? boutiqueAppearanceId(spec.appearanceTheme, spec.slot, spec.classId)
+        : boutiqueAppearanceId(spec.appearanceTheme, spec.slot);
   const commonDefinition = {
     id,
     name: spec.name,

@@ -13,6 +13,7 @@ import { equipmentPresentation } from './equipmentPresentation';
 import { BOUTIQUE_THEME_LIST, BOUTIQUE_THEMES, boutiqueAppearanceId } from './boutique';
 import { QUALITY_RANK } from './constants';
 import { ARENA_EQUIPMENT_LIST } from './arenaEquipment';
+import { AFFECTION_EQUIPMENT_LIST } from './affectionEquipment';
 import {
   EQUIPMENT_DUNGEON_TIERS,
   equipmentDungeonAppearanceId,
@@ -351,18 +352,76 @@ export const REGION_7_EQUIPMENT_APPEARANCES: Readonly<
   ...buildRegion7SetAppearances(),
 };
 
+function wearableSlug(icon: string): string {
+  const fileName = icon.split('/').pop();
+  if (!fileName?.endsWith('.png')) {
+    throw new Error(`[配置错误] 可穿装备图标路径非法：${icon}`);
+  }
+  return fileName.slice(0, -4);
+}
+
 /**
- * 圣痕装备（竞技场）：四槽统一 slot-only
- * —— 图标完整显示在装备槽里，人物立绘不变。
- * 换装层是第二批工作（docs/53 §2.4），落地后在这里升级为 layer。
+ * 圣痕装备（竞技场）：樱酱四件已经完成真实纸娃娃层；其余职业继续维持
+ * 已发布的 slot-only 合同，等对应美术批次补齐后再逐职升级。
  */
 function buildArenaAppearances(): Record<string, EquipmentAppearance> {
   const out: Record<string, EquipmentAppearance> = {};
   for (const definition of ARENA_EQUIPMENT_LIST) {
+    if (definition.classId === 'kenshi') {
+      const slug = wearableSlug(definition.icon);
+      const asset = `assets/characters/modular/arena/kenshi/${slug}.png`;
+      if (definition.slot === 'body') {
+        out[definition.appearanceId] = {
+          id: definition.appearanceId,
+          slot: 'body',
+          renderMode: 'replacement',
+          assets: { kenshi: asset },
+        };
+        continue;
+      }
+      out[definition.appearanceId] = {
+        id: definition.appearanceId,
+        slot: definition.slot,
+        renderMode: 'layer',
+        assets: { kenshi: asset },
+        transforms: alignedTransforms,
+        ...(definition.slot === 'head' ? { aboveFace: true } : {}),
+      };
+      continue;
+    }
     out[definition.appearanceId] = {
       id: definition.appearanceId,
       slot: definition.slot,
       renderMode: 'slot-only',
+    };
+  }
+  return out;
+}
+
+/** 樱酱十件心虹珍藏：每件都有与其装备槽一致的独立可穿层。 */
+function buildKenshiAffectionAppearances(): Record<string, EquipmentAppearance> {
+  const out: Record<string, EquipmentAppearance> = {};
+  for (const entry of AFFECTION_EQUIPMENT_LIST) {
+    const definition = entry.definition;
+    if (entry.classId !== 'kenshi') continue;
+    const slug = wearableSlug(definition.icon);
+    const asset = `assets/characters/modular/affection/kenshi/${slug}.png`;
+    if (definition.slot === 'body') {
+      out[definition.appearanceId] = {
+        id: definition.appearanceId,
+        slot: 'body',
+        renderMode: 'replacement',
+        assets: { kenshi: asset },
+      };
+      continue;
+    }
+    out[definition.appearanceId] = {
+      id: definition.appearanceId,
+      slot: definition.slot,
+      renderMode: 'layer',
+      assets: { kenshi: asset },
+      transforms: alignedTransforms,
+      ...(definition.slot === 'head' ? { aboveFace: true } : {}),
     };
   }
   return out;
@@ -460,6 +519,7 @@ export const EQUIPMENT_APPEARANCES: Readonly<Record<string, EquipmentAppearance>
   ...buildBoutiqueAppearances(),
   ...buildEquipmentDungeonAppearances(),
   ...buildArenaAppearances(),
+  ...buildKenshiAffectionAppearances(),
 };
 
 export const CHARACTER_BASE_ASSETS: Readonly<Record<ClassId, string>> = {

@@ -7,6 +7,8 @@ import {
   resolveCharacterAppearance,
   type EquippedRecord,
 } from '../characterAppearance';
+import { AFFECTION_EQUIPMENT_LIST } from '../affectionEquipment';
+import { ARENA_EQUIPMENT_LIST } from '../arenaEquipment';
 
 const emptyEquipped = (): EquippedRecord => ({
   weapon: null,
@@ -186,6 +188,37 @@ describe('角色换装外观解析', () => {
         (asset) => !asset.includes('catkin'),
       ),
     ).toBe(true);
+  });
+
+  it('樱酱四件圣痕与十件心虹装备单穿时都真实改变对应部位', () => {
+    const definitions = [
+      ...ARENA_EQUIPMENT_LIST.filter((definition) => definition.classId === 'kenshi'),
+      ...AFFECTION_EQUIPMENT_LIST.filter((entry) => entry.classId === 'kenshi').map(
+        (entry) => entry.definition,
+      ),
+    ];
+
+    expect(definitions).toHaveLength(14);
+    for (const definition of definitions) {
+      const equipped = emptyEquipped();
+      equipped[definition.slot] = instance(definition.id);
+      const appearance = resolveCharacterAppearance('kenshi', 60, equipped);
+
+      expect(appearance.equippedCount, definition.id).toBe(1);
+      expect(appearance.visibleEquippedCount, definition.id).toBe(1);
+      if (definition.slot === 'body') {
+        expect(appearance.layers, definition.id).toHaveLength(0);
+        expect(appearance.baseAsset, definition.id).toContain(
+          `/kenshi/${definition.icon.split('/').at(-1)}`,
+        );
+      } else {
+        expect(appearance.layers, definition.id).toHaveLength(1);
+        expect(appearance.layers[0]?.slot, definition.id).toBe(definition.slot);
+        expect(appearance.layers[0]?.asset, definition.id).toContain(
+          `/kenshi/${definition.icon.split('/').at(-1)}`,
+        );
+      }
+    }
   });
 
   it('纸箱键帽套使用喵喵专属整身替换并只叠加同画布双爪', () => {

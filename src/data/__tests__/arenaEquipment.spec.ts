@@ -107,11 +107,17 @@ describe('圣痕装备定义', () => {
     expect(icons.size).toBe(20);
   });
 
-  it('四槽外观全部注册（当前 slot-only，立绘不崩）', () => {
+  it('四槽外观全部注册，樱酱四件是真实可穿层', () => {
     for (const def of ARENA_EQUIPMENT_LIST) {
       const appearance = requireEquipmentAppearance(def.appearanceId);
       expect(appearance.slot).toBe(def.slot);
-      expect(appearance.renderMode).toBe('slot-only');
+      if (def.classId === 'kenshi') {
+        expect(appearance.renderMode, def.id).toBe(
+          def.slot === 'body' ? 'replacement' : 'layer',
+        );
+      } else {
+        expect(appearance.renderMode, def.id).toBe('slot-only');
+      }
     }
   });
 

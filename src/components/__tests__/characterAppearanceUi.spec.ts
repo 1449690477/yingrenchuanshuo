@@ -113,4 +113,17 @@ describe('角色换装组件的图层标记', () => {
     expect(html).toContain('slot-head');
     expect(html).toContain('slot-weapon');
   });
+
+  it('樱酱圣痕戒指与心虹项链会挂载对应纸娃娃层', async () => {
+    const equipped = emptyEquipped();
+    equipped.ring = instance('eq_arena_kenshi_blinkbloom-return-ring');
+    equipped.necklace = instance('eq_affection_kenshi_blue-bell-swordheart-necklace');
+
+    const html = await render({ classId: 'kenshi', level: 60, equipped });
+
+    expect(html).toContain('slot-ring');
+    expect(html).toContain('slot-necklace');
+    expect(html).toContain('modular/arena/kenshi/blinkbloom-return-ring.png');
+    expect(html).toContain('modular/affection/kenshi/blue-bell-swordheart-necklace.png');
+  });
 });

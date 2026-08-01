@@ -104,9 +104,17 @@ describe('心虹好感专属装备', () => {
   });
 
   it('樱酱具备完整十件心虹珍藏并按进度开放', () => {
-    expect(affectionEquipmentForClass('kenshi')).toHaveLength(10);
+    const entries = affectionEquipmentForClass('kenshi');
+    expect(entries).toHaveLength(10);
     expect(affectionEquipmentIdsForClass('kenshi')).toHaveLength(10);
     expect(eligibleAffectionEquipmentIds('kenshi', 1_100, 99)).toHaveLength(10);
+    expect(new Set(entries.map((entry) => entry.definition.appearanceId)).size).toBe(10);
+    for (const entry of entries) {
+      const appearance = requireEquipmentAppearance(entry.definition.appearanceId);
+      expect(appearance.renderMode, entry.definition.id).toBe(
+        entry.definition.slot === 'body' ? 'replacement' : 'layer',
+      );
+    }
   });
 
   it('五十张运行时图标均存在、透明且尺寸统一', async () => {
