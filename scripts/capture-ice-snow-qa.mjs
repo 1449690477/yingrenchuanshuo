@@ -159,6 +159,42 @@ try {
     await sharp(contactPng)
       .webp({ quality: 92, effort: 6 })
       .toFile(resolve(OUTPUT_ROOT, 'ice-snow-appearance-contact.webp'));
+
+    // 同一批真实 CharacterAppearance 节点切到“特效体检”视图：保留淡化后的实穿角色
+    // 作为比例尺，强制冻结并完整显示注册表解析出的 boutiqueEffectAsset。
+    await contactPage.addStyleTag({
+      content: `
+        .preview-row .stage {
+          background: radial-gradient(circle at 50% 48%, #2d4264 0%, #17263e 58%, #0b1425 100%) !important;
+          overflow: hidden !important;
+        }
+        .preview-row .doll-frame { opacity: .28 !important; filter: saturate(.65) brightness(.9) !important; }
+        .preview-row :is(.growth-aura, .growth-particles, .enhance-particles) { display: none !important; }
+        .preview-row .boutique-effect {
+          display: block !important;
+          inset: -6% !important;
+          z-index: 40 !important;
+          opacity: 1 !important;
+          transform: none !important;
+          animation: none !important;
+        }
+        .preview-row .boutique-effect img {
+          display: block !important;
+          width: 100% !important;
+          height: 100% !important;
+          object-fit: contain !important;
+          opacity: 1 !important;
+          transform: none !important;
+          animation: none !important;
+          filter: drop-shadow(0 0 7px rgba(157, 225, 255, .72)) !important;
+        }
+      `,
+    });
+    await contactPage.waitForTimeout(160);
+    const effectContactPng = await section.screenshot({ type: 'png' });
+    await sharp(effectContactPng)
+      .webp({ quality: 94, effort: 6 })
+      .toFile(resolve(OUTPUT_ROOT, 'ice-snow-effects-contact.webp'));
     await contactPage.close();
 
     for (const size of SIZES) {
@@ -249,4 +285,4 @@ if (server.exitCode && server.exitCode !== 0) {
   throw new Error(`Vite 截图服务异常退出 ${server.exitCode}: ${stderr.slice(-1000)}`);
 }
 
-console.log('冰雪华年实穿截图完成：五职业 × 双尺寸 + 独立货架双尺寸 + 联系表。');
+console.log('冰雪华年实穿截图完成：五职业 × 双尺寸 + 独立货架双尺寸 + 实穿/特效联系表。');
