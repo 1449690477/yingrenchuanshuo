@@ -1743,6 +1743,7 @@ const PVP_CROSS_MAX = 0.65;
 
 function pvpSide(cls: ClassId, level: number): DuelSide {
   return {
+    classId: cls,
     combatant: makePlayer(`pvp-${cls}-${level}`, level, withGear(cls, level)),
     skillMultiplier: averageSkillMultiplier(level),
     skillKit: buildDefaultPlayerSkillKit(cls, level),

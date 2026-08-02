@@ -9,6 +9,7 @@
 import { describe, expect, it } from 'vitest';
 import { CLASS_IDS, type Stats } from '../types';
 import {
+  applyDuelBalanceStats,
   arenaCandidateRanks,
   arenaCandidateSeed,
   arenaDayKey,
@@ -16,6 +17,9 @@ import {
   arenaStreakMultiplier,
   arenaTierFor,
   arenaVictoryHonor,
+  DUEL_BALANCE_BAND_SPLIT,
+  DUEL_CLASS_BALANCE_HIGH,
+  DUEL_CLASS_BALANCE_LOW,
   duelSeed,
   estimateDuelWinChance,
   buildArenaDuelSide,
@@ -361,5 +365,81 @@ describe('arenaCandidateRanks / 候选对手窗口', () => {
     expect(arenaCandidateSeed('u1', '2026-07-29')).toBe(arenaCandidateSeed('u1', '2026-07-29'));
     expect(arenaCandidateSeed('u1', '2026-07-29')).not.toBe(arenaCandidateSeed('u1', '2026-07-30'));
     expect(arenaCandidateSeed('u1', '2026-07-29')).not.toBe(arenaCandidateSeed('u2', '2026-07-29'));
+  });
+
+  // ───────────────────────── C1 跨职业 PvP 平衡表 ─────────────────────────
+
+  it('平衡表按等级段分界选择（<80 低段 / >=80 高段）', () => {
+    const low = DUEL_CLASS_BALANCE_LOW['catkin'];
+    const high = DUEL_CLASS_BALANCE_HIGH['catkin'];
+    expect(low).not.toEqual(high);
+    const stats: Stats = {
+      atk: 100,
+      def: 50,
+      hp: 1000,
+      acc: 90,
+      eva: 10,
+      critRate: 0.1,
+      critDmg: 1.5,
+      spd: 1.2,
+    };
+    const lowStats = applyDuelBalanceStats(stats, 'catkin', DUEL_BALANCE_BAND_SPLIT - 1);
+    const highStats = applyDuelBalanceStats(stats, 'catkin', DUEL_BALANCE_BAND_SPLIT);
+    expect(lowStats.atk).toBe(stats.atk * low.atkMul);
+    expect(lowStats.hp).toBe(stats.hp * low.hpMul);
+    expect(highStats.atk).toBe(stats.atk * high.atkMul);
+    // 不修改入参
+    expect(stats.atk).toBe(100);
+    expect(stats.hp).toBe(1000);
+  });
+
+  it('无 classId 时不应用平衡（PvE 侧调用路径安全）', () => {
+    const stats: Stats = {
+      atk: 100,
+      def: 50,
+      hp: 1000,
+      acc: 90,
+      eva: 10,
+      critRate: 0.1,
+      critDmg: 1.5,
+      spd: 1.2,
+    };
+    expect(applyDuelBalanceStats(stats, undefined, 60)).toBe(stats);
+  });
+
+  it('平衡表数值全在合理区间（0.5~1.5），且每职业四键齐备', () => {
+    for (const table of [DUEL_CLASS_BALANCE_LOW, DUEL_CLASS_BALANCE_HIGH]) {
+      for (const classId of CLASS_IDS) {
+        const balance = table[classId];
+        expect(balance).toBeDefined();
+        for (const key of ['atkMul', 'hpMul', 'defMul', 'spdMul'] as const) {
+          expect(Number.isFinite(balance[key])).toBe(true);
+          expect(balance[key]).toBeGreaterThanOrEqual(0.5);
+          expect(balance[key]).toBeLessThanOrEqual(1.5);
+        }
+      }
+    }
+  });
+
+  it('镜像局施加平衡后胜率仍为 50%（同职业同表，不偏向任何一侧）', () => {
+    const stats = applyClassMods('catkin', {
+      atk: 220,
+      def: 80,
+      hp: 3200,
+      acc: 90,
+      eva: 15,
+      critRate: 0.1,
+      critDmg: 1.6,
+      spd: 1.25,
+    });
+    const side: DuelSide = {
+      classId: 'catkin',
+      combatant: makePlayer('mirror-a', 60, stats),
+      skillMultiplier: 1,
+      skillKit: undefined,
+    };
+    const winRate = estimateDuelWinChance(side, side, 200);
+    expect(winRate).toBeGreaterThanOrEqual(0.45);
+    expect(winRate).toBeLessThanOrEqual(0.55);
   });
 });

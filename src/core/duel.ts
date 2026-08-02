@@ -31,7 +31,7 @@ import type {
   OnHitElementalDamageTrigger,
   OnLethalRecoveryTrigger,
 } from './equipmentSets';
-import type { Combatant, Element } from './types';
+import type { ClassId, Combatant, Element, Stats } from './types';
 import { arenaSetPieceCount, ARENA_EQUIPMENT_SET } from '@/data/arenaEquipment';
 import {
   ARENA_MAX_ROUNDS,
@@ -56,6 +56,8 @@ import {
  */
 export interface DuelSide {
   combatant: Combatant;
+  /** 职业 ID（PvP 专属平衡表用）；缺省不应用调整。 */
+  classId?: ClassId;
   skillMultiplier: number;
   /** M3-4 真实技能栏；存在时优先于旧平均倍率。 */
   skillKit?: SkillCombatKit;
@@ -64,6 +66,77 @@ export interface DuelSide {
   onCritTriggers?: readonly OnCritPeriodicDamageTrigger[];
 }
 
+/**
+ * 竞技场跨职业平衡（docs/73 C1）：PvP 专属数值修正。
+ *
+ * 只在对决路径生效（simulateDuelWithFirst），PvE（挂机/试炼/副本）完全不受影响；
+ * 也不回流进战力公式，因此不需要升 CP 版本戳。镜像局双方同系数，胜率保持 50%。
+ * 数值对等、无显式克制：同一张表作用于所有对手，不是职业对职业的剪刀差。
+ */
+export interface DuelClassBalance {
+  /** 本职业在对决中造成的伤害倍率 */
+  atkMul: number;
+  /** 本职业在对决中的生命倍率 */
+  hpMul: number;
+  /** 本职业在对决中的防御倍率（<1 承伤更多） */
+  defMul: number;
+  /** 本职业在对决中的攻速倍率（基础攻速占比随等级自然衰减，天然区分等级段） */
+  spdMul: number;
+}
+
+/** C1 调参后的默认表（Lv < 80 段）；任何新职业默认 1.0（不做调整）。 */
+export const DUEL_CLASS_BALANCE_LOW: Readonly<Record<ClassId, DuelClassBalance>> = {
+  swordsman: { atkMul: 0.92, hpMul: 1.05, defMul: 1.02, spdMul: 0.89 },
+  witch: { atkMul: 1.02, hpMul: 0.95, defMul: 0.98, spdMul: 1.02 },
+  shaman: { atkMul: 1.38, hpMul: 1.0, defMul: 1.0, spdMul: 1.05 },
+  catkin: { atkMul: 0.72, hpMul: 0.68, defMul: 0.66, spdMul: 0.99 },
+  kenshi: { atkMul: 1.03, hpMul: 1.04, defMul: 1.06, spdMul: 0.93 },
+};
+
+/**
+ * C1 调参后的默认表（Lv >= 80 段）。
+ * 两个等级段的失衡形状不同（喵喵 Lv60 霸主、Lv100 回落），
+ * 因此按等级段分别调参（docs/73 重测表：Lv60 与 Lv100 必须分别验收）。
+ */
+export const DUEL_CLASS_BALANCE_HIGH: Readonly<Record<ClassId, DuelClassBalance>> = {
+  swordsman: { atkMul: 0.7, hpMul: 1.1, defMul: 1.0, spdMul: 1.0 },
+  witch: { atkMul: 0.7, hpMul: 1.0, defMul: 1.0, spdMul: 1.0 },
+  shaman: { atkMul: 1.24, hpMul: 1.0, defMul: 1.0, spdMul: 0.8 },
+  catkin: { atkMul: 0.9, hpMul: 0.96, defMul: 1.05, spdMul: 0.8 },
+  kenshi: { atkMul: 1.0, hpMul: 1.0, defMul: 1.0, spdMul: 0.9 },
+};
+
+/** 等级段分界：N4 门禁只测 Lv60/Lv100，分界取中间值 80。 */
+export const DUEL_BALANCE_BAND_SPLIT = 80;
+
+/** 应用 PvP 专属平衡（纯函数，不修改入参）。 */
+export function applyDuelBalanceStats(
+  stats: Stats,
+  classId: ClassId | undefined,
+  level?: number,
+): Stats {
+  if (!classId) return stats;
+  const table =
+    level !== undefined && level >= DUEL_BALANCE_BAND_SPLIT
+      ? DUEL_CLASS_BALANCE_HIGH
+      : DUEL_CLASS_BALANCE_LOW;
+  const balance = table[classId];
+  if (
+    balance.atkMul === 1 &&
+    balance.hpMul === 1 &&
+    balance.defMul === 1 &&
+    balance.spdMul === 1
+  ) {
+    return stats;
+  }
+  return {
+    ...stats,
+    atk: stats.atk * balance.atkMul,
+    hp: stats.hp * balance.hpMul,
+    def: stats.def * balance.defMul,
+    spd: stats.spd * balance.spdMul,
+  };
+}
 export type DuelRole = 'attacker' | 'defender';
 
 /** 由搭配快照构建对决一侧；圣痕套效果只在这条管线生效（docs/53 §六）。 */
@@ -96,6 +169,7 @@ export function buildArenaDuelSide(input: TrialBuildInput, role: DuelRole): Aren
     combatant.combatBonuses!.damageReduction += ARENA_SET_DEFENDER_DR_BONUS;
   }
   return {
+    classId: input.classId,
     combatant,
     skillMultiplier: build.skillMultiplier,
     ...(build.skillKit ? { skillKit: build.skillKit } : {}),
@@ -205,6 +279,15 @@ export function simulateDuelWithFirst(
     stats: { ...second.combatant.stats },
     currentHp: second.combatant.stats.hp,
   };
+
+  if (first.classId) {
+    p.stats = applyDuelBalanceStats(p.stats, first.classId, p.level);
+    p.currentHp = p.stats.hp;
+  }
+  if (second.classId) {
+    m.stats = applyDuelBalanceStats(m.stats, second.classId, m.level);
+    m.currentHp = m.stats.hp;
+  }
 
   const slowSpd = Math.max(0.01, Math.min(p.stats.spd, m.stats.spd));
   const maxSeconds = ARENA_MAX_ROUNDS / slowSpd;
