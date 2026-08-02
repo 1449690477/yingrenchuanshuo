@@ -37,8 +37,8 @@ import { describe, expect, it } from 'vitest';
 import { ENHANCE_MAX } from '@/data/constants';
 import { migrate } from '@/save/migrations';
 import { createSave } from '@/save/schema';
-import { affixValueRange, isVerifiablePersistedAffixValue } from '../equipment';
-import type { AffixTier, EquipmentInstance } from '../types';
+import { affixValueRange, isVerifiablePersistedAffixValue } from '@/core/equipment';
+import type { AffixTier, EquipmentInstance } from '@/core/types';
 
 /** 基准下调前，老玩家装备上真实存在的合法值。 */
 const LEGACY_SHA_SPIRIT = [
