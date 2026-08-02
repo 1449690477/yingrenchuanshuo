@@ -239,6 +239,8 @@ export function applyAffix(stats: Stats, affix: FixedAffix): Stats {
       return addStats(stats, { def: affix.value });
     case 'swd_heavy':
       return addStats(stats, { critDmg: affix.value });
+    case 'swd_dash':
+      return addStats(stats, { spd: affix.value });
     case 'wit_power':
       return addStats(stats, { atk: affix.value });
     case 'wit_veil':
@@ -247,6 +249,11 @@ export function applyAffix(stats: Stats, affix: FixedAffix): Stats {
       return addStats(stats, { hp: affix.value });
     case 'sha_spirit':
       return addStats(stats, { atk: affix.value });
+    case 'sha_hex':
+      return addStats(stats, { spd: affix.value });
+    case 'wit_aura':
+    case 'cat_pelt':
+      return addStats(stats, { hp: affix.value });
     case 'cat_swift':
       return addStats(stats, { spd: affix.value });
     case 'cat_nimble':

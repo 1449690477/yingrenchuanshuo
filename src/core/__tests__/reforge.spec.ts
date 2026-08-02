@@ -292,7 +292,7 @@ describe('洗练候选事务', () => {
 
   it('重铸命中职业槽必给职业词条，命中通用槽必给通用词条', () => {
     // 神话只有 1 个职业槽（索引 4）。槽位性质决定候选来源，不会串池。
-    const professionKeys = new Set(['swd_guard', 'swd_heavy']);
+    const professionKeys = new Set(PROFESSION_AFFIX_POOLS.swordsman.map((entry) => entry.key));
     let hitProfessionSlot = 0;
     let hitCommonSlot = 0;
     for (let rngState = 1; rngState <= 40; rngState++) {

@@ -191,6 +191,14 @@ const V10_REBASED_VALUES = {
 
 type V10RebasedKey = keyof typeof V10_REBASED_VALUES;
 
+/** 待决候选按当前词条池掷骰区间投影（2026-08-02 C2/C5 重标后：wit_elem 4.3→4.0、cat_swift 0.027→0.032） */
+const V10_PROJECTED_CANDIDATE_VALUES: Record<V10RebasedKey, number> = {
+  swd_heavy: 23.5,
+  wit_power: 22.2,
+  wit_elem: 3.6,
+  cat_swift: 0.027,
+};
+
 function v10ProfessionAffix(
   key: V10RebasedKey,
   element?: 'fire' | 'ice' | 'thunder',
@@ -640,7 +648,7 @@ describe('save migrations', () => {
       expect(pending).toBeDefined();
       expect(pending).toMatchObject({ operation: 'reforge', affixIndex: 2 });
       const candidate = pending!.candidate;
-      expect(candidate.value).toBe(V10_REBASED_VALUES[candidate.key as V10RebasedKey].current);
+      expect(candidate.value).toBe(V10_PROJECTED_CANDIDATE_VALUES[candidate.key as V10RebasedKey]);
     }
   });
 
@@ -780,22 +788,30 @@ describe('save migrations', () => {
 
     const migrated = migrate(raw);
     const instance = migrated.bag.equipment[0]!;
-    expect(instance.affixes.map((affix) => affix.key)).toEqual(['hp', 'atk', 'cat_swift']);
+    // 词条池 2026-08-02 C2/C5 重标后（cat_swift 0.027→0.032），旧 0.044 不再是高百分位：
+    // sha_vitality（百分位 0）保留在职业槽，cat_swift（负百分位）转换并退猫族徽记。
+    expect(instance.affixes.map((affix) => affix.key)).toEqual(['spd', 'atk', 'sha_vitality']);
+    const catPercentile =
+      (0.044 - affixValueRange('cat_swift', 20, 4).min) /
+      (affixValueRange('cat_swift', 20, 4).max - affixValueRange('cat_swift', 20, 4).min);
+    const spdRange = affixValueRange('spd', 20, 4);
+    const spdValue =
+      Math.round((spdRange.min + (spdRange.max - spdRange.min) * catPercentile) * 100) / 100;
     expect(instance.affixes[0]).toEqual({
-      key: 'hp',
-      value: affixValueRange('hp', 20, 4).min,
+      key: 'spd',
+      value: spdValue,
       tier: 4,
     });
     expect(instance.affixes[2]).toEqual({
-      key: 'cat_swift',
-      value: 0.03,
+      key: 'sha_vitality',
+      value: shamanLow,
       tier: 4,
     });
-    expect(migrated.bag.items.sigil_shaman).toBe(5);
-    expect(migrated.bag.items.sigil_catkin).toBeUndefined();
+    expect(migrated.bag.items.sigil_shaman).toBe(4);
+    expect(migrated.bag.items.sigil_catkin).toBe(1);
     const repeated = migrations[10]!(migrated as unknown as Record<string, unknown>);
     expect(repeated).toEqual(migrated);
-    expect((repeated.bag as { items: Record<string, number> }).items.sigil_shaman).toBe(5);
+    expect((repeated.bag as { items: Record<string, number> }).items.sigil_shaman).toBe(4);
   });
 
   it('v10 → v11 已采用职业 target 转通用后，temper 候选同步到同 key 与百分位', () => {
