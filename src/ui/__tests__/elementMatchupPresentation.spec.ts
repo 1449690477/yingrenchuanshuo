@@ -19,6 +19,18 @@ describe('elementMatchupPresentation', () => {
   });
 
   it.each([
+    ['fire', 'ice', '克制 ×1.25'],
+    ['ice', 'thunder', '克制 ×1.25'],
+    ['thunder', 'fire', '克制 ×1.25'],
+    ['ice', 'fire', '被克 ×0.85'],
+    ['fire', 'fire', ''],
+    ['none', 'ice', ''],
+    ['fire', 'none', ''],
+  ] as const)('%s 攻击 %s 的飘字短标签', (attacker, defender, hitTag) => {
+    expect(elementMatchupPresentation(attacker, defender).hitTag).toBe(hitTag);
+  });
+
+  it.each([
     ['fire', 'thunder'],
     ['ice', 'fire'],
     ['thunder', 'ice'],

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref, watch } from 'vue';
-import type { ClassId, MonsterDef } from '@/core/types';
+import type { ClassId, Element, MonsterDef } from '@/core/types';
 import type { BattleVitals } from '@/core/battleVisual';
 import {
   advanceBattleBeatGate,
@@ -33,11 +33,15 @@ import { useGameStore } from '@/stores/game';
 import AutoSkillDeck from '@/components/AutoSkillDeck.vue';
 import CharacterAppearance from '@/components/CharacterAppearance.vue';
 import MonsterArtwork from '@/components/MonsterArtwork.vue';
+import ElementGaugeBadge from '@/components/ElementGaugeBadge.vue';
+import { elementMatchupPresentation } from '@/ui/elementMatchupPresentation';
 
 const props = defineProps<{
   classId: ClassId;
   level: number;
   equipped: EquippedRecord | null;
+  /** 玩家当前武器元素（批 1 感知层：克制飘字与印记徽章用；缺省按无属性） */
+  playerElement?: Element;
   playerName: string;
   monster: MonsterDef;
   supportMonsters: MonsterDef[];
@@ -102,6 +106,8 @@ interface LiveBeat {
   offset: number;
   /** 打击强度档位，决定飘字字号与配色 */
   tier: ImpactTier;
+  /** 元素克制短标签（批 1 感知层；怪物攻击不显示） */
+  tag: string;
 }
 
 const liveBeats = ref<LiveBeat[]>([]);
@@ -252,6 +258,7 @@ function appendLiveBeat(beat: BattleBeat, visualSeq: number, damage: number): vo
     // 用序号做伪随机偏移，无需引入随机源，且同一拍每次渲染位置稳定
     offset: ((visualSeq * 37) % 46) - 23,
     tier: impactTierFor({ kind: beat.kind, crit: beat.crit }),
+    tag: beat.kind === 'monster-attack' ? '' : matchupTag.value,
   });
   if (liveBeats.value.length > MAX_LIVE_BEATS) {
     const dropped = liveBeats.value.shift();
@@ -260,6 +267,16 @@ function appendLiveBeat(beat: BattleBeat, visualSeq: number, damage: number): vo
   const id = window.setTimeout(() => removeLiveBeat(visualSeq), BEAT_LIFE_MS);
   timers.set(visualSeq, id);
 }
+
+/**
+ * 批 1 感知层：玩家武器元素 vs 当前怪物的克制短标签。
+ * 飘字与徽章共用同一来源（elementMatchupPresentation），不另写一套三角关系。
+ */
+const matchupTag = computed(() => {
+  if (props.playerElement === undefined || props.playerElement === 'none') return '';
+  if (props.monster.element === 'none') return '';
+  return elementMatchupPresentation(props.playerElement, props.monster.element).hitTag;
+});
 
 function removeLiveBeat(seq: number): void {
   liveBeats.value = liveBeats.value.filter((b) => b.seq !== seq);
@@ -605,6 +622,11 @@ onUnmounted(() => {
           />
         </div>
         <span class="actor-name enemy-name">{{ monster.name }}</span>
+        <ElementGaugeBadge
+          class="enemy-gauge-badge"
+          :monster-element="monster.element"
+          :player-element="playerElement ?? 'none'"
+        />
       </div>
 
       <span v-if="pulse" :key="pulse.id" class="damage num">
@@ -627,6 +649,7 @@ onUnmounted(() => {
         >
           <template v-if="b.kind === 'monster-attack'">-{{ abbr(b.damage) }}</template>
           <template v-else>{{ b.crit ? '暴击 ' : '' }}-{{ abbr(b.damage) }}</template>
+          <small v-if="b.tag" class="beat-tag">{{ b.tag }}</small>
         </span>
       </TransitionGroup>
 
@@ -2100,6 +2123,21 @@ onUnmounted(() => {
     0 1px 0 rgb(255 255 255 / 85%),
     0 2px 8px rgb(60 80 110 / 45%);
   transform: translateX(var(--beat-offset, 0));
+}
+
+/* 元素克制短标签（批 1 感知层）：伤害数字下的小字，克制绿/被克红 */
+.beat-tag {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.1;
+  text-shadow: 0 1px 0 rgb(255 255 255 / 90%);
+  color: #455a64;
+}
+
+.enemy-gauge-badge {
+  margin-left: 6px;
+  vertical-align: middle;
 }
 
 /* 打怪：数字出现在右侧怪物身上 */

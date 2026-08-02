@@ -20,6 +20,8 @@ export interface ElementMatchupPresentation {
   multiplier: number;
   percentDelta: number;
   badge: string;
+  /** 战斗飘字用短标签：克制/被克时显示倍率，中性/无属性为空（不污染飘字） */
+  hitTag: string;
   summary: string;
   detail: string;
   recommendedElement: Exclude<Element, 'none'> | null;
@@ -54,6 +56,7 @@ export function elementMatchupPresentation(
     defenderLabel: ELEMENT_LABELS[defender],
     multiplier,
     percentDelta,
+    hitTag: '',
     recommendedElement,
     recommendedLabel,
   };
@@ -63,6 +66,7 @@ export function elementMatchupPresentation(
       ...base,
       relation: 'untyped',
       badge: '无属性关卡',
+      hitTag: '',
       summary: '自由配装',
       detail: '本关不参与元素克制，按战力与词条选择武器即可。',
     };
@@ -73,6 +77,7 @@ export function elementMatchupPresentation(
       ...base,
       relation: 'advantage',
       badge: `克制 +${percentDelta}%`,
+      hitTag: `克制 ×${multiplier.toFixed(2)}`,
       summary: `${ELEMENT_LABELS[attacker]}克${ELEMENT_LABELS[defender]}`,
       detail: `当前武器命中本关目标时，元素系数为 ×${multiplier.toFixed(2)}。`,
     };
@@ -83,6 +88,7 @@ export function elementMatchupPresentation(
       ...base,
       relation: 'disadvantage',
       badge: `被克 ${percentDelta}%`,
+      hitTag: `被克 ×${multiplier.toFixed(2)}`,
       summary: `${ELEMENT_LABELS[defender]}克${ELEMENT_LABELS[attacker]}`,
       detail: `当前元素系数为 ×${multiplier.toFixed(2)}；换${recommendedLabel}武器可触发 ×1.25。`,
     };
@@ -93,6 +99,7 @@ export function elementMatchupPresentation(
       ...base,
       relation: 'neutral',
       badge: '中性 ×1.00',
+      hitTag: '',
       summary: '尚未触发克制',
       detail: `换${recommendedLabel}武器可克制本关，触发 ×1.25。`,
     };
@@ -102,6 +109,7 @@ export function elementMatchupPresentation(
     ...base,
     relation: 'neutral',
     badge: '同系 ×1.00',
+    hitTag: '',
     summary: '同系中性',
     detail: `换${recommendedLabel}武器可克制本关，触发 ×1.25。`,
   };

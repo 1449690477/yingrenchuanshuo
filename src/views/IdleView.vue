@@ -549,6 +549,7 @@ function openLootEntry(entry: { itemId: string; isEquipment: boolean; count: num
           :class-id="player.player.classId"
           :level="player.player.level"
           :equipped="inventory.equipped"
+          :player-element="player.playerCombatElement"
           :player-name="player.player.name"
           :monster="target"
           :support-monsters="supportMonsters"
