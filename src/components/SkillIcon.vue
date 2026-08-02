@@ -1,10 +1,19 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { LockKeyhole } from '@lucide/vue';
-import type { VisualSkill } from '@/data/skills';
+import type { Skill } from '@/core/types';
 
 const props = defineProps<{
-  skill: VisualSkill;
+  /**
+   * 这里要的只是 `icon` / `element` / `name`，三者 `Skill` 上都有，
+   * 所以类型取 `Skill` 而不是 `VisualSkill`。
+   *
+   * 原先写 `VisualSkill` 是过窄的：`VisualSkill = Skill & 演出字段`，只有配了
+   * 演出定义的技能才是它，而**主动技能编成要列出该职业全部可选主动技**——
+   * 其中相当一部分没有演出定义。按原类型，那些技能就没法用这个图标组件，
+   * 界面只能退化成显示裸技能 id。组件本身一个演出字段都没用到。
+   */
+  skill: Skill;
   locked?: boolean;
 }>();
 
