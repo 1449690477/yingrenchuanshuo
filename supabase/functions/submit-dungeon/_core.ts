@@ -1153,6 +1153,14 @@ function buildDefinition(spec, collectionIndex) {
     icon: `assets/equipment/affection/${spec.classId}/${spec.slug}.png`,
     appearanceId,
     classId: spec.classId,
+    ...appearanceId === "affection-kenshi-moonblue-lantern-date-kimono" ? {
+      classPresentations: {
+        kenshi: {
+          name: spec.name,
+          icon: `assets/equipment/bodies/${appearanceId}/kenshi.png`
+        }
+      }
+    } : {},
     // 复用已经过完整角色叠层与战斗验收的精品主题特效。
     // 这样心虹装备的“互动与攻击换肤”是实际运行效果，不是只写在描述里的承诺。
     boutiqueTheme: spec.appearanceTheme,
@@ -2540,6 +2548,36 @@ function weaponClassPresentations(appearanceId, names, qualityPrefix = "") {
     ])
   );
 }
+var KENSHI_BODY_APPEARANCE_IDS = /* @__PURE__ */ new Set([
+  ...Array.from({ length: 7 }, (_, index) => `r${index + 1}-body`),
+  "r5-set-body",
+  "r6-set-body",
+  "r7-set-body",
+  "dungeon-azure-body",
+  "dungeon-violet-body",
+  "dungeon-auric-body",
+  "dungeon-crimson-body",
+  "boutique-berry-cream-body",
+  "boutique-moon-sugar-body",
+  "boutique-rose-night-body",
+  "affection-kenshi-moonblue-lantern-date-kimono"
+]);
+function withKenshiBodyPresentation(definition) {
+  if (definition.slot !== "body" || !KENSHI_BODY_APPEARANCE_IDS.has(definition.appearanceId) || definition.classId && definition.classId !== "kenshi") {
+    return definition;
+  }
+  if (definition.classPresentations?.kenshi) return definition;
+  return {
+    ...definition,
+    classPresentations: {
+      ...definition.classPresentations,
+      kenshi: {
+        name: definition.name,
+        icon: `assets/equipment/bodies/${definition.appearanceId}/kenshi.png`
+      }
+    }
+  };
+}
 var BOUTIQUE_EXTRA_AFFIX_SLOTS = {
   epic: 1,
   legendary: 1,
@@ -2559,16 +2597,18 @@ function buildEquipment() {
           icon: theme.icons[slot],
           appearanceId: `${theme.regionId}-${slot}`
         };
-        out[id] = slot === "weapon" ? {
-          ...common,
-          slot,
-          element: theme.weaponElement,
-          classPresentations: weaponClassPresentations(
-            `${theme.regionId}-weapon`,
-            theme.weaponNames,
-            QUALITY_PREFIX[quality]
-          )
-        } : { ...common, slot };
+        out[id] = withKenshiBodyPresentation(
+          slot === "weapon" ? {
+            ...common,
+            slot,
+            element: theme.weaponElement,
+            classPresentations: weaponClassPresentations(
+              `${theme.regionId}-weapon`,
+              theme.weaponNames,
+              QUALITY_PREFIX[quality]
+            )
+          } : { ...common, slot }
+        );
       }
     }
   }
@@ -2583,15 +2623,17 @@ function buildEquipment() {
       icon: `assets/equipment/sets/r5-crimson/${slot}.png`,
       appearanceId: `r5-set-${slot}`
     };
-    out[id] = slot === "weapon" ? {
-      ...common,
-      slot,
-      element: REGION_WEAPON_ELEMENTS.r5,
-      classPresentations: weaponClassPresentations(
-        "r5-set-weapon",
-        REGION_5_SET_WEAPON_NAMES
-      )
-    } : { ...common, slot };
+    out[id] = withKenshiBodyPresentation(
+      slot === "weapon" ? {
+        ...common,
+        slot,
+        element: REGION_WEAPON_ELEMENTS.r5,
+        classPresentations: weaponClassPresentations(
+          "r5-set-weapon",
+          REGION_5_SET_WEAPON_NAMES
+        )
+      } : { ...common, slot }
+    );
   }
   for (const slot of REGION_6_SET_SLOTS) {
     const id = region6SetEquipmentId(slot);
@@ -2604,15 +2646,17 @@ function buildEquipment() {
       icon: `assets/equipment/sets/r6-shadow/${slot}.png`,
       appearanceId: `r6-set-${slot}`
     };
-    out[id] = slot === "weapon" ? {
-      ...common,
-      slot,
-      element: REGION_WEAPON_ELEMENTS.r6,
-      classPresentations: weaponClassPresentations(
-        "r6-set-weapon",
-        REGION_6_SET_WEAPON_NAMES
-      )
-    } : { ...common, slot };
+    out[id] = withKenshiBodyPresentation(
+      slot === "weapon" ? {
+        ...common,
+        slot,
+        element: REGION_WEAPON_ELEMENTS.r6,
+        classPresentations: weaponClassPresentations(
+          "r6-set-weapon",
+          REGION_6_SET_WEAPON_NAMES
+        )
+      } : { ...common, slot }
+    );
   }
   for (const slot of REGION_7_SET_SLOTS) {
     const id = region7SetEquipmentId(slot);
@@ -2625,15 +2669,17 @@ function buildEquipment() {
       icon: `assets/equipment/sets/r7-bloodmoon/${slot}.png`,
       appearanceId: `r7-set-${slot}`
     };
-    out[id] = slot === "weapon" ? {
-      ...common,
-      slot,
-      element: REGION_WEAPON_ELEMENTS.r7,
-      classPresentations: weaponClassPresentations(
-        "r7-set-weapon",
-        REGION_7_SET_WEAPON_NAMES
-      )
-    } : { ...common, slot };
+    out[id] = withKenshiBodyPresentation(
+      slot === "weapon" ? {
+        ...common,
+        slot,
+        element: REGION_WEAPON_ELEMENTS.r7,
+        classPresentations: weaponClassPresentations(
+          "r7-set-weapon",
+          REGION_7_SET_WEAPON_NAMES
+        )
+      } : { ...common, slot }
+    );
   }
   for (const theme of BOUTIQUE_THEME_LIST) {
     const percentile = theme.quality === "epic" ? 0.6 : theme.quality === "legendary" ? 0.75 : 0.9;
@@ -2663,21 +2709,23 @@ function buildEquipment() {
         boutiqueTheme: theme.id,
         ...item.classId ? { classId: item.classId } : {}
       };
-      out[id] = item.slot === "weapon" ? { ...common, slot: item.slot, element: BOUTIQUE_WEAPON_ELEMENTS[theme.id] } : { ...common, slot: item.slot };
+      out[id] = withKenshiBodyPresentation(
+        item.slot === "weapon" ? { ...common, slot: item.slot, element: BOUTIQUE_WEAPON_ELEMENTS[theme.id] } : { ...common, slot: item.slot }
+      );
     }
   }
   for (const definition of EQUIPMENT_DUNGEON_GEAR_LIST) {
     if (out[definition.id]) {
       throw new Error(`[\u914D\u7F6E\u9519\u8BEF] \u88C5\u5907 ID \u91CD\u590D\uFF1A${definition.id}`);
     }
-    out[definition.id] = definition;
+    out[definition.id] = withKenshiBodyPresentation(definition);
   }
   for (const entry of AFFECTION_EQUIPMENT_LIST) {
     const definition = entry.definition;
     if (out[definition.id]) {
       throw new Error(`[\u914D\u7F6E\u9519\u8BEF] \u88C5\u5907 ID \u91CD\u590D\uFF1A${definition.id}`);
     }
-    out[definition.id] = definition;
+    out[definition.id] = withKenshiBodyPresentation(definition);
   }
   for (const definition of ARENA_EQUIPMENT_LIST) {
     if (out[definition.id]) {

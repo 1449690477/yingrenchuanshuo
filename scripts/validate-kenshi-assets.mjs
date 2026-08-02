@@ -229,10 +229,9 @@ const EXPECTED_GROUP_COUNTS = {
 
 const CONTRACT_ASSETS = Object.values(contractGroups).flat();
 const STANDALONE_REQUIRED = [icon('assets/items/sigil_kenshi.png')];
-const HAND_ANCHORS = [
-  [145, 445, 60, 80],
-  [440, 440, 65, 85],
-];
+// docs/82 选定的 B 案会把刀永久烘焙到腰侧居合佩刀位，而不是旧版左右手位。
+// 该区域同时覆盖短刀柄与长刀身；仍要求至少 150 个 alpha 像素，防止空层或错位层混入。
+const KENSHI_IAI_CARRY_ANCHOR = [170, 520, 240, 200];
 const THEME_LAYER_PATHS = (slot) => [
   ...BOUTIQUE_THEMES.map((theme) => `assets/characters/modular/shop/${theme}/kenshi-${slot}.png`),
   ...DUNGEON_TIERS.map((tier) => `assets/characters/modular/dungeon/${tier}/kenshi-${slot}.png`),
@@ -486,9 +485,9 @@ async function validateAsset(entry) {
     }
   }
   if (entry.handAnchor) {
-    const intersections = HAND_ANCHORS.map((anchor) => alphaInRect(data, info, anchor));
-    if (Math.max(...intersections) <= 150) {
-      fail(`[持刀锚点] ${entry.path}: 左/右手相交像素=${intersections.join('/')}，至少一侧必须 >150`);
+    const intersection = alphaInRect(data, info, KENSHI_IAI_CARRY_ANCHOR);
+    if (intersection <= 150) {
+      fail(`[居合佩刀锚点] ${entry.path}: 佩刀区相交像素=${intersection}，必须 >150`);
     }
   }
   if (entry.wearableSlot && SLOT_RECTS[entry.wearableSlot]) {
@@ -608,6 +607,6 @@ if (errors.length > 0) {
 } else {
   console.log(
     '樱酱资产门禁通过：157 项角色运行时资产 + 1 枚独立职业徽记，' +
-      'RGBA/轮廓零复用、主题 alpha IoU < 0.900、武器与掌心相交。',
+      'RGBA/轮廓零复用、主题 alpha IoU < 0.900、武器命中居合佩刀锚点。',
   );
 }

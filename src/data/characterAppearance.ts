@@ -1,4 +1,3 @@
-import type { EquipmentDef } from '@/core/types';
 import {
   CLASS_IDS,
   type BoutiqueThemeId,
@@ -125,22 +124,6 @@ const sameTransform = (transform: LayerTransform): Record<ClassId, LayerTransfor
  */
 const alignedTransforms = sameTransform({ scale: 1, x: 0, y: 0 });
 
-/**
- * 樱酱武器层的「手提佩刀」临时变换（2026-08-02，docs/81 ④的止血版）。
- *
- * 病根：樱酱全系武器图层是「商品展示图」——刀+鞘斜置画在画布中央，
- * 不贴手不贴腰，上身读作悬空（老板截图两次点名）。老职业的武器层是
- * 逐件手调过锚位的（scripts/align-*.mjs），樱酱没跑过这道工序。
- *
- * 止血：整体缩到 0.85、左移 17%、下移 15.6% —— 刀柄正落在垂下的右手，
- * 读作手提佩刀。四个候选位实测对比后取的 B 案（证据
- * scratchpad/sheets/06-weapon-transform-candidates.png）。
- *
- * ⚠ 正解仍是美术管线按底图手位重生成（docs/81 ④）。重生成落地那天
- * **整体删除这个常量**，不要在它上面继续叠数 —— 补偿性数值必须写明
- * 补偿对象，对象消失后补偿就是新的失真（小深 2026-07-31 的规矩）。
- */
-const KENSHI_WEAPON_CARRY: LayerTransform = { scale: 0.85, x: -17, y: 15.6 };
 const KENSHI_REGION_BODY_REPLACEMENT = ['kenshi'] as const satisfies readonly ClassId[];
 
 function boutiqueClassAssets(
@@ -218,7 +201,7 @@ function buildEquipmentDungeonAppearances(): Record<string, EquipmentAppearance>
       renderMode: 'replacement',
       assets: dungeonClassAssets(tier.id, 'body'),
     };
-    for (const slot of ['head', 'weapon'] as const) {
+    for (const slot of ['head', 'weapon', 'shoes'] as const) {
       const id = equipmentDungeonAppearanceId(tier.id, slot);
       out[id] = {
         id,
@@ -228,8 +211,7 @@ function buildEquipmentDungeonAppearances(): Record<string, EquipmentAppearance>
         transforms: alignedTransforms,
       };
     }
-    // 整身换装本体已画出配套鞋靴；独立的鞋子图层素材悬空错位，不再叠加到人物身上。
-    for (const slot of ['necklace', 'bracelet', 'ring', 'belt', 'shoes'] as const) {
+    for (const slot of ['necklace', 'bracelet', 'ring', 'belt'] as const) {
       const id = equipmentDungeonAppearanceId(tier.id, slot);
       out[id] = { id, slot, renderMode: 'slot-only' };
     }
@@ -240,7 +222,7 @@ function buildEquipmentDungeonAppearances(): Record<string, EquipmentAppearance>
 function buildRegionAppearances(regionIds: readonly string[]): Record<string, EquipmentAppearance> {
   const out: Record<string, EquipmentAppearance> = {};
   for (const regionId of regionIds) {
-    for (const slot of ['body', 'head', 'weapon'] as const) {
+    for (const slot of ['body', 'head', 'weapon', 'shoes'] as const) {
       const id = `${regionId}-${slot}`;
       out[id] = {
         id,
@@ -253,7 +235,7 @@ function buildRegionAppearances(regionIds: readonly string[]): Record<string, Eq
           : {}),
       };
     }
-    for (const slot of ['necklace', 'bracelet', 'ring', 'belt', 'shoes'] as const) {
+    for (const slot of ['necklace', 'bracelet', 'ring', 'belt'] as const) {
       const id = `${regionId}-${slot}`;
       out[id] = { id, slot, renderMode: 'slot-only' };
     }
@@ -387,10 +369,7 @@ function wearableSlug(icon: string): string {
   return fileName.slice(0, -4);
 }
 
-/**
- * 圣痕装备（竞技场）：樱酱四件已经完成真实纸娃娃层；其余职业继续维持
- * 已发布的 slot-only 合同，等对应美术批次补齐后再逐职升级。
- */
+/** 圣痕装备（竞技场）：五职业武器、头饰、战衣均登记真实纸娃娃资产。 */
 function buildArenaAppearances(): Record<string, EquipmentAppearance> {
   const out: Record<string, EquipmentAppearance> = {};
   for (const definition of ARENA_EQUIPMENT_LIST) {
@@ -411,6 +390,22 @@ function buildArenaAppearances(): Record<string, EquipmentAppearance> {
         slot: definition.slot,
         renderMode: 'layer',
         assets: { kenshi: asset },
+        transforms: alignedTransforms,
+        ...(definition.slot === 'head' ? { aboveFace: true } : {}),
+      };
+      continue;
+    }
+    if (definition.slot === 'weapon' || definition.slot === 'head' || definition.slot === 'body') {
+      const classId = definition.classId;
+      if (!classId) throw new Error(`[配置错误] 竞技场装备缺少职业：${definition.id}`);
+      const slug = wearableSlug(definition.icon);
+      out[definition.appearanceId] = {
+        id: definition.appearanceId,
+        slot: definition.slot,
+        renderMode: 'layer',
+        assets: {
+          [classId]: `assets/characters/modular/arena/${classId}/${slug}.png`,
+        },
         transforms: alignedTransforms,
         ...(definition.slot === 'head' ? { aboveFace: true } : {}),
       };
@@ -457,8 +452,8 @@ function buildKenshiAffectionAppearances(): Record<string, EquipmentAppearance> 
 /**
  * 装备定义到运行时外观的显式注册表。
  *
- * 只有在人物缩略图里能辨认的武器、头冠、衣裙直接叠到角色身上；
- * 项链、手镯、戒指、腰带与鞋仍完整显示在人物两侧的装备槽里。
+ * 武器、头冠、衣裙与鞋直接叠到角色身上；项链、手镯、戒指、腰带
+ * 仍完整显示在人物两侧的装备槽里，避免小尺寸纸娃娃产生不可辨认噪点。
  * 缺少注册时直接抛错，禁止静默退回旧立绘掩盖素材问题。
  */
 export const EQUIPMENT_APPEARANCES: Readonly<Record<string, EquipmentAppearance>> = {
@@ -489,7 +484,10 @@ export const EQUIPMENT_APPEARANCES: Readonly<Record<string, EquipmentAppearance>
   'r1-bracelet': { id: 'r1-bracelet', slot: 'bracelet', renderMode: 'slot-only' },
   'r1-ring': { id: 'r1-ring', slot: 'ring', renderMode: 'slot-only' },
   'r1-belt': { id: 'r1-belt', slot: 'belt', renderMode: 'slot-only' },
-  'r1-shoes': { id: 'r1-shoes', slot: 'shoes', renderMode: 'slot-only' },
+  'r1-shoes': {
+    id: 'r1-shoes', slot: 'shoes', renderMode: 'layer',
+    assets: classAssets('r1-shoes'), transforms: alignedTransforms,
+  },
   'r2-weapon': {
     id: 'r2-weapon',
     slot: 'weapon',
@@ -517,12 +515,14 @@ export const EQUIPMENT_APPEARANCES: Readonly<Record<string, EquipmentAppearance>
   'r2-bracelet': { id: 'r2-bracelet', slot: 'bracelet', renderMode: 'slot-only' },
   'r2-ring': { id: 'r2-ring', slot: 'ring', renderMode: 'slot-only' },
   'r2-belt': { id: 'r2-belt', slot: 'belt', renderMode: 'slot-only' },
-  'r2-shoes': { id: 'r2-shoes', slot: 'shoes', renderMode: 'slot-only' },
-  // 区域 3/4：body / head / weapon 有真实换装层，其余五槽与区域 1～2 一致走 slot-only。
-  // 生产脚本每职业各出 3 层 × 2 区域 = 24 张，见 docs/46。
+  'r2-shoes': {
+    id: 'r2-shoes', slot: 'shoes', renderMode: 'layer',
+    assets: classAssets('r2-shoes'), transforms: alignedTransforms,
+  },
+  // 区域 3/4：body / head / weapon / shoes 有真实换装层，其余四槽走 slot-only。
   ...Object.fromEntries(
     (['r3', 'r4'] as const).flatMap((regionId) => [
-      ...(['weapon', 'head', 'body'] as const).map((slot) => [
+      ...(['weapon', 'head', 'body', 'shoes'] as const).map((slot) => [
         `${regionId}-${slot}`,
         {
           id: `${regionId}-${slot}`,
@@ -535,7 +535,7 @@ export const EQUIPMENT_APPEARANCES: Readonly<Record<string, EquipmentAppearance>
             : {}),
         },
       ]),
-      ...(['necklace', 'bracelet', 'ring', 'belt', 'shoes'] as const).map((slot) => [
+      ...(['necklace', 'bracelet', 'ring', 'belt'] as const).map((slot) => [
         `${regionId}-${slot}`,
         { id: `${regionId}-${slot}`, slot, renderMode: 'slot-only' as const },
       ]),
@@ -603,11 +603,9 @@ export interface ResolvedCharacterAppearance {
    * 穿着了装备、但该装备**不改变外观**的视觉槽（weapon/head/body/shoes 四槽里
    * renderMode 为 slot-only 的那些）。
    *
-   * 为什么要暴露它：2026-08-02 老板连发两张截图问「穿了鞋/裙为什么没变化」——
-   * 区域与副本的鞋是**刻意**不渲染的（副本整身装自带靴子、独立鞋层会悬空错位，
-   * 见 buildEquipmentDungeonAppearances 的注释），但 UI 从不解释，
-   * 玩家把设计当成了 bug。首饰四槽（项链/手镯/戒指/腰带）从不渲染、
-   * 玩家也不期待，所以不在此列 —— 只报玩家**会期待变化**的那四槽。
+   * 鞋类资产补全后，区域鞋与副本鞋都走真实可见层；这里主要用于整身替换
+   * 已内嵌头饰时的去重解释。首饰四槽（项链/手镯/戒指/腰带）从不渲染、
+   * 玩家也不期待，所以不在此列 —— 只报玩家会期待变化的四个视觉槽。
    */
   silentVisualSlots: EquipSlot[];
   highestVisibleQuality: Quality;
@@ -716,13 +714,10 @@ export function resolveCharacterAppearance(
         replacementIncludes = appearance.replacementIncludes ?? null;
         continue;
       }
-      let transform = appearance.transforms[classId];
+      const transform = appearance.transforms[classId];
       if (!transform) {
         throw new Error(`[配置错误] ${classId} 缺少装备外观变换：${appearance.id}`);
       }
-      // 樱酱全系武器图层是未对位的商品展示图 —— 在唯一出口统一套
-      // 「手提佩刀」临时变换，而不是去改十几处登记（见常量注释与 docs/81 ④）。
-      if (classId === 'kenshi' && slot === 'weapon') transform = KENSHI_WEAPON_CARRY;
       if (slot === 'shoes') hasVisibleShoes = true;
       layers.push({
         id: appearance.id,
@@ -823,28 +818,4 @@ function requireDungeonTier(tierId: EquipmentDungeonTierId) {
   const tier = EQUIPMENT_DUNGEON_TIERS.find((candidate) => candidate.id === tierId);
   if (!tier) throw new Error(`[配置错误] 装备副本外观档不存在：${tierId}`);
   return tier;
-}
-
-/**
- * 樱酱整身替换件的「实穿」图标（2026-08-02，docs/81 ⑤的止血版）。
- *
- * 病根：樱酱的衣裙走整身替换（r6 = 藏青羽织袴），但格子图标是给老职业
- * 叠层画的通用裙图 —— 图标与上身完全不像，老板两次把正常渲染当 bug 报。
- * 老职业不动：他们的图标与叠层是一套画的，本来就像。
- *
- * 放在本模块而不是 equipmentPresentation：后者被本模块 import（取名字），
- * 反向引就是循环依赖。EquipmentIcon 同时引两边，无环。
- *
- * 正解仍是给樱酱出成套图标（docs/81 ⑤，归美术线）；落地那天删除本函数。
- */
-export function kenshiWornIconOverride(def: EquipmentDef, classId: ClassId): string | null {
-  if (classId !== 'kenshi') return null;
-  if (def.slot !== 'body') return null;
-  const appearance = EQUIPMENT_APPEARANCES[def.appearanceId];
-  if (!appearance || appearance.renderMode === 'slot-only') return null;
-  const replacementActive =
-    appearance.renderMode === 'replacement' ||
-    (appearance.renderMode === 'layer' && appearance.replacementClasses?.includes(classId));
-  if (!replacementActive) return null;
-  return appearance.assets?.[classId] ?? null;
 }

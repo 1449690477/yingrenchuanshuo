@@ -113,7 +113,7 @@ const SPECS: readonly ArenaGearSpec[] = [
   { classId: 'kenshi', slot: 'ring', name: '圣痕·瞬樱·归鞘指环', slug: 'blinkbloom-return-ring', series: '瞬樱' },
 ] as const;
 
-/** 圣痕外观 id：樱酱四槽已接真实可穿层，其余职业暂按既有 slot-only 展示。 */
+/** 圣痕外观 id：五职业武器、头饰、战衣均接真实可穿层，戒指保留槽位展示。 */
 export function arenaAppearanceId(classId: ClassId, slot: ArenaGearSlot): string {
   return `arena-${classId}-${slot}`;
 }

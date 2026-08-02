@@ -25,8 +25,18 @@ describe('R7 纸娃娃外观注册', () => {
     }
   });
 
-  it('小部位只占装备槽，不制造与角色身体冲突的假图层', () => {
-    for (const slot of ['necklace', 'bracelet', 'ring', 'belt', 'shoes'] as const) {
+  it('普通鞋有五职业贴脚层，其余小部位只占装备槽', () => {
+    const shoes = REGION_7_EQUIPMENT_APPEARANCES['r7-shoes'];
+    expect(shoes).toMatchObject({ id: 'r7-shoes', slot: 'shoes', renderMode: 'layer' });
+    if (shoes?.renderMode === 'layer') {
+      for (const classId of CLASS_IDS) {
+        expect(shoes.assets[classId]).toBe(
+          `assets/characters/modular/${classId}/r7-shoes.png`,
+        );
+        expect(shoes.transforms[classId]).toEqual({ scale: 1, x: 0, y: 0 });
+      }
+    }
+    for (const slot of ['necklace', 'bracelet', 'ring', 'belt'] as const) {
       expect(REGION_7_EQUIPMENT_APPEARANCES[`r7-${slot}`]).toEqual({
         id: `r7-${slot}`,
         slot,

@@ -48,10 +48,8 @@ const WEAPON_HAND_BOXES = {
     { left: 145, top: 365, width: 100, height: 115 },
     { left: 435, top: 255, width: 115, height: 115 },
   ],
-  kenshi: [
-    { left: 145, top: 375, width: 120, height: 130 },
-    { left: 435, top: 250, width: 145, height: 180 },
-  ],
+  // docs/82 B 案永久烘焙后的居合握持区；旧双手框属于未对位商品展示图。
+  kenshi: [{ left: 340, top: 430, width: 120, height: 180 }],
 };
 
 function fail(message) {

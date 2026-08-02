@@ -3,7 +3,6 @@ import { computed } from 'vue';
 import { LockKeyhole } from '@lucide/vue';
 import type { ClassId, EquipmentDef } from '@/core/types';
 import { forgeStageAt } from '@/core/equipment';
-import { kenshiWornIconOverride } from '@/data/characterAppearance';
 import { equipmentDisplayPresentation } from '@/data/equipmentPresentation';
 import { requireForgeStageVisual } from '@/data/forgeVisuals';
 import { IMPRINT_BATCH_ACTIVE } from '@/ui/imprintActivation';
@@ -29,12 +28,7 @@ const props = withDefaults(
 );
 
 const presentation = computed(() => equipmentDisplayPresentation(props.def, props.classId));
-// 樱酱整身替换件的图标用「实穿」图（docs/81 ⑤止血）：她的衣裙走整身替换，
-// 通用裙图标与上身完全不像，正常渲染被当 bug 报过两次。老职业不受影响。
-const wornOverride = computed(() => kenshiWornIconOverride(props.def, props.classId));
-const iconUrl = computed(
-  () => `${import.meta.env.BASE_URL}${wornOverride.value ?? presentation.value.icon}`,
-);
+const iconUrl = computed(() => `${import.meta.env.BASE_URL}${presentation.value.icon}`);
 const forgeStage = computed(() => forgeStageAt(props.enhance));
 const forgeOverlayUrl = computed(() => {
   const asset = requireForgeStageVisual(forgeStage.value).overlayAsset;

@@ -1155,7 +1155,7 @@
     },
     "layer:kenshi-r7-weapon": {
       "path": "public/assets/characters/modular/kenshi/r7-weapon.png",
-      "sha256": "96231c4888500d9afec7a8e592992261d489eb60a92f0a039a691e543dbbf833"
+        "sha256": "9d4c631c55b94b720af0b469a61b26ac73e272f481a9c436d463e08b16c9a10c"
     },
     "set-layer:kenshi-r7-bloodmoon-body": {
       "path": "public/assets/characters/modular/kenshi/r7-bloodmoon-body.png",
@@ -1167,7 +1167,7 @@
     },
     "set-layer:kenshi-r7-bloodmoon-weapon": {
       "path": "public/assets/characters/modular/kenshi/r7-bloodmoon-weapon.png",
-      "sha256": "0afc2e83119b637cbab1a45e70f679d3519f29043bc82fe5b27644d5590d9fc1"
+        "sha256": "1ce0a65c59207299ac02faee6a522c1c3fd27a84dfcc2efb3e05808378836e1e"
     }
   }
 }

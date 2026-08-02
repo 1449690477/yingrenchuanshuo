@@ -32,6 +32,7 @@ const LOCK_PATH = resolve(ROOT, 'art-source/regions/r7/SOURCE-SHA256.json');
 const CONTACT_PATH = resolve(ROOT, 'art-source/qa/r7-assets-contact.webp');
 const CONTACT_ONLY = process.argv.includes('--contact-only');
 const CHECK_KENSHI_REBUILD = process.argv.includes('--check-kenshi-rebuild');
+const REBUILD_KENSHI_ONLY = process.argv.includes('--rebuild-kenshi-only');
 
 const CANVAS = Object.freeze({ width: 640, height: 960 });
 
@@ -119,6 +120,7 @@ async function buildKenshiLayerCanvas(entry) {
     .resize({ width: CANVAS.width, height: CANVAS.height, fit: 'fill', kernel: sharp.kernel.lanczos3 })
     .png()
     .toBuffer();
+  if (entry.slot === 'weapon') return carryKenshiWeaponLayer(resized);
   if (entry.slot !== 'body') return resized;
   const pixels = await sharp(resized).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   const bounds = alphaBounds(pixels.data, pixels.info);
@@ -126,6 +128,27 @@ async function buildKenshiLayerCanvas(entry) {
   const offsetY = 925 - bounds.bottom;
   return transparentCanvas(CANVAS.width, CANVAS.height, [
     { input: resized, left: 0, top: offsetY },
+  ]);
+}
+
+async function carryKenshiWeaponLayer(source) {
+  const resized = await sharp(source)
+    .ensureAlpha()
+    .resize(544, 816, { fit: 'fill', kernel: sharp.kernel.lanczos3 })
+    .png()
+    .toBuffer();
+  const targetLeft = Math.round((CANVAS.width - 544) / 2 - 110);
+  const targetTop = Math.round((CANVAS.height - 816) / 2 + 150);
+  const sourceLeft = Math.max(0, -targetLeft);
+  const sourceTop = Math.max(0, -targetTop);
+  const width = Math.min(544 - sourceLeft, CANVAS.width - Math.max(0, targetLeft));
+  const height = Math.min(816 - sourceTop, CANVAS.height - Math.max(0, targetTop));
+  const visible = await sharp(resized)
+    .extract({ left: sourceLeft, top: sourceTop, width, height })
+    .png()
+    .toBuffer();
+  return transparentCanvas(CANVAS.width, CANVAS.height, [
+    { input: visible, left: Math.max(0, targetLeft), top: Math.max(0, targetTop) },
   ]);
 }
 
@@ -352,9 +375,9 @@ function record(asset, runtimePath, sources) {
   }
 }
 
-if (CHECK_KENSHI_REBUILD) {
+if (CHECK_KENSHI_REBUILD || REBUILD_KENSHI_ONLY) {
   for (const entry of [...REGION7_MODULAR_LAYERS, ...REGION7_SET_MODULAR_LAYERS].filter(
-    ({ classId }) => classId === 'kenshi',
+    ({ classId, slot }) => classId === 'kenshi' && (!REBUILD_KENSHI_ONLY || slot === 'weapon'),
   )) {
     const encoded = await encodeKenshiLayer(await buildKenshiLayerCanvas(entry));
     const rebuilt = await sharp(encoded).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
@@ -367,6 +390,11 @@ if (CHECK_KENSHI_REBUILD) {
       'public/assets/characters/modular/kenshi',
       `${entry.family}-${entry.slot}.png`,
     );
+    if (REBUILD_KENSHI_ONLY) {
+      await writeFile(currentPath, encoded);
+      console.log(`✓ ${entry.family}-${entry.slot} 已按仓内母版重建`);
+      continue;
+    }
     const current = await sharp(currentPath).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
     const currentBounds = alphaBounds(current.data, current.info);
     const byteExact = sha256(encoded) === (await fileSha256(currentPath));

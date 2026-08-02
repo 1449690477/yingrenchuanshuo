@@ -60,7 +60,7 @@ describe('公会 Supabase 契约', () => {
   });
 
   it('Edge Function 严格拒绝客户端伤害并复用共享 core', () => {
-    expect(edge).toContain("z.discriminatedUnion('action'");
+    expect(edge).toMatch(/z\s*\.\s*discriminatedUnion\(\s*['"]action['"]/);
     expect(edge).not.toMatch(/damage:\s*z\./);
     expect(edge).toContain('body.seasonId !== TRIAL_SEASON_ID');
     expect(edge).toContain('guildExpeditionBoss(TRIAL_SEASON_ID');

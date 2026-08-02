@@ -50,8 +50,7 @@ const HAND_ANCHORS: Readonly<
     [435, 250, 145, 180],
   ],
   kenshi: [
-    [145, 375, 120, 130],
-    [435, 250, 145, 180],
+    [340, 430, 120, 180],
   ],
 };
 
@@ -109,6 +108,32 @@ describe('装备职业表现与手部对位', () => {
           presentation.icon,
         ).toEqual({ width: 256, height: 256, channels: 4 });
       }
+    }
+  });
+
+  it('樱酱十八套整身装备使用与实穿同源的正式服装图标', async () => {
+    const definitions = Object.values(EQUIPMENT).filter(
+      (definition) => definition.slot === 'body' && definition.classPresentations?.kenshi,
+    );
+    const byAppearance = new Map(definitions.map((definition) => [definition.appearanceId, definition]));
+    expect(byAppearance.size).toBe(18);
+
+    for (const [appearanceId, definition] of byAppearance) {
+      const kenshi = equipmentPresentation(definition, 'kenshi');
+      expect(kenshi.icon).toBe(`assets/equipment/bodies/${appearanceId}/kenshi.png`);
+      if (definition.classId) {
+        expect(() => equipmentPresentation(definition, 'swordsman')).toThrow('不能按 swordsman 展示');
+      } else {
+        expect(equipmentPresentation(definition, 'swordsman').icon).toBe(definition.icon);
+      }
+      const path = resolve('public', kenshi.icon);
+      expect(existsSync(path), kenshi.icon).toBe(true);
+      const metadata = await sharp(path).metadata();
+      expect({ width: metadata.width, height: metadata.height, channels: metadata.channels }).toEqual({
+        width: 256,
+        height: 256,
+        channels: 4,
+      });
     }
   });
 

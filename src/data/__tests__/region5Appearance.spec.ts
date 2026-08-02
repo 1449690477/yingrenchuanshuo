@@ -37,8 +37,18 @@ describe('R5 纸娃娃外观注册', () => {
     }
   });
 
-  it('普通五个小部位与套装三个首饰只占装备槽，不制造假图层', () => {
-    for (const slot of ['necklace', 'bracelet', 'ring', 'belt', 'shoes'] as const) {
+  it('普通鞋有五职业贴脚层，其余小部位只占装备槽', () => {
+    const shoes = REGION_5_EQUIPMENT_APPEARANCES['r5-shoes'];
+    expect(shoes).toMatchObject({ id: 'r5-shoes', slot: 'shoes', renderMode: 'layer' });
+    if (shoes?.renderMode === 'layer') {
+      for (const classId of CLASS_IDS) {
+        expect(shoes.assets[classId]).toBe(
+          `assets/characters/modular/${classId}/r5-shoes.png`,
+        );
+        expect(shoes.transforms[classId]).toEqual({ scale: 1, x: 0, y: 0 });
+      }
+    }
+    for (const slot of ['necklace', 'bracelet', 'ring', 'belt'] as const) {
       expect(REGION_5_EQUIPMENT_APPEARANCES[`r5-${slot}`]).toEqual({
         id: `r5-${slot}`,
         slot,

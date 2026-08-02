@@ -1143,7 +1143,7 @@
     },
     "layer:kenshi-r6-weapon": {
       "path": "public/assets/characters/modular/kenshi/r6-weapon.png",
-      "sha256": "4cf459fbe906e1b2068927b0fe535e1cb4fa77035d6271887dc9b3717b4608af"
+        "sha256": "c8f7728c3ab9c7355a719a973852500837c7b30df82c6b3cc864f6d99cf68269"
     },
     "set-layer:kenshi-r6-shadow-body": {
       "path": "public/assets/characters/modular/kenshi/r6-shadow-body.png",
@@ -1155,7 +1155,7 @@
     },
     "set-layer:kenshi-r6-shadow-weapon": {
       "path": "public/assets/characters/modular/kenshi/r6-shadow-weapon.png",
-      "sha256": "d135751d24aa74c0121445277c1a029873eb62abde0e6f34a7b53b1bd539d2ec"
+        "sha256": "146892c74a9209e3d2bd25e1cc24a7f17c100ff8ffa1a27ea413d75e52b89fd9"
     }
   }
 }

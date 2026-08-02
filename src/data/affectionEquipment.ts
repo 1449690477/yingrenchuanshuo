@@ -486,6 +486,16 @@ function buildDefinition(
     icon: `assets/equipment/affection/${spec.classId}/${spec.slug}.png`,
     appearanceId,
     classId: spec.classId,
+    ...(appearanceId === 'affection-kenshi-moonblue-lantern-date-kimono'
+      ? {
+          classPresentations: {
+            kenshi: {
+              name: spec.name,
+              icon: `assets/equipment/bodies/${appearanceId}/kenshi.png`,
+            },
+          },
+        }
+      : {}),
     // 复用已经过完整角色叠层与战斗验收的精品主题特效。
     // 这样心虹装备的“互动与攻击换肤”是实际运行效果，不是只写在描述里的承诺。
     boutiqueTheme: spec.appearanceTheme,

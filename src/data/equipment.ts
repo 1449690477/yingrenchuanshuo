@@ -220,6 +220,46 @@ function weaponClassPresentations(
   ) as Record<ClassId, EquipmentClassPresentation>;
 }
 
+const KENSHI_BODY_APPEARANCE_IDS = new Set([
+  ...Array.from({ length: 7 }, (_, index) => `r${index + 1}-body`),
+  'r5-set-body',
+  'r6-set-body',
+  'r7-set-body',
+  'dungeon-azure-body',
+  'dungeon-violet-body',
+  'dungeon-auric-body',
+  'dungeon-crimson-body',
+  'boutique-berry-cream-body',
+  'boutique-moon-sugar-body',
+  'boutique-rose-night-body',
+  'affection-kenshi-moonblue-lantern-date-kimono',
+]);
+
+/**
+ * 樱酱整身替换件使用与实穿服装同源的正式装备图标。
+ * 老职业继续展示原有通用图标；路径由 appearanceId 唯一决定，不做运行时回退。
+ */
+function withKenshiBodyPresentation(definition: EquipmentDef): EquipmentDef {
+  if (
+    definition.slot !== 'body' ||
+    !KENSHI_BODY_APPEARANCE_IDS.has(definition.appearanceId) ||
+    (definition.classId && definition.classId !== 'kenshi')
+  ) {
+    return definition;
+  }
+  if (definition.classPresentations?.kenshi) return definition;
+  return {
+    ...definition,
+    classPresentations: {
+      ...definition.classPresentations,
+      kenshi: {
+        name: definition.name,
+        icon: `assets/equipment/bodies/${definition.appearanceId}/kenshi.png`,
+      },
+    },
+  };
+}
+
 /**
  * 珍品商店装备的额外可洗槽（2026-07-30 品质平衡）。
  *
@@ -248,7 +288,7 @@ function buildEquipment(): Record<string, EquipmentDef> {
           icon: theme.icons[slot],
           appearanceId: `${theme.regionId}-${slot}`,
         };
-        out[id] =
+        out[id] = withKenshiBodyPresentation(
           slot === 'weapon'
             ? {
                 ...common,
@@ -260,7 +300,8 @@ function buildEquipment(): Record<string, EquipmentDef> {
                   QUALITY_PREFIX[quality],
                 ),
               }
-            : { ...common, slot };
+            : { ...common, slot },
+        );
       }
     }
   }
@@ -276,7 +317,7 @@ function buildEquipment(): Record<string, EquipmentDef> {
       icon: `assets/equipment/sets/r5-crimson/${slot}.png`,
       appearanceId: `r5-set-${slot}`,
     } as const;
-    out[id] =
+    out[id] = withKenshiBodyPresentation(
       slot === 'weapon'
         ? {
             ...common,
@@ -287,7 +328,8 @@ function buildEquipment(): Record<string, EquipmentDef> {
               REGION_5_SET_WEAPON_NAMES,
             ),
           }
-        : { ...common, slot };
+        : { ...common, slot },
+    );
   }
 
   for (const slot of REGION_6_SET_SLOTS) {
@@ -301,7 +343,7 @@ function buildEquipment(): Record<string, EquipmentDef> {
       icon: `assets/equipment/sets/r6-shadow/${slot}.png`,
       appearanceId: `r6-set-${slot}`,
     } as const;
-    out[id] =
+    out[id] = withKenshiBodyPresentation(
       slot === 'weapon'
         ? {
             ...common,
@@ -312,7 +354,8 @@ function buildEquipment(): Record<string, EquipmentDef> {
               REGION_6_SET_WEAPON_NAMES,
             ),
           }
-        : { ...common, slot };
+        : { ...common, slot },
+    );
   }
 
   for (const slot of REGION_7_SET_SLOTS) {
@@ -326,7 +369,7 @@ function buildEquipment(): Record<string, EquipmentDef> {
       icon: `assets/equipment/sets/r7-bloodmoon/${slot}.png`,
       appearanceId: `r7-set-${slot}`,
     } as const;
-    out[id] =
+    out[id] = withKenshiBodyPresentation(
       slot === 'weapon'
         ? {
             ...common,
@@ -337,7 +380,8 @@ function buildEquipment(): Record<string, EquipmentDef> {
               REGION_7_SET_WEAPON_NAMES,
             ),
           }
-        : { ...common, slot };
+        : { ...common, slot },
+    );
   }
 
   for (const theme of BOUTIQUE_THEME_LIST) {
@@ -368,10 +412,11 @@ function buildEquipment(): Record<string, EquipmentDef> {
         boutiqueTheme: theme.id,
         ...(item.classId ? { classId: item.classId } : {}),
       };
-      out[id] =
+      out[id] = withKenshiBodyPresentation(
         item.slot === 'weapon'
           ? { ...common, slot: item.slot, element: BOUTIQUE_WEAPON_ELEMENTS[theme.id] }
-          : { ...common, slot: item.slot };
+          : { ...common, slot: item.slot },
+      );
     }
   }
 
@@ -379,7 +424,7 @@ function buildEquipment(): Record<string, EquipmentDef> {
     if (out[definition.id]) {
       throw new Error(`[配置错误] 装备 ID 重复：${definition.id}`);
     }
-    out[definition.id] = definition;
+    out[definition.id] = withKenshiBodyPresentation(definition);
   }
 
   for (const entry of AFFECTION_EQUIPMENT_LIST) {
@@ -387,7 +432,7 @@ function buildEquipment(): Record<string, EquipmentDef> {
     if (out[definition.id]) {
       throw new Error(`[配置错误] 装备 ID 重复：${definition.id}`);
     }
-    out[definition.id] = definition;
+    out[definition.id] = withKenshiBodyPresentation(definition);
   }
 
   for (const definition of ARENA_EQUIPMENT_LIST) {

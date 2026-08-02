@@ -584,6 +584,28 @@ async function iconLayer(source, slot) {
     .toBuffer();
 }
 
+async function carryWeaponLayer(source) {
+  const resized = await sharp(source)
+    .ensureAlpha()
+    .resize(544, 816, { fit: 'fill', kernel: sharp.kernel.lanczos3 })
+    .png()
+    .toBuffer();
+  const targetLeft = Math.round((CANVAS.width - 544) / 2 - 110);
+  const targetTop = Math.round((CANVAS.height - 816) / 2 + 150);
+  const sourceLeft = Math.max(0, -targetLeft);
+  const sourceTop = Math.max(0, -targetTop);
+  const width = Math.min(544 - sourceLeft, CANVAS.width - Math.max(0, targetLeft));
+  const height = Math.min(816 - sourceTop, CANVAS.height - Math.max(0, targetTop));
+  const visible = await sharp(resized)
+    .extract({ left: sourceLeft, top: sourceTop, width, height })
+    .png()
+    .toBuffer();
+  return sharp(transparentCanvas())
+    .composite([{ input: visible, left: Math.max(0, targetLeft), top: Math.max(0, targetTop) }])
+    .png({ compressionLevel: 9, palette: true, quality: 92 })
+    .toBuffer();
+}
+
 async function snowstepSandalsLayer() {
   const source = Buffer.from(`
     <svg xmlns="http://www.w3.org/2000/svg" width="640" height="960" viewBox="0 0 640 960">
@@ -745,7 +767,7 @@ async function build() {
         family.kind === 'boutique'
           ? `public/assets/characters/modular/shop/${family.id}/kenshi-${slot}.png`
           : `public/assets/characters/modular/dungeon/${family.id}/kenshi-${slot}.png`;
-      await writeOrCheck(runtimePath, master);
+      await writeOrCheck(runtimePath, slot === 'weapon' ? await carryWeaponLayer(master) : master);
       if (slot === 'weapon') {
         const iconPath =
           family.kind === 'boutique'
@@ -760,12 +782,13 @@ async function build() {
     if (!existsSync(abs(entry.source))) {
       throw new Error(`[樱酱可穿资产] 缺少母版：${entry.source}`);
     }
-    const output =
+    let output =
       entry.slot === 'body'
         ? await normalizedBody(entry.source)
         : entry.slot === 'shoes'
           ? await snowstepSandalsLayer()
           : await iconLayer(entry.source, entry.slot);
+    if (entry.slot === 'weapon') output = await carryWeaponLayer(output);
     await writeOrCheck(entry.output, output);
   }
   await buildContactSheet();

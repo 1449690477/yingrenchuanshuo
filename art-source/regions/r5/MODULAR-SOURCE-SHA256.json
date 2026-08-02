@@ -508,8 +508,8 @@
       "alphaPath": "repo:art-source/characters/kenshi/regions/r5-weapon-alpha.png",
       "alphaSha256": "f9ffe1cd65db8bd9b5906169133fa35f0a67f3d6fd53adf162ce19d276e6b44a",
       "runtimePath": "public/assets/characters/modular/kenshi/r5-weapon.png",
-      "runtimeSha256": "daa75b4eeba60409d94e684fb24ed5e77b97883ddda6d74eb099977f01465a99",
-      "alignment": { "scale": 1, "x": 0, "y": 0 }
+        "runtimeSha256": "0332e3d70428fe02b414f1678ed0bcb4c86c499722360f6a221eda027cf929ff",
+        "alignment": { "contract": "docs/82 B", "scale": 0.85, "x": -110, "y": 150 }
     },
     "kenshi:r5-crimson:body": {
       "callId": "contract-kenshi-r5-r5-crimson-body",
@@ -541,8 +541,8 @@
       "alphaPath": "repo:art-source/characters/kenshi/regions/r5-crimson-weapon-alpha.png",
       "alphaSha256": "88782dbc11d5d807f64f2118c86f514915c3a88616dcfeb1792bc082bf488eab",
       "runtimePath": "public/assets/characters/modular/kenshi/r5-crimson-weapon.png",
-      "runtimeSha256": "c271b7c36f09c470657bf620dbcf87fb0f661cbc8043d39d52c7e9f5b8d108b9",
-      "alignment": { "scale": 1, "x": 0, "y": 0 }
+        "runtimeSha256": "9d755cdf002f60d01beb353d23faa2b0986fc79d8d4f32dd51066f0cd05f29fe",
+        "alignment": { "contract": "docs/82 B", "scale": 0.85, "x": -110, "y": 150 }
     }
   }
 }

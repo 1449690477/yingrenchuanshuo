@@ -29,8 +29,15 @@ export function equipmentPresentation(
     return presentation;
   }
 
+  if (definition.slot === 'body') {
+    return definition.classPresentations?.[classId] ?? {
+      name: definition.name,
+      icon: definition.icon,
+    };
+  }
+
   if (definition.classPresentations) {
-    throw new Error(`[配置错误] 非通用武器 ${definition.id} 不应登记职业表现`);
+    throw new Error(`[配置错误] ${definition.slot} 装备 ${definition.id} 不应登记职业表现`);
   }
 
   return {

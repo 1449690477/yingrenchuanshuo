@@ -61,7 +61,7 @@ def compose(class_id: str, body=None, head=None, shoes=None, weapon=None,
 
     - 可见鞋层装备时换用 base-noshoes 底模（整身替换优先）
     - 商店帽 aboveFace=True：喵喵也压到脸层之上
-    - 副本鞋已不再叠加（调用方不要传 dungeon shoes）
+    - 区域鞋与副本鞋都使用重新对位后的独立鞋层
     """
     noshoes = ROOT / class_id / 'base-noshoes.png'
     use_noshoes = shoes is not None and body_mode != 'replacement' and noshoes.exists()
@@ -172,12 +172,12 @@ def main() -> None:
         for tier in DUNGEON_TIERS:
             cells = []
             for c in CLASSES:
-                # 副本鞋已改为仅槽位显示，不再叠加到人物身上
                 cells.append((f'{c} · {tier}', compose(
                     c,
                     body=dungeon_layer(tier, c, 'body'),
                     body_mode='replacement',
                     head=dungeon_layer(tier, c, 'head'),
+                    shoes=dungeon_layer(tier, c, 'shoes'),
                     weapon=dungeon_layer(tier, c, 'weapon'),
                 )))
             sheet(cells, OUT / f'dungeon-{tier}.png')
@@ -190,6 +190,7 @@ def main() -> None:
                     c,
                     body=region_layer(region, c, 'body'),
                     head=region_layer(region, c, 'head'),
+                    shoes=region_layer(region, c, 'shoes'),
                     weapon=region_layer(region, c, 'weapon'),
                 )))
             sheet(cells, OUT / f'region-{region}.png')

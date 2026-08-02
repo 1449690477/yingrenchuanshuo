@@ -1,11 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { requireEquipment } from '@/data/equipment';
 import type { EquipmentInstance, EquipSlot } from '@/core/types';
 import { ENHANCE_MAX } from '@/data/constants';
 import {
   REGION_34_EQUIPMENT_APPEARANCES,
   requireEquipmentAppearance,
-  kenshiWornIconOverride,
   resolveCharacterAppearance,
   type EquippedRecord,
 } from '../characterAppearance';
@@ -227,6 +225,21 @@ describe('角色换装外观解析', () => {
     }
   });
 
+  it('老四职业圣痕武器、头饰、战衣全部真实上身', () => {
+    for (const definition of ARENA_EQUIPMENT_LIST.filter(
+      (candidate) => candidate.classId !== 'kenshi' && candidate.slot !== 'ring',
+    )) {
+      const equipped = emptyEquipped();
+      equipped[definition.slot] = instance(definition.id);
+      const appearance = resolveCharacterAppearance(definition.classId!, 60, equipped);
+      expect(appearance.visibleEquippedCount, definition.id).toBe(1);
+      expect(appearance.layers, definition.id).toHaveLength(1);
+      expect(appearance.layers[0]?.asset, definition.id).toContain(
+        `/arena/${definition.classId}/${definition.icon.split('/').at(-1)}`,
+      );
+    }
+  });
+
   it('纸箱键帽套使用喵喵专属整身替换并只叠加同画布双爪', () => {
     const equipped = emptyEquipped();
     equipped.body = instance('eq_shop_cardboard-cat_body_catkin');
@@ -305,22 +318,22 @@ describe('角色换装外观解析', () => {
     expect(appearance.baseAsset).toBe('assets/characters/modular/dungeon/azure/witch-body.png');
   });
 
-  it('精品店帽饰声明提到脸层之上，副本鞋不再叠加到人物身上', () => {
+  it('精品店帽饰提到脸层之上，副本鞋贴脚并切换无鞋底模', () => {
     const equipped = emptyEquipped();
     equipped.head = instance('eq_shop_rose-night_head');
     equipped.shoes = instance('eq_dungeon_azure_shoes_1');
 
     const appearance = resolveCharacterAppearance('catkin', 20, equipped);
 
-    expect(appearance.layers).toHaveLength(1);
-    expect(appearance.layers[0]?.slot).toBe('head');
-    expect(appearance.layers[0]?.aboveFace).toBe(true);
-    expect(appearance.visibleEquippedCount).toBe(1);
+    expect(appearance.layers.map((layer) => layer.slot)).toEqual(['shoes', 'head']);
+    expect(appearance.layers.find((layer) => layer.slot === 'head')?.aboveFace).toBe(true);
+    expect(appearance.baseAsset).toBe('assets/characters/modular/catkin/base-noshoes.png');
+    expect(appearance.visibleEquippedCount).toBe(2);
     expect(appearance.equippedCount).toBe(2);
   });
 
-  it('区域 3/4 的八个部位都显式登记，三个可见槽为五职业独立图层', () => {    for (const regionId of ['r3', 'r4']) {
-      for (const slot of ['body', 'head', 'weapon'] as const) {
+  it('区域 3/4 的八个部位都显式登记，四个可见槽为五职业独立图层', () => {    for (const regionId of ['r3', 'r4']) {
+      for (const slot of ['body', 'head', 'weapon', 'shoes'] as const) {
         const appearance = REGION_34_EQUIPMENT_APPEARANCES[`${regionId}-${slot}`];
         expect(appearance).toBeDefined();
         if (!appearance) continue;
@@ -344,7 +357,7 @@ describe('角色换装外观解析', () => {
           );
         }
       }
-      for (const slot of ['necklace', 'bracelet', 'ring', 'belt', 'shoes'] as const) {
+      for (const slot of ['necklace', 'bracelet', 'ring', 'belt'] as const) {
         expect(REGION_34_EQUIPMENT_APPEARANCES[`${regionId}-${slot}`]).toEqual({
           id: `${regionId}-${slot}`,
           slot,
@@ -356,10 +369,7 @@ describe('角色换装外观解析', () => {
 });
 
 describe('沉默视觉槽（silentVisualSlots）', () => {
-  // 2026-08-02：老板连发两张截图把「区域/副本鞋不渲染」当 bug 报。
-  // 那是刻意设计（整身装自带靴、独立鞋层悬空错位），但 UI 从不解释。
-  // 这两条钉住新契约：会被期待变化的四槽里，穿了不渲染的装备必须被点名。
-  it('穿区域鞋时 shoes 进入沉默清单——玩家该得到解释而不是以为坏了', () => {
+  it('穿区域鞋时真实叠加鞋层并使用无鞋底模', () => {
     const equipped = {
       weapon: null, head: null, body: null, necklace: null,
       bracelet: null, ring: null, belt: null,
@@ -367,8 +377,10 @@ describe('沉默视觉槽（silentVisualSlots）', () => {
         enhanceGainPermille: [], enhanceLuck: {}, affixes: [], reforgeResonance: 0, locked: false },
     } as never;
     const r = resolveCharacterAppearance('catkin', 71, equipped);
-    expect(r.silentVisualSlots).toContain('shoes');
-    expect(r.visibleEquippedCount).toBe(0);
+    expect(r.silentVisualSlots).not.toContain('shoes');
+    expect(r.visibleEquippedCount).toBe(1);
+    expect(r.baseAsset).toBe('assets/characters/modular/catkin/base-noshoes.png');
+    expect(r.layers.find((layer) => layer.slot === 'shoes')?.asset).toContain('/catkin/r6-shoes.png');
   });
 
   it('首饰四槽从不进入沉默清单——玩家不期待项链改变立绘', () => {
@@ -412,16 +424,14 @@ describe('樱酱适配三修（2026-08-02，docs/81 止血包）', () => {
     expect(s.silentVisualSlots).not.toContain('head');
   });
 
-  it('武器手提佩刀变换：樱酱武器层统一非零位移，老职业保持原位', () => {
+  it('武器已在资产管线永久对位：樱酱与老职业运行时都使用恒等变换', () => {
     const r = resolveCharacterAppearance('kenshi', 60, {
       ...empty,
       weapon: inst('eq_r6_weapon_legendary'),
     });
     const w = r.layers.find((l) => l.slot === 'weapon');
     expect(w).toBeDefined();
-    expect(w!.transform.scale).toBeLessThan(1);
-    expect(w!.transform.x).toBeLessThan(0);
-    expect(w!.transform.y).toBeGreaterThan(0);
+    expect(w!.transform).toEqual({ scale: 1, x: 0, y: 0 });
     const s = resolveCharacterAppearance('swordsman', 60, {
       ...empty,
       weapon: inst('eq_r6_weapon_legendary'),
@@ -429,11 +439,4 @@ describe('樱酱适配三修（2026-08-02，docs/81 止血包）', () => {
     expect(s.layers.find((l) => l.slot === 'weapon')!.transform).toEqual({ scale: 1, x: 0, y: 0 });
   });
 
-  it('实穿图标：樱酱整身替换件返回穿着资产，老职业与非替换件返回 null', () => {
-    const body = requireEquipment('eq_r6_body_legendary');
-    expect(kenshiWornIconOverride(body, 'kenshi')).toContain('kenshi/r6-body');
-    expect(kenshiWornIconOverride(body, 'swordsman')).toBeNull();
-    const weapon = requireEquipment('eq_r6_weapon_legendary');
-    expect(kenshiWornIconOverride(weapon, 'kenshi')).toBeNull();
-  });
 });

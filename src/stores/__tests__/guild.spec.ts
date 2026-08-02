@@ -439,8 +439,9 @@ describe('公会远征提交', () => {
         'level',
         'requestId',
         'seasonId',
-        // M3-5：远征由服务端跑真实战斗，技能栏必须一起送
+        // M3-5：远征由服务端跑真实战斗，技能栏与等级必须一起送
         'selectedActiveSkillIds',
+        'skillLevels',
       ].sort(),
     );
     expect(payload).not.toHaveProperty('damage');

@@ -145,6 +145,7 @@ describe('refresh / 进入竞技场', () => {
         // M3-5：玩家编排的技能栏。服务端跑真实战斗要用它复算，
         // 不传的话服务端按默认技能算，与客户端本地结果对不上。
         'selectedActiveSkillIds',
+        'skillLevels',
       ]).toContain(key);
     }
   });
@@ -210,6 +211,7 @@ describe('challenge / 发起挑战', () => {
         // M3-5：玩家编排的技能栏。服务端跑真实战斗要用它复算，
         // 不传的话服务端按默认技能算，与客户端本地结果对不上。
         'selectedActiveSkillIds',
+        'skillLevels',
       ]).toContain(key);
     }
   });
@@ -362,6 +364,7 @@ describe('challengeRevenge / 复仇反击', () => {
         'isRevenge',
         // M3-5：玩家编排的技能栏，服务端复算要用
         'selectedActiveSkillIds',
+        'skillLevels',
       ]).toContain(key);
     }
   });
