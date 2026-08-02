@@ -36,10 +36,7 @@ import type { ClassId, Element } from '@/core/types';
 import { AFFECTION_CHARACTERS } from '@/data/affection';
 import { CLASS_VISUALS } from '@/data/classVisuals';
 import { ELEMENT_LABELS } from '@/data/trialRules';
-import {
-  LEGACY_TRIAL_FORMULA_VERSION,
-  TRIAL_FORMULA_VERSION,
-} from '@/core/trialFormulaVersion';
+import { LEGACY_TRIAL_FORMULA_VERSION, TRIAL_FORMULA_VERSION } from '@/core/trialFormulaVersion';
 import { useGameStore } from '@/stores/game';
 import { useLeaderboardStore, type TrialChallengeOutcome } from '@/stores/leaderboard';
 import type { TrialSubmitResult } from '@/net/leaderboard';
@@ -469,7 +466,6 @@ onUnmounted(() => {
             </span>
           </div>
         </div>
-
       </section>
 
       <TrialBattleScene
@@ -580,8 +576,7 @@ onUnmounted(() => {
         </div>
         <p
           v-if="
-            (boardTab === 'neighborhood' || boardTab === 'top') &&
-            lb.viewingHistoricalTrialFormula
+            (boardTab === 'neighborhood' || boardTab === 'top') && lb.viewingHistoricalTrialFormula
           "
           class="board-note formula-history-note"
         >
@@ -1355,19 +1350,19 @@ onUnmounted(() => {
 .challenge-btn {
   position: relative;
   min-width: 108px;
-  min-height: 42px;
+  min-height: 44px;
   overflow: hidden;
 }
 
 .upload-btn {
   min-width: 108px;
-  min-height: 32px;
+  min-height: 44px;
   font-size: 11px;
 }
 
 .profile-btn {
   min-width: 108px;
-  min-height: 30px;
+  min-height: 44px;
   gap: 4px;
   font-size: 10px;
 }
@@ -1427,7 +1422,7 @@ onUnmounted(() => {
   position: relative;
   z-index: 1;
   flex: 1;
-  min-height: 42px;
+  min-height: 44px;
   padding: 7px 0;
   font-size: 11px;
   font-weight: 600;

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 const guild = readFileSync(new URL('../../views/GuildView.vue', import.meta.url), 'utf8');
 const more = readFileSync(new URL('../../views/MoreView.vue', import.meta.url), 'utf8');
+const detail = readFileSync(new URL('../guild/GuildDetailSheet.vue', import.meta.url), 'utf8');
 const commissions = readFileSync(
   new URL('../guild/GuildCommissionBoard.vue', import.meta.url),
   'utf8',
@@ -28,8 +29,10 @@ describe('公会竖屏与单层页面契约', () => {
     expect(guild).toContain('env(safe-area-inset-top)');
   });
 
-  it('页面使用绝对单层覆盖，不创建 dialog 或弹窗套弹窗', () => {
-    expect(guild).toMatch(/\.guild-view\s*\{[\s\S]*?position:\s*absolute/);
+  it('页面固定在全局顶栏与底栏之间，不再随更多页长内容延伸到导航栏下方', () => {
+    expect(guild).toMatch(/\.guild-view\s*\{[\s\S]*?position:\s*fixed/);
+    expect(guild).toContain('top: calc(var(--topbar-h) + var(--sat))');
+    expect(guild).toContain('bottom: calc(var(--tabbar-h) + var(--sab))');
     expect(guild).not.toContain('<dialog');
     expect(guild).not.toContain('role="dialog"');
     expect(guild).not.toContain('Teleport');
@@ -57,7 +60,7 @@ describe('公会竖屏与单层页面契约', () => {
   it('会员与非会员都能通过广场浏览任意公会详情', () => {
     expect(guild).toContain("id: 'plaza'");
     expect(guild).toContain('<GuildPlazaList');
-    expect(guild).toContain('<GuildDetailSheet />');
+    expect(guild).toContain('<GuildDetailSheet @peek-member="openPublicMemberPeek" />');
     expect(guild).toContain('guild.openDetail(item.id)');
   });
 
@@ -68,6 +71,10 @@ describe('公会竖屏与单层页面契约', () => {
     expect(guild).toContain('<PlayerPeekSheet');
     expect(guild).toContain('context="guild"');
     expect(guild).toContain('@close="memberPeekTarget = null"');
+    expect(guild).toContain('openPublicMemberPeek(member: GuildMember, index: number)');
+    expect(detail).toContain("emit('peek-member', member, index)");
+    expect(detail).toContain('class="roster-row"');
+    expect(detail).toContain('查看成员 ${member.displayName} 的人物详情');
   });
 
   it('邀请码加入与复制邀请入口齐备', () => {

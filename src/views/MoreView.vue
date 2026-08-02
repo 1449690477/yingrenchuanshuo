@@ -154,7 +154,9 @@ function say(text: string, ok: boolean) {
       >
         <span class="boutique-shade" />
         <span class="boutique-copy">
-          <small><Sparkles :size="11" />{{ boutiqueOfferCount }} 件本职业珍品 · 五职业专属外观</small>
+          <small
+            ><Sparkles :size="11" />{{ boutiqueOfferCount }} 件本职业珍品 · 五职业专属外观</small
+          >
           <strong>樱花珍品店</strong>
           <span>紫 · 金 · 红洛丽塔系列，支持试穿、专属互动与攻击换肤。</span>
           <em><Coins :size="11" />只收分解与挂机获得的金币</em>
@@ -589,6 +591,10 @@ function say(text: string, ok: boolean) {
   display: flex;
   gap: 8px;
   padding: 10px 12px 12px;
+}
+
+.btns .btn {
+  min-height: 44px;
 }
 
 .f {

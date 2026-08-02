@@ -38,6 +38,6 @@ describe('背包首屏触控精度', () => {
 
     expect(bag).toMatch(/\.t\s*\{[\s\S]*?min-height:\s*44px/);
     expect(bag).toMatch(/\.sm\s*\{[\s\S]*?min-height:\s*44px/);
-    expect(bag).toMatch(/\.score-sort button\s*\{[\s\S]*?min-height:\s*40px/);
+    expect(bag).toMatch(/\.score-sort button\s*\{[\s\S]*?min-height:\s*44px/);
   });
 });

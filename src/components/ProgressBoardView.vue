@@ -13,6 +13,7 @@ import { computed, onMounted } from 'vue';
 import { CloudOff, Flag, Info, Sparkles } from '@lucide/vue';
 import { useGameStore } from '@/stores/game';
 import { useProgressBoardStore } from '@/stores/progressBoard';
+import { progressBoardSceneAsset } from '@/data/boardVisuals';
 import ProfileAvatar from '@/components/ProfileAvatar.vue';
 
 const game = useGameStore();
@@ -26,6 +27,9 @@ const systemReduced =
 const motionReduced = computed(() => systemReduced || Boolean(game.save?.settings.reduceMotion));
 
 const heroTitle = computed(() => board.localStageLabel?.stageName ?? '尚未启程');
+const heroSceneUrl = computed(
+  () => `${import.meta.env.BASE_URL}${progressBoardSceneAsset(board.localClaim?.stageId ?? null)}`,
+);
 const heroSub = computed(() => {
   if (!board.localClaim || !board.localStageLabel) {
     return '还没有通关记录 —— 去推第一关吧';
@@ -74,6 +78,8 @@ onMounted(() => {
   <div class="rally">
     <!-- ═══ 你的开荒 ═══ -->
     <section class="card rally-hero">
+      <img class="rally-scene" :src="heroSceneUrl" alt="" aria-hidden="true" />
+      <span class="rally-scene-veil" aria-hidden="true" />
       <template v-if="!motionReduced">
         <span class="rally-aura" aria-hidden="true" />
         <i v-for="n in 10" :key="n" class="petal" :class="`petal-${n}`" aria-hidden="true" />
@@ -88,7 +94,9 @@ onMounted(() => {
         <span class="rally-label">最深首通</span>
         <strong class="rally-value">{{ heroTitle }}</strong>
         <span class="rally-sub">{{ heroSub }}</span>
-        <span v-if="board.localClaim" class="rally-time">{{ fmtDate(board.localClaim.firstClearedAt) }}</span>
+        <span v-if="board.localClaim" class="rally-time">{{
+          fmtDate(board.localClaim.firstClearedAt)
+        }}</span>
         <span v-if="board.myPercentile !== null" class="rally-badge">
           <Sparkles :size="11" aria-hidden="true" />进度超过 {{ board.myPercentile }}% 的旅人
         </span>
@@ -114,7 +122,9 @@ onMounted(() => {
         <CloudOff :size="13" aria-hidden="true" />
         <span>网络未连接，榜单暂不可用；你的开荒进度在本地安然无恙。</span>
       </div>
-      <p v-if="board.lastError && board.status === 'ready'" class="rally-error">{{ board.lastError }}</p>
+      <p v-if="board.lastError && board.status === 'ready'" class="rally-error">
+        {{ board.lastError }}
+      </p>
     </section>
 
     <!-- ═══ 开荒同行榜 ═══ -->
@@ -177,7 +187,38 @@ onMounted(() => {
 .rally-hero {
   position: relative;
   overflow: hidden;
+  min-height: 236px;
   padding: 16px 16px 14px;
+  color: #fff;
+  background: #526f8d;
+  border-color: rgb(255 255 255 / 72%);
+  box-shadow: 0 12px 30px rgb(57 82 111 / 24%);
+}
+
+.rally-scene,
+.rally-scene-veil {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.rally-scene {
+  object-fit: cover;
+  transform: scale(1.035);
+  animation: scene-drift 12s ease-in-out infinite alternate;
+}
+
+.rally-scene-veil {
+  background:
+    linear-gradient(90deg, rgb(27 44 62 / 80%) 0%, rgb(37 55 76 / 48%) 58%, rgb(36 48 65 / 24%)),
+    linear-gradient(0deg, rgb(22 35 50 / 76%) 0%, transparent 66%);
+}
+
+@keyframes scene-drift {
+  to {
+    transform: scale(1.09) translateX(-1.5%);
+  }
 }
 
 .rally-aura {
@@ -224,16 +265,66 @@ onMounted(() => {
   pointer-events: none;
 }
 
-.petal-1 { --mx: 6%;  --mdur: 6.4s; --msize: 3px; animation-delay: -1.2s; }
-.petal-2 { --mx: 16%; --mdur: 7.8s; --msize: 5px; animation-delay: -4.1s; }
-.petal-3 { --mx: 27%; --mdur: 5.9s; --msize: 3px; animation-delay: -2.6s; }
-.petal-4 { --mx: 38%; --mdur: 8.4s; --msize: 4px; animation-delay: -6.3s; }
-.petal-5 { --mx: 47%; --mdur: 6.8s; --msize: 3px; animation-delay: -0.7s; }
-.petal-6 { --mx: 58%; --mdur: 7.4s; --msize: 5px; animation-delay: -3.8s; }
-.petal-7 { --mx: 67%; --mdur: 6.1s; --msize: 3px; animation-delay: -5.2s; }
-.petal-8 { --mx: 76%; --mdur: 8.9s; --msize: 4px; animation-delay: -2.1s; }
-.petal-9 { --mx: 85%; --mdur: 7.1s; --msize: 3px; animation-delay: -4.9s; }
-.petal-10 { --mx: 93%; --mdur: 6.6s; --msize: 4px; animation-delay: -1.6s; }
+.petal-1 {
+  --mx: 6%;
+  --mdur: 6.4s;
+  --msize: 3px;
+  animation-delay: -1.2s;
+}
+.petal-2 {
+  --mx: 16%;
+  --mdur: 7.8s;
+  --msize: 5px;
+  animation-delay: -4.1s;
+}
+.petal-3 {
+  --mx: 27%;
+  --mdur: 5.9s;
+  --msize: 3px;
+  animation-delay: -2.6s;
+}
+.petal-4 {
+  --mx: 38%;
+  --mdur: 8.4s;
+  --msize: 4px;
+  animation-delay: -6.3s;
+}
+.petal-5 {
+  --mx: 47%;
+  --mdur: 6.8s;
+  --msize: 3px;
+  animation-delay: -0.7s;
+}
+.petal-6 {
+  --mx: 58%;
+  --mdur: 7.4s;
+  --msize: 5px;
+  animation-delay: -3.8s;
+}
+.petal-7 {
+  --mx: 67%;
+  --mdur: 6.1s;
+  --msize: 3px;
+  animation-delay: -5.2s;
+}
+.petal-8 {
+  --mx: 76%;
+  --mdur: 8.9s;
+  --msize: 4px;
+  animation-delay: -2.1s;
+}
+.petal-9 {
+  --mx: 85%;
+  --mdur: 7.1s;
+  --msize: 3px;
+  animation-delay: -4.9s;
+}
+.petal-10 {
+  --mx: 93%;
+  --mdur: 6.6s;
+  --msize: 4px;
+  animation-delay: -1.6s;
+}
 
 @keyframes petal-rise {
   0% {
@@ -263,13 +354,16 @@ onMounted(() => {
   gap: 5px;
   font-size: 13px;
   font-weight: 800;
-  color: var(--pink-deep);
+  color: #fff;
+  text-shadow: 0 1px 5px rgb(17 33 49 / 55%);
 }
 .rally-tag {
   font-size: 10px;
   font-weight: 700;
-  color: var(--pink-deep);
-  background: var(--pink-soft);
+  color: #fff;
+  background: rgb(255 255 255 / 18%);
+  border: 1px solid rgb(255 255 255 / 28%);
+  backdrop-filter: blur(8px);
   border-radius: 999px;
   padding: 3px 8px;
 }
@@ -279,28 +373,34 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 3px;
+  width: min(76%, 270px);
+  padding: 10px 11px;
+  background: rgb(20 36 54 / 34%);
+  border: 1px solid rgb(255 255 255 / 16%);
+  border-radius: 13px;
+  backdrop-filter: blur(7px);
 }
 .rally-label {
   font-size: 11px;
   font-weight: 600;
-  color: var(--text-dim);
+  color: rgb(255 255 255 / 76%);
 }
 .rally-value {
   font-size: 26px;
   font-weight: 900;
   line-height: 1.15;
-  background: linear-gradient(120deg, var(--pink-deep), #b98cf7);
+  background: linear-gradient(120deg, #fff, #ffd1e4 58%, #bfe8ff);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
 }
 .rally-sub {
   font-size: 11px;
-  color: var(--text-dim);
+  color: rgb(255 255 255 / 82%);
 }
 .rally-time {
   font-size: 10px;
-  color: var(--text-dim);
+  color: rgb(255 255 255 / 68%);
   font-variant-numeric: tabular-nums;
 }
 .rally-badge {
@@ -325,14 +425,17 @@ onMounted(() => {
   gap: 6px;
 }
 .rally-actions .btn {
+  min-height: 44px;
   align-self: flex-start;
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  box-shadow: 0 8px 20px rgb(27 42 60 / 24%);
 }
 .rally-hint {
   font-size: 10px;
-  color: var(--text-dim);
+  color: rgb(255 255 255 / 74%);
+  text-shadow: 0 1px 4px rgb(17 31 45 / 42%);
 }
 .rally-error {
   position: relative;
@@ -520,7 +623,11 @@ onMounted(() => {
 /* ═══ 小屏适配（320px 一档不疏忽） ═══ */
 @media (max-width: 340px) {
   .rally-hero {
+    min-height: 228px;
     padding: 13px 12px 11px;
+  }
+  .rally-body {
+    width: min(82%, 250px);
   }
   .rally-value {
     font-size: 21px;
@@ -549,6 +656,7 @@ onMounted(() => {
 
 /* ═══ 减弱动效 ═══ */
 @media (prefers-reduced-motion: reduce) {
+  .rally-scene,
   .rally-aura,
   .petal,
   .sk,

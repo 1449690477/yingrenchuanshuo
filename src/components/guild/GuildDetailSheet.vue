@@ -1,12 +1,14 @@
 <script setup lang="ts">
 /** 公会详情底部弹层：名片、公告、本周远征进度与公开名册；未加入者在此加入。 */
 import { computed } from 'vue';
-import { Crown, Swords, Users, X } from '@lucide/vue';
+import { ChevronRight, Crown, Swords, Users, X } from '@lucide/vue';
 import { abbr } from '@/core/format';
 import { guildDisplayStage } from '@/core/guildExpedition';
 import { useGuildStore } from '@/stores/guild';
+import type { GuildMember } from '@/net/guild';
 import { crestInitial, crestTintClass } from './guildCrest';
 
+const emit = defineEmits<{ 'peek-member': [member: GuildMember, index: number] }>();
 const guild = useGuildStore();
 
 const detail = computed(() => guild.detail);
@@ -68,7 +70,9 @@ async function join() {
 
           <div class="sheet-stats">
             <div>
-              <strong class="num">{{ detail.guild.memberCount }}/{{ detail.guild.memberLimit }}</strong>
+              <strong class="num"
+                >{{ detail.guild.memberCount }}/{{ detail.guild.memberLimit }}</strong
+              >
               <small>同行成员</small>
             </div>
             <div>
@@ -95,18 +99,30 @@ async function join() {
           </div>
 
           <div v-if="detail.members.length" class="sheet-roster">
-            <div class="roster-heading">
-              <Users :size="14" aria-hidden="true" />成员名册
-            </div>
+            <div class="roster-heading"><Users :size="14" aria-hidden="true" />成员名册</div>
             <div class="roster-scroll scroll-y">
-              <div v-for="member in detail.members" :key="member.userId" class="roster-row">
-                <span class="roster-avatar" aria-hidden="true">{{ crestInitial(member.displayName) }}</span>
-                <strong>
-                  {{ member.displayName }}
-                  <Crown v-if="member.role === 'leader'" :size="13" aria-hidden="true" />
-                </strong>
-                <small class="num">Lv.{{ member.level }} · 战力 {{ abbr(member.combatPower) }}</small>
-              </div>
+              <button
+                v-for="(member, index) in detail.members"
+                :key="member.userId"
+                type="button"
+                class="roster-row"
+                :aria-label="`查看成员 ${member.displayName} 的人物详情`"
+                @click="emit('peek-member', member, index)"
+              >
+                <span class="roster-avatar" aria-hidden="true">{{
+                  crestInitial(member.displayName)
+                }}</span>
+                <span class="roster-copy">
+                  <strong>
+                    {{ member.displayName }}
+                    <Crown v-if="member.role === 'leader'" :size="13" aria-hidden="true" />
+                  </strong>
+                  <small class="num"
+                    >Lv.{{ member.level }} · 战力 {{ abbr(member.combatPower) }}</small
+                  >
+                </span>
+                <ChevronRight class="roster-chevron" :size="16" aria-hidden="true" />
+              </button>
             </div>
           </div>
           <p v-else-if="guild.detailUnsupported" class="roster-pending">
@@ -324,16 +340,27 @@ async function join() {
   max-height: 11.5rem;
 }
 .roster-row {
-  min-height: 2.9rem;
+  width: 100%;
+  min-height: 3.25rem;
   display: grid;
-  grid-template-columns: 2rem minmax(0, 1fr) auto;
+  grid-template-columns: 2rem minmax(0, 1fr) 1rem;
   align-items: center;
   gap: 0.5rem;
   padding: 0.35rem 0.75rem;
+  color: inherit;
+  text-align: left;
+  background: transparent;
   border-bottom: 1px solid #f2f7fc;
+  transition:
+    background-color var(--t-fast) var(--ease-soft),
+    transform var(--t-fast) var(--ease-spring);
 }
 .roster-row:last-child {
   border-bottom: 0;
+}
+.roster-row:active {
+  background: linear-gradient(90deg, var(--blue-soft), var(--pink-soft));
+  transform: scale(0.985);
 }
 .roster-avatar {
   width: 2rem;
@@ -346,7 +373,13 @@ async function join() {
   background: linear-gradient(145deg, #fff0f6, #eaf6ff);
   border-radius: 50%;
 }
-.roster-row strong {
+.roster-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+.roster-copy strong {
   display: flex;
   align-items: center;
   gap: 0.25rem;
@@ -356,14 +389,17 @@ async function join() {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.roster-row strong svg {
+.roster-copy strong svg {
   flex-shrink: 0;
   color: #e8a43c;
 }
-.roster-row small {
+.roster-copy small {
   font-size: 0.6rem;
   color: var(--text-dim);
   white-space: nowrap;
+}
+.roster-chevron {
+  color: #9db2c4;
 }
 .roster-pending {
   margin: 0;

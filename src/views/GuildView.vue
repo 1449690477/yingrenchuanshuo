@@ -51,7 +51,7 @@ const game = useGameStore();
 const backButton = ref<HTMLButtonElement | null>(null);
 const guildPlaybackKey = ref(0);
 const guildHomeSceneUrl = `${import.meta.env.BASE_URL}${GUILD_HOME_SCENE_ASSET}`;
-const memberPeekTarget = ref<{ member: GuildMember; position: number } | null>(null);
+const memberPeekTarget = ref<{ member: GuildMember; position: number; total: number } | null>(null);
 const systemReduced =
   typeof window !== 'undefined' &&
   typeof window.matchMedia === 'function' &&
@@ -240,7 +240,17 @@ function openPlazaDetail(item: GuildSummary) {
 }
 
 function openMemberPeek(member: GuildMember, index: number): void {
-  memberPeekTarget.value = { member, position: index + 1 };
+  memberPeekTarget.value = {
+    member,
+    position: index + 1,
+    total: guild.membership?.members.length ?? 0,
+  };
+}
+
+function openPublicMemberPeek(member: GuildMember, index: number): void {
+  const total = guild.detail?.members.length ?? 0;
+  memberPeekTarget.value = { member, position: index + 1, total };
+  guild.closeDetail();
 }
 </script>
 
@@ -283,6 +293,8 @@ function openMemberPeek(member: GuildMember, index: number): void {
 
       <template v-else-if="!guild.membership">
         <section class="welcome-hero">
+          <img class="welcome-hero-scene" :src="guildHomeSceneUrl" alt="" aria-hidden="true" />
+          <i class="welcome-hero-veil" aria-hidden="true" />
           <i class="hero-petal hp-a" aria-hidden="true" /><i
             class="hero-petal hp-b"
             aria-hidden="true"
@@ -692,7 +704,7 @@ function openMemberPeek(member: GuildMember, index: number): void {
       :rank="memberPeekTarget.position"
       :is-me="memberPeekTarget.member.userId === guild.userId"
       :podium="false"
-      :total="guild.membership?.members.length"
+      :total="memberPeekTarget.total"
       :level="memberPeekTarget.member.level"
       :combat-power="memberPeekTarget.member.combatPower"
       :can-report="false"
@@ -700,7 +712,7 @@ function openMemberPeek(member: GuildMember, index: number): void {
       @close="memberPeekTarget = null"
     />
 
-    <GuildDetailSheet />
+    <GuildDetailSheet @peek-member="openPublicMemberPeek" />
 
     <Transition name="toast-up">
       <p v-if="toastMessage" class="guild-toast" role="status">{{ toastMessage }}</p>
@@ -710,9 +722,15 @@ function openMemberPeek(member: GuildMember, index: number): void {
 
 <style scoped>
 .guild-view {
-  position: absolute;
+  position: fixed;
   z-index: 30;
-  inset: 0;
+  top: calc(var(--topbar-h) + var(--sat));
+  right: 0;
+  bottom: calc(var(--tabbar-h) + var(--sab));
+  left: 0;
+  width: 100%;
+  max-width: var(--app-max-w);
+  margin-inline: auto;
   min-width: 0;
   min-height: 0;
   display: flex;
@@ -972,6 +990,39 @@ textarea:focus-visible {
   border-radius: 1.3rem;
   box-shadow: var(--shadow-float);
   background: linear-gradient(135deg, #6fa8d4, #8dbbdc 48%, #e791b3);
+}
+.welcome-hero {
+  min-height: 9.4rem;
+  background: #7298bb;
+}
+.welcome-hero-scene,
+.welcome-hero-veil {
+  position: absolute !important;
+  z-index: 0 !important;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.welcome-hero-scene {
+  object-fit: cover;
+  object-position: center 48%;
+  transform: scale(1.025);
+  animation: welcome-scene-drift 12s ease-in-out infinite alternate;
+}
+.welcome-hero-veil {
+  background:
+    linear-gradient(
+      90deg,
+      rgb(47 88 124 / 78%) 0%,
+      rgb(66 104 137 / 48%) 58%,
+      rgb(164 88 128 / 42%)
+    ),
+    linear-gradient(0deg, rgb(49 68 91 / 48%), transparent 70%);
+}
+@keyframes welcome-scene-drift {
+  to {
+    transform: scale(1.075) translateX(-1.2%);
+  }
 }
 .welcome-hero > *,
 .guild-banner > * {
@@ -1953,6 +2004,23 @@ textarea {
   }
 }
 @media (max-width: 360px) {
+  .welcome-hero {
+    min-height: 10.25rem;
+    grid-template-columns: 3rem minmax(0, 1fr);
+    align-items: end;
+    gap: 0.65rem;
+    padding: 0.9rem 0.8rem;
+  }
+  .welcome-hero .hero-crest {
+    width: 3rem;
+    height: 3rem;
+  }
+  .welcome-hero .hero-copy h2 {
+    font-size: 0.96rem;
+  }
+  .welcome-hero .hero-copy p {
+    font-size: 0.63rem;
+  }
   .guild-banner {
     min-height: 11.25rem;
     grid-template-columns: auto minmax(0, 1fr);
@@ -1985,6 +2053,7 @@ textarea {
   .hero-petal,
   .hero-sparkle,
   .guild-banner-scene,
+  .welcome-hero-scene,
   .banner-shine,
   .boss-orbit,
   .progress-track i::after,

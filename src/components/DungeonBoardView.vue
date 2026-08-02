@@ -446,7 +446,7 @@ onMounted(() => {
 }
 .chip {
   min-width: 0;
-  min-height: 40px;
+  min-height: 44px;
   display: grid;
   place-items: center;
   border: 1px solid var(--line);

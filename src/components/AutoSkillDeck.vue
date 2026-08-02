@@ -672,7 +672,7 @@ onUnmounted(() => {
 
 .deck-head {
   display: flex;
-  min-height: 21px;
+  min-height: 44px;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
@@ -683,6 +683,7 @@ onUnmounted(() => {
 .deck-toggle {
   display: flex;
   width: 100%;
+  min-height: 44px;
   min-width: 0;
   align-items: center;
   justify-content: space-between;

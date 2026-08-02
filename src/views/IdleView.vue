@@ -465,11 +465,7 @@ function openLootEntry(entry: { itemId: string; isEquipment: boolean; count: num
       </template>
     </div>
 
-    <SweepResultModal
-      v-if="sweepResult"
-      :result="sweepResult"
-      @close="sweepResult = null"
-    />
+    <SweepResultModal v-if="sweepResult" :result="sweepResult" @close="sweepResult = null" />
 
     <div class="efficiency-row" :class="efficiencyStatus.level">
       <span class="efficiency-copy">
@@ -927,11 +923,13 @@ function openLootEntry(entry: { itemId: string; isEquipment: boolean; count: num
 
 .stamina-label {
   display: flex;
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0;
   align-items: baseline;
   gap: 6px;
   font-size: 12px;
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .stamina-label small {
@@ -941,12 +939,15 @@ function openLootEntry(entry: { itemId: string; isEquipment: boolean; count: num
 }
 
 .stamina-num {
+  flex-shrink: 0;
   font-size: 12px;
   font-weight: 600;
   color: var(--text-dim, #8a7f8a);
 }
 
 .stamina-claim-btn {
+  min-height: 44px;
+  flex-shrink: 0;
   padding: 5px 10px;
   border: none;
   border-radius: 8px;
@@ -998,6 +999,7 @@ function openLootEntry(entry: { itemId: string; isEquipment: boolean; count: num
 }
 
 .sweep-btn {
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
   gap: 3px;
@@ -1275,8 +1277,8 @@ function openLootEntry(entry: { itemId: string; isEquipment: boolean; count: num
 
 .feed-chip {
   display: grid;
-  width: 26px;
-  height: 26px;
+  width: 44px;
+  height: 44px;
   flex-shrink: 0;
   place-items: center;
   background: rgb(255 255 255 / 88%);
@@ -1298,8 +1300,8 @@ function openLootEntry(entry: { itemId: string; isEquipment: boolean; count: num
 }
 
 .feed-chip img {
-  width: 18px;
-  height: 18px;
+  width: 23px;
+  height: 23px;
   object-fit: contain;
   filter: drop-shadow(0 1px 2px rgb(24 38 52 / 18%));
 }
@@ -1683,7 +1685,7 @@ function openLootEntry(entry: { itemId: string; isEquipment: boolean; count: num
 }
 
 .loot-toolbar button {
-  min-height: 30px;
+  min-height: 44px;
   flex-shrink: 0;
   padding: 0 9px;
   font-size: 9px;
@@ -1764,7 +1766,7 @@ function openLootEntry(entry: { itemId: string; isEquipment: boolean; count: num
 
 .loot-group-head {
   width: 100%;
-  min-height: 38px;
+  min-height: 44px;
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: center;
@@ -1840,7 +1842,7 @@ function openLootEntry(entry: { itemId: string; isEquipment: boolean; count: num
   align-items: center;
   gap: clamp(6px, 2vw, 9px);
   width: 100%;
-  min-height: 40px;
+  min-height: 44px;
   padding: 4px clamp(6px, 2vw, 9px) 4px 11px;
   font-size: clamp(11px, 3.1vw, 12.5px);
   text-align: left;
@@ -2010,6 +2012,15 @@ function openLootEntry(entry: { itemId: string; isEquipment: boolean; count: num
 
   .window-chrome {
     padding: 7px 11px 6px;
+  }
+
+  .stamina-label small,
+  .sweep-label small {
+    display: none;
+  }
+
+  .loot-feed .feed-chip:nth-child(n + 6) {
+    display: none;
   }
 }
 

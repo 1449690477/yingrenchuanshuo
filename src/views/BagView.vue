@@ -1025,7 +1025,7 @@ onUnmounted(() => {
 }
 
 .score-sort button {
-  min-height: 40px;
+  min-height: 44px;
   padding: 6px 15px;
   font-size: 10px;
   font-weight: 700;

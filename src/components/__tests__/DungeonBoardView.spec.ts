@@ -147,7 +147,7 @@ describe('挂载冒烟：新档玩家打开秘境榜', () => {
     expect(el.textContent).toContain('STEP 3选择挑战深度');
     expect(boardSource).toContain('grid-template-columns: repeat(4, minmax(0, 1fr))');
     expect(boardSource).toContain('grid-template-columns: repeat(5, minmax(0, 1fr))');
-    expect(boardSource).toContain('min-height: 40px');
+    expect(boardSource).toContain('min-height: 44px');
   });
 
   it('一层没打过时不假装有成绩，且空态给的是邀请', async () => {
