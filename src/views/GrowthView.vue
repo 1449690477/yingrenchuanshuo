@@ -34,7 +34,7 @@ import EquipmentSetStatus from '@/components/EquipmentSetStatus.vue';
 import EquipmentPresetPanel from '@/components/EquipmentPresetPanel.vue';
 import EquipmentAdvancementPanel from '@/components/EquipmentAdvancementPanel.vue';
 import ReforgeStudio from '@/components/reforge/ReforgeStudio.vue';
-import SkillIcon from '@/components/SkillIcon.vue';
+import SkillTreePanel from '@/components/SkillTreePanel.vue';
 import AffectionPanel from '@/components/affection/AffectionPanel.vue';
 import AffectionCompanionPanel, {
   type AffectionCompanionSection,
@@ -667,7 +667,7 @@ onUnmounted(() => {
       v-if="visualSkills.length > 0"
       class="skills-card row-in"
       style="--row-delay: 90ms"
-      :title="`${CLASS_INFO[player.player.classId].name}技能演出`"
+      :title="`${CLASS_INFO[player.player.classId].name}技能树`"
       subtitle="随等级解锁"
       persist-key="growth.skills"
       :default-open="!compactLayout"
@@ -675,23 +675,7 @@ onUnmounted(() => {
       <template #peek>
         <span class="skills-peek">已解锁 {{ unlockedSkillCount }}/{{ visualSkills.length }}</span>
       </template>
-      <div class="skills">
-        <div
-          v-for="skill in visualSkills"
-          :key="skill.id"
-          class="skill-row"
-          :class="{ locked: player.player.level < skill.unlockLevel }"
-        >
-          <SkillIcon :skill="skill" :locked="player.player.level < skill.unlockLevel" />
-          <span class="skill-copy">
-            <span class="skill-name">{{ skill.name }}</span>
-            <span class="skill-desc">{{ skill.desc }}</span>
-          </span>
-          <span class="skill-level">
-            {{ player.player.level >= skill.unlockLevel ? '已解锁' : `Lv${skill.unlockLevel}` }}
-          </span>
-        </div>
-      </div>
+      <SkillTreePanel />
     </CollapsibleCard>
 
     <!-- 属性面板 -->
@@ -884,64 +868,6 @@ onUnmounted(() => {
 .stats-peek {
   font-size: 10px;
   color: var(--text-dim);
-}
-
-.skills {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 9px;
-}
-
-.skill-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px;
-  background: linear-gradient(100deg, #fff8fb, #f5f8ff);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-}
-
-.skill-row.locked {
-  background: var(--panel-2);
-}
-
-.skill-copy {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.skill-name {
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.skill-desc {
-  overflow: hidden;
-  color: var(--text-dim);
-  font-size: 9px;
-  line-height: 1.4;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.skill-level {
-  flex-shrink: 0;
-  padding: 2px 6px;
-  font-size: 9px;
-  font-weight: 700;
-  color: var(--pink-deep);
-  background: var(--pink-soft);
-  border-radius: 999px;
-}
-
-.locked .skill-level {
-  color: var(--text-dim);
-  background: var(--panel-3);
 }
 
 /* ── 卡片通用 ── */
