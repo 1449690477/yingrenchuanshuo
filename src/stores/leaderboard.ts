@@ -13,9 +13,8 @@ import { defineStore } from 'pinia';
 import { useGameStore } from './game';
 import { ensureAnonymousSession, getSupabaseClient, isSupabaseConfigured } from '@/net/supabase';
 import {
-  countStaleFormulaProfiles,
   fetchMyPowerRank,
-  fetchPowerTop,
+  fetchPowerBoard,
   fetchTrialNeighborhood,
   fetchTrialTop,
   submitTrialScore,
@@ -23,7 +22,7 @@ import {
   trialNeighborhoodIsPreview,
   upsertProfile,
   type MyPowerRank,
-  type PowerBoardRow,
+  type PowerBoard,
   type TrialBoardFilter,
   type TrialBoardRow,
   type TrialSubmitResult,

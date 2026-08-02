@@ -19,10 +19,9 @@ import {
   upsertProfile,
   type TrialBoardRow,
   fetchMyPowerRank,
-  fetchPowerTop,
+  fetchPowerBoard,
   type TrialSubmission,
 } from '../leaderboard';
-import { CP_FORMULA_VERSION } from '@/core/cpFormulaVersion';
 import { TRIAL_FORMULA_VERSION } from '@/core/trialFormulaVersion';
 import { combatPowerCeiling } from '@/core/combatPowerBound';
 import { NetRequestError } from '../supabase';
@@ -458,218 +457,388 @@ describe('trial_neighborhood 迁移的 SQL 契约', () => {
 });
 
 /**
- * 战力榜的纵深防御（docs/65 §六之二 方向 B）。
+ * 战力榜：版本握手与纵深防御。
  *
- * profiles 的写策略是 for all —— 已登录玩家能直接 PATCH 自己那一行的
- * combat_power，也就是名次可以自填。方向 A 会把写权限收进 Edge Function；
- * 在那之前（以及万一将来某个新写入点又把权限放开时），
- * 展示层这道过滤保证物理上不可能的数字进不了榜。
+ * ── 这一组测试存在的理由（2026-08-02）──
+ * 过滤曾经写成「客户端 bundle 里的 CP_FORMULA_VERSION == 行上的戳」，
+ * 而等号两侧来自**两个独立部署的产物**。老测试两侧都写 CP_FORMULA_VERSION，
+ * 于是**无论实现怎么写都是绿的** —— 这正是这个 bug 能发到线上的原因。
+ *
+ * 所以下面每一条 ★ 都刻意让「我的戳」与「服务端正在写的戳」**不相等**，
+ * 并断言玩家仍然看得见自己。两边相等的那条留着，但它证明不了任何事。
  */
-describe('fetchPowerTop 过滤掉物理上不可能的战力', () => {
-  function powerStub(rows: unknown[]) {
-    const log: { limit?: number; eq: [string, unknown][] } = { eq: [] };
-    const builder: Record<string, unknown> = {};
-    Object.assign(builder, {
-      select: () => builder,
-      order: () => builder,
-      eq: (column: string, value: unknown) => {
-        log.eq.push([column, value]);
-        return builder;
-      },
-      limit: (n: number) => {
-        log.limit = n;
-        return Promise.resolve({ data: rows, error: null });
-      },
-    });
-    const client = { from: () => builder } as unknown as SupabaseClient;
-    return { client, log };
+describe('fetchPowerBoard 在版本不一致时仍然让玩家看见自己', () => {
+  interface FakeProfile {
+    id: string;
+    display_name: string;
+    bio: string | null;
+    avatar_url: string | null;
+    class_id: string;
+    level: number;
+    combat_power: number;
+    cp_formula_version: number;
+    updated_at: string;
   }
 
-  const honest = {
-    id: 'honest',
-    display_name: '老实人',
-    bio: null,
-    avatar_url: null,
-    class_id: 'swordsman',
-    level: 78,
-    combat_power: PLAUSIBLE_CP,
-    cp_formula_version: CP_FORMULA_VERSION,
-  };
-  const forged = { ...honest, id: 'forged', display_name: '自填哥', combat_power: 999_999_999 };
+  function profile(over: Partial<FakeProfile> & { id: string }): FakeProfile {
+    return {
+      display_name: over.id,
+      bio: null,
+      avatar_url: null,
+      class_id: 'swordsman',
+      level: 78,
+      combat_power: PLAUSIBLE_CP,
+      cp_formula_version: 2,
+      updated_at: '2026-08-02T03:00:00.000Z',
+      ...over,
+    };
+  }
+
+  /**
+   * power_board / power_rank_scan 的语义复刻（见 20260802010000 迁移）。
+   *
+   * 刻意**不复用任何生产代码**：这里要独立地表达「SQL 应该怎么答」，
+   * 复用了就变成自己证明自己。规则只有一条 ——
+   * **榜的版本取调用者自己那行的戳**，没有档案时取全表最新的那个。
+   */
+  function fakeDb(profiles: FakeProfile[]) {
+    const calls: { name: string; args: Record<string, unknown> }[] = [];
+    const rpc = (name: string, args: Record<string, unknown>) => {
+      calls.push({ name, args });
+      const meRow = profiles.find((p) => p.id === args.p_user_id) ?? null;
+      const newest = profiles.length
+        ? Math.max(...profiles.map((p) => p.cp_formula_version))
+        : null;
+      const ruler = meRow ? meRow.cp_formula_version : newest;
+
+      if (name === 'power_board') {
+        const board = profiles
+          .filter((p) => p.cp_formula_version === ruler)
+          .sort(
+            (a, b) =>
+              b.combat_power - a.combat_power || a.updated_at.localeCompare(b.updated_at),
+          );
+        const pending = profiles.filter((p) => p.cp_formula_version !== ruler).length;
+        const limit = Math.min(Math.max(Number(args.p_limit ?? 50), 1), 200);
+        return Promise.resolve({
+          data: board.slice(0, limit).map((p) => ({
+            id: p.id,
+            display_name: p.display_name,
+            bio: p.bio,
+            avatar_url: p.avatar_url,
+            class_id: p.class_id,
+            level: p.level,
+            combat_power: p.combat_power,
+            formula_version: ruler,
+            board_total: board.length,
+            pending_recalc: pending,
+            is_current: ruler === newest,
+          })),
+          error: null,
+        });
+      }
+      if (name === 'power_rank_scan') {
+        if (!meRow) return Promise.resolve({ data: [], error: null });
+        const above = profiles.filter(
+          (p) =>
+            p.cp_formula_version === meRow.cp_formula_version &&
+            p.combat_power > meRow.combat_power,
+        );
+        return Promise.resolve({
+          data: above.length
+            ? above.map((p) => ({
+                level: p.level,
+                class_id: p.class_id,
+                combat_power: p.combat_power,
+              }))
+            : // 有档案、但没人比我高：一行全 null，把它与「查无档案」区分开
+              [{ level: null, class_id: null, combat_power: null }],
+          error: null,
+        });
+      }
+      throw new Error(`未预期的 RPC：${name}`);
+    };
+    return { client: { rpc } as unknown as SupabaseClient, calls };
+  }
+
+  /**
+   * 2026-08-02 03:38 线上那一刻：12 个 Edge 已部署（在写版本 3），
+   * Pages CI 连红三次没上线（线上 bundle 仍是版本 2）。
+   * 已经进过游戏的人被盖成 3，没进过的还停在 2。
+   */
+  const deploySkew = [
+    profile({ id: 'me', cp_formula_version: 2 }),
+    profile({ id: 'v2-friend', cp_formula_version: 2, combat_power: RIVAL_CP }),
+    profile({ id: 'v3-early', cp_formula_version: 3, combat_power: RIVAL_CP }),
+    profile({ id: 'v3-early2', cp_formula_version: 3 }),
+  ];
+
+  it('★ 我的戳比服务端正在写的旧：我仍然在榜上，而不是从榜上消失', async () => {
+    const { client } = fakeDb(deploySkew);
+
+    const board = await fetchPowerBoard(client, 'me');
+
+    // 这一条就是事故本身：旧口径的玩家同步一次就从榜上消失了
+    expect(board.rows.map((r) => r.userId)).toContain('me');
+    expect(board.rows.find((r) => r.userId === 'me')!.isMe).toBe(true);
+  });
+
+  it('★ 旧戳玩家看到的榜里没有任何新戳的行 —— 两把尺不混排', async () => {
+    const { client } = fakeDb(deploySkew);
+
+    const board = await fetchPowerBoard(client, 'me');
+
+    expect(board.rows.map((r) => r.userId).sort()).toEqual(['me', 'v2-friend']);
+    expect(board.formulaVersion).toBe(2);
+  });
+
+  it('★ 而且如实告诉他这不是最新那把尺，并说明有几个人不在这张榜上', async () => {
+    const { client } = fakeDb(deploySkew);
+
+    const board = await fetchPowerBoard(client, 'me');
+
+    expect(board.isCurrent).toBe(false);
+    expect(board.pendingRecalc).toBe(2);
+  });
+
+  it('★ 反方向同样成立：我已被盖成新戳、大多数人还是旧戳，我也没消失', async () => {
+    // 老实现在这个方向上是错的 —— 它按客户端常量筛，
+    // 被服务端盖成新戳的人反而从旧客户端的榜上不见了。
+    const { client } = fakeDb(deploySkew);
+
+    const board = await fetchPowerBoard(client, 'v3-early');
+
+    expect(board.rows.map((r) => r.userId).sort()).toEqual(['v3-early', 'v3-early2']);
+    expect(board.formulaVersion).toBe(3);
+    expect(board.isCurrent).toBe(true); // 3 就是最新那把尺
+    expect(board.pendingRecalc).toBe(2);
+  });
+
+  it('★ 未登录时看最新那把尺的榜，而不是空榜', async () => {
+    const { client } = fakeDb(deploySkew);
+
+    const board = await fetchPowerBoard(client, null);
+
+    expect(board.formulaVersion).toBe(3);
+    expect(board.rows.map((r) => r.userId).sort()).toEqual(['v3-early', 'v3-early2']);
+    expect(board.rows.every((r) => r.isMe === false)).toBe(true);
+  });
+
+  it('两边一致时与过去行为相同（注意：这一条无论实现怎么写都是绿的）', async () => {
+    const { client } = fakeDb([
+      profile({ id: 'me', cp_formula_version: 3 }),
+      profile({ id: 'rival', cp_formula_version: 3, combat_power: RIVAL_CP }),
+    ]);
+
+    const board = await fetchPowerBoard(client, 'me');
+
+    expect(board.rows.map((r) => r.userId)).toEqual(['rival', 'me']);
+    expect(board.isCurrent).toBe(true);
+    expect(board.pendingRecalc).toBe(0);
+  });
+
+  it('★ 客户端不再持有版本常量 —— 没有常量可对，就没有对不上的可能', () => {
+    // 这是整个改动的结构性保证：只要 net 层重新 import 了这个常量，
+    // 「两个部署产物各持一份、半截发版时对不上」这条路径就又回来了。
+    const source = readFileSync(resolve(__dirname, '../leaderboard.ts'), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/^\s*\/\/.*$/gm, '');
+
+    expect(source).not.toMatch(/CP_FORMULA_VERSION/);
+    expect(source).not.toMatch(/cpFormulaVersion/);
+  });
+
+  // ── 纵深防御：上界过滤（docs/65 §六之二 方向 B）──
 
   it('自填的天文数字被剔除，名次按剩下的重排', async () => {
-    // 伪造行排在第一（战力最高），过滤后不该占据任何名次
-    const { client } = powerStub([forged, honest]);
+    const { client } = fakeDb([
+      profile({ id: 'forged', cp_formula_version: 3, combat_power: 999_999_999 }),
+      profile({ id: 'honest', cp_formula_version: 3 }),
+    ]);
 
-    const rows = await fetchPowerTop(client, null);
+    const board = await fetchPowerBoard(client, null);
 
-    expect(rows.map((row) => row.userId)).toEqual(['honest']);
-    expect(rows[0]!.rank).toBe(1);
+    expect(board.rows.map((r) => r.userId)).toEqual(['honest']);
+    expect(board.rows[0]!.rank).toBe(1);
   });
 
   it('真实玩家一个都不能少 —— 满配肝帝必须留在榜上', async () => {
-    // 上界的一半，任何一把尺下都属于真实可达
-    const { client } = powerStub([honest]);
+    const { client } = fakeDb([profile({ id: 'honest', cp_formula_version: 3 })]);
 
-    const rows = await fetchPowerTop(client, 'honest');
+    const board = await fetchPowerBoard(client, 'honest');
 
-    expect(rows).toHaveLength(1);
-    expect(rows[0]!.isMe).toBe(true);
-  });
-
-  it('多取再过滤，避免剔除后榜变短', async () => {
-    const { client, log } = powerStub([]);
-
-    await fetchPowerTop(client, null, 50);
-
-    expect(log.limit).toBe(100);
+    expect(board.rows).toHaveLength(1);
+    expect(board.rows[0]!.isMe).toBe(true);
   });
 
   it('等级伪造也拦得住：等级越界的行直接不进榜', async () => {
-    const { client } = powerStub([{ ...honest, id: 'lvhack', level: 999, combat_power: PLAUSIBLE_CP }]);
+    const { client } = fakeDb([
+      profile({ id: 'lvhack', cp_formula_version: 3, level: 999 }),
+    ]);
 
-    const rows = await fetchPowerTop(client, null);
+    const board = await fetchPowerBoard(client, null);
 
-    expect(rows).toHaveLength(0);
+    expect(board.rows).toHaveLength(0);
   });
 
-  it('★ 迁移还没执行时榜依然能开 —— 退回不带版本筛的查询', async () => {
-    // 列不存在时 PostgREST 返回 42703。若直接抛出，玩家看到的是
-    // **整张榜打不开** —— 比今晚讨论的任何一条误伤都严重（误伤是个别人
-    // 看不见自己，这个是所有人都打不开）。所以宁可退回今天的行为。
-    let call = 0;
-    const eqCalls: string[] = [];
+  it('多取再过滤，避免剔除后榜变短', async () => {
+    const { client, calls } = fakeDb([]);
+
+    await fetchPowerBoard(client, null, 50);
+
+    expect(calls[0]!.args.p_limit).toBe(100);
+  });
+
+  it('★ 迁移还没执行时榜依然能开 —— 退回直读 profiles', async () => {
+    // RPC 不存在时 PostgREST 返回 PGRST202。若直接抛出，玩家看到的是
+    // **整张榜打不开** —— 比任何一条误伤都严重（误伤是个别人看不见自己，
+    // 这个是所有人都打不开）。所以宁可退回加版本戳之前的行为。
     const builder: Record<string, unknown> = {};
     Object.assign(builder, {
       select: () => builder,
       order: () => builder,
-      eq: (column: string) => {
-        eqCalls.push(column);
-        return builder;
-      },
-      limit: () => {
-        call += 1;
-        return call === 1
-          ? Promise.resolve({
-              data: null,
-              error: { code: '42703', message: 'column profiles.cp_formula_version does not exist' },
-            })
-          : Promise.resolve({ data: [honest], error: null });
-      },
+      limit: () =>
+        Promise.resolve({
+          data: [{ ...profile({ id: 'honest' }), cp_formula_version: undefined }],
+          error: null,
+        }),
     });
-    const client = { from: () => builder } as unknown as SupabaseClient;
+    const client = {
+      rpc: () =>
+        Promise.resolve({
+          data: null,
+          error: {
+            code: 'PGRST202',
+            message: 'Could not find the function public.power_board in the schema cache',
+          },
+        }),
+      from: () => builder,
+    } as unknown as SupabaseClient;
 
-    const rows = await fetchPowerTop(client, null);
+    const board = await fetchPowerBoard(client, null);
 
-    expect(call).toBe(2); // 第一次带版本筛失败，第二次不带
-    expect(eqCalls).toEqual(['cp_formula_version']); // 重试那次确实没再筛版本
-    expect(rows.map((r) => r.userId)).toEqual(['honest']);
+    expect(board.rows.map((r) => r.userId)).toEqual(['honest']);
+    // 版本未知时不谎称「这是最新标尺」，也不吓唬玩家说有人在重算
+    expect(board.formulaVersion).toBeNull();
+    expect(board.pendingRecalc).toBe(0);
   });
 
   it('迁移执行后的正常错误仍然抛出，不会被降级路径吞掉', async () => {
-    const builder: Record<string, unknown> = {};
-    Object.assign(builder, {
-      select: () => builder,
-      order: () => builder,
-      eq: () => builder,
-      limit: () => Promise.resolve({ data: null, error: { code: '08006', message: 'connection failure' } }),
-    });
-    const client = { from: () => builder } as unknown as SupabaseClient;
+    const client = {
+      rpc: () =>
+        Promise.resolve({ data: null, error: { code: '08006', message: 'connection failure' } }),
+    } as unknown as SupabaseClient;
 
-    await expect(fetchPowerTop(client, null)).rejects.toThrow(NetRequestError);
+    await expect(fetchPowerBoard(client, null)).rejects.toThrow(NetRequestError);
   });
 
-  it('★ 只取当前公式版本的行 —— 旧尺量出的战力不能和新值同榜排序（批3-3）', async () => {
-    const { client, log } = powerStub([honest]);
-
-    await fetchPowerTop(client, null);
-
-    expect(log.eq).toContainEqual(['cp_formula_version', CP_FORMULA_VERSION]);
-  });
-});
-
-/**
- * 名次与榜单必须数同一批人。
- *
- * 旧实现是不带任何过滤的 count(*)，而列表在客户端按上界过滤过 ——
- * 玩家会看到「你第 37 名」配一张只有 12 个人的榜，两个数字当面互相打脸。
- */
-describe('fetchMyPowerRank 与榜单同口径', () => {
-  /** mine: 我那行的版本（null = 查无此人）；above: 战力比我高的那些行 */
-  function rankStub(mine: { cp_formula_version: number } | null, above: unknown[]) {
-    const log: { eq: [string, unknown][]; gt: [string, unknown][] } = { eq: [], gt: [] };
-    let isMineQuery = false;
-    const builder: Record<string, unknown> = {};
-    Object.assign(builder, {
-      select: (cols: string) => {
-        isMineQuery = cols === 'cp_formula_version';
-        return builder;
-      },
-      eq: (column: string, value: unknown) => {
-        log.eq.push([column, value]);
-        return builder;
-      },
-      gt: (column: string, value: unknown) => {
-        log.gt.push([column, value]);
-        return builder;
-      },
-      maybeSingle: () => Promise.resolve({ data: mine, error: null }),
-      limit: () => Promise.resolve({ data: isMineQuery ? [] : above, error: null }),
-    });
-    const client = { from: () => builder } as unknown as SupabaseClient;
-    return { client, log };
-  }
-
-  const rival = {
-    level: 78,
-    class_id: 'swordsman' as const,
-    combat_power: RIVAL_CP,
-    cp_formula_version: CP_FORMULA_VERSION,
-  };
+  // ── 名次与榜单必须数同一批人 ──
 
   it('没登录时不给名次，而不是给第 1 名', async () => {
-    const { client } = rankStub(null, []);
-    expect(await fetchMyPowerRank(client, null, PLAUSIBLE_CP)).toEqual({ kind: 'unranked' });
+    const { client } = fakeDb(deploySkew);
+    expect(await fetchMyPowerRank(client, null)).toEqual({ kind: 'unranked' });
   });
 
-  it('查无档案时不给名次', async () => {
-    const { client } = rankStub(null, []);
-    expect(await fetchMyPowerRank(client, 'me', PLAUSIBLE_CP)).toEqual({ kind: 'unranked' });
-  });
+  it('★ 查无档案与「我就是第一名」必须分得开 —— 前者不许编出第 1 名', async () => {
+    const { client } = fakeDb(deploySkew);
 
-  it('★ 我的战力还是旧公式量的：明说不可比，不编一个名次出来', async () => {
-    const { client } = rankStub({ cp_formula_version: CP_FORMULA_VERSION - 1 }, [rival]);
-    expect(await fetchMyPowerRank(client, 'me', PLAUSIBLE_CP)).toEqual({ kind: 'staleFormula' });
-  });
-
-  it('比我高的人数 + 1', async () => {
-    const { client } = rankStub({ cp_formula_version: CP_FORMULA_VERSION }, [rival, rival]);
-    expect(await fetchMyPowerRank(client, 'me', PLAUSIBLE_CP)).toEqual({
+    expect(await fetchMyPowerRank(client, 'nobody')).toEqual({ kind: 'unranked' });
+    // 同一个桩里，真的第一名要拿到 rank 1（哨兵行就是为了这个区分而存在）
+    expect(await fetchMyPowerRank(client, 'v2-friend')).toEqual({
       kind: 'ranked',
-      rank: 3,
+      rank: 1,
+      exact: true,
+    });
+  });
+
+  it('★ 名次只数与我同一把尺的人：新戳的高手不该把我挤下去', async () => {
+    // v3-early 的战力比 me 高，但它是另一把尺量的，不该影响 me 的名次
+    const { client } = fakeDb(deploySkew);
+
+    expect(await fetchMyPowerRank(client, 'me')).toEqual({
+      kind: 'ranked',
+      rank: 2, // 只有同为 v2 的 v2-friend 在我之上
       exact: true,
     });
   });
 
   it('★ 排在我上面的伪造行不算进名次 —— 与列表用同一道上界过滤', async () => {
-    const forgedAbove = { ...rival, combat_power: 999_999_999 };
-    const { client } = rankStub({ cp_formula_version: CP_FORMULA_VERSION }, [forgedAbove, rival]);
+    const { client } = fakeDb([
+      profile({ id: 'me', cp_formula_version: 3 }),
+      profile({ id: 'rival', cp_formula_version: 3, combat_power: RIVAL_CP }),
+      profile({ id: 'forged', cp_formula_version: 3, combat_power: 999_999_999 }),
+    ]);
 
     // 两行都比我高，但伪造那行会被上界剔掉，所以是第 2 名不是第 3 名
-    expect(await fetchMyPowerRank(client, 'me', PLAUSIBLE_CP)).toEqual({
+    expect(await fetchMyPowerRank(client, 'me')).toEqual({
       kind: 'ranked',
       rank: 2,
       exact: true,
     });
   });
+});
 
-  it('★ 只数当前公式版本的人', async () => {
-    const { client, log } = rankStub({ cp_formula_version: CP_FORMULA_VERSION }, []);
+/**
+ * power_board 迁移的 SQL 契约。
+ *
+ * 桩客户端复刻的是「SQL 应该怎么答」，测不出 SQL 实际怎么写。
+ * 而本轮的全部意义就在于**版本从哪里来** —— 那句话只存在于 SQL 里。
+ */
+describe('power_board 迁移的 SQL 契约', () => {
+  // 只断言代码：文件头注释里原样引用了被修掉的写法，
+  // 不剥注释的话负向断言会打在文档上而不是实现上。
+  const sql = readFileSync(
+    resolve(__dirname, '../../../supabase/migrations/20260802010000_power_board_versioned_rpc.sql'),
+    'utf8',
+  )
+    .split('\n')
+    .filter((line) => !line.trimStart().startsWith('--'))
+    .join('\n');
 
-    await fetchMyPowerRank(client, 'me', PLAUSIBLE_CP);
+  it('★ 版本取自调用者自己那一行，而不是写死的常量', () => {
+    expect(sql).toMatch(
+      /select\s+p\.cp_formula_version\s+from\s+profiles\s+p\s+where\s+p\.id\s*=\s*p_user_id/i,
+    );
+    // 写死一个版本号，等于把「两个产物各持一份常量」换成「三个」，白改
+    expect(sql).not.toMatch(/cp_formula_version\s*(=|<>)\s*\d/);
+  });
 
-    expect(log.eq).toContainEqual(['cp_formula_version', CP_FORMULA_VERSION]);
-    expect(log.gt).toContainEqual(['combat_power', PLAUSIBLE_CP]);
+  it('未登录时退回最新那把尺，而不是空榜', () => {
+    expect(sql).toMatch(/coalesce\(/i);
+    expect(sql).toMatch(/max\(p\.cp_formula_version\)/i);
+  });
+
+  it('★ limit 夹取写全 coalesce —— null 不能退化成「不限制」（070000:233 踩过）', () => {
+    expect(sql).toMatch(/limit\s+least\(greatest\(coalesce\(p_limit,\s*50\),\s*1\),\s*200\)/i);
+    expect(sql).toMatch(/limit\s+least\(greatest\(coalesce\(p_limit,\s*500\),\s*1\),\s*1000\)/i);
+  });
+
+  it('与 070000 的 versioned 函数同约定：security definer + search_path 钉 public', () => {
+    const defs = sql.match(/language sql stable[^$]*/g) ?? [];
+    expect(defs).toHaveLength(2);
+    for (const def of defs) {
+      expect(def).toMatch(/security\s+definer/i);
+      expect(def).toMatch(/set\s+search_path\s*=\s*public/i);
+    }
+  });
+
+  it('授权先 revoke 再按签名 grant，不把函数留给 public', () => {
+    for (const fn of ['power_board', 'power_rank_scan']) {
+      expect(sql).toMatch(
+        new RegExp(`revoke all on function public\\.${fn}\\(uuid, int\\) from public`, 'i'),
+      );
+      expect(sql).toMatch(
+        new RegExp(
+          `grant execute on function public\\.${fn}\\(uuid, int\\) to anon, authenticated`,
+          'i',
+        ),
+      );
+    }
+  });
+
+  it('★ 有档案但无人在我之上时发哨兵行 —— 否则与「查无档案」分不开', () => {
+    expect(sql).toMatch(/union all/i);
+    expect(sql).toMatch(/where not exists\s*\(\s*select 1 from above\s*\)/i);
   });
 });
 
