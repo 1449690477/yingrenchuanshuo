@@ -38,6 +38,11 @@ import { createAffectionState } from '@/core/affection';
 import { AFFECTION_RULES } from '@/data/affectionRules';
 import { getEquipment } from '@/data/equipment';
 import { CLASS_SIGIL_IDS } from '@/data/reforgeRules';
+import {
+  isV10RebasedAffixKey,
+  type V10RebasedAffixKey,
+  V10_PROFESSION_AFFIX_REBASE,
+} from '@/data/legacyAffixHistory';
 import type { AffixKey, AffixTier, ClassId, Element, Quality } from '@/core/types';
 
 /** 迁移函数接收上一版本的存档（结构未知，故用宽类型），返回下一版本 */
@@ -618,15 +623,6 @@ function migrateV9EquipmentInstance(value: unknown, path: string): Record<string
  * 玩家资产，也会消耗 RNG。共鸣候选最后从已迁移 target 精确复算，消除
  * “旧公式先四舍五入、再缩放”可能产生的末位误差。
  */
-const V10_PROFESSION_AFFIX_REBASE = {
-  swd_heavy: { oldBaseline: 9.1, newBaseline: 27 },
-  wit_power: { oldBaseline: 0.78, newBaseline: 0.53 },
-  wit_elem: { oldBaseline: 8.5, newBaseline: 4.3 },
-  cat_swift: { oldBaseline: 0.039, newBaseline: 0.027 },
-} as const;
-
-type V10RebasedAffixKey = keyof typeof V10_PROFESSION_AFFIX_REBASE;
-
 /**
  * v10 发布包实际能够持久化的词条键快照。v11 新增的延后词条不能因为当前
  * 常量表已经认识它们，就反向成为“合法 v10 数据”。
@@ -1008,7 +1004,7 @@ function rebaseV10Affix(value: unknown, path: string): Record<string, unknown> {
   const affix = asObject(value, 10, path);
   const key = affix.key;
   const baselineRule =
-    typeof key === 'string' && isV10RebasedAffixKey(key)
+    typeof key === 'string' && isV10RebasedAffixKey(key as AffixKey)
       ? V10_PROFESSION_AFFIX_REBASE[key]
       : undefined;
   const tierMultiplier = affix.tier === 5 ? 1.64 / 1.54 : 1;
@@ -1027,10 +1023,6 @@ function rebaseV10Affix(value: unknown, path: string): Record<string, unknown> {
     ...affix,
     value: rebased,
   };
-}
-
-function isV10RebasedAffixKey(key: string): key is V10RebasedAffixKey {
-  return key in V10_PROFESSION_AFFIX_REBASE;
 }
 
 /**
