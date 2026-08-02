@@ -28,6 +28,8 @@ export const BOUTIQUE_WEAPON_ELEMENTS = {
   'moon-sugar': 'ice',
   'rose-night': 'thunder',
   'cardboard-cat': 'none',
+  // 冰雪华年位于当前顶段，继续提供明确的冰属性毕业武器来源。
+  'ice-snow': 'ice',
 } as const satisfies Readonly<Record<BoutiqueThemeId, Element>>;
 
 /** 装备副本按色彩主题提供中后期三系接续，元素仍只来自武器静态定义。 */

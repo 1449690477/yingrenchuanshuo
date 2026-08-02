@@ -9,6 +9,7 @@
  */
 
 import type {
+  AffixTier,
   AffixKey,
   ClassId,
   Element,
@@ -19,7 +20,7 @@ import type {
   Quality,
 } from '@/core/types';
 import { CLASS_IDS } from '@/core/types';
-import { QUALITY_AFFIX_COUNT, SLOT_ORDER } from './constants';
+import { AFFIX_POOL, AFFIX_TIERS, QUALITY_AFFIX_COUNT, SLOT_ORDER } from './constants';
 import { AFFECTION_EQUIPMENT_LIST } from './affectionEquipment';
 import { ARENA_EQUIPMENT_LIST } from './arenaEquipment';
 import { BOUTIQUE_THEME_LIST, boutiqueAppearanceId, boutiqueEquipmentId } from './boutique';
@@ -232,6 +233,7 @@ const KENSHI_BODY_APPEARANCE_IDS = new Set([
   'boutique-berry-cream-body',
   'boutique-moon-sugar-body',
   'boutique-rose-night-body',
+  'boutique-ice-snow-body',
   'affection-kenshi-moonblue-lantern-date-kimono',
 ]);
 
@@ -401,13 +403,14 @@ function buildEquipment(): Record<string, EquipmentDef> {
           theme.level,
           QUALITY_AFFIX_COUNT[theme.quality],
           percentile,
+          theme.fixedAffixTier,
         ),
         fixedTemplate: true,
         // 额外可洗槽（2026-07-30 品质平衡）：珍品的固定词条是「身份」，
         // 额外槽是「养成空间」。没有它，商店装买回来就定死、越玩越弱 ——
         // 所有者反馈「红装卖得贵却不如掉落黄装」的核心原因。
         // 按品质递增，让越贵的珍品越值得长期养。
-        extraAffixSlots: BOUTIQUE_EXTRA_AFFIX_SLOTS[theme.quality],
+        extraAffixSlots: theme.extraAffixSlots ?? BOUTIQUE_EXTRA_AFFIX_SLOTS[theme.quality],
         uniqueEffect: item.uniqueEffect,
         boutiqueTheme: theme.id,
         ...(item.classId ? { classId: item.classId } : {}),
@@ -462,10 +465,33 @@ function boutiqueAffixes(
   level: number,
   count: number,
   percentile: number,
+  tier?: AffixTier,
 ): FixedAffix[] {
   return BOUTIQUE_AFFIX_KEYS[slot]
     .slice(0, count)
-    .map((key) => ({ key, value: boutiqueAffixValue(key, level, percentile) }));
+    .map((key) => ({
+      key,
+      value: tier
+        ? boutiqueAffixValueAtTier(key, level, tier)
+        : boutiqueAffixValue(key, level, percentile),
+      ...(tier ? { tier } : {}),
+    }));
+}
+
+/**
+ * 顶段精品必须使用与随机词条相同的真实 T 档公式，不能只在 UI 上贴一个 T5 标签。
+ * 取当前档位中点，既是可验证的稳定固定值，也不会把 ±3% 随机上沿冒充保底值。
+ */
+function boutiqueAffixValueAtTier(key: AffixKey, level: number, tier: AffixTier): number {
+  const spec = AFFIX_POOL.find((entry) => entry.key === key);
+  const tierConfig = AFFIX_TIERS.find((entry) => entry.tier === tier);
+  if (!spec || !tierConfig) {
+    throw new Error(`[配置错误] 精品固定词条无法解析：${key} / T${tier}`);
+  }
+  const levelScale = spec.scalesWithLevel ? Math.pow(level, 1.3) : 1;
+  const precision = 10 ** spec.decimals;
+  const baseline = ((spec.min + spec.max) / 2) * levelScale;
+  return Math.round(baseline * tierConfig.multiplier * precision) / precision;
 }
 
 function boutiqueAffixValue(key: AffixKey, level: number, percentile: number): number {

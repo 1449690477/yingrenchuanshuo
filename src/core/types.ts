@@ -14,7 +14,12 @@ export const CLASS_IDS = ['swordsman', 'witch', 'shaman', 'catkin', 'kenshi'] as
 export type ClassId = (typeof CLASS_IDS)[number];
 
 /** 精品商店换装系列。稳定 ID 会写入装备定义，新增时只能追加。 */
-export type BoutiqueThemeId = 'berry-cream' | 'moon-sugar' | 'rose-night' | 'cardboard-cat';
+export type BoutiqueThemeId =
+  | 'berry-cream'
+  | 'moon-sugar'
+  | 'rose-night'
+  | 'cardboard-cat'
+  | 'ice-snow';
 
 /** 属性克制三角：炎 → 冰 → 雷 → 炎 */
 export type Element = 'fire' | 'ice' | 'thunder' | 'none';

@@ -1,4 +1,11 @@
-import type { BoutiqueThemeId, ClassId, EquipSlot, Quality, ShopOfferCategory } from '@/core/types';
+import type {
+  AffixTier,
+  BoutiqueThemeId,
+  ClassId,
+  EquipSlot,
+  Quality,
+  ShopOfferCategory,
+} from '@/core/types';
 
 export interface BoutiqueItemSpec {
   slot: EquipSlot;
@@ -24,7 +31,24 @@ export interface BoutiqueTheme {
   interactionName: string;
   interactionLines: readonly string[];
   attackEffects: Partial<Record<ClassId, string>>;
+  /** 未填写时沿用品质默认固定词条；顶段限定装可声明真实固定 T 档。 */
+  fixedAffixTier?: AffixTier;
+  /** 未填写时沿用品质默认可洗槽数量。 */
+  extraAffixSlots?: number;
   items: readonly BoutiqueItemSpec[];
+}
+
+export type BoutiqueShelfId = 'sakura' | 'ice-snow';
+
+export interface BoutiqueShelf {
+  id: BoutiqueShelfId;
+  name: string;
+  shortName: string;
+  sceneAsset: string;
+  sceneAlt: string;
+  keeperName: string;
+  headline: string;
+  themeIds: readonly BoutiqueThemeId[];
 }
 
 const weapons = (
@@ -387,9 +411,140 @@ export const BOUTIQUE_THEMES: Readonly<Record<BoutiqueThemeId, BoutiqueTheme>> =
       },
     ],
   },
+  'ice-snow': {
+    id: 'ice-snow',
+    name: '冰雪华年新春礼装',
+    shortName: '冰雪',
+    quality: 'legendary',
+    level: 78,
+    unlockStageId: 'stage_7-5_6',
+    rank: 4,
+    tagline: '象牙白礼裙、冰晶雪花、珍珠银穗与一抹新岁中国结。',
+    palette: ['#f9fcff', '#bde8f8', '#ef91aa'],
+    interactionName: '瑞雪迎春礼',
+    interactionLines: [
+      '第一片新雪落在掌心时，也把今年的好运分给你。',
+      '银穗轻响三声，就算我们一起许过新年愿望啦。',
+      '别担心裙摆沾雪，冰晶会把每一步都变成小星星。',
+    ],
+    attackEffects: {
+      swordsman: 'assets/effects/boutique/ice-snow-swordsman.png',
+      witch: 'assets/effects/boutique/ice-snow-witch.png',
+      shaman: 'assets/effects/boutique/ice-snow-shaman.png',
+      catkin: 'assets/effects/boutique/ice-snow-catkin.png',
+      kenshi: 'assets/effects/boutique/ice-snow-kenshi.png',
+    },
+    // R7 终章的毕业珍品：传奇裸值跟随当前主线，强度来自真实 T5 固定词条与三条可洗槽。
+    // 不提升到 divine，避免 15 / 5.8 = 2.59 倍的品质跳变摧毁现有 TTK。
+    fixedAffixTier: 5,
+    extraAffixSlots: 3,
+    items: [
+      ...weapons(
+        {
+          name: '冰雪华年·霁雪长剑',
+          price: 210_000_000,
+          uniqueEffect: '攻击换肤：霁蓝剑弧卷起六瓣雪晶与一线新春银光。',
+        },
+        {
+          name: '冰雪华年·凝星法杖',
+          price: 210_000_000,
+          uniqueEffect: '施法换肤：冰晶星环沿杖尖扩散，珍珠光点柔和回旋。',
+        },
+        {
+          name: '冰雪华年·玉铃灵扇',
+          price: 210_000_000,
+          uniqueEffect: '施法换肤：玉铃轻响，雪花灵纹与银穗波纹交叠绽放。',
+        },
+        {
+          name: '冰雪华年·银绒双爪',
+          price: 210_000_000,
+          uniqueEffect: '攻击换肤：双爪交错留下猫耳雪晶与淡粉冰花爆点。',
+        },
+        {
+          name: '冰雪华年·初霁太刀',
+          price: 210_000_000,
+          uniqueEffect: '攻击换肤：居合刀光凝成一线初霁冰河，末端落下新岁雪樱。',
+        },
+      ),
+      {
+        slot: 'head',
+        name: '白绒岁华礼帽',
+        price: 130_000_000,
+        category: 'armor',
+        uniqueEffect: '待机时帽檐雪晶轻亮，银穗随呼吸动作柔和摆动。',
+      },
+      {
+        slot: 'body',
+        name: '冰晶华年公主裙',
+        price: 190_000_000,
+        category: 'dress',
+        uniqueEffect: '专属互动：象牙白裙摆旋开雪花、珍珠和一枚小小中国结。',
+      },
+      {
+        slot: 'necklace',
+        name: '雪魄珍珠项链',
+        price: 140_000_000,
+        category: 'accessory',
+        uniqueEffect: '技能释放时胸前珍珠亮起一圈冰蓝呼吸光。',
+      },
+      {
+        slot: 'bracelet',
+        name: '银霜流苏腕饰',
+        price: 120_000_000,
+        category: 'accessory',
+        uniqueEffect: '挥手时银霜流苏拖出克制的粉蓝星屑。',
+      },
+      {
+        slot: 'ring',
+        name: '新岁冰心誓戒',
+        price: 160_000_000,
+        category: 'accessory',
+        uniqueEffect: '触摸戒指会点亮一枚冰心与短暂的新岁祝福光。',
+      },
+      {
+        slot: 'belt',
+        name: '瑞雪中国结腰封',
+        price: 105_000_000,
+        category: 'armor',
+        uniqueEffect: '腰间小中国结在暴击演出时闪过一缕暖红银边。',
+      },
+      {
+        slot: 'shoes',
+        name: '踏雪珍珠短靴',
+        price: 95_000_000,
+        category: 'armor',
+        uniqueEffect: '脚步换肤：留下两枚渐隐雪花与柔软珍珠光点。',
+      },
+    ],
+  },
 };
 
 export const BOUTIQUE_THEME_LIST = Object.values(BOUTIQUE_THEMES);
+
+export const BOUTIQUE_SHELVES: Readonly<Record<BoutiqueShelfId, BoutiqueShelf>> = {
+  sakura: {
+    id: 'sakura',
+    name: '樱花珍品货架',
+    shortName: '樱花馆',
+    sceneAsset: 'assets/shops/sakura-boutique.webp',
+    sceneAlt: '樱花珍品店内景，左右是华丽装备货架，中央展示洛丽塔裙装',
+    keeperName: '店主 · 樱桃',
+    headline: '欢迎试穿，喜欢再带走～',
+    themeIds: ['berry-cream', 'moon-sugar', 'rose-night', 'cardboard-cat'],
+  },
+  'ice-snow': {
+    id: 'ice-snow',
+    name: '冰雪华年新春货架',
+    shortName: '冰雪馆',
+    sceneAsset: 'assets/shops/ice-snow-shelf.webp',
+    sceneAlt: '冰雪华年新春货架，中央展示白色新春礼裙，周围陈列五职业冰晶武器',
+    keeperName: '新春礼装 · 瑞雪',
+    headline: '瑞雪迎春，五职业礼装都能完整试穿～',
+    themeIds: ['ice-snow'],
+  },
+};
+
+export const BOUTIQUE_SHELF_LIST = Object.values(BOUTIQUE_SHELVES);
 
 export function boutiqueEquipmentId(
   themeId: BoutiqueThemeId,

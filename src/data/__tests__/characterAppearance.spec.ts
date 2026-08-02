@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { EquipmentInstance, EquipSlot } from '@/core/types';
+import { CLASS_IDS, type EquipmentInstance, type EquipSlot } from '@/core/types';
 import { ENHANCE_MAX } from '@/data/constants';
 import {
   REGION_34_EQUIPMENT_APPEARANCES,
@@ -167,6 +167,47 @@ describe('角色换装外观解析', () => {
     expect(appearance.boutiqueEffectAsset).toBe(
       'assets/effects/boutique/berry-cream-catkin.png',
     );
+  });
+
+  it('冰雪华年五职业整套同时解析身、鞋、帽、武器四个可见层与专属攻击特效', () => {
+    for (const classId of CLASS_IDS) {
+      const equipped = emptyEquipped();
+      equipped.weapon = instance(`eq_shop_ice-snow_weapon_${classId}`);
+      for (const slot of ['head', 'body', 'necklace', 'bracelet', 'ring', 'belt', 'shoes'] as const) {
+        equipped[slot] = instance(`eq_shop_ice-snow_${slot}`);
+      }
+
+      const appearance = resolveCharacterAppearance(classId, 78, equipped);
+      expect(appearance.equippedCount, classId).toBe(8);
+      if (classId === 'kenshi') {
+        expect(appearance.visibleEquippedCount).toBe(4);
+        expect(appearance.baseAsset).toBe(
+          'assets/characters/modular/shop/ice-snow/kenshi-body.png',
+        );
+        expect(appearance.layers.map((layer) => layer.slot)).toEqual(['shoes', 'head', 'weapon']);
+        expect(appearance.silentVisualSlots).toEqual([]);
+      } else {
+        expect(appearance.visibleEquippedCount, classId).toBe(4);
+        expect(appearance.layers.map((layer) => layer.slot), classId).toEqual([
+          'body',
+          'shoes',
+          'head',
+          'weapon',
+        ]);
+        for (const slot of ['body', 'shoes', 'head', 'weapon'] as const) {
+          expect(
+            appearance.layers.find((layer) => layer.slot === slot)?.asset,
+            `${classId}:${slot}`,
+          ).toBe(`assets/characters/modular/shop/ice-snow/${classId}-${slot}.png`);
+        }
+        expect(appearance.layers.find((layer) => layer.slot === 'head')?.aboveFace).toBe(true);
+      }
+      expect(appearance.activeBoutiqueTheme, classId).toBe('ice-snow');
+      expect(appearance.boutiqueEffectAsset, classId).toBe(
+        `assets/effects/boutique/ice-snow-${classId}.png`,
+      );
+      expect(appearance.signature, classId).toContain('theme:ice-snow');
+    }
   });
 
   it('樱酱底模、区域装、精品与副本均只解析 kenshi 专属资产', () => {

@@ -167,6 +167,13 @@ function buildBoutiqueAppearances(): Record<string, EquipmentAppearance> {
           renderMode: 'layer',
           assets: boutiqueClassAssets(theme.id, slot, item.classId),
           transforms: alignedTransforms,
+          // 冰雪樱酱 body 是已经包含头饰与鞋履的完整人物源；只对本主题启用
+          // replacement，避免把她叠在旧底模上后再由 face-layer 覆盖回旧脸。
+          ...(slot === 'body' && theme.id === 'ice-snow'
+            ? {
+                replacementClasses: ['kenshi'] as const,
+              }
+            : {}),
           // 精品店帽饰是戴在头顶的整帽，两名猫耳职业都要压过安全脸层，否则整顶会被头发埋住。
           ...(slot === 'head' ? { aboveFace: true } : {}),
         };

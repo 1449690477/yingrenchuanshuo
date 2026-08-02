@@ -217,9 +217,9 @@ describe('区域 1–5 内容完整性', () => {
     expect(ALL_CHAPTERS).toHaveLength(35);
     expect(Object.keys(STAGES)).toHaveLength(210);
     expect(Object.keys(MONSTERS)).toHaveLength(168);
-    // 既有 353 件 + 樱酱副本装备 8 件 + 三套珍品武器 3 件。
-    // 原有 364 件 + 樱酱心虹好感装备 10 件 + 瞬樱竞技场装备 4 件。
-    expect(Object.keys(EQUIPMENT)).toHaveLength(378);
+    // 原有 364 件 + 樱酱心虹好感装备 10 件 + 瞬樱竞技场装备 4 件，
+    // 冰雪华年再增加五职业武器 5 件与七个通用槽 7 件。
+    expect(Object.keys(EQUIPMENT)).toHaveLength(390);
     expect(Object.keys(LOOT_TABLES)).toHaveLength(105);
   });
 
@@ -572,9 +572,9 @@ describe('区域 1–5 内容完整性', () => {
         ...layerAssets,
       ]),
     ];
-    // 五职业底模、七区、三套精品、四档副本、竞技与心虹珍藏的运行时可见层
-    // 均不得别名复用。本批新增 12 张旧职业竞技场层、35 张区域鞋与 20 张副本鞋（+67）。
-    expect(assets).toHaveLength(363);
+    // 五职业底模、七区、四套完整精品、四档副本、竞技与心虹珍藏的运行时可见层
+    // 均不得别名复用；冰雪华年再增加五职业 × 身/鞋/帽/武器 20 张独立层。
+    expect(assets).toHaveLength(383);
 
     for (const asset of assets) {
       const assetPath = resolve('public', asset);
@@ -599,17 +599,17 @@ describe('区域 1–5 内容完整性', () => {
     }
   });
 
-  it('珍品商店 38 件定义中，喵喵额外可见纸箱键帽专属两件且价格与词条合法', () => {
-    expect(BOUTIQUE_THEME_LIST).toHaveLength(4);
-    expect(SHOP_OFFERS).toHaveLength(38);
-    expect(new Set(SHOP_OFFERS.map((offer) => offer.id)).size).toBe(38);
+  it('珍品商店 50 件定义中，纸箱套与冰雪套均完整注册且价格与词条合法', () => {
+    expect(BOUTIQUE_THEME_LIST).toHaveLength(5);
+    expect(SHOP_OFFERS).toHaveLength(50);
+    expect(new Set(SHOP_OFFERS.map((offer) => offer.id)).size).toBe(50);
 
     for (const classId of CLASS_IDS) {
       const visible = SHOP_OFFERS.filter((offer) => {
         const equipment = EQUIPMENT[offer.defId]!;
         return !equipment.classId || equipment.classId === classId;
       });
-      expect(visible, classId).toHaveLength(classId === 'catkin' ? 26 : 24);
+      expect(visible, classId).toHaveLength(classId === 'catkin' ? 34 : 32);
     }
 
     for (const offer of SHOP_OFFERS) {
@@ -645,9 +645,9 @@ describe('区域 1–5 内容完整性', () => {
     }
   });
 
-  it('珍品商品图标、纸娃娃换装层与十六套职业攻击特效符合移动端规格', async () => {
+  it('珍品商品图标、纸娃娃换装层与二十一套职业攻击特效符合移动端规格', async () => {
     const iconAssets = [...new Set(SHOP_OFFERS.map((offer) => EQUIPMENT[offer.defId]!.icon))];
-    expect(iconAssets).toHaveLength(38);
+    expect(iconAssets).toHaveLength(50);
     for (const asset of iconAssets) {
       const path = resolve('public', asset);
       expect(existsSync(path), asset).toBe(true);
@@ -666,7 +666,7 @@ describe('区域 1–5 内容完整性', () => {
       .flatMap(([, appearance]) =>
         appearance.renderMode === 'slot-only' ? [] : Object.values(appearance.assets),
       );
-    expect(new Set(boutiqueAssets).size).toBe(62);
+    expect(new Set(boutiqueAssets).size).toBe(82);
     for (const asset of boutiqueAssets) {
       expect(asset).toBeDefined();
       const path = resolve('public', asset!);
@@ -680,7 +680,7 @@ describe('区域 1–5 内容完整性', () => {
     }
 
     const effects = BOUTIQUE_THEME_LIST.flatMap((theme) => Object.values(theme.attackEffects));
-    expect(new Set(effects).size).toBe(16);
+    expect(new Set(effects).size).toBe(21);
     for (const asset of effects) {
       const path = resolve('public', asset);
       expect(existsSync(path), asset).toBe(true);

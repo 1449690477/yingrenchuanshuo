@@ -38,6 +38,7 @@ export const BOUTIQUE_BOSS_DROP_THEME: Readonly<Record<string, BoutiqueThemeId>>
   '2-1': 'berry-cream',
   '2-3': 'moon-sugar',
   '2-5': 'rose-night',
+  '7-5': 'ice-snow',
 };
 
 export function boutiqueBossDropIds(chapterId: string): string[] {

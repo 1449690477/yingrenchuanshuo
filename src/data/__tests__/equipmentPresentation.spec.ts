@@ -111,12 +111,36 @@ describe('装备职业表现与手部对位', () => {
     }
   });
 
-  it('樱酱十八套整身装备使用与实穿同源的正式服装图标', async () => {
+  it('樱酱十九套整身装备使用不撞 id 的同源正式服装图标', async () => {
     const definitions = Object.values(EQUIPMENT).filter(
       (definition) => definition.slot === 'body' && definition.classPresentations?.kenshi,
     );
     const byAppearance = new Map(definitions.map((definition) => [definition.appearanceId, definition]));
-    expect(byAppearance.size).toBe(18);
+    // 同一外观允许被同区域多品质定义复用，所以不能拿 definitions.length 判“撞车”；
+    // 用人工清单同时守住有意增删与冰雪正式图标路径。
+    expect([...byAppearance.keys()].sort()).toEqual(
+      [
+        'r1-body',
+        'r2-body',
+        'r3-body',
+        'r4-body',
+        'r5-body',
+        'r6-body',
+        'r7-body',
+        'r5-set-body',
+        'r6-set-body',
+        'r7-set-body',
+        'dungeon-azure-body',
+        'dungeon-violet-body',
+        'dungeon-auric-body',
+        'dungeon-crimson-body',
+        'boutique-berry-cream-body',
+        'boutique-moon-sugar-body',
+        'boutique-rose-night-body',
+        'boutique-ice-snow-body',
+        'affection-kenshi-moonblue-lantern-date-kimono',
+      ].sort(),
+    );
 
     for (const [appearanceId, definition] of byAppearance) {
       const kenshi = equipmentPresentation(definition, 'kenshi');

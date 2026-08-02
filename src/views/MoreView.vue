@@ -4,6 +4,7 @@ import { Castle, Coins, Layers, ShoppingBag, Sparkles, Users } from '@lucide/vue
 import { abbr, duration } from '@/core/format';
 import { usePlayerStore } from '@/stores/player';
 import { useSettingsStore } from '@/stores/settings';
+import { useShopStore } from '@/stores/shop';
 import type { SaveData } from '@/save/schema';
 import { downloadSave, importFromJson } from '@/save/storage';
 import ShopView from '@/views/ShopView.vue';
@@ -15,6 +16,7 @@ import { GUILD_HOME_SCENE_ASSET } from '@/data/guildScenes';
 
 const player = usePlayerStore();
 const settings = useSettingsStore();
+const shop = useShopStore();
 const fileInput = ref<HTMLInputElement | null>(null);
 const msg = ref<{ text: string; ok: boolean } | null>(null);
 const confirmReset = ref(false);
@@ -32,7 +34,7 @@ const shopSceneUrl = `${import.meta.env.BASE_URL}assets/shops/sakura-boutique.we
 const guildSceneUrl = `${import.meta.env.BASE_URL}${GUILD_HOME_SCENE_ASSET}`;
 
 const stats = computed(() => settings.saveData?.stats ?? null);
-const boutiqueOfferCount = computed(() => (player.player?.classId === 'catkin' ? 26 : 24));
+const boutiqueOfferCount = computed(() => shop.offers.length);
 
 function doExport() {
   if (!settings.saveData) return;
@@ -149,7 +151,7 @@ function say(text: string, ok: boolean) {
         type="button"
         class="boutique-entry"
         :style="{ backgroundImage: `url(${shopSceneUrl})` }"
-        aria-label="进入樱花珍品店"
+        aria-label="进入珍品换装商店"
         @click="openShop"
       >
         <span class="boutique-shade" />
@@ -157,8 +159,8 @@ function say(text: string, ok: boolean) {
           <small
             ><Sparkles :size="11" />{{ boutiqueOfferCount }} 件本职业珍品 · 五职业专属外观</small
           >
-          <strong>樱花珍品店</strong>
-          <span>紫 · 金 · 红洛丽塔系列，支持试穿、专属互动与攻击换肤。</span>
+          <strong>珍品换装商店</strong>
+          <span>樱花馆与冰雪馆独立陈列，支持全身试穿、养成与攻击换肤。</span>
           <em><Coins :size="11" />只收分解与挂机获得的金币</em>
         </span>
         <span class="boutique-cta" aria-hidden="true">

@@ -101,7 +101,7 @@ describe('精品商店价格表的结构约束', () => {
 
   it('同一部位的价格必须按档位严格递增', () => {
     // 宅猫是单职业限定主题，不在莓霜→月糖→绯夜这条主线阶梯上
-    const ladder = ['莓霜', '月糖', '绯夜'];
+    const ladder = ['莓霜', '月糖', '绯夜', '冰雪'];
     const bySlot = new Map<string, Map<string, number>>();
     for (const theme of BOUTIQUE_THEME_LIST) {
       if (!ladder.includes(theme.shortName)) continue;
@@ -135,6 +135,17 @@ describe('精品商店价格表的结构约束', () => {
             `舍到不一样的值就是玩家能看见的对不上账。`,
         ).toBe(true);
       }
+    }
+  });
+
+  it('冰雪华年每职业整套为 11.5 亿，保持顶段长期目标而非廉价跳级', () => {
+    const theme = BOUTIQUE_THEME_LIST.find((entry) => entry.id === 'ice-snow');
+    expect(theme).toBeDefined();
+    for (const classId of CLASS_IDS) {
+      const total = theme!.items
+        .filter((item) => !item.classId || item.classId === classId)
+        .reduce((sum, item) => sum + item.price, 0);
+      expect(total, classId).toBe(1_150_000_000);
     }
   });
 });

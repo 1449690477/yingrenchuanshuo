@@ -95,6 +95,13 @@ var QUALITY_AFFIX_COUNT = {
   prismatic: 6,
   divine: 6
 };
+var AFFIX_TIERS = [
+  { tier: 1, name: "\u7C97\u7CD9", weight: 40, multiplier: 0.62 },
+  { tier: 2, name: "\u666E\u901A", weight: 27, multiplier: 0.76 },
+  { tier: 3, name: "\u4F18\u826F", weight: 18, multiplier: 0.88 },
+  { tier: 4, name: "\u5353\u8D8A", weight: 11, multiplier: 1.1 },
+  { tier: 5, name: "\u6781\u54C1", weight: 4, multiplier: 1.64 }
+];
 var SLOT_WEIGHTS = {
   weapon: { atk: 2 },
   head: { def: 0.7, acc: 0.8, hp: 3 },
@@ -125,6 +132,92 @@ var QUALITY_PCT_SCALE = {
   prismatic: 4,
   divine: 4.6
 };
+var AFFIX_POOL = [
+  {
+    key: "atk",
+    min: 0.4,
+    max: 0.8,
+    weight: 20,
+    scalesWithLevel: true,
+    decimals: 1,
+    label: "\u653B\u51FB\u529B"
+  },
+  {
+    key: "def",
+    min: 0.3,
+    max: 0.6,
+    weight: 20,
+    scalesWithLevel: true,
+    decimals: 1,
+    label: "\u9632\u5FA1\u529B"
+  },
+  { key: "hp", min: 4, max: 8, weight: 20, scalesWithLevel: true, decimals: 1, label: "\u751F\u547D\u503C" },
+  {
+    key: "critRate",
+    min: 0.5,
+    max: 3,
+    weight: 10,
+    scalesWithLevel: false,
+    decimals: 1,
+    label: "\u66B4\u51FB\u7387"
+  },
+  {
+    key: "critDmg",
+    min: 2,
+    max: 12,
+    weight: 10,
+    scalesWithLevel: false,
+    decimals: 1,
+    label: "\u66B4\u51FB\u4F24\u5BB3"
+  },
+  { key: "acc", min: 0.5, max: 1.2, weight: 8, scalesWithLevel: true, decimals: 1, label: "\u547D\u4E2D" },
+  { key: "eva", min: 0.4, max: 1, weight: 8, scalesWithLevel: true, decimals: 1, label: "\u95EA\u907F" },
+  {
+    key: "spd",
+    min: 0.01,
+    max: 0.05,
+    weight: 4,
+    scalesWithLevel: false,
+    decimals: 2,
+    label: "\u653B\u901F"
+  },
+  {
+    key: "dmgReduce",
+    min: 0.5,
+    max: 2.5,
+    weight: 3,
+    scalesWithLevel: false,
+    decimals: 1,
+    label: "\u4F24\u5BB3\u51CF\u514D"
+  },
+  {
+    key: "elemDmg",
+    min: 3,
+    max: 10,
+    weight: 3,
+    scalesWithLevel: false,
+    decimals: 1,
+    label: "\u5C5E\u6027\u4F24\u5BB3"
+  },
+  {
+    key: "lifesteal",
+    min: 0.5,
+    max: 2,
+    weight: 2,
+    scalesWithLevel: false,
+    decimals: 1,
+    label: "\u5438\u8840"
+  },
+  {
+    key: "skillMul",
+    min: 1,
+    max: 4,
+    weight: 2,
+    scalesWithLevel: false,
+    decimals: 1,
+    label: "\u6280\u80FD\u500D\u7387"
+  }
+];
 var SLOT_LABELS = {
   weapon: "\u6B66\u5668",
   head: "\u5934\u51A0",
@@ -717,9 +810,138 @@ var BOUTIQUE_THEMES = {
         uniqueEffect: "\u653B\u51FB\u6362\u80A4\uFF1A\u516D\u9053\u84DD\u6676\u952E\u5E3D\u722A\u75D5\u4EA4\u9519\uFF0C\u547D\u4E2D\u4E2D\u5FC3\u7EFD\u5F00\u7C89\u8272\u8089\u7403\u3002"
       }
     ]
+  },
+  "ice-snow": {
+    id: "ice-snow",
+    name: "\u51B0\u96EA\u534E\u5E74\u65B0\u6625\u793C\u88C5",
+    shortName: "\u51B0\u96EA",
+    quality: "legendary",
+    level: 78,
+    unlockStageId: "stage_7-5_6",
+    rank: 4,
+    tagline: "\u8C61\u7259\u767D\u793C\u88D9\u3001\u51B0\u6676\u96EA\u82B1\u3001\u73CD\u73E0\u94F6\u7A57\u4E0E\u4E00\u62B9\u65B0\u5C81\u4E2D\u56FD\u7ED3\u3002",
+    palette: ["#f9fcff", "#bde8f8", "#ef91aa"],
+    interactionName: "\u745E\u96EA\u8FCE\u6625\u793C",
+    interactionLines: [
+      "\u7B2C\u4E00\u7247\u65B0\u96EA\u843D\u5728\u638C\u5FC3\u65F6\uFF0C\u4E5F\u628A\u4ECA\u5E74\u7684\u597D\u8FD0\u5206\u7ED9\u4F60\u3002",
+      "\u94F6\u7A57\u8F7B\u54CD\u4E09\u58F0\uFF0C\u5C31\u7B97\u6211\u4EEC\u4E00\u8D77\u8BB8\u8FC7\u65B0\u5E74\u613F\u671B\u5566\u3002",
+      "\u522B\u62C5\u5FC3\u88D9\u6446\u6CBE\u96EA\uFF0C\u51B0\u6676\u4F1A\u628A\u6BCF\u4E00\u6B65\u90FD\u53D8\u6210\u5C0F\u661F\u661F\u3002"
+    ],
+    attackEffects: {
+      swordsman: "assets/effects/boutique/ice-snow-swordsman.png",
+      witch: "assets/effects/boutique/ice-snow-witch.png",
+      shaman: "assets/effects/boutique/ice-snow-shaman.png",
+      catkin: "assets/effects/boutique/ice-snow-catkin.png",
+      kenshi: "assets/effects/boutique/ice-snow-kenshi.png"
+    },
+    // R7 终章的毕业珍品：传奇裸值跟随当前主线，强度来自真实 T5 固定词条与三条可洗槽。
+    // 不提升到 divine，避免 15 / 5.8 = 2.59 倍的品质跳变摧毁现有 TTK。
+    fixedAffixTier: 5,
+    extraAffixSlots: 3,
+    items: [
+      ...weapons(
+        {
+          name: "\u51B0\u96EA\u534E\u5E74\xB7\u9701\u96EA\u957F\u5251",
+          price: 21e7,
+          uniqueEffect: "\u653B\u51FB\u6362\u80A4\uFF1A\u9701\u84DD\u5251\u5F27\u5377\u8D77\u516D\u74E3\u96EA\u6676\u4E0E\u4E00\u7EBF\u65B0\u6625\u94F6\u5149\u3002"
+        },
+        {
+          name: "\u51B0\u96EA\u534E\u5E74\xB7\u51DD\u661F\u6CD5\u6756",
+          price: 21e7,
+          uniqueEffect: "\u65BD\u6CD5\u6362\u80A4\uFF1A\u51B0\u6676\u661F\u73AF\u6CBF\u6756\u5C16\u6269\u6563\uFF0C\u73CD\u73E0\u5149\u70B9\u67D4\u548C\u56DE\u65CB\u3002"
+        },
+        {
+          name: "\u51B0\u96EA\u534E\u5E74\xB7\u7389\u94C3\u7075\u6247",
+          price: 21e7,
+          uniqueEffect: "\u65BD\u6CD5\u6362\u80A4\uFF1A\u7389\u94C3\u8F7B\u54CD\uFF0C\u96EA\u82B1\u7075\u7EB9\u4E0E\u94F6\u7A57\u6CE2\u7EB9\u4EA4\u53E0\u7EFD\u653E\u3002"
+        },
+        {
+          name: "\u51B0\u96EA\u534E\u5E74\xB7\u94F6\u7ED2\u53CC\u722A",
+          price: 21e7,
+          uniqueEffect: "\u653B\u51FB\u6362\u80A4\uFF1A\u53CC\u722A\u4EA4\u9519\u7559\u4E0B\u732B\u8033\u96EA\u6676\u4E0E\u6DE1\u7C89\u51B0\u82B1\u7206\u70B9\u3002"
+        },
+        {
+          name: "\u51B0\u96EA\u534E\u5E74\xB7\u521D\u9701\u592A\u5200",
+          price: 21e7,
+          uniqueEffect: "\u653B\u51FB\u6362\u80A4\uFF1A\u5C45\u5408\u5200\u5149\u51DD\u6210\u4E00\u7EBF\u521D\u9701\u51B0\u6CB3\uFF0C\u672B\u7AEF\u843D\u4E0B\u65B0\u5C81\u96EA\u6A31\u3002"
+        }
+      ),
+      {
+        slot: "head",
+        name: "\u767D\u7ED2\u5C81\u534E\u793C\u5E3D",
+        price: 13e7,
+        category: "armor",
+        uniqueEffect: "\u5F85\u673A\u65F6\u5E3D\u6A90\u96EA\u6676\u8F7B\u4EAE\uFF0C\u94F6\u7A57\u968F\u547C\u5438\u52A8\u4F5C\u67D4\u548C\u6446\u52A8\u3002"
+      },
+      {
+        slot: "body",
+        name: "\u51B0\u6676\u534E\u5E74\u516C\u4E3B\u88D9",
+        price: 19e7,
+        category: "dress",
+        uniqueEffect: "\u4E13\u5C5E\u4E92\u52A8\uFF1A\u8C61\u7259\u767D\u88D9\u6446\u65CB\u5F00\u96EA\u82B1\u3001\u73CD\u73E0\u548C\u4E00\u679A\u5C0F\u5C0F\u4E2D\u56FD\u7ED3\u3002"
+      },
+      {
+        slot: "necklace",
+        name: "\u96EA\u9B44\u73CD\u73E0\u9879\u94FE",
+        price: 14e7,
+        category: "accessory",
+        uniqueEffect: "\u6280\u80FD\u91CA\u653E\u65F6\u80F8\u524D\u73CD\u73E0\u4EAE\u8D77\u4E00\u5708\u51B0\u84DD\u547C\u5438\u5149\u3002"
+      },
+      {
+        slot: "bracelet",
+        name: "\u94F6\u971C\u6D41\u82CF\u8155\u9970",
+        price: 12e7,
+        category: "accessory",
+        uniqueEffect: "\u6325\u624B\u65F6\u94F6\u971C\u6D41\u82CF\u62D6\u51FA\u514B\u5236\u7684\u7C89\u84DD\u661F\u5C51\u3002"
+      },
+      {
+        slot: "ring",
+        name: "\u65B0\u5C81\u51B0\u5FC3\u8A93\u6212",
+        price: 16e7,
+        category: "accessory",
+        uniqueEffect: "\u89E6\u6478\u6212\u6307\u4F1A\u70B9\u4EAE\u4E00\u679A\u51B0\u5FC3\u4E0E\u77ED\u6682\u7684\u65B0\u5C81\u795D\u798F\u5149\u3002"
+      },
+      {
+        slot: "belt",
+        name: "\u745E\u96EA\u4E2D\u56FD\u7ED3\u8170\u5C01",
+        price: 105e6,
+        category: "armor",
+        uniqueEffect: "\u8170\u95F4\u5C0F\u4E2D\u56FD\u7ED3\u5728\u66B4\u51FB\u6F14\u51FA\u65F6\u95EA\u8FC7\u4E00\u7F15\u6696\u7EA2\u94F6\u8FB9\u3002"
+      },
+      {
+        slot: "shoes",
+        name: "\u8E0F\u96EA\u73CD\u73E0\u77ED\u9774",
+        price: 95e6,
+        category: "armor",
+        uniqueEffect: "\u811A\u6B65\u6362\u80A4\uFF1A\u7559\u4E0B\u4E24\u679A\u6E10\u9690\u96EA\u82B1\u4E0E\u67D4\u8F6F\u73CD\u73E0\u5149\u70B9\u3002"
+      }
+    ]
   }
 };
 var BOUTIQUE_THEME_LIST = Object.values(BOUTIQUE_THEMES);
+var BOUTIQUE_SHELVES = {
+  sakura: {
+    id: "sakura",
+    name: "\u6A31\u82B1\u73CD\u54C1\u8D27\u67B6",
+    shortName: "\u6A31\u82B1\u9986",
+    sceneAsset: "assets/shops/sakura-boutique.webp",
+    sceneAlt: "\u6A31\u82B1\u73CD\u54C1\u5E97\u5185\u666F\uFF0C\u5DE6\u53F3\u662F\u534E\u4E3D\u88C5\u5907\u8D27\u67B6\uFF0C\u4E2D\u592E\u5C55\u793A\u6D1B\u4E3D\u5854\u88D9\u88C5",
+    keeperName: "\u5E97\u4E3B \xB7 \u6A31\u6843",
+    headline: "\u6B22\u8FCE\u8BD5\u7A7F\uFF0C\u559C\u6B22\u518D\u5E26\u8D70\uFF5E",
+    themeIds: ["berry-cream", "moon-sugar", "rose-night", "cardboard-cat"]
+  },
+  "ice-snow": {
+    id: "ice-snow",
+    name: "\u51B0\u96EA\u534E\u5E74\u65B0\u6625\u8D27\u67B6",
+    shortName: "\u51B0\u96EA\u9986",
+    sceneAsset: "assets/shops/ice-snow-shelf.webp",
+    sceneAlt: "\u51B0\u96EA\u534E\u5E74\u65B0\u6625\u8D27\u67B6\uFF0C\u4E2D\u592E\u5C55\u793A\u767D\u8272\u65B0\u6625\u793C\u88D9\uFF0C\u5468\u56F4\u9648\u5217\u4E94\u804C\u4E1A\u51B0\u6676\u6B66\u5668",
+    keeperName: "\u65B0\u6625\u793C\u88C5 \xB7 \u745E\u96EA",
+    headline: "\u745E\u96EA\u8FCE\u6625\uFF0C\u4E94\u804C\u4E1A\u793C\u88C5\u90FD\u80FD\u5B8C\u6574\u8BD5\u7A7F\uFF5E",
+    themeIds: ["ice-snow"]
+  }
+};
+var BOUTIQUE_SHELF_LIST = Object.values(BOUTIQUE_SHELVES);
 function boutiqueEquipmentId(themeId, slot, classId) {
   return `eq_shop_${themeId}_${slot}${classId ? `_${classId}` : ""}`;
 }
@@ -1949,7 +2171,9 @@ var BOUTIQUE_WEAPON_ELEMENTS = {
   "berry-cream": "fire",
   "moon-sugar": "ice",
   "rose-night": "thunder",
-  "cardboard-cat": "none"
+  "cardboard-cat": "none",
+  // 冰雪华年位于当前顶段，继续提供明确的冰属性毕业武器来源。
+  "ice-snow": "ice"
 };
 var EQUIPMENT_DUNGEON_WEAPON_ELEMENTS = {
   azure: "ice",
@@ -2560,6 +2784,7 @@ var KENSHI_BODY_APPEARANCE_IDS = /* @__PURE__ */ new Set([
   "boutique-berry-cream-body",
   "boutique-moon-sugar-body",
   "boutique-rose-night-body",
+  "boutique-ice-snow-body",
   "affection-kenshi-moonblue-lantern-date-kimono"
 ]);
 function withKenshiBodyPresentation(definition) {
@@ -2697,14 +2922,15 @@ function buildEquipment() {
           item.slot,
           theme.level,
           QUALITY_AFFIX_COUNT[theme.quality],
-          percentile
+          percentile,
+          theme.fixedAffixTier
         ),
         fixedTemplate: true,
         // 额外可洗槽（2026-07-30 品质平衡）：珍品的固定词条是「身份」，
         // 额外槽是「养成空间」。没有它，商店装买回来就定死、越玩越弱 ——
         // 所有者反馈「红装卖得贵却不如掉落黄装」的核心原因。
         // 按品质递增，让越贵的珍品越值得长期养。
-        extraAffixSlots: BOUTIQUE_EXTRA_AFFIX_SLOTS[theme.quality],
+        extraAffixSlots: theme.extraAffixSlots ?? BOUTIQUE_EXTRA_AFFIX_SLOTS[theme.quality],
         uniqueEffect: item.uniqueEffect,
         boutiqueTheme: theme.id,
         ...item.classId ? { classId: item.classId } : {}
@@ -2745,8 +2971,23 @@ var BOUTIQUE_AFFIX_KEYS = {
   belt: ["def", "hp", "eva", "acc", "critRate", "critDmg"],
   shoes: ["eva", "spd", "def", "hp", "acc", "critRate"]
 };
-function boutiqueAffixes(slot, level, count, percentile) {
-  return BOUTIQUE_AFFIX_KEYS[slot].slice(0, count).map((key) => ({ key, value: boutiqueAffixValue(key, level, percentile) }));
+function boutiqueAffixes(slot, level, count, percentile, tier) {
+  return BOUTIQUE_AFFIX_KEYS[slot].slice(0, count).map((key) => ({
+    key,
+    value: tier ? boutiqueAffixValueAtTier(key, level, tier) : boutiqueAffixValue(key, level, percentile),
+    ...tier ? { tier } : {}
+  }));
+}
+function boutiqueAffixValueAtTier(key, level, tier) {
+  const spec = AFFIX_POOL.find((entry) => entry.key === key);
+  const tierConfig = AFFIX_TIERS.find((entry) => entry.tier === tier);
+  if (!spec || !tierConfig) {
+    throw new Error(`[\u914D\u7F6E\u9519\u8BEF] \u7CBE\u54C1\u56FA\u5B9A\u8BCD\u6761\u65E0\u6CD5\u89E3\u6790\uFF1A${key} / T${tier}`);
+  }
+  const levelScale = spec.scalesWithLevel ? Math.pow(level, 1.3) : 1;
+  const precision = 10 ** spec.decimals;
+  const baseline = (spec.min + spec.max) / 2 * levelScale;
+  return Math.round(baseline * tierConfig.multiplier * precision) / precision;
 }
 function boutiqueAffixValue(key, level, percentile) {
   const levelScale = Math.pow(level, 1.3);

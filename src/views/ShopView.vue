@@ -3,6 +3,10 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { ArrowLeft, Coins, LockKeyhole, Sparkles, X } from '@lucide/vue';
 import { abbr, signed } from '@/core/format';
 import type { EquipmentInstance, Quality } from '@/core/types';
+import {
+  BOUTIQUE_SHELF_LIST,
+  type BoutiqueShelfId,
+} from '@/data/boutique';
 import type { EquippedRecord } from '@/data/characterAppearance';
 import { QUALITY_LABELS, SLOT_LABELS } from '@/data/constants';
 import { equipmentDisplayPresentation } from '@/data/equipmentPresentation';
@@ -25,6 +29,7 @@ const activeClassId = computed(() => {
   return classId;
 });
 const activeFilter = ref<FilterId>('all');
+const activeShelfId = ref<BoutiqueShelfId>('sakura');
 const selectedId = ref<string | null>(null);
 const toast = ref('');
 const purchaseBurst = ref(0);
@@ -36,7 +41,13 @@ let detailReturnFocus: HTMLElement | null = null;
 let toastTimer = 0;
 let bumpTimer = 0;
 let bumpFrame = 0;
-const shopSceneUrl = `${import.meta.env.BASE_URL}assets/shops/sakura-boutique.webp`;
+
+const activeShelf = computed(() => {
+  const shelf = BOUTIQUE_SHELF_LIST.find((entry) => entry.id === activeShelfId.value);
+  if (!shelf) throw new Error(`[商店错误] 珍品货架不存在：${activeShelfId.value}`);
+  return shelf;
+});
+const shopSceneUrl = computed(() => `${import.meta.env.BASE_URL}${activeShelf.value.sceneAsset}`);
 
 const filters: readonly { id: FilterId; label: string }[] = [
   { id: 'all', label: '全部' },
@@ -47,8 +58,17 @@ const filters: readonly { id: FilterId; label: string }[] = [
   { id: 'weapon', label: '职业武器' },
 ];
 
+const activeShelfOffers = computed(() =>
+  shop.offers.filter((entry) => activeShelf.value.themeIds.includes(entry.theme.id)),
+);
+const activeShelfPurchasedCount = computed(
+  () =>
+    activeShelfOffers.value.filter(
+      (entry) => 'reason' in entry.assessment && entry.assessment.reason === 'sold-out',
+    ).length,
+);
 const visibleOffers = computed(() =>
-  shop.offers.filter((entry) => {
+  activeShelfOffers.value.filter((entry) => {
     if (activeFilter.value === 'all') return true;
     if (activeFilter.value === 'dress') return entry.offer.category === 'dress';
     if (activeFilter.value === 'weapon') return entry.offer.category === 'weapon';
@@ -110,6 +130,13 @@ function openDetail(offerId: string, event: MouseEvent): void {
 
 function closeDetail(): void {
   selectedId.value = null;
+}
+
+function selectShelf(shelfId: BoutiqueShelfId): void {
+  if (activeShelfId.value === shelfId) return;
+  activeShelfId.value = shelfId;
+  activeFilter.value = 'all';
+  closeDetail();
 }
 
 function onDetailKeydown(event: KeyboardEvent): void {
@@ -213,13 +240,13 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="shop-view" role="region" aria-label="樱花珍品店">
+  <div class="shop-view" role="region" aria-label="珍品换装商店">
     <header class="shop-top">
       <button ref="backButton" class="back" aria-label="返回更多" @click="$emit('close')">
         <ArrowLeft :size="18" aria-hidden="true" />
       </button>
       <span class="shop-title">
-        <strong>樱花珍品店</strong>
+        <strong>珍品换装商店</strong>
         <small>装备靠打 · 金币保底收藏</small>
       </span>
       <span class="gold-pill" :class="{ bump: goldBump }">
@@ -227,16 +254,31 @@ onUnmounted(() => {
       </span>
     </header>
 
-    <section class="shop-scene">
-      <img :src="shopSceneUrl" alt="樱花珍品店内景，左右是华丽装备货架，中央展示洛丽塔裙装" />
+    <nav class="shelf-switcher" aria-label="珍品货架">
+      <button
+        v-for="shelfEntry in BOUTIQUE_SHELF_LIST"
+        :key="shelfEntry.id"
+        :class="{ active: activeShelfId === shelfEntry.id, ice: shelfEntry.id === 'ice-snow' }"
+        :aria-pressed="activeShelfId === shelfEntry.id"
+        @click="selectShelf(shelfEntry.id)"
+      >
+        <span aria-hidden="true">{{ shelfEntry.id === 'ice-snow' ? '❄' : '✿' }}</span>
+        {{ shelfEntry.shortName }}
+      </button>
+    </nav>
+
+    <section class="shop-scene" :class="activeShelf.id">
+      <img :src="shopSceneUrl" :alt="activeShelf.sceneAlt" />
       <span class="scene-shade" />
       <i class="scene-petal p1" aria-hidden="true" />
       <i class="scene-petal p2" aria-hidden="true" />
       <i class="scene-petal p3" aria-hidden="true" />
       <span class="shopkeeper-copy">
-        <small>店主 · 樱桃</small>
-        <strong>欢迎试穿，喜欢再带走～</strong>
-        <span>已收藏 {{ shop.purchasedCount }}/{{ shop.offers.length }} 件本职业珍品</span>
+        <small>{{ activeShelf.keeperName }}</small>
+        <strong>{{ activeShelf.headline }}</strong>
+        <span>
+          本货架已收藏 {{ activeShelfPurchasedCount }}/{{ activeShelfOffers.length }} 件本职业珍品
+        </span>
       </span>
     </section>
 
@@ -423,6 +465,69 @@ onUnmounted(() => {
   animation: pill-bump 0.4s var(--ease-out-back);
 }
 
+.shelf-switcher {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  padding: 7px 9px;
+  background: rgb(255 255 255 / 82%);
+  border-bottom: 1px solid var(--hairline);
+}
+
+.shelf-switcher button {
+  min-width: 0;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: var(--text-mid);
+  font-size: 11px;
+  font-weight: 800;
+  background: linear-gradient(145deg, #fff9fc, #f6eef5);
+  border: 1px solid rgb(228 191 211 / 58%);
+  border-radius: 14px;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 88%);
+  transition:
+    color var(--t-fast) var(--ease-soft),
+    transform var(--t-fast) var(--ease-spring),
+    box-shadow var(--t-fast) var(--ease-soft);
+}
+
+.shelf-switcher button span {
+  font-size: 13px;
+  color: #e880ad;
+}
+
+.shelf-switcher button.ice {
+  background: linear-gradient(145deg, #f9fdff, #e9f6ff 62%, #fff3f8);
+  border-color: rgb(140 197 226 / 54%);
+}
+
+.shelf-switcher button.ice span {
+  color: #68b5da;
+}
+
+.shelf-switcher button.active {
+  color: #94506d;
+  box-shadow:
+    0 5px 14px rgb(157 114 143 / 15%),
+    inset 0 0 0 1px rgb(255 255 255 / 92%);
+  transform: translateY(-1px);
+}
+
+.shelf-switcher button.ice.active {
+  color: #377f9f;
+  box-shadow:
+    0 5px 15px rgb(93 164 199 / 20%),
+    inset 0 0 0 1px rgb(255 255 255 / 94%);
+}
+
+.shelf-switcher button:active {
+  transform: scale(0.96);
+}
+
 @keyframes pill-bump {
   0% {
     transform: scale(1);
@@ -458,6 +563,12 @@ onUnmounted(() => {
   background: linear-gradient(90deg, rgb(48 38 57 / 64%), transparent 72%);
 }
 
+.shop-scene.ice-snow .scene-shade {
+  background:
+    linear-gradient(90deg, rgb(45 76 103 / 66%), transparent 76%),
+    linear-gradient(0deg, rgb(217 242 255 / 12%), transparent 65%);
+}
+
 .scene-petal {
   position: absolute;
   z-index: 1;
@@ -489,6 +600,18 @@ onUnmounted(() => {
   animation-delay: -7s;
 }
 
+.shop-scene.ice-snow .scene-petal {
+  width: 8px;
+  height: 8px;
+  background: radial-gradient(circle, #fff 0 28%, #bfe8f8 34% 58%, transparent 62%);
+  border-radius: 50%;
+  box-shadow:
+    0 -4px 0 -2px #fff,
+    0 4px 0 -2px #fff,
+    4px 0 0 -2px #fff,
+    -4px 0 0 -2px #fff;
+}
+
 @keyframes scene-petal-fall {
   0% {
     opacity: 0;
@@ -501,6 +624,20 @@ onUnmounted(() => {
   100% {
     opacity: 0;
     transform: translate3d(30px, 168px, 0) rotate(320deg) scale(var(--petal-scale));
+  }
+}
+
+@media (max-height: 620px) {
+  .shop-scene {
+    flex-basis: 112px;
+  }
+
+  .shelf-switcher {
+    padding-block: 5px;
+  }
+
+  .shop-filters {
+    margin-top: 5px;
   }
 }
 
