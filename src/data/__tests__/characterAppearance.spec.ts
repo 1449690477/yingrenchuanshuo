@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
+import { requireEquipment } from '@/data/equipment';
 import type { EquipmentInstance, EquipSlot } from '@/core/types';
 import { ENHANCE_MAX } from '@/data/constants';
 import {
   REGION_34_EQUIPMENT_APPEARANCES,
   requireEquipmentAppearance,
+  kenshiWornIconOverride,
   resolveCharacterAppearance,
   type EquippedRecord,
 } from '../characterAppearance';
@@ -65,8 +67,12 @@ describe('角色换装外观解析', () => {
 
     const kenshi = resolveCharacterAppearance('kenshi', 20, equipped);
     expect(kenshi.baseAsset).toBe('assets/characters/modular/kenshi/r1-body.png');
-    expect(kenshi.layers.map(({ slot }) => slot)).toEqual(['head', 'weapon']);
-    expect(kenshi.signature).toBe('body:r1-body|head:r1-head|weapon:r1-weapon');
+    // 2026-08-02 改判：区域整身图把成套头饰画在了图里（对照表 01≡02 实锤），
+    // 头饰再叠加 = 同套重复绘制 / 跨套两饰打架。整身生效时头饰改走
+    // silentVisualSlots 解释机制，武器仍按层叠加（另有手提佩刀变换）。
+    expect(kenshi.layers.map(({ slot }) => slot)).toEqual(['weapon']);
+    expect(kenshi.silentVisualSlots).toContain('head');
+    expect(kenshi.signature).toBe('body:r1-body|weapon:r1-weapon');
 
     const witch = resolveCharacterAppearance('witch', 20, equipped);
     expect(witch.baseAsset).toBe('assets/characters/modular/witch/base.png');
@@ -374,5 +380,60 @@ describe('沉默视觉槽（silentVisualSlots）', () => {
     } as never;
     const r = resolveCharacterAppearance('catkin', 71, equipped);
     expect(r.silentVisualSlots).toHaveLength(0);
+  });
+});
+
+describe('樱酱适配三修（2026-08-02，docs/81 止血包）', () => {
+  const inst = (defId: string): EquipmentInstance => ({
+    uid: defId, defId, enhance: 0, baseRollPermille: 1000,
+    enhanceGainPermille: [], enhanceLuck: {}, affixes: [], reforgeResonance: 0, locked: false,
+  });
+  const empty: EquippedRecord = {
+    weapon: null, head: null, body: null, necklace: null,
+    bracelet: null, ring: null, belt: null, shoes: null,
+  };
+
+  it('整身已含头饰：区域整身生效时头饰不再叠加，并进解释机制', () => {
+    const r = resolveCharacterAppearance('kenshi', 60, {
+      ...empty,
+      body: inst('eq_r6_body_legendary'),
+      head: inst('eq_r5_head_legendary'),
+    });
+    // 头饰层被摘掉（跨套两个头饰打架的实锤修复）
+    expect(r.layers.some((l) => l.slot === 'head')).toBe(false);
+    expect(r.silentVisualSlots).toContain('head');
+    // 老职业不受影响：同样穿法头饰照常叠加
+    const s = resolveCharacterAppearance('swordsman', 60, {
+      ...empty,
+      body: inst('eq_r6_body_legendary'),
+      head: inst('eq_r5_head_legendary'),
+    });
+    expect(s.layers.some((l) => l.slot === 'head')).toBe(true);
+    expect(s.silentVisualSlots).not.toContain('head');
+  });
+
+  it('武器手提佩刀变换：樱酱武器层统一非零位移，老职业保持原位', () => {
+    const r = resolveCharacterAppearance('kenshi', 60, {
+      ...empty,
+      weapon: inst('eq_r6_weapon_legendary'),
+    });
+    const w = r.layers.find((l) => l.slot === 'weapon');
+    expect(w).toBeDefined();
+    expect(w!.transform.scale).toBeLessThan(1);
+    expect(w!.transform.x).toBeLessThan(0);
+    expect(w!.transform.y).toBeGreaterThan(0);
+    const s = resolveCharacterAppearance('swordsman', 60, {
+      ...empty,
+      weapon: inst('eq_r6_weapon_legendary'),
+    });
+    expect(s.layers.find((l) => l.slot === 'weapon')!.transform).toEqual({ scale: 1, x: 0, y: 0 });
+  });
+
+  it('实穿图标：樱酱整身替换件返回穿着资产，老职业与非替换件返回 null', () => {
+    const body = requireEquipment('eq_r6_body_legendary');
+    expect(kenshiWornIconOverride(body, 'kenshi')).toContain('kenshi/r6-body');
+    expect(kenshiWornIconOverride(body, 'swordsman')).toBeNull();
+    const weapon = requireEquipment('eq_r6_weapon_legendary');
+    expect(kenshiWornIconOverride(weapon, 'kenshi')).toBeNull();
   });
 });

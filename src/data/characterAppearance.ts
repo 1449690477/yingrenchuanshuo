@@ -1,3 +1,4 @@
+import type { EquipmentDef } from '@/core/types';
 import {
   CLASS_IDS,
   type BoutiqueThemeId,
@@ -64,6 +65,13 @@ interface LayerAppearance {
   assets: Partial<Record<ClassId, string>>;
   transforms: Record<ClassId, LayerTransform>;
   /**
+   * 整身替换图里**已经画进去**的其它槽位（仅在替换对该职业生效时有意义）。
+   * 例：樱酱的区域整身把成套发饰画在了图里 —— 再叠独立头饰，同套是
+   * 看不见的重复绘制，跨套就是两个头饰打架（2026-08-02 老板截图实锤）。
+   * 列在这里的槽位在替换生效时不再叠加，走 silentVisualSlots 的解释机制。
+   */
+  replacementIncludes?: readonly EquipSlot[];
+  /**
    * 少数职业的同路径素材是已经对位的完整人物，而不是透明衣物层。
    * 命中的职业把该 body 当底模替换；未命中的职业仍按普通 layer 渲染。
    */
@@ -86,6 +94,8 @@ interface ReplacementAppearance {
   slot: 'body';
   renderMode: 'replacement';
   assets: Partial<Record<ClassId, string>>;
+  /** 同 LayerAppearance.replacementIncludes：整身图里已画进去的其它槽位。 */
+  replacementIncludes?: readonly EquipSlot[];
 }
 
 export type EquipmentAppearance =
@@ -114,6 +124,23 @@ const sameTransform = (transform: LayerTransform): Record<ClassId, LayerTransfor
  * 运行时只做恒等叠加，避免手机浏览器重复缩放透明大图产生模糊边缘。
  */
 const alignedTransforms = sameTransform({ scale: 1, x: 0, y: 0 });
+
+/**
+ * 樱酱武器层的「手提佩刀」临时变换（2026-08-02，docs/81 ④的止血版）。
+ *
+ * 病根：樱酱全系武器图层是「商品展示图」——刀+鞘斜置画在画布中央，
+ * 不贴手不贴腰，上身读作悬空（老板截图两次点名）。老职业的武器层是
+ * 逐件手调过锚位的（scripts/align-*.mjs），樱酱没跑过这道工序。
+ *
+ * 止血：整体缩到 0.85、左移 17%、下移 15.6% —— 刀柄正落在垂下的右手，
+ * 读作手提佩刀。四个候选位实测对比后取的 B 案（证据
+ * scratchpad/sheets/06-weapon-transform-candidates.png）。
+ *
+ * ⚠ 正解仍是美术管线按底图手位重生成（docs/81 ④）。重生成落地那天
+ * **整体删除这个常量**，不要在它上面继续叠数 —— 补偿性数值必须写明
+ * 补偿对象，对象消失后补偿就是新的失真（小深 2026-07-31 的规矩）。
+ */
+const KENSHI_WEAPON_CARRY: LayerTransform = { scale: 0.85, x: -17, y: 15.6 };
 const KENSHI_REGION_BODY_REPLACEMENT = ['kenshi'] as const satisfies readonly ClassId[];
 
 function boutiqueClassAssets(
@@ -222,7 +249,7 @@ function buildRegionAppearances(regionIds: readonly string[]): Record<string, Eq
         assets: classAssets(id),
         transforms: alignedTransforms,
         ...(slot === 'body'
-          ? { replacementClasses: KENSHI_REGION_BODY_REPLACEMENT }
+          ? { replacementClasses: KENSHI_REGION_BODY_REPLACEMENT, replacementIncludes: ['head'] as const }
           : {}),
       };
     }
@@ -260,7 +287,7 @@ function buildRegion5SetAppearances(): Record<string, EquipmentAppearance> {
       ) as Record<ClassId, string>,
       transforms: alignedTransforms,
       ...(slot === 'body'
-        ? { replacementClasses: KENSHI_REGION_BODY_REPLACEMENT }
+        ? { replacementClasses: KENSHI_REGION_BODY_REPLACEMENT, replacementIncludes: ['head'] as const }
         : {}),
     };
   }
@@ -287,7 +314,7 @@ function buildRegion6SetAppearances(): Record<string, EquipmentAppearance> {
       ) as Record<ClassId, string>,
       transforms: alignedTransforms,
       ...(slot === 'body'
-        ? { replacementClasses: KENSHI_REGION_BODY_REPLACEMENT }
+        ? { replacementClasses: KENSHI_REGION_BODY_REPLACEMENT, replacementIncludes: ['head'] as const }
         : {}),
     };
   }
@@ -314,7 +341,7 @@ function buildRegion7SetAppearances(): Record<string, EquipmentAppearance> {
       ) as Record<ClassId, string>,
       transforms: alignedTransforms,
       ...(slot === 'body'
-        ? { replacementClasses: KENSHI_REGION_BODY_REPLACEMENT }
+        ? { replacementClasses: KENSHI_REGION_BODY_REPLACEMENT, replacementIncludes: ['head'] as const }
         : {}),
     };
   }
@@ -456,6 +483,7 @@ export const EQUIPMENT_APPEARANCES: Readonly<Record<string, EquipmentAppearance>
     assets: classAssets('r1-body'),
     transforms: alignedTransforms,
     replacementClasses: KENSHI_REGION_BODY_REPLACEMENT,
+    replacementIncludes: ['head'],
   },
   'r1-necklace': { id: 'r1-necklace', slot: 'necklace', renderMode: 'slot-only' },
   'r1-bracelet': { id: 'r1-bracelet', slot: 'bracelet', renderMode: 'slot-only' },
@@ -483,6 +511,7 @@ export const EQUIPMENT_APPEARANCES: Readonly<Record<string, EquipmentAppearance>
     assets: classAssets('r2-body'),
     transforms: alignedTransforms,
     replacementClasses: KENSHI_REGION_BODY_REPLACEMENT,
+    replacementIncludes: ['head'],
   },
   'r2-necklace': { id: 'r2-necklace', slot: 'necklace', renderMode: 'slot-only' },
   'r2-bracelet': { id: 'r2-bracelet', slot: 'bracelet', renderMode: 'slot-only' },
@@ -502,7 +531,7 @@ export const EQUIPMENT_APPEARANCES: Readonly<Record<string, EquipmentAppearance>
           assets: classAssets(`${regionId}-${slot}`),
           transforms: alignedTransforms,
           ...(slot === 'body'
-            ? { replacementClasses: KENSHI_REGION_BODY_REPLACEMENT }
+            ? { replacementClasses: KENSHI_REGION_BODY_REPLACEMENT, replacementIncludes: ['head'] as const }
             : {}),
         },
       ]),
@@ -621,6 +650,7 @@ export function resolveCharacterAppearance(
   let activeDungeonTier: EquipmentDungeonTierId | null = null;
   let replacementBaseAsset: string | null = null;
   let replacementId: string | null = null;
+  let replacementIncludes: readonly EquipSlot[] | null = null;
   let hasVisibleShoes = false;
   let visibleEquippedCount = 0;
   const visibleNames: string[] = [];
@@ -683,12 +713,16 @@ export function resolveCharacterAppearance(
       ) {
         replacementBaseAsset = asset;
         replacementId = appearance.id;
+        replacementIncludes = appearance.replacementIncludes ?? null;
         continue;
       }
-      const transform = appearance.transforms[classId];
+      let transform = appearance.transforms[classId];
       if (!transform) {
         throw new Error(`[配置错误] ${classId} 缺少装备外观变换：${appearance.id}`);
       }
+      // 樱酱全系武器图层是未对位的商品展示图 —— 在唯一出口统一套
+      // 「手提佩刀」临时变换，而不是去改十几处登记（见常量注释与 docs/81 ④）。
+      if (classId === 'kenshi' && slot === 'weapon') transform = KENSHI_WEAPON_CARRY;
       if (slot === 'shoes') hasVisibleShoes = true;
       layers.push({
         id: appearance.id,
@@ -701,6 +735,24 @@ export function resolveCharacterAppearance(
         transform,
         ...(appearance.aboveFace ? { aboveFace: true } : {}),
       });
+    }
+  }
+
+  // 整身替换图里画进去的槽位不再叠加：同套是看不见的重复绘制，
+  // 跨套是两个头饰打架（docs/81 记录的实锤）。摘掉的槽位进解释机制，
+  // 界面会像鞋一样明说「头冠不改变外观」而不是让玩家猜。
+  if (replacementIncludes?.length) {
+    for (const included of replacementIncludes) {
+      const idx = layers.findIndex((layer) => layer.slot === included);
+      if (idx >= 0) {
+        const [removed] = layers.splice(idx, 1);
+        visibleEquippedCount -= 1;
+        // ariaLabel 的「当前可见外观」同步摘掉 —— 念给读屏用户一个
+        // 实际没显示的头饰名，和界面骗人是一回事。
+        const nameIdx = visibleNames.indexOf(removed!.name);
+        if (nameIdx >= 0) visibleNames.splice(nameIdx, 1);
+        if (!silentVisualSlots.includes(included)) silentVisualSlots.push(included);
+      }
     }
   }
 
@@ -771,4 +823,28 @@ function requireDungeonTier(tierId: EquipmentDungeonTierId) {
   const tier = EQUIPMENT_DUNGEON_TIERS.find((candidate) => candidate.id === tierId);
   if (!tier) throw new Error(`[配置错误] 装备副本外观档不存在：${tierId}`);
   return tier;
+}
+
+/**
+ * 樱酱整身替换件的「实穿」图标（2026-08-02，docs/81 ⑤的止血版）。
+ *
+ * 病根：樱酱的衣裙走整身替换（r6 = 藏青羽织袴），但格子图标是给老职业
+ * 叠层画的通用裙图 —— 图标与上身完全不像，老板两次把正常渲染当 bug 报。
+ * 老职业不动：他们的图标与叠层是一套画的，本来就像。
+ *
+ * 放在本模块而不是 equipmentPresentation：后者被本模块 import（取名字），
+ * 反向引就是循环依赖。EquipmentIcon 同时引两边，无环。
+ *
+ * 正解仍是给樱酱出成套图标（docs/81 ⑤，归美术线）；落地那天删除本函数。
+ */
+export function kenshiWornIconOverride(def: EquipmentDef, classId: ClassId): string | null {
+  if (classId !== 'kenshi') return null;
+  if (def.slot !== 'body') return null;
+  const appearance = EQUIPMENT_APPEARANCES[def.appearanceId];
+  if (!appearance || appearance.renderMode === 'slot-only') return null;
+  const replacementActive =
+    appearance.renderMode === 'replacement' ||
+    (appearance.renderMode === 'layer' && appearance.replacementClasses?.includes(classId));
+  if (!replacementActive) return null;
+  return appearance.assets?.[classId] ?? null;
 }

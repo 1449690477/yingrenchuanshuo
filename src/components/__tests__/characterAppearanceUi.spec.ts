@@ -110,7 +110,8 @@ describe('角色换装组件的图层标记', () => {
     expect(html).not.toContain('modular/kenshi/base.png');
     expect(html).not.toContain('slot-body');
     expect(html).toContain('modular/kenshi/r1-body.png');
-    expect(html).toContain('slot-head');
+    // 2026-08-02 改判：整身图自带成套头饰，头饰层不再叠加（docs/81）。
+    expect(html).not.toContain('slot-head');
     expect(html).toContain('slot-weapon');
   });
 
