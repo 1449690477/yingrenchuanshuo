@@ -31,7 +31,8 @@ import {
   type FightOptions,
 } from './combat';
 import type { SkillCombatKit } from './skillCombat';
-import { buildDefaultPlayerSkillKit } from './playerSkillKit';
+import { buildDefaultPlayerSkillKit, buildPlayerSkillKit } from './playerSkillKit';
+import type { DroppedSkillSlot } from './skillSlots';
 import type {
   OnCritPeriodicDamageTrigger,
   OnHitElementalDamageTrigger,
@@ -364,6 +365,17 @@ export interface TrialBuildInput {
    * 此时用全量套装查询；缺省 false 走 PvE 空效果查询（试炼/挂机一致）。
    */
   arena?: boolean;
+  /**
+   * 玩家选定的主动技能栏（M3-5）。
+   *
+   * `undefined` = 尚未做过选择 ⇒ 回落职业默认顺序，与技能栏 UI 上线前**逐字一致**；
+   * `[]` = 玩家明确清空了栏位。合法性判定统一走 `skillSlots.resolveActiveSkillSlots`，
+   * 客户端与服务端因此不可能选出不同的技能。
+   *
+   * ⚠ **它不影响 `combatPower`**：战力只由 stats 算出（见下方构建顺序），
+   * 技能包不回流进 stats。所以技能栏上线不改变 CP 口径、不需要升版本戳。
+   */
+  selectedActiveSkillIds?: readonly string[] | null;
 }
 
 export interface TrialBuild {
@@ -371,6 +383,14 @@ export interface TrialBuild {
   skillMultiplier: number;
   /** M3-4 真实技能栏；服务端与客户端必须由同一职业 / 等级重建。 */
   skillKit: SkillCombatKit;
+  /**
+   * 玩家上报的技能栏里被丢弃的项与原因（M3-5）。
+   *
+   * **服务端应当在非空时留痕**：丢弃有两个来源、结果一模一样 ——
+   * 玩家伪造，和技能表改名/删除导致存档里的旧 id 失效。
+   * 不记录就永远分不清「有人在试探」和「我们自己改数据把玩家的存档改坏了」。
+   */
+  droppedSkillSlots: readonly DroppedSkillSlot[];
   onHitTriggers: readonly OnHitElementalDamageTrigger[];
   onLethalTriggers: readonly OnLethalRecoveryTrigger[];
   onCritTriggers: readonly OnCritPeriodicDamageTrigger[];
@@ -509,16 +529,20 @@ export function buildTrialCombatant(input: TrialBuildInput): TrialBuild {
   );
   const weapon = input.equipped[0];
   const element = weapon ? weaponElementOf(requireEquipment(weapon.defId)) : 'none';
-  const skillKit = buildDefaultPlayerSkillKit(
+  const { kit: skillKit, dropped: droppedSkillSlots } = buildPlayerSkillKit(
     input.classId,
     input.level,
-    setResolution.skillMultiplierBonus,
+    {
+      skillDamageBonusRatio: setResolution.skillMultiplierBonus,
+      selectedActiveSkillIds: input.selectedActiveSkillIds,
+    },
   );
 
   return {
     combatant: makePlayer(input.name, input.level, stats, element, bonuses),
     skillMultiplier: averageSkillMultiplier(input.level) + setResolution.skillMultiplierBonus,
     skillKit,
+    droppedSkillSlots,
     onHitTriggers: setResolution.onHitTriggers,
     onLethalTriggers: setResolution.onLethalTriggers,
     onCritTriggers: setResolution.onCritTriggers,

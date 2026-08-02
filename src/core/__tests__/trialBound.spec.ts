@@ -261,6 +261,8 @@ function referenceBuild(classId: ClassId, level: number): TrialBuild {
     combatant,
     skillMultiplier: 1,
     skillKit: buildDefaultPlayerSkillKit(classId, level),
+    // 标定探针不带玩家技能栏选择，所以没有任何丢弃项（M3-5）
+    droppedSkillSlots: [],
     onHitTriggers: [],
     onLethalTriggers: [],
     onCritTriggers: [],

@@ -59,6 +59,17 @@ const submissionSchema = z
     displayName: z.string().min(1).max(20),
     /** 八槽位穿戴快照，顺序与 SLOT_ORDER 一致 */
     equipped: z.array(equipmentInstanceSchema.nullable()).length(8),
+    /**
+     * 玩家选定的主动技能栏（M3-5）。**可选**：老客户端不发这个字段，
+     * 此时回落职业默认顺序，行为与技能栏 UI 上线前逐字一致。
+     *
+     * ★ 这里刻意**不**校验内容合法性 —— 长度、职业归属、解锁等级、重复
+     * 全部交给 core 的 resolveActiveSkillSlots 逐项过滤（见 buildTrialCombatant）。
+     * 在 schema 里拒绝会让「技能表改名后存档里存着旧 id」的玩家**每次提交都被打回**，
+     * 而他什么都没做错；逐项过滤则伪造者收益为零、受害者也为零。
+     * 这里只挡结构性荒谬（不是字符串数组、或长到明显是攻击载荷）。
+     */
+    selectedActiveSkillIds: z.array(z.string().min(1).max(64)).max(32).optional(),
   })
   .strict();
 
@@ -190,7 +201,20 @@ Deno.serve(async (req: Request) => {
       classId: sub.classId,
       level: sub.level,
       equipped: sub.equipped,
+      selectedActiveSkillIds: sub.selectedActiveSkillIds,
     });
+
+    // 技能栏丢弃留痕（M3-5）。丢弃有两个来源、结果一模一样：玩家伪造，
+    // 和技能表改名/删除让存档里的旧 id 失效。不记录就永远分不清
+    // 「有人在试探」和「我们自己改数据把玩家的存档改坏了」。
+    // 只打日志、不记作弊证据：够不上「证明」那一档，而且第二种来源是我们的锅。
+    if (build.droppedSkillSlots.length > 0) {
+      console.warn(
+        `[submit-trial] 技能栏有丢弃：user=${user.id} ${build.droppedSkillSlots
+          .map((d) => `${d.skillId}:${d.reason}`)
+          .join(' ')}`,
+      );
+    }
     const boss = weeklyTrialBoss(TRIAL_SEASON_ID, serverWeek, serverBracketId);
     const seed = trialScoreSeed(TRIAL_SEASON_ID, serverWeek, serverBracketId, build.buildHash);
     const damage = runTrial(build, boss.combatant, seed).damage;

@@ -15,6 +15,7 @@ import {
   selectableActiveSkillIds,
 } from '../skillSlots';
 import { buildDefaultPlayerSkillKit } from '../playerSkillKit';
+import { buildTrialCombatant } from '../trial';
 
 const MAX_LEVEL = 81;
 
@@ -114,6 +115,54 @@ describe('技能栏判定', () => {
     const resolved = resolveActiveSkillSlots('shaman', MAX_LEVEL, [legal, 'gone_a', 'gone_b']);
     expect(resolved.selected).toEqual([legal]);
     expect(resolved.selected.length).toBeLessThan(ACTIVE_SKILL_SLOTS);
+  });
+
+  it('★ 玩家选择真的流进了战斗产物 —— 服务端复算用的就是玩家选的那几个', () => {
+    // 这条钉的是「schema 上多了个字段，但没接到战斗里」这种半截接线：
+    // 那种情况下客户端按玩家选的打、服务端按默认打，两边伤害对不上，
+    // 表现是成绩被判不可信，不是报错。
+    const level = MAX_LEVEL;
+    const pool = selectableActiveSkillIds('swordsman', level);
+    const picked = [pool[pool.length - 1], pool[pool.length - 2]];
+    const build = buildTrialCombatant({
+      name: '测试',
+      classId: 'swordsman',
+      level,
+      equipped: Array<null>(8).fill(null),
+      selectedActiveSkillIds: picked,
+    });
+    expect(build.skillKit.active.map((entry) => entry.skill.id)).toEqual(picked);
+    expect(build.droppedSkillSlots).toEqual([]);
+  });
+
+  it('★ 不传选择时，战斗产物与技能栏上线前逐字一致', () => {
+    const level = MAX_LEVEL;
+    const withoutField = buildTrialCombatant({
+      name: '测试',
+      classId: 'catkin',
+      level,
+      equipped: Array<null>(8).fill(null),
+    });
+    expect(withoutField.skillKit.active.map((entry) => entry.skill.id)).toEqual(
+      resolveActiveSkillSlots('catkin', level, undefined).selected,
+    );
+    expect(withoutField.droppedSkillSlots).toEqual([]);
+  });
+
+  it('★ 非法选择在服务端复算里被过滤而不是让整次提交失败', () => {
+    const level = MAX_LEVEL;
+    const legal = selectableActiveSkillIds('witch', level)[0];
+    const build = buildTrialCombatant({
+      name: '测试',
+      classId: 'witch',
+      level,
+      equipped: Array<null>(8).fill(null),
+      selectedActiveSkillIds: [legal, 'skill_renamed_last_week'],
+    });
+    expect(build.skillKit.active.map((entry) => entry.skill.id)).toEqual([legal]);
+    expect(build.droppedSkillSlots).toEqual([
+      { skillId: 'skill_renamed_last_week', reason: 'unknown-skill' },
+    ]);
   });
 
   it('★ 与生产构建入口同源：默认解析结果就是当前实际上场的技能', () => {
