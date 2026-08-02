@@ -155,8 +155,8 @@ describe('共鸣形态（docs/83 P3 能量形态分化）', () => {
 
 describe('组合推演 applyHit（G1→G4 顺序）', () => {
   it('克制连击两次即共鸣（首击 2 层、次击满层触发），清空并进入 ICD', () => {
-    let gauge = emptyGauge();
-    let icds = emptyReactionIcds();
+    const gauge = emptyGauge();
+    const icds = emptyReactionIcds();
     const first = applyHit(gauge, icds, 'fire', true, T0);
     expect(first.gauge.stacks).toBe(2);
     const second = applyHit(first.gauge, first.icds, 'fire', true, T0 + 1);
@@ -167,7 +167,7 @@ describe('组合推演 applyHit（G1→G4 顺序）', () => {
 
   it('中性连击三击触发（首击 1 层、二击 2 层、三击满层触发）', () => {
     let gauge = emptyGauge();
-    let icds = emptyReactionIcds();
+    const icds = emptyReactionIcds();
     gauge = applyHit(gauge, icds, 'ice', false, T0).gauge;
     gauge = applyHit(gauge, icds, 'ice', false, T0 + 1).gauge;
     const third = applyHit(gauge, icds, 'ice', false, T0 + 2);
