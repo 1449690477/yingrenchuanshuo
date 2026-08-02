@@ -268,20 +268,24 @@ const BOARD_TABS: { key: BoardTab; label: string }[] = [
 
 const neighborhoodRows = computed(() => lb.neighborhoodCache?.value ?? []);
 const topRows = computed(() => lb.topCache?.value ?? []);
-const powerRows = computed(() => lb.powerCache?.value.rows ?? []);
-/**
- * 我的战力名次的完整状态（批3-3）：过渡期它可能是「旧公式、不可比」而不是一个数字。
- * 榜单侧的展示与措辞归小榜（批3-4），这里只把状态原样透出来备用。
- */
+const powerRows = computed(() => lb.powerCache?.value.board.rows ?? []);
+/** 我的战力名次的完整状态：可能是「查无档案」而不是一个数字。 */
 const myPowerRankDetail = computed(() => lb.powerCache?.value.myRank ?? null);
 
 /**
- * 只有「算得准的名次」才给数字。
- * staleFormula（我的战力是旧尺量的）与 exact=false（扫描到上限、名次只是下界）
- * 都不给 —— 那两种情况下写「第 N 名」是在说一个我们并不知道的数。
+ * 这张榜是不是最新那把标尺量的。
+ * 版本由服务端按我自己那行的戳决定（客户端不持有版本常量），
+ * 所以这里只是把服务端的判断如实转述给界面。
  */
-/** 还有多少人等着按新公式重算 —— 用来解释「榜为什么比平时短」。 */
-const pendingRecalcCount = computed(() => lb.powerCache?.value.pendingRecalc ?? 0);
+const powerBoardIsCurrent = computed(() => lb.powerCache?.value.board.isCurrent ?? true);
+
+/**
+ * 只有「算得准的名次」才给数字。
+ * exact=false（扫描到上限、名次只是下界）不给 ——
+ * 那种情况下写「第 N 名」是在说一个我们并不知道的数。
+ */
+/** 有多少人不在这张榜上（戳与我不同）—— 用来解释「榜为什么比平时短」。 */
+const pendingRecalcCount = computed(() => lb.powerCache?.value.board.pendingRecalc ?? 0);
 
 const myPowerRank = computed(() => {
   const detail = myPowerRankDetail.value;
@@ -798,15 +802,22 @@ onUnmounted(() => {
             我的战力名次：第 {{ myPowerRank }} 名
           </p>
           <!--
-            战力标尺换代期间的两句话（老板批准锚点方案时的前提条件）。
-            没有它们，玩家看到的是「我不见了」和「榜变短了」，而不知道原因 ——
-            而这两件都会在换尺当天同时发生。文案措辞归榜单线，这里先给可用版本。
+            战力标尺换代期间的说明（老板批准锚点方案时的前提条件）。
+            没有它，玩家看到的是「榜变短了」而不知道原因。
+
+            ⚠ 这里曾经写「下次同步后自动回到榜上」。2026-08-02 03:38 那个窗口里
+            它是**假承诺**：线上客户端要版本 2、服务端写版本 3，
+            **没有任何戳值能同时满足两边** —— 玩家同步之后是从榜上消失，
+            不是回到榜上。现在榜按玩家自己那把尺取（见 power_board 迁移），
+            「从榜上消失」不可能再发生；所以这里只如实说明谁不在这张榜上、
+            为什么，**不承诺任何一次同步之后会发生什么**。
           -->
-          <p v-if="myPowerRankDetail?.kind === 'staleFormula'" class="my-power-note">
-            战力标尺已更新，你的战力正在按新口径重算；下次同步后自动回到榜上。
+          <p v-if="!powerBoardIsCurrent" class="my-power-note">
+            这张榜按你档案当前的战力标尺排名，而标尺已经更新过 ——
+            不同标尺量出的战力不能直接比较，所以分开排。
           </p>
           <p v-if="pendingRecalcCount > 0" class="my-power-note">
-            另有 {{ pendingRecalcCount }} 位玩家的战力正在按新口径重算，尚未计入本榜。
+            另有 {{ pendingRecalcCount }} 位玩家的战力是用别的标尺量的，未计入本榜。
           </p>
         </div>
       </section>

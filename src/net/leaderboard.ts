@@ -12,7 +12,6 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ClassId, EquipmentInstance } from '@/core/types';
 import { NetRequestError, friendlyMessage } from './supabase';
 import { isPlausibleCombatPower } from '@/core/combatPowerBound';
-import { CP_FORMULA_VERSION } from '@/core/cpFormulaVersion';
 import { TRIAL_FORMULA_VERSION } from '@/core/trialFormulaVersion';
 
 // ─────────────────────────── 类型 ───────────────────────────
@@ -80,14 +79,15 @@ export interface PowerBoardRow {
 /**
  * 我的战力名次。
  *
- * 不是一个裸数字：过渡期存在「这个人的战力算不出名次」的真实状态
- * （他的战力是旧公式量的，与榜上的新值不可比），而裸数字表达不了它 ——
- * 只能返回一个编出来的名次，那就是骗人。
+ * 不是一个裸数字：「查无档案」是一个真实状态，而裸数字表达不了它 ——
+ * 只能返回一个编出来的第 1 名，那就是骗人。
+ *
+ * 曾经还有第三态 staleFormula（我的战力是旧尺量的、与榜不可比）。
+ * 它现在**不可能发生**：榜按我自己那行的戳取，我永远和我可比的人同榜。
+ * 「我这张榜是不是最新标尺」是榜的属性，不是名次的属性 —— 见 PowerBoard.isCurrent。
  */
 export type MyPowerRank =
   | { kind: 'ranked'; rank: number; exact: boolean }
-  /** 我的档案还是旧公式算的，与当前榜不可比；下次同步后自动恢复。 */
-  | { kind: 'staleFormula' }
   /** 我还没有可用的档案（占位档 / 从未同步）。 */
   | { kind: 'unranked' };
 
@@ -344,53 +344,65 @@ export function trialEntryThreshold(rows: readonly TrialBoardRow[]): number | nu
 /**
  * 战力榜只作次级页签（docs/51 §4）：它是玩家期待看到的，
  * 但不是我们希望他追的 —— 战力 ≈ 挂机时长，先玩的人永远在前面。
+ *
+ * ── 为什么这里没有 CP_FORMULA_VERSION（2026-08-02 收尾）──
+ * 过滤曾经写成「客户端常量 == 行上的戳」，而**等号两侧来自两个独立部署的
+ * 产物**：客户端 bundle 一份，Edge Function bundle 一份。半截发版时它们
+ * 必然对不上 —— 2026-08-02 03:38 实测到这个窗口（Edge 已是 3，线上 bundle
+ * 仍是 2），玩家同步一次就被盖成 3，于是从旧客户端的榜上**消失**。
+ *
+ * 现在版本由**服务端**在 power_board 里按「调用者自己那行的戳」决定，
+ * 客户端不再持有这个常量 ——**没有常量可对，就没有对不上的可能**。
+ * 顺带地：玩家永远在自己那把尺的榜上，从形状上不可能再从榜上消失。
+ * 见 supabase/migrations/20260802010000_power_board_versioned_rpc.sql。
+ *
+ * ⚠ 不要为了「省一次请求」把版本常量加回来。它是这个 bug 的全部成因。
  */
-export async function fetchPowerTop(
+export interface PowerBoard {
+  rows: PowerBoardRow[];
+  /** 这张榜是按哪一版公式量的；降级路径下未知（null）。 */
+  formulaVersion: number | null;
+  /** 它是不是最新那把尺。false = 我看的是旧标尺榜，界面必须如实说。 */
+  isCurrent: boolean;
+  /** 不在这张榜上（戳与我不同）的档案数 —— 用来解释「榜为什么比平时短」。 */
+  pendingRecalc: number;
+}
+
+/** 榜单行在客户端还要过一道上界过滤，所以多取一些再截断。 */
+const POWER_OVERFETCH = 2;
+
+export async function fetchPowerBoard(
   client: SupabaseClient,
   myUserId: string | null,
   limit = 50,
-): Promise<PowerBoardRow[]> {
-  // 只取当前公式版本的行（批3-3）。旧版本的战力是另一把尺量的，
-  // 与新值放在同一个 combat_power 字段上排序就是名次失真 ——
-  // 而榜看起来完全正常，没有任何人会发现。宁可榜短，不可榜假。
-  //
-  // 两条查询各写各的列串（而不是拼字符串）：supabase-js 靠字面量推导行类型，
-  // 拼出来的列串会退化成 ParserError，把整行的类型安全丢掉。
-  const withVersion = () =>
-    client
-      .from('profiles')
-      .select('id, display_name, bio, avatar_url, class_id, level, combat_power')
-      .eq('cp_formula_version', CP_FORMULA_VERSION)
-      .order('combat_power', { ascending: false })
-      .order('updated_at', { ascending: true })
-      // 多取一些再过滤：离谱行会被剔掉，直接按 limit 取会让榜变短
-      .limit(limit * 2);
-  const withoutVersion = () =>
-    client
-      .from('profiles')
-      .select('id, display_name, bio, avatar_url, class_id, level, combat_power')
-      .order('combat_power', { ascending: false })
-      .order('updated_at', { ascending: true })
-      .limit(limit * 2);
-
-  let { data, error } = await withVersion();
-  // 迁移还没执行：退回不带版本筛的查询，也就是**今天的行为**。
-  // 顺序做错时榜依然能开（见 isMissingVersionColumn 的注释）。
-  if (isMissingVersionColumn(error)) ({ data, error } = await withoutVersion());
+): Promise<PowerBoard> {
+  const { data, error } = await client.rpc('power_board', {
+    p_user_id: myUserId,
+    p_limit: limit * POWER_OVERFETCH,
+  });
+  // 迁移还没执行：退回直读 profiles，也就是**加版本戳之前的行为**。
+  // 顺序做错时榜依然能开（同 isMissingFunction 的注释），只是过渡期混排；
+  // 混排会被 ops:check 红着提醒，不会被忘掉。
+  if (isMissingFunction(error)) return fetchPowerBoardUnversioned(client, myUserId, limit);
   if (error) throw new NetRequestError(friendlyMessage(error.message, '战力榜读取失败'));
 
-  return (data ?? [])
-    .map((row) => {
-      const r = row as {
-        id: string;
-        display_name: string;
-        bio: string | null;
-        avatar_url: string | null;
-        class_id: ClassId;
-        level: number;
-        combat_power: number;
-      };
-      return {
+  const raw = (data ?? []) as {
+    id: string;
+    display_name: string;
+    bio: string | null;
+    avatar_url: string | null;
+    class_id: ClassId;
+    level: number;
+    combat_power: number;
+    formula_version: number;
+    board_total: number;
+    pending_recalc: number;
+    is_current: boolean;
+  }[];
+  const meta = raw[0];
+  return {
+    rows: rankPowerRows(
+      raw.map((r) => ({
         userId: r.id,
         displayName: r.display_name,
         bio: r.bio,
@@ -399,46 +411,90 @@ export async function fetchPowerTop(
         level: Number(r.level),
         combatPower: Number(r.combat_power),
         isMe: r.id === myUserId,
-      };
-    })
-    .filter((row) =>
-      // 纵深防御（docs/65 §六之二 方向 B）：profiles 的写策略是 for all，
-      // 已登录玩家可以直接 PATCH 自己那一行的 combat_power。方向 A 会把写权限
-      // 收到 Edge Function，但**在那之前、以及万一将来某个新写入点又把权限
-      // 放开时**，这一层保证物理上不可能的数字进不了展示。
-      // 上界从「该等级该职业真正能穿到的最强一套」推出来，不是拍的系数。
-      //
-      // ⚠ 这道过滤**只对当前公式版本的行成立** —— 上界是用当前权重算的，
-      // 拿它去量旧公式的数字等于用错误的尺子判人。上面的 .eq 已经保证了
-      // 到这里的行都是当前版本，两者是一对的：改动其一必须同时改另一个。
-      isPlausibleCombatPower(row.combatPower, row.level, row.classId),
-    )
+      })),
+      limit,
+    ),
+    // 榜空时没有元信息可读 —— 那也意味着没有「旧标尺」可说，按当前处理。
+    formulaVersion: meta ? Number(meta.formula_version) : null,
+    isCurrent: meta ? meta.is_current !== false : true,
+    pendingRecalc: meta ? Number(meta.pending_recalc) : 0,
+  };
+}
+
+/**
+ * 降级路径：RPC 还没建出来时直读 profiles，不带任何版本过滤。
+ *
+ * ── 为什么要有它，而不是靠「记得先执行迁移」──
+ * 新客户端调一个不存在的函数时 PostgREST 返回 PGRST202、**整张战力榜打不开**，
+ * 那比任何一条误伤都严重：误伤是个别玩家看不见自己，这个是所有人都打不开榜。
+ * 小榜 2026-08-01 08:47 定的原则 —— **与其防止犯错，不如取消后果**。
+ */
+async function fetchPowerBoardUnversioned(
+  client: SupabaseClient,
+  myUserId: string | null,
+  limit: number,
+): Promise<PowerBoard> {
+  const { data, error } = await client
+    .from('profiles')
+    .select('id, display_name, bio, avatar_url, class_id, level, combat_power')
+    .order('combat_power', { ascending: false })
+    .order('updated_at', { ascending: true })
+    .limit(limit * POWER_OVERFETCH);
+  if (error) throw new NetRequestError(friendlyMessage(error.message, '战力榜读取失败'));
+
+  const rows = (data ?? []).map((row) => {
+    const r = row as {
+      id: string;
+      display_name: string;
+      bio: string | null;
+      avatar_url: string | null;
+      class_id: ClassId;
+      level: number;
+      combat_power: number;
+    };
+    return {
+      userId: r.id,
+      displayName: r.display_name,
+      bio: r.bio,
+      avatarUrl: r.avatar_url,
+      classId: r.class_id,
+      level: Number(r.level),
+      combatPower: Number(r.combat_power),
+      isMe: r.id === myUserId,
+    };
+  });
+  // 版本未知：不谎称「这是最新标尺」，也不吓唬玩家说有人在重算。
+  return { rows: rankPowerRows(rows, limit), formulaVersion: null, isCurrent: true, pendingRecalc: 0 };
+}
+
+/**
+ * 套上界过滤再编名次。
+ *
+ * 纵深防御（docs/65 §六之二 方向 B）：profiles 的写策略曾经是 for all，
+ * 已登录玩家可以直接 PATCH 自己那一行的 combat_power。方向 A 已把写权限收进
+ * Edge Function，但**万一将来某个新写入点又把权限放开**，这一层保证物理上
+ * 不可能的数字进不了展示。上界从「该等级该职业真正能穿到的最强一套」推出来。
+ *
+ * ⚠ 这道过滤**只对同一把尺量出来的行成立** —— 上界是用当前权重算的。
+ * power_board 保证一次调用只返回一个版本的行，两者是一对的。
+ */
+function rankPowerRows(rows: Omit<PowerBoardRow, 'rank'>[], limit: number): PowerBoardRow[] {
+  return rows
+    .filter((row) => isPlausibleCombatPower(row.combatPower, row.level, row.classId))
     .slice(0, limit)
     .map((row, index) => ({ rank: index + 1, ...row }));
 }
 
 /**
- * 版本戳列还没建出来吗？
+ * 这个 RPC 还没建出来吗？
  *
- * ── 为什么要有这个判断，而不是靠「记得先执行迁移」──
- * 加列迁移必须先于读这一列的客户端发布，否则 PostgREST 返回 42703、
- * 整张战力榜打不开 —— 那比今晚讨论的任何一条误伤都严重：
- * 误伤是个别玩家看不见自己，这个是**所有人都打不开榜**。
- *
- * 小榜 2026-08-01 08:47 指出：我原本用「我承诺在迁移执行前不提交」来守它，
- * **那是纪律不是机制**，而今晚我们已经反复吃过「靠人记得」的亏。
- * 他建议换成量具（ops:check 已有第 5 项在守）。我这里再往前一步：
- * **与其防止犯错，不如取消后果** —— 列不在就退回不带版本筛的查询，
- * 也就是**今天的行为**。顺序做错时榜依然能开，只是过渡期混排；
- * 而混排会被 ops:check 第 5 项红着提醒，不会被忘掉。
- *
- * 42703 是 PostgreSQL 的 undefined_column。也匹配文案，因为
- * supabase-js 在不同传输层下不一定把 code 透出来。
+ * PGRST202 是 PostgREST 的「schema cache 里找不到这个函数」。也匹配文案，
+ * 因为 supabase-js 在不同传输层下不一定把 code 透出来。
  */
-function isMissingVersionColumn(error: { code?: string; message?: string } | null): boolean {
+function isMissingFunction(error: { code?: string; message?: string } | null): boolean {
   if (!error) return false;
-  if (error.code === '42703') return true;
-  return /cp_formula_version/i.test(error.message ?? '');
+  if (error.code === 'PGRST202') return true;
+  return /power_board|power_rank_scan|does not exist|schema cache/i.test(error.message ?? '');
 }
 
 /**
@@ -451,7 +507,7 @@ function isMissingVersionColumn(error: { code?: string; message?: string } | nul
 const RANK_SCAN_CAP = 500;
 
 /**
- * 我的战力名次 —— **必须与 fetchPowerTop 数同一批人**。
+ * 我的战力名次 —— **必须与 fetchPowerBoard 数同一批人**。
  *
  * ── 原先是错的 ──
  * 旧实现是 `count(*) where combat_power > 我的`：服务端数、不带任何过滤，
@@ -460,62 +516,37 @@ const RANK_SCAN_CAP = 500;
  * 是两个数字互相证明对方是错的。（小榜 2026-08-01 报，多谢）
  *
  * ── 现在的口径 ──
- * 与 fetchPowerTop 逐条对齐：同样只数当前公式版本、同样套上界过滤。
+ * 与 fetchPowerBoard 逐条对齐：服务端按**我自己那行的戳**筛出同尺的人，
+ * 客户端再套同一道上界过滤。比较基准用服务端存的战力，不是本地算的那个数 ——
+ * 榜是按存的值排的，拿本地值去比会得出一个与榜对不上的名次。
  */
 export async function fetchMyPowerRank(
   client: SupabaseClient,
   myUserId: string | null,
-  myCombatPower: number,
 ): Promise<MyPowerRank> {
   if (!myUserId) return { kind: 'unranked' };
 
-  // 先看我自己那行是哪把尺量的 —— 用本地算出的战力去和榜上的新值比大小，
-  // 在过渡期是没有意义的（两个数不同量纲）。
-  const { data: mine, error: mineError } = await client
-    .from('profiles')
-    .select('cp_formula_version')
-    .eq('id', myUserId)
-    .maybeSingle();
-  // 迁移还没执行：整条版本判定退场，按「大家都是当前版本」数名次 ——
-  // 也就是今天的行为（见 isMissingVersionColumn）。
-  const versioned = !isMissingVersionColumn(mineError);
-  if (versioned) {
-    if (mineError) throw new NetRequestError(friendlyMessage(mineError.message, '名次读取失败'));
-    if (!mine) return { kind: 'unranked' };
-    if ((mine as { cp_formula_version: number }).cp_formula_version !== CP_FORMULA_VERSION) {
-      return { kind: 'staleFormula' };
-    }
-  }
-
-  const base = client.from('profiles').select('level, class_id, combat_power');
-  const { data, error } = await (versioned ? base.eq('cp_formula_version', CP_FORMULA_VERSION) : base)
-    .gt('combat_power', myCombatPower)
-    .limit(RANK_SCAN_CAP);
+  const { data, error } = await client.rpc('power_rank_scan', {
+    p_user_id: myUserId,
+    p_limit: RANK_SCAN_CAP,
+  });
+  if (isMissingFunction(error)) return { kind: 'unranked' };
   if (error) throw new NetRequestError(friendlyMessage(error.message, '名次读取失败'));
 
-  const rows = (data ?? []) as { level: number; class_id: ClassId; combat_power: number }[];
-  const aboveMe = rows.filter((r) =>
-    isPlausibleCombatPower(Number(r.combat_power), Number(r.level), r.class_id),
+  const rows = (data ?? []) as { level: number | null; class_id: ClassId | null; combat_power: number | null }[];
+  // 空表 = 查无档案。不能当成「没人比我高」而给出第 1 名 —— 那是编的。
+  // 有档案且无人在我之上时，RPC 会发一行全 null 出来把两者区分开。
+  if (rows.length === 0) return { kind: 'unranked' };
+
+  const above = rows.filter(
+    (r) =>
+      r.class_id !== null &&
+      r.level !== null &&
+      r.combat_power !== null &&
+      isPlausibleCombatPower(Number(r.combat_power), Number(r.level), r.class_id),
   ).length;
   // 扫到上限说明上面还有没数完的人，此时这个名次是下界而不是准确值。
-  return { kind: 'ranked', rank: aboveMe + 1, exact: rows.length < RANK_SCAN_CAP };
-}
-
-/**
- * 还有多少人的战力等着按新公式重算。
- *
- * 过渡期榜单会变短（旧公式的行不参与排名），榜上少了人却不说原因，
- * 玩家只会以为榜坏了。这个数是给界面写「另有 N 位玩家的战力正在重算」用的。
- */
-export async function countStaleFormulaProfiles(client: SupabaseClient): Promise<number> {
-  const { count, error } = await client
-    .from('profiles')
-    .select('id', { count: 'exact', head: true })
-    .neq('cp_formula_version', CP_FORMULA_VERSION);
-  // 迁移还没执行 = 没有任何一行「等着重算」，答 0 而不是把界面打红。
-  if (isMissingVersionColumn(error)) return 0;
-  if (error) throw new NetRequestError(friendlyMessage(error.message, '重算人数读取失败'));
-  return count ?? 0;
+  return { kind: 'ranked', rank: above + 1, exact: rows.length < RANK_SCAN_CAP };
 }
 
 // ─────────────────────────── 内部 ───────────────────────────

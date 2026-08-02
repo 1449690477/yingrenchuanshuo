@@ -237,6 +237,23 @@ const CHECKS: Check[] = [
     remedy: '执行 20260801070000_trial_formula_version_isolation.sql',
   },
   {
+    // 战力榜的版本过滤住在这两个函数里。它们不在 = 新客户端走降级路径
+    // （直读 profiles、不筛版本），榜能开但**是新旧混排的**，而混排看起来
+    // 完全正常、没有任何人会发现 —— 所以必须由量具盯着，不能靠人记得。
+    name: '战力榜版本化 RPC 均存在',
+    sql: `select proname from pg_proc
+           where pronamespace='public'::regnamespace
+             and proname in ('power_board', 'power_rank_scan')`,
+    verdict: (rows) => {
+      const names = new Set(rows.map((row) => String(row.proname)));
+      const missing = ['power_board', 'power_rank_scan'].filter((name) => !names.has(name));
+      return missing.length === 0
+        ? null
+        : `缺少 RPC：${missing.join(', ')} —— 战力榜正在降级为不筛版本的混排`;
+    },
+    remedy: '执行 20260802010000_power_board_versioned_rpc.sql',
+  },
+  {
     name: 'trial_scores 里没有比服务端更新的公式版本号',
     sql: `select max((to_jsonb(t) ->> 'trial_formula_version')::int) as v
             from public.trial_scores t`,
@@ -259,8 +276,11 @@ const CHECKS: Check[] = [
     // guild-expedition —— 而当时只有 sync-profile 会同时写 cp_formula_version。
     // 我加版本戳时以为 sync-profile 是唯一写入点，**没有 grep 全部函数就下了结论**。
     //
-    // 症状是安全那一侧（该显示的没显示，而不是不可比的数字混进排名），
-    // 所以它不会自己暴露出来 —— 玩家只是从榜上消失，没有任何东西会红。
+    // ⚠ 2026-08-02 起「从榜上消失」这个症状**不再出现**：战力榜按玩家自己
+    // 那行的戳取（power_board），谁都在自己那把尺的榜上。别因此以为这条不重要 ——
+    // 它抓的是**更坏的那一侧**：update 只改 combat_power、不碰戳，于是
+    // **戳保持原值不动**，得到一行「合法的戳 + 错尺的数」。
+    // 它筛得过、正常显示、而且没有任何人看得出它是错的（见 core/profileProgress.ts）。
     // 判据：**一行的 updated_at 晚于 sync-profile 的上次部署时刻，戳却不是当前版本**
     // ⇒ 它被某条不打戳的路径写过。部署时刻由脚本自己从线上取，不手写。
     name: '所有写入点都更新了公式版本戳',
@@ -272,7 +292,8 @@ const CHECKS: Check[] = [
       return n === 0
         ? null
         : `${n} 行在本次部署之后被写过，但版本戳仍不是 ${CP_FORMULA_VERSION} —— ` +
-            '说明有写入点只写了 combat_power 没写戳，那些玩家会从榜上消失';
+            '说明有写入点只写了 combat_power 没写戳，那些行是「合法的戳 + 错尺的数」，' +
+            '会正常混进排名且事后无法区分';
     },
     remedy:
       '给这五个函数的 progress 对象补 cp_formula_version（写法抄 sync-profile），' +

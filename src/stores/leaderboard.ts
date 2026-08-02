@@ -13,9 +13,8 @@ import { defineStore } from 'pinia';
 import { useGameStore } from './game';
 import { ensureAnonymousSession, getSupabaseClient, isSupabaseConfigured } from '@/net/supabase';
 import {
-  countStaleFormulaProfiles,
   fetchMyPowerRank,
-  fetchPowerTop,
+  fetchPowerBoard,
   fetchTrialNeighborhood,
   fetchTrialTop,
   submitTrialScore,
@@ -23,7 +22,7 @@ import {
   trialNeighborhoodIsPreview,
   upsertProfile,
   type MyPowerRank,
-  type PowerBoardRow,
+  type PowerBoard,
   type TrialBoardFilter,
   type TrialBoardRow,
   type TrialSubmitResult,
@@ -110,16 +109,13 @@ export const useLeaderboardStore = defineStore('leaderboard', () => {
   const viewingHistoricalTrialFormula = computed(
     () => trialBoardFormulaVersion.value === LEGACY_TRIAL_FORMULA_VERSION,
   );
-  // myRank 不是裸数字：过渡期存在「战力是旧公式量的、与榜上的值不可比」这个
-  // 真实状态，裸数字只能表达成一个编出来的名次（批3-3，见 net/leaderboard.ts）。
+  // myRank 不是裸数字：「查无档案」是真实状态，裸数字只能表达成一个编出来的
+  // 第 1 名（见 net/leaderboard.ts）。榜的元信息（这张榜是哪把尺、是不是最新的、
+  // 还有多少人不在上面）由服务端随榜一起返回，客户端不持有版本常量。
   const powerCache = ref<CacheSlot<{
-    rows: PowerBoardRow[];
+    board: PowerBoard;
     myRank: MyPowerRank | null;
-    /** 还有多少人的战力等着按新公式重算 —— 过渡期榜变短时给玩家一个解释。 */
-    pendingRecalc: number;
-  }> | null>(
-    null,
-  );
+  }> | null>(null);
   const boardsLoading = ref(false);
   /** 当前邻域是否已放宽到全职业（UI 要如实说明，不能假装是同职业榜）。 */
   const neighborhoodWidened = ref(false);
@@ -387,17 +383,15 @@ export const useLeaderboardStore = defineStore('leaderboard', () => {
           : Promise.resolve(),
         force || !powerCache.value || Date.now() - powerCache.value.at > LEADERBOARD_CACHE_TTL_MS
           ? Promise.all([
-              fetchPowerTop(client, userId.value),
-              fetchMyPowerRank(client, userId.value, game.cp).catch(() => null),
-              // 取不到就当 0：这个数只用于解释「榜为什么短」，失败不该让整块榜挂掉
-              countStaleFormulaProfiles(client).catch(() => 0),
+              fetchPowerBoard(client, userId.value),
+              fetchMyPowerRank(client, userId.value).catch(() => null),
             ])
               .then(
-                ([rows, myRank, pendingRecalc]) =>
+                ([board, myRank]) =>
                   (powerCache.value = {
                     at: Date.now(),
                     key: 'power',
-                    value: { rows, myRank, pendingRecalc },
+                    value: { board, myRank },
                   }),
               )
               .catch((error) => (lastError.value = String((error as Error).message ?? error)))
