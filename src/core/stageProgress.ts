@@ -4,6 +4,7 @@ import {
   REGION_GATE_CP_RATIO,
   STAGE_CHALLENGE_STAMINA_COST,
   STAMINA_RECOVER_SECONDS,
+  SWEEP_STAMINA_COST,
 } from '@/data/constants';
 import { ALL_CHAPTERS } from '@/data/regions';
 import { stagesOfChapter } from '@/data/stages';
@@ -106,6 +107,74 @@ export function evaluateChallengeCost(
     cost,
     stamina,
     staminaMax,
+    nextPointInSeconds: Math.ceil(remainMs / 1000),
+    reason: 'stamina',
+  };
+}
+
+// ─────────────────────── 扫荡体力（docs/14 系统清单 · M3-7） ───────────────────────
+
+export interface SweepCost {
+  ok: boolean;
+  /** 本次扫荡消耗 = SWEEP_STAMINA_COST × times */
+  cost: number;
+  /** 以当前体力最多还能扫几次；ok 为 false 时可能是 0 */
+  affordableTimes: number;
+  stamina: number;
+  staminaMax: number;
+  /** 不足时距下一点恢复的秒数；充足时为 0 */
+  nextPointInSeconds: number;
+  reason: 'ok' | 'not-cleared' | 'stamina';
+}
+
+/**
+ * 扫荡的体力核算。**与 evaluateChallengeCost 互为镜像**：
+ * 挑战只对「未通关」收费，扫荡只对「已通关」开放。
+ *
+ * 与它同规：**这里只算不扣**，扣减由 store 在一次原子提交里做。
+ *
+ * ## 为什么扫荡必须限定已通关
+ *
+ * 扫荡按 SWEEP_EQUIV_SECONDS 折算挂机产出（core/idle.ts settleSweep），
+ * 而挂机产出的前提是「这一关你已经打得动」。对未通关的关卡放开扫荡，
+ * 等于让玩家跳过战斗直接拿产出 —— 那不是加速，是跳关。
+ *
+ * ## 体力不足时不报错，而是给出「还能扫几次」
+ *
+ * docs/40 红线：体力是限制器，必须表现为「今天的收获已经足够」，
+ * 不能表现为「你被拦住了」。所以 UI 拿 affordableTimes 去把 ×10 降级成
+ * ×N 或置灰，而不是让玩家点下去再弹一个失败提示。
+ */
+export function evaluateSweepCost(
+  stageId: string,
+  clearedStageIds: readonly string[],
+  times: number,
+  stamina: number,
+  staminaMax: number,
+  staminaRecoverAt: number,
+  now: number,
+): SweepCost {
+  const affordableTimes = Math.max(0, Math.floor(stamina / SWEEP_STAMINA_COST));
+  const base = { stamina, staminaMax, affordableTimes };
+
+  if (!clearedStageIds.includes(stageId)) {
+    // 未通关：不给消耗数字，避免 UI 显示一个根本不该出现的价格
+    return { ...base, ok: false, cost: 0, nextPointInSeconds: 0, reason: 'not-cleared' };
+  }
+
+  const wanted = Math.max(1, Math.floor(times));
+  const cost = SWEEP_STAMINA_COST * wanted;
+  if (stamina >= cost) {
+    return { ...base, ok: true, cost, nextPointInSeconds: 0, reason: 'ok' };
+  }
+
+  // 距下一点恢复：与 evaluateChallengeCost 同一算法，别在两处各写一份
+  const elapsedMs = Math.max(0, now - staminaRecoverAt);
+  const remainMs = STAMINA_RECOVER_SECONDS * 1000 - (elapsedMs % (STAMINA_RECOVER_SECONDS * 1000));
+  return {
+    ...base,
+    ok: false,
+    cost,
     nextPointInSeconds: Math.ceil(remainMs / 1000),
     reason: 'stamina',
   };

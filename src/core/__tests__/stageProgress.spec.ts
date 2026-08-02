@@ -3,6 +3,7 @@ import {
   advanceStageKillProgress,
   evaluateChapterGate,
   evaluateChallengeCost,
+  evaluateSweepCost,
 } from '../stageProgress';
 import { ALL_CHAPTERS } from '@/data/regions';
 import { stagesOfChapter } from '@/data/stages';
@@ -12,6 +13,7 @@ import {
   REGION_GATE_CP_RATIO,
   STAGE_CHALLENGE_STAMINA_COST,
   STAMINA_RECOVER_SECONDS,
+  SWEEP_STAMINA_COST,
 } from '@/data/constants';
 
 describe('关卡击杀进度', () => {
@@ -161,5 +163,50 @@ describe('挑战体力核算（docs/56 §5）', () => {
     expect(r.ok).toBe(false);
     expect(r.reason).toBe('stamina');
     expect(r.nextPointInSeconds).toBe(STAMINA_RECOVER_SECONDS / 2);
+  });
+});
+
+describe('扫荡体力', () => {
+  const NOW = 1_700_000_000_000;
+
+  it('未通关的关卡不给扫——扫荡是重复已通关的内容，不是跳关', () => {
+    const r = evaluateSweepCost('s2', ['s1'], 1, 120, 120, NOW, NOW);
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe('not-cleared');
+    // 未通关时不报价：显示一个根本不该出现的价格会让玩家以为攒够体力就能扫
+    expect(r.cost).toBe(0);
+  });
+
+  it('已通关且体力充足：按次数线性收费', () => {
+    const one = evaluateSweepCost('s1', ['s1'], 1, 120, 120, NOW, NOW);
+    expect(one.ok).toBe(true);
+    expect(one.cost).toBe(SWEEP_STAMINA_COST);
+
+    const ten = evaluateSweepCost('s1', ['s1'], 10, 120, 120, NOW, NOW);
+    expect(ten.ok).toBe(true);
+    expect(ten.cost).toBe(SWEEP_STAMINA_COST * 10);
+  });
+
+  it('★ 体力不足时给出「还能扫几次」，而不是只说不行', () => {
+    // 体力 12 → 按每次 5 点，只够 2 次
+    const r = evaluateSweepCost('s1', ['s1'], 10, 12, 120, NOW, NOW);
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe('stamina');
+    expect(r.affordableTimes).toBe(2);
+    // docs/40 红线：体力是限制器不是拦路收费，UI 要能把 ×10 降级成 ×2
+  });
+
+  it('体力为零时 affordableTimes 为 0，且仍给出恢复倒计时', () => {
+    const halfWay = NOW - (STAMINA_RECOVER_SECONDS / 2) * 1000;
+    const r = evaluateSweepCost('s1', ['s1'], 1, 0, 120, halfWay, NOW);
+    expect(r.affordableTimes).toBe(0);
+    expect(r.nextPointInSeconds).toBe(STAMINA_RECOVER_SECONDS / 2);
+  });
+
+  it('次数被规范化：小于 1 或小数都按至少 1 次算，不产生 0 消耗的免费扫荡', () => {
+    for (const bad of [0, -3, 0.4, 1.9]) {
+      const r = evaluateSweepCost('s1', ['s1'], bad, 120, 120, NOW, NOW);
+      expect(r.cost).toBe(SWEEP_STAMINA_COST);
+    }
   });
 });

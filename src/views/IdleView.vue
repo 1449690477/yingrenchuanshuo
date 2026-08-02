@@ -5,7 +5,8 @@ import { abbr } from '@/core/format';
 import { battleVitalsAtProgress } from '@/core/battleVisual';
 import { aggregateLootEntries, type LootDisplayCategory } from '@/core/lootGrouping';
 import { makeMonster, makePlayer } from '@/core/progression';
-import { useGameStore } from '@/stores/game';
+import { useGameStore, type SweepResult } from '@/stores/game';
+import SweepResultModal from '@/components/SweepResultModal.vue';
 import { useInventoryStore } from '@/stores/inventory';
 import { usePlayerStore } from '@/stores/player';
 import { useStageStore } from '@/stores/stage';
@@ -82,6 +83,39 @@ const showChallengeCost = computed(
 
 /** 体力不足：置灰 + 显示还需多久。 */
 const staminaBlocked = computed(() => !stage.cleared && !challengeCost.value.ok);
+
+// ─────────── M3-7 · 扫荡：已通关关卡才出现，与挑战按钮互斥 ───────────
+
+/** 扫荡核算。与挑战体力共用同一个跳秒，避免两处各刷各的。 */
+const sweepOnce = computed(() => {
+  void staminaNow.value;
+  return game.sweepCost(1);
+});
+
+/** 只有已通关的关卡才显示扫荡入口（docs/14：扫荡＝重复已通关内容）。 */
+const canSweep = computed(() => sweepOnce.value.reason !== 'not-cleared');
+
+/**
+ * ×10 按钮的实际次数：体力不够十次时降级成「还能扫几次」，
+ * 而不是置灰或点了才报错（docs/40 红线：体力是限制器，不是拦路收费）。
+ */
+const sweepBatchTimes = computed(() => Math.min(10, Math.max(1, sweepOnce.value.affordableTimes)));
+
+/** 一次都扫不动时才禁用，此时按钮改成显示恢复倒计时。 */
+const sweepBlocked = computed(() => canSweep.value && sweepOnce.value.affordableTimes < 1);
+
+const sweepResult = ref<SweepResult | null>(null);
+
+function doSweep(times: number): void {
+  const r = game.sweepStage(times);
+  if (r) sweepResult.value = r;
+}
+
+/** 距可扫荡的分钟数，与挑战那侧同一算法。 */
+const sweepMinutes = computed(() => {
+  const c = sweepOnce.value;
+  return Math.max(1, Math.ceil(c.nextPointInSeconds / 60));
+});
 
 /** 距可挑战的分钟数：下一点恢复 + 剩余缺口 × 恢复间隔。 */
 const staminaMinutes = computed(() => {
@@ -356,6 +390,36 @@ function openLootEntry(entry: { itemId: string; isEquipment: boolean; count: num
         <span class="chev">切换 ›</span>
       </span>
     </button>
+
+    <!-- M3-7 扫荡：仅已通关关卡出现；体力不足时 ×10 自动降级而不是拦人 -->
+    <div v-if="canSweep" class="sweep-row">
+      <span class="sweep-label">
+        扫荡
+        <small>一次 = 30 分钟收益</small>
+      </span>
+      <span v-if="sweepBlocked" class="sweep-wait">
+        <Zap :size="10" :stroke-width="2.4" aria-hidden="true" />
+        {{ sweepMinutes }} 分钟后可扫
+      </span>
+      <template v-else>
+        <button class="sweep-btn" @click="doSweep(1)">
+          ×1
+          <Zap :size="10" :stroke-width="2.4" aria-hidden="true" />
+          {{ sweepOnce.cost }}
+        </button>
+        <button class="sweep-btn" @click="doSweep(sweepBatchTimes)">
+          ×{{ sweepBatchTimes }}
+          <Zap :size="10" :stroke-width="2.4" aria-hidden="true" />
+          {{ sweepOnce.cost * sweepBatchTimes }}
+        </button>
+      </template>
+    </div>
+
+    <SweepResultModal
+      v-if="sweepResult"
+      :result="sweepResult"
+      @close="sweepResult = null"
+    />
 
     <div class="efficiency-row" :class="efficiencyStatus.level">
       <span class="efficiency-copy">
@@ -797,6 +861,52 @@ function openLootEntry(entry: { itemId: string; isEquipment: boolean; count: num
   font-weight: 700;
   color: #fff;
   text-shadow: 0 1px 4px rgb(24 38 52 / 58%);
+}
+
+/* M3-7 扫荡入口：与关卡条同宽，视觉上归属当前关 */
+.sweep-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  background: var(--surface-2, #faf5fa);
+}
+
+.sweep-label {
+  display: flex;
+  flex: 1;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.sweep-label small {
+  font-weight: 400;
+  font-size: 10px;
+  color: var(--text-dim, #8a7f8a);
+}
+
+.sweep-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 5px 10px;
+  border: none;
+  border-radius: 8px;
+  background: var(--accent, #d9689a);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.sweep-wait {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--text-dim, #8a7f8a);
 }
 
 .efficiency-row {
