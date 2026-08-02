@@ -242,9 +242,7 @@ describe('区域 1–5 内容完整性', () => {
           return definition!;
         });
 
-        expect(variants[0].level, `${regionId}/${slot}/fine`).toBe(
-          fineLevelByRegion[regionId],
-        );
+        expect(variants[0].level, `${regionId}/${slot}/fine`).toBe(fineLevelByRegion[regionId]);
         expect(new Set(variants.map((definition) => definition.icon)).size).toBe(1);
         expect(new Set(variants.map((definition) => definition.appearanceId)).size).toBe(1);
       }
@@ -574,9 +572,9 @@ describe('区域 1–5 内容完整性', () => {
         ...layerAssets,
       ]),
     ];
-    // 五职业底模、七区、三套精品、四档副本，以及樱酱竞技/心虹珍藏的运行时
-    // 可见纸娃娃资产均不得别名复用。新增 14 件专属可穿层必须进入本合同。
-    expect(assets).toHaveLength(296);
+    // 五职业底模、七区、三套精品、四档副本、竞技与心虹珍藏的运行时可见层
+    // 均不得别名复用。本批新增 12 张旧职业竞技场层、35 张区域鞋与 20 张副本鞋（+67）。
+    expect(assets).toHaveLength(363);
 
     for (const asset of assets) {
       const assetPath = resolve('public', asset);
@@ -763,7 +761,7 @@ describe('区域 1–5 内容完整性', () => {
   it('全部物品都引用真实存在的正式图标', () => {
     // 数量断言的作用是「加物品时逼人来看一眼图标」，不是锁死内容规模。
     // 2026-08-01 加入樱酱专属印记后 55 → 56；五职业均使用独立正式图标。
-    expect(Object.keys(ITEMS)).toHaveLength(56);
+    expect(Object.keys(ITEMS)).toHaveLength(57);
     for (const [id, item] of Object.entries(ITEMS)) {
       expect(item.icon).toBe(`assets/items/${id}.png`);
       expect(existsSync(resolve('public', item.icon)), `${id} → ${item.icon}`).toBe(true);

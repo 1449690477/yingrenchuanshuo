@@ -21,6 +21,7 @@ import {
   guildRunSeed,
   guildWeekKey,
   runTrial,
+  skillLevelRecordIssues,
   SLOT_ORDER,
   TRIAL_SEASON_ID,
   trialBracketFor,
@@ -56,10 +57,22 @@ const challengeSchema = z
      * 在这里拒绝会让「技能表改名后存档存着旧 id」的玩家每次都被打回。
      */
     selectedActiveSkillIds: z.array(z.string().min(1).max(64)).max(32).optional(),
+    skillLevels: z.record(z.string().min(1).max(64), z.number().int().min(1)).optional(),
   })
   .strict();
 
-const requestSchema = z.discriminatedUnion('action', [stateSchema, challengeSchema]);
+const requestSchema = z
+  .discriminatedUnion('action', [stateSchema, challengeSchema])
+  .superRefine((value, ctx) => {
+    if (value.action !== 'challenge') return;
+    for (const issue of skillLevelRecordIssues(value.skillLevels ?? {}, value.level)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['skillLevels', ...(issue.skillId ? [issue.skillId] : [])],
+        message: issue.message,
+      });
+    }
+  });
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -155,7 +168,8 @@ Deno.serve(async (req: Request) => {
     }
 
     const build = buildTrialCombatant({
-      selectedActiveSkillIds: sub.selectedActiveSkillIds,
+      selectedActiveSkillIds: body.selectedActiveSkillIds,
+      skillLevels: body.skillLevels,
       name: body.displayName,
       classId: body.classId,
       level: body.level,

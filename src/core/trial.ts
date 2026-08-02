@@ -376,6 +376,8 @@ export interface TrialBuildInput {
    * 技能包不回流进 stats。所以技能栏上线不改变 CP 口径、不需要升版本戳。
    */
   selectedActiveSkillIds?: readonly string[] | null;
+  /** 玩家已持久化的技能等级；缺失项按 1 级，服务端与客户端必须同源。 */
+  skillLevels?: Readonly<Record<string, number>>;
 }
 
 export interface TrialBuild {
@@ -535,6 +537,7 @@ export function buildTrialCombatant(input: TrialBuildInput): TrialBuild {
     {
       skillDamageBonusRatio: setResolution.skillMultiplierBonus,
       selectedActiveSkillIds: input.selectedActiveSkillIds,
+      skillLevels: input.skillLevels,
     },
   );
 

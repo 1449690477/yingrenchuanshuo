@@ -313,7 +313,8 @@ export const migrations: Record<number, Migration> = {
     }
     const affection = asObject(save.affection, 18, 'affection');
     const characters = asObject(affection.characters, 18, 'affection.characters');
-    const initialKenshi = createAffectionState(save.lastActiveAt, AFFECTION_RULES).characters.kenshi;
+    const initialKenshi = createAffectionState(save.lastActiveAt, AFFECTION_RULES).characters
+      .kenshi;
     return {
       ...save,
       version: 19,
@@ -401,6 +402,19 @@ export const migrations: Record<number, Migration> = {
     player: {
       ...(save.player as Record<string, unknown> | null | undefined),
       staminaClaimCount: 0,
+    },
+  }),
+  /**
+   * v24：技能升级等级表（M3-5）。
+   * 老玩家从未进行过技能升级，所以诚实的迁移结果是空表：所有技能按 1 级解释。
+   * 不把全部技能 id 物化进存档，避免技能表改名时制造整档迁移债。
+   */
+  23: (save) => ({
+    ...save,
+    version: 24,
+    player: {
+      ...(save.player as Record<string, unknown> | null | undefined),
+      skillLevels: {},
     },
   }),
 };

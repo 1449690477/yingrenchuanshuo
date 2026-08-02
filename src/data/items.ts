@@ -86,34 +86,10 @@ export const ITEMS: Record<string, ItemDef> = {
       mat('stone_reforge', '洗练石', 'fine', 60, '重掷装备的随机词条。'),
       mat('sand_crystal', '凝晶砂', 'common', 14, '细密的结晶砂粒，能把已有的力量磨得更纯。'),
       mat('charm_bind', '定契符', 'fine', 90, '写着守约的符纸，能让一条词条在洗练中不动。'),
-      mat(
-        'sigil_swordsman',
-        '剑姬徽记',
-        'rare',
-        420,
-        '刻着樱与刃的徽章，唤出属于剑姬的力量。',
-      ),
-      mat(
-        'sigil_witch',
-        '魔女徽记',
-        'rare',
-        420,
-        '刻着星与杖的徽章，唤出属于魔女的力量。',
-      ),
-      mat(
-        'sigil_shaman',
-        '灵巫徽记',
-        'rare',
-        420,
-        '刻着铃与灵的徽章，唤出属于灵巫的力量。',
-      ),
-      mat(
-        'sigil_catkin',
-        '喵喵徽记',
-        'rare',
-        420,
-        '刻着爪与铃铛的徽章，唤出属于喵喵的力量。',
-      ),
+      mat('sigil_swordsman', '剑姬徽记', 'rare', 420, '刻着樱与刃的徽章，唤出属于剑姬的力量。'),
+      mat('sigil_witch', '魔女徽记', 'rare', 420, '刻着星与杖的徽章，唤出属于魔女的力量。'),
+      mat('sigil_shaman', '灵巫徽记', 'rare', 420, '刻着铃与灵的徽章，唤出属于灵巫的力量。'),
+      mat('sigil_catkin', '喵喵徽记', 'rare', 420, '刻着爪与铃铛的徽章，唤出属于喵喵的力量。'),
       {
         ...mat(
           'sigil_kenshi',
@@ -165,19 +141,13 @@ export const ITEMS: Record<string, ItemDef> = {
 
   // ── 区域 5：熔岩神殿 ──
   // frag_crimson 是套装碎片，不属于 ChapterSpec.materials，必须保留 fragment 类型。
-  ...Object.fromEntries(
-    REGION_5_MATERIALS.map((spec) => [spec.id, regionSetItem(spec)]),
-  ),
+  ...Object.fromEntries(REGION_5_MATERIALS.map((spec) => [spec.id, regionSetItem(spec)])),
 
   // ── 区域 6：幽影祀塔 ──
-  ...Object.fromEntries(
-    REGION_6_MATERIALS.map((spec) => [spec.id, regionSetItem(spec)]),
-  ),
+  ...Object.fromEntries(REGION_6_MATERIALS.map((spec) => [spec.id, regionSetItem(spec)])),
 
   // ── 区域 7：血月峡谷 ──
-  ...Object.fromEntries(
-    REGION_7_MATERIALS.map((spec) => [spec.id, regionSetItem(spec)]),
-  ),
+  ...Object.fromEntries(REGION_7_MATERIALS.map((spec) => [spec.id, regionSetItem(spec)])),
 
   // ── 竞技场（docs/53 §二/§四）──
   honor_sigil: {
@@ -235,6 +205,15 @@ export const ITEMS: Record<string, ItemDef> = {
     desc: '使用后立即获得一定经验。',
     icon: 'assets/items/exp_book_s.png',
     sellPrice: 120,
+  },
+  book_skill: {
+    id: 'book_skill',
+    name: '技能研习书',
+    kind: 'material',
+    tier: 'fine',
+    desc: '技能升级的通用研习材料，由章节 BOSS 固定产出。',
+    icon: 'assets/items/book_skill.png',
+    sellPrice: 80,
   },
 
   // ── 烙印材料（docs/58 §3.1）──

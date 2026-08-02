@@ -95,6 +95,8 @@ export interface GuildChallengePayload {
    * 合法性由服务端走 core/skillSlots.ts 逐项过滤，客户端不预先筛。
    */
   selectedActiveSkillIds?: readonly string[];
+  /** 玩家已持久化的技能等级；老客户端不发时全部按 1 级。 */
+  skillLevels?: Readonly<Record<string, number>>;
 }
 
 function rpcError(raw: string, fallback: string): NetRequestError {

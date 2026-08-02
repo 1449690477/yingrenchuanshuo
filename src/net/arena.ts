@@ -32,6 +32,8 @@ export interface ArenaSnapshotPayload {
    * 合法性由服务端走 core/skillSlots.ts 逐项过滤，客户端不预先筛。
    */
   selectedActiveSkillIds?: readonly string[];
+  /** 玩家已持久化的技能等级；老客户端不发时全部按 1 级。 */
+  skillLevels?: Readonly<Record<string, number>>;
 }
 
 export interface ArenaMeState {
@@ -275,7 +277,10 @@ export async function fetchPendingArenaGrants(client: SupabaseClient): Promise<A
 }
 
 /** 标记奖励已同步进背包（只能标自己、只能标一次，RLS 保证）。 */
-export async function markArenaGrantClaimed(client: SupabaseClient, grantId: string): Promise<void> {
+export async function markArenaGrantClaimed(
+  client: SupabaseClient,
+  grantId: string,
+): Promise<void> {
   const { error } = await client
     .from('arena_grants')
     .update({ claimed_at: new Date().toISOString() })

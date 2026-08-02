@@ -23,6 +23,7 @@ export { equipmentInstanceSchema } from '@/save/schema';
 export { getEquipment } from '@/data/equipment';
 export { SLOT_ORDER } from '@/data/constants';
 export { CLASS_IDS } from '@/core/types';
+export { skillLevelRecordIssues } from '@/core/skillUpgrade';
 export type { ClassId, EquipmentInstance } from '@/core/types';
 
 // 档案进度行的唯一构造点：战力与它的公式版本戳同批产出。

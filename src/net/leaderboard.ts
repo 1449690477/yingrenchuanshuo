@@ -32,6 +32,8 @@ export interface TrialSubmission {
    * 合法性由服务端走 core/skillSlots.ts 逐项过滤，客户端不预先筛。
    */
   selectedActiveSkillIds?: readonly string[];
+  /** 玩家已持久化的技能等级；老客户端不发时全部按 1 级。 */
+  skillLevels?: Readonly<Record<string, number>>;
 }
 
 export interface TrialSubmitResult {
@@ -566,7 +568,11 @@ export async function fetchMyPowerRank(
   if (isMissingFunction(error)) return { kind: 'unranked' };
   if (error) throw new NetRequestError(friendlyMessage(error.message, '名次读取失败'));
 
-  const rows = (data ?? []) as { level: number | null; class_id: ClassId | null; combat_power: number | null }[];
+  const rows = (data ?? []) as {
+    level: number | null;
+    class_id: ClassId | null;
+    combat_power: number | null;
+  }[];
   // 空表 = 查无档案。不能当成「没人比我高」而给出第 1 名 —— 那是编的。
   // 有档案且无人在我之上时，RPC 会发一行全 null 出来把两者区分开。
   if (rows.length === 0) return { kind: 'unranked' };

@@ -13,11 +13,7 @@ import { computed, ref } from 'vue';
 import { defineStore } from 'pinia';
 import { grantEquipment } from '@/save/grantEquipment';
 import { useGameStore } from './game';
-import {
-  ensureAnonymousSession,
-  getSupabaseClient,
-  isSupabaseConfigured,
-} from '@/net/supabase';
+import { ensureAnonymousSession, getSupabaseClient, isSupabaseConfigured } from '@/net/supabase';
 import {
   buyArenaShopEntry,
   fetchArenaCandidates,
@@ -117,6 +113,7 @@ export const useArenaStore = defineStore('arena', () => {
       // 服务端只能用这里存进快照的技能栏重建他 —— 不传的话，
       // 配过技能栏的玩家会「进攻时生效、被打时不生效」且看不出来。
       selectedActiveSkillIds: save.player.activeSkillIds,
+      skillLevels: save.player.skillLevels,
     };
   }
 

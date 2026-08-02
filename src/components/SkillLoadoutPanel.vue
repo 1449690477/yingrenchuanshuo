@@ -251,8 +251,8 @@ const slots = computed(() =>
 }
 .slot-remove {
   flex: none;
-  width: 22px;
-  height: 22px;
+  width: 44px;
+  height: 44px;
   border: 0;
   border-radius: 50%;
   background: rgba(0, 0, 0, 0.1);
@@ -268,6 +268,7 @@ const slots = computed(() =>
 .act {
   flex: 1;
   min-width: 0;
+  min-height: 44px;
   padding: 7px 8px;
   border: 0;
   border-radius: 9px;

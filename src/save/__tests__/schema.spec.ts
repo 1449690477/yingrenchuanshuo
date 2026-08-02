@@ -63,6 +63,7 @@ describe('save schema', () => {
       depth: {},
     });
     expect(save.settings.haptics).toBe(true);
+    expect(save.player.skillLevels).toEqual({});
     expect(save.equipmentPresets).toEqual({ presets: [], autoSwitch: false });
     expect(save.affection.characters.witch).toMatchObject({
       points: 0,
@@ -119,6 +120,26 @@ describe('save schema', () => {
       locked: false,
     });
     expect(looksLikeSave(invalidEnhance)).toBe(false);
+  });
+
+  it('技能等级必须是正整数且不能超过角色等级的一半', () => {
+    const save = createSave('研习测试', 'swordsman', 24, 1);
+    save.player.level = 20;
+    save.player.skillLevels.skill_swordsman_attack = 10;
+    expect(parseSave(save).player.skillLevels).toEqual({ skill_swordsman_attack: 10 });
+
+    save.player.skillLevels.skill_swordsman_attack = 11;
+    expect(looksLikeSave(save)).toBe(false);
+
+    save.player.skillLevels.skill_swordsman_attack = 0;
+    expect(looksLikeSave(save)).toBe(false);
+  });
+
+  it('技能表改名后遗留的未知 id 不会让整份存档无法读取', () => {
+    const save = createSave('旧技能存档', 'witch', 25, 1);
+    save.player.level = 20;
+    save.player.skillLevels.skill_已经改名 = 4;
+    expect(parseSave(save).player.skillLevels.skill_已经改名).toBe(4);
   });
 
   it('非法胚子、强化记录和幸运桶都会被拒绝', () => {

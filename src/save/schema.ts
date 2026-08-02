@@ -14,6 +14,7 @@ import { z } from 'zod';
 import { createEncounterState, type EncounterState } from '@/core/encounters';
 import { createEquipmentDungeonState, type EquipmentDungeonState } from '@/core/equipmentDungeon';
 import { createAffectionState, type AffectionState } from '@/core/affection';
+import { skillLevelRecordIssues } from '@/core/skillUpgrade';
 import { isRolledAffixValue } from '@/core/equipment';
 import { isProfessionAffixSlot, promoteAffix } from '@/core/reforge';
 import {
@@ -66,7 +67,7 @@ export type { EquipmentCodexLedger } from '@/core/equipmentCodex';
 export type { EquipmentPresetState } from '@/core/equipmentPresets';
 
 /** 当前存档版本。加字段就 +1。 */
-export const SAVE_VERSION = 23;
+export const SAVE_VERSION = 24;
 
 export const SAVE_KEY = 'main';
 
@@ -102,6 +103,14 @@ export interface PlayerSave {
    * 不由存档层**拒绝**。
    */
   activeSkillIds?: string[];
+  /**
+   * 真正升过级的技能 id → 等级；未登记即 1 级。
+   *
+   * 未知 id 不在存档层拒绝：技能表将来改名或删除时，旧条目可以安全保留，
+   * 战斗构建只读取当前职业仍存在且已解锁的技能。数值本身必须是合法等级，
+   * 并且不能超过角色等级允许的上限。
+   */
+  skillLevels: Record<string, number>;
 }
 
 export interface BagSave {
@@ -285,6 +294,7 @@ export function createSave(name: string, classId: ClassId, seed: number, now: nu
       staminaRecoverAt: now,
       staminaClaimDay: null,
       staminaClaimCount: 0,
+      skillLevels: {},
     },
     equipped: emptyEquipped(),
     bag: { equipment: [], items: {} },
@@ -817,6 +827,7 @@ export const saveDataSchema = z
         // 存档层拒绝会让玩家进不去游戏，非法项交给 resolveActiveSkillSlots 过滤。
         // 无上限也与本文件既有先例一致（如 progress.clearedStageIds）。
         activeSkillIds: z.array(z.string().min(1)).optional(),
+        skillLevels: z.record(z.string().min(1), z.number().int().positive()),
       })
       .strict(),
     equipped: equippedSchema,
@@ -935,6 +946,13 @@ export const saveDataSchema = z
   })
   .strict()
   .superRefine((save, ctx) => {
+    for (const issue of skillLevelRecordIssues(save.player.skillLevels, save.player.level)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['player', 'skillLevels', ...(issue.skillId ? [issue.skillId] : [])],
+        message: issue.message,
+      });
+    }
     for (const [index, entry] of save.encounters.pending.entries()) {
       if (!entry.storyChoiceId) continue;
       const storyChoices = ENCOUNTERS[entry.encounterId]?.storyArc?.storyChoices;

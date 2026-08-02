@@ -28,6 +28,7 @@ export const usePlayerStore = defineStore('player', () => {
   const equipCombatBonuses = computed(() => game.equipCombatBonuses);
   const playerCombatElement = computed(() => game.playerCombatElement);
   const playerSkillMultiplier = computed(() => game.playerSkillMultiplier);
+  const skillLevels = computed(() => game.player?.skillLevels ?? {});
   const equipmentSetResolution = computed(() => game.equipmentSetResolution);
   const playerOnHitTriggers = computed(() => game.equipmentSetResolution.onHitTriggers);
   const playerOnLethalTriggers = computed(() => game.equipmentSetResolution.onLethalTriggers);
@@ -80,6 +81,7 @@ export const usePlayerStore = defineStore('player', () => {
     equipCombatBonuses,
     playerCombatElement,
     playerSkillMultiplier,
+    skillLevels,
     equipmentSetResolution,
     playerOnHitTriggers,
     playerOnLethalTriggers,
@@ -90,6 +92,8 @@ export const usePlayerStore = defineStore('player', () => {
     affectionInteractionsRemaining,
     create,
     switchClass,
+    assessSkillUpgrade: game.assessSkillUpgradeById,
+    upgradeSkill: game.upgradeSkill,
     interactWithCharacter,
     giveAffectionGift,
     completeAffectionStoryChoice,

@@ -31,6 +31,7 @@ import {
   getEquipment,
   Rng,
   simulateDuel,
+  skillLevelRecordIssues,
   SLOT_ORDER,
   trialEquipmentSnapshotIssue,
   type DuelSide,
@@ -40,6 +41,23 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+const skillLevelsSchema = z
+  .record(z.string().min(1).max(64), z.number().int().min(1))
+  .optional();
+
+function refineSkillLevels(
+  value: { level: number; skillLevels?: Record<string, number> },
+  ctx: z.RefinementCtx,
+): void {
+  for (const issue of skillLevelRecordIssues(value.skillLevels ?? {}, value.level)) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['skillLevels', ...(issue.skillId ? [issue.skillId] : [])],
+      message: issue.message,
+    });
+  }
+}
 
 const challengeSchema = z
   .object({
@@ -57,9 +75,11 @@ const challengeSchema = z
      * 内容合法性交给 core 的 resolveActiveSkillSlots 逐项过滤，不在 schema 里拒绝。
      */
     selectedActiveSkillIds: z.array(z.string().min(1).max(64)).max(32).optional(),
+    skillLevels: skillLevelsSchema,
   })
   .strict()
   .superRefine((v, ctx) => {
+    refineSkillLevels(v, ctx);
     if (v.isRevenge) {
       if (v.stake !== 0) ctx.addIssue({ code: 'custom', message: '复仇不需要押注' });
     } else if (!(ARENA_STAKES as readonly number[]).includes(v.stake)) {
@@ -79,8 +99,10 @@ const storedSnapshotSchema = z
      * 在这里拒绝会让「技能表改名后存档存着旧 id」的玩家每次都被打回。
      */
     selectedActiveSkillIds: z.array(z.string().min(1).max(64)).max(32).optional(),
+    skillLevels: skillLevelsSchema,
   })
-  .strict();
+  .strict()
+  .superRefine(refineSkillLevels);
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -141,6 +163,7 @@ Deno.serve(async (req: Request) => {
         level: sub.level,
         equipped: sub.equipped,
         selectedActiveSkillIds: sub.selectedActiveSkillIds,
+        skillLevels: sub.skillLevels,
       },
       'attacker',
     );
@@ -250,6 +273,7 @@ Deno.serve(async (req: Request) => {
         // 防守方是离线的，只能用他上传快照时选定的技能栏重建（arena-snapshot 已存进快照）。
         // 老快照没有这个字段 ⇒ undefined ⇒ 回落默认顺序，与本次改动前逐字一致。
         selectedActiveSkillIds: defSnap.data.selectedActiveSkillIds,
+        skillLevels: defSnap.data.skillLevels,
       },
       'defender',
     );
@@ -304,17 +328,23 @@ Deno.serve(async (req: Request) => {
       level: sub.level,
       combatPower: myBuild.combatPower,
     });
-    await admin.from('profiles').upsert(
-      { id: user.id, display_name: sub.displayName, ...profileProgress },
-      { onConflict: 'id', ignoreDuplicates: true },
-    );
+    await admin
+      .from('profiles')
+      .upsert(
+        { id: user.id, display_name: sub.displayName, ...profileProgress },
+        { onConflict: 'id', ignoreDuplicates: true },
+      );
     await admin.from('profiles').update(profileProgress).eq('id', user.id);
 
     const rankDiff = Number(myRow.rank) - Number(defRow.rank);
     const newStreak = won ? Number(myRow.win_streak) + 1 : 0;
     // 荣誉净变化：赢 = +奖励（押注本身退还，收支相抵）；输 = −押注
     // 复仇反击零成本：无押注无奖励，荣誉不变（§六）
-    const honorDelta = isRevenge ? 0 : won ? arenaVictoryHonor(sub.stake, rankDiff, newStreak) : -sub.stake;
+    const honorDelta = isRevenge
+      ? 0
+      : won
+        ? arenaVictoryHonor(sub.stake, rankDiff, newStreak)
+        : -sub.stake;
 
     const { data: applied, error: applyError } = await admin.rpc('arena_apply_battle', {
       p_season_id: sub.seasonId,
@@ -353,7 +383,10 @@ Deno.serve(async (req: Request) => {
       winStreak: Number(settled?.attacker_win_streak ?? 0),
       tier: arenaTierFor(rankAfter, total).id,
       // 复仇不占每日次数：attemptsLeft 按普通挑战已用次数计算
-      attemptsLeft: Math.max(0, ARENA_DAILY_CHALLENGES - (isRevenge ? attemptsToday : attemptIndex)),
+      attemptsLeft: Math.max(
+        0,
+        ARENA_DAILY_CHALLENGES - (isRevenge ? attemptsToday : attemptIndex),
+      ),
       battle: {
         durationSec: result.durationSec,
         attackerHpRemainPct: result.attackerHpRemainPct,

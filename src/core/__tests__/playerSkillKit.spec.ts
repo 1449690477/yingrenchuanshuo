@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildDefaultPlayerSkillKit } from '../playerSkillKit';
+import { buildDefaultPlayerSkillKit, buildPlayerSkillKit } from '../playerSkillKit';
 import { CLASS_IDS } from '../types';
 import { DEFAULT_ACTIVE_SKILL_ORDER, skillsFor } from '@/data/skills';
 
@@ -39,12 +39,14 @@ describe('玩家默认技能栏生产入口', () => {
         'skill_shaman_group_poison',
       ],
     );
-    expect(buildDefaultPlayerSkillKit('catkin', 120).active.map((entry) => entry.skill.id)).toEqual([
-      'skill_catkin_hundred_claw',
-      'skill_catkin_scratch_frenzy',
-      'skill_catkin_box_ambush',
-      'skill_catkin_moonshadow_step',
-    ]);
+    expect(buildDefaultPlayerSkillKit('catkin', 120).active.map((entry) => entry.skill.id)).toEqual(
+      [
+        'skill_catkin_hundred_claw',
+        'skill_catkin_scratch_frenzy',
+        'skill_catkin_box_ambush',
+        'skill_catkin_moonshadow_step',
+      ],
+    );
     expect(buildDefaultPlayerSkillKit('catkin', 65).active.map((entry) => entry.skill.id)).toEqual([
       'skill_catkin_scratch_frenzy',
       'skill_catkin_box_ambush',
@@ -77,5 +79,19 @@ describe('玩家默认技能栏生产入口', () => {
 
   it('拒绝非有限的技能伤害加成，不用静默默认值掩盖上游错误', () => {
     expect(() => buildDefaultPlayerSkillKit('kenshi', 120, Number.NaN)).toThrow('有限数');
+  });
+
+  it('把持久化技能等级接进主动与被动技能包，未登记项仍为 1 级', () => {
+    const skills = skillsFor('swordsman');
+    const active = skills.find((skill) => skill.type === 'active' && skill.unlockLevel <= 60)!;
+    const passive = skills.find((skill) => skill.type === 'passive' && skill.unlockLevel <= 60)!;
+    const kit = buildPlayerSkillKit('swordsman', 60, {
+      selectedActiveSkillIds: [active.id],
+      skillLevels: { [active.id]: 7, [passive.id]: 5 },
+    }).kit;
+
+    expect(kit.active.find((entry) => entry.skill.id === active.id)?.level).toBe(7);
+    expect(kit.passives.find((entry) => entry.skill.id === passive.id)?.level).toBe(5);
+    expect([...kit.active, ...kit.passives].some((entry) => entry.level === 1)).toBe(true);
   });
 });

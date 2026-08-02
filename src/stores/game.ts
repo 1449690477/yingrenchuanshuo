@@ -168,6 +168,12 @@ import {
 } from '@/core/idle';
 import { trimBag } from '@/core/bag';
 import type { IdleContext } from '@/core/idle';
+import {
+  assessSkillUpgrade,
+  planSkillUpgrade,
+  type SkillUpgradeAssessment,
+  type SkillUpgradeBlockReason,
+} from '@/core/skillUpgrade';
 
 /** 一次扫荡的结果，供 UI 汇总弹窗展示。 */
 export interface SweepResult {
@@ -175,6 +181,13 @@ export interface SweepResult {
   staminaSpent: number;
   yield: IdleYield;
 }
+export type SkillUpgradeActionResult =
+  | { ok: true; assessment: SkillUpgradeAssessment }
+  | {
+      ok: false;
+      reason: 'no-save' | 'unknown-skill' | SkillUpgradeBlockReason;
+      assessment?: SkillUpgradeAssessment;
+    };
 import { buildDefaultPlayerSkillKit } from '@/core/playerSkillKit';
 
 import {
@@ -196,6 +209,7 @@ import {
   requireEncounter,
 } from '@/data/encounters';
 import { requireItem } from '@/data/items';
+import { SKILL_UPGRADE_RULES } from '@/data/skillUpgradeRules';
 import {
   FIRST_STAGE_ID,
   ORDERED_STAGE_IDS,
@@ -207,7 +221,7 @@ import {
 } from '@/data/stages';
 import { requireChapter, requireRegionOfChapter } from '@/data/regions';
 import { requireShopOffer } from '@/data/shop';
-import { battleRhythmSkills } from '@/data/skills';
+import { battleRhythmSkills, skillsFor } from '@/data/skills';
 import { requireAffectionCharacter, requireAffectionStory } from '@/data/affection';
 import { AFFECTION_RULES } from '@/data/affectionRules';
 import {
@@ -669,6 +683,7 @@ export const useGameStore = defineStore('game', () => {
       currentPlayer.classId,
       currentPlayer.level,
       equipmentSetResolution.value.skillMultiplierBonus,
+      currentPlayer.skillLevels,
     );
   });
 
@@ -713,9 +728,7 @@ export const useGameStore = defineStore('game', () => {
   });
 
   /** 未取整的真实战力投影：排序、门禁与增量计算用它（取整会抹掉小步长导数，docs/73 批 3）。 */
-  const cpValue = computed(() =>
-    combatPowerValue(finalStats.value),
-  );
+  const cpValue = computed(() => combatPowerValue(finalStats.value));
   /** 取整后的展示战力。 */
   const cp = computed(() => Math.round(cpValue.value));
 
@@ -868,9 +881,7 @@ export const useGameStore = defineStore('game', () => {
 
   const currentIdleRates = computed(() => {
     const ctx = buildIdleContext();
-    return ctx
-      ? idleCombatRates(ctx)
-      : { playerDps: 0, efficiency: 0, killsPerSecond: 0 };
+    return ctx ? idleCombatRates(ctx) : { playerDps: 0, efficiency: 0, killsPerSecond: 0 };
   });
   const kps = computed(() => currentIdleRates.value.killsPerSecond);
   const battleEfficiency = computed(() => currentIdleRates.value.efficiency);
@@ -2351,6 +2362,47 @@ export const useGameStore = defineStore('game', () => {
     return true;
   }
 
+  /** 技能升级报价与提交共用同一个纯函数判定点。 */
+  function assessSkillUpgradeById(skillId: string): SkillUpgradeAssessment | null {
+    const s = save.value;
+    if (!s) return null;
+    const skill = skillsFor(s.player.classId).find((entry) => entry.id === skillId);
+    if (!skill) return null;
+    return assessSkillUpgrade(
+      skill,
+      s.player.level,
+      s.player.skillLevels,
+      { gold: s.player.gold, items: s.bag.items },
+      SKILL_UPGRADE_RULES,
+    );
+  }
+
+  /**
+   * 技能升级原子事务：先在纯逻辑层规划完整结果，再一次性提交等级、金币和技能书。
+   */
+  function upgradeSkill(skillId: string): SkillUpgradeActionResult {
+    const s = save.value;
+    if (!s) return { ok: false, reason: 'no-save' };
+    const skill = skillsFor(s.player.classId).find((entry) => entry.id === skillId);
+    if (!skill) return { ok: false, reason: 'unknown-skill' };
+
+    const assessment = assessSkillUpgradeById(skillId)!;
+    const plan = planSkillUpgrade(
+      skill,
+      s.player.level,
+      s.player.skillLevels,
+      { gold: s.player.gold, items: s.bag.items },
+      SKILL_UPGRADE_RULES,
+    );
+    if (!plan) return { ok: false, reason: assessment.reason!, assessment };
+
+    s.player.skillLevels = plan.skillLevels;
+    s.player.gold = plan.wallet.gold;
+    s.bag.items = plan.wallet.items;
+    void persist();
+    return { ok: true, assessment: plan.assessment };
+  }
+
   function unequip(slot: EquipSlot): boolean {
     if (!save.value) return false;
     const s = save.value;
@@ -3650,6 +3702,8 @@ export const useGameStore = defineStore('game', () => {
     unequip,
     equipBest,
     setActiveSkillIds,
+    assessSkillUpgradeById,
+    upgradeSkill,
     captureEquipmentPreset,
     applyEquipmentPreset,
     deleteEquipmentPreset,

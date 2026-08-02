@@ -24,7 +24,10 @@ import { useLeaderboardStore } from '../leaderboard';
 const NOW = Date.parse('2026-08-02T12:00:00+08:00');
 
 /** 记录上传载荷里的技能栏字段 —— 断言的对象就是它。 */
-let submitted: { selectedActiveSkillIds?: readonly string[] } | null = null;
+let submitted: {
+  selectedActiveSkillIds?: readonly string[];
+  skillLevels?: Readonly<Record<string, number>>;
+} | null = null;
 
 vi.mock('@/net/supabase', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/net/supabase')>()),
@@ -37,7 +40,10 @@ vi.mock('@/net/leaderboard', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/net/leaderboard')>()),
   upsertProfile: vi.fn(async () => {}),
   submitTrialScore: vi.fn(async (_c: unknown, sub: Record<string, unknown>) => {
-    submitted = sub as { selectedActiveSkillIds?: readonly string[] };
+    submitted = sub as {
+      selectedActiveSkillIds?: readonly string[];
+      skillLevels?: Readonly<Record<string, number>>;
+    };
     return { damage: 1000, rank: 1, total: 1, verified: true, improved: true };
   }),
   fetchPowerTop: async () => [],
@@ -136,8 +142,19 @@ describe('技能栏进入上传载荷', () => {
 
     expect(damageA).toBeGreaterThan(0);
     expect(damageB).toBeGreaterThan(0);
-    expect(damageA, '两套不同编排打出了完全相同的伤害，本地复算多半没吃技能栏').not.toBe(
-      damageB,
-    );
+    expect(damageA, '两套不同编排打出了完全相同的伤害，本地复算多半没吃技能栏').not.toBe(damageB);
+  });
+
+  it('★ 技能等级同时进入本地复算与上传载荷，两边不会静默分叉', async () => {
+    const skillId = selectableActiveSkillIds('swordsman', 60)[0]!;
+    const { game, lb } = loadSave([skillId]);
+    const levelOneDamage = lb.challengeTrial(NOW).result.damage;
+
+    game.save!.player.skillLevels[skillId] = 9;
+    const upgradedDamage = lb.challengeTrial(NOW).result.damage;
+    await lb.submitBest();
+
+    expect(upgradedDamage).toBeGreaterThan(levelOneDamage);
+    expect(submitted?.skillLevels).toEqual({ [skillId]: 9 });
   });
 });

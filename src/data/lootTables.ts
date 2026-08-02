@@ -25,6 +25,7 @@ import { regionLootProfile } from './regionLootProfiles';
 import { region5FragmentLootForTable } from './region5Loot';
 import { region6FragmentLootForTable } from './region6Loot';
 import { region7FragmentLootForTable } from './region7Loot';
+import { SKILL_BOOK_ITEM_ID } from './skillUpgradeRules';
 
 const REFORGE_DROP = {
   temper: 'sand_crystal',
@@ -64,6 +65,12 @@ function buildTable(spec: ChapterSpec, type: MonsterType): LootTable {
   const entries: LootTable['entries'] = [];
   const enhanceLoot = requireEnhanceProgression(spec.id).loot[type];
   const guaranteed: LootTable['entries'] = enhanceLoot.guaranteed.map((drop) => ({ ...drop }));
+
+  // 技能升级不能靠随机脸色：有真实 BOSS 的章节每次击败固定给 1 本研习书。
+  // 普通/精英以及“为避免缺表而生成、但实际没有 BOSS”的占位表都不会产出。
+  if (type === 'boss' && spec.boss) {
+    guaranteed.push({ itemId: SKILL_BOOK_ITEM_ID, weight: 1, minCount: 1, maxCount: 1 });
+  }
 
   // ── 材料 ──
   const regionMaterialIds = regionMaterialIdsForMonsterType(
@@ -158,9 +165,7 @@ function buildTable(spec: ChapterSpec, type: MonsterType): LootTable {
     if (type === 'boss' && spec.boss && qualityPity) {
       const itemIds = equipIdsOf(region.id, qualityPity.quality);
       if (itemIds.length === 0) {
-        throw new Error(
-          `[配置错误] ${region.id} 的 ${qualityPity.quality} 品质组保底没有候选装备`,
-        );
+        throw new Error(`[配置错误] ${region.id} 的 ${qualityPity.quality} 品质组保底没有候选装备`);
       }
       pityGroups = [
         {

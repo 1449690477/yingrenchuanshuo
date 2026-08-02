@@ -20,6 +20,8 @@ export interface BuildPlayerSkillKitOptions {
    * `[]` 表示玩家**明确清空了栏位**。两者的区别见 `skillSlots.ts`。
    */
   selectedActiveSkillIds?: readonly string[] | null;
+  /** 技能 id → 当前等级；缺失项按 1 级。 */
+  skillLevels?: Readonly<Record<string, number>>;
 }
 
 export interface BuiltPlayerSkillKit {
@@ -46,15 +48,14 @@ export function buildPlayerSkillKit(
 ): BuiltPlayerSkillKit {
   const skillDamageBonusRatio = options.skillDamageBonusRatio ?? 0;
   if (!Number.isFinite(skillDamageBonusRatio)) {
-    throw new Error(
-      `buildPlayerSkillKit: 技能伤害加成必须是有限数，收到 ${skillDamageBonusRatio}`,
-    );
+    throw new Error(`buildPlayerSkillKit: 技能伤害加成必须是有限数，收到 ${skillDamageBonusRatio}`);
   }
   const resolved = resolveActiveSkillSlots(classId, level, options.selectedActiveSkillIds);
   const kit = createSkillCombatKit(skillsFor(classId), level, {
     summons: SUMMON_DEFINITIONS.filter((summon) => summon.ownerClass === classId),
     skillDamageBonusRatio,
     selectedActiveSkillIds: resolved.selected,
+    skillLevels: options.skillLevels,
   });
   return { kit, dropped: resolved.dropped };
 }
@@ -69,6 +70,7 @@ export function buildDefaultPlayerSkillKit(
   classId: ClassId,
   level: number,
   skillDamageBonusRatio = 0,
+  skillLevels?: Readonly<Record<string, number>>,
 ): SkillCombatKit {
-  return buildPlayerSkillKit(classId, level, { skillDamageBonusRatio }).kit;
+  return buildPlayerSkillKit(classId, level, { skillDamageBonusRatio, skillLevels }).kit;
 }

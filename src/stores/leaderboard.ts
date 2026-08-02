@@ -48,10 +48,7 @@ import { TRIAL_SEASON_ID, type TrialBracket } from '@/data/trialRules';
 import { SLOT_ORDER } from '@/data/constants';
 import type { TrialBest } from '@/save/schema';
 import type { ClassId, EquipmentInstance } from '@/core/types';
-import {
-  LEGACY_TRIAL_FORMULA_VERSION,
-  TRIAL_FORMULA_VERSION,
-} from '@/core/trialFormulaVersion';
+import { LEGACY_TRIAL_FORMULA_VERSION, TRIAL_FORMULA_VERSION } from '@/core/trialFormulaVersion';
 
 export type LeaderboardStatus = 'unconfigured' | 'connecting' | 'ready' | 'offline';
 
@@ -184,8 +181,7 @@ export const useLeaderboardStore = defineStore('leaderboard', () => {
           b.seasonId === TRIAL_SEASON_ID &&
           b.weekIndex === weekIndex.value - 1 &&
           b.formulaVersion === TRIAL_FORMULA_VERSION,
-      ) ??
-      null
+      ) ?? null
     );
   });
 
@@ -239,6 +235,7 @@ export const useLeaderboardStore = defineStore('leaderboard', () => {
       level: save.player.level,
       equipped: currentEquipped(),
       selectedActiveSkillIds: currentActiveSkillIds(),
+      skillLevels: save.player.skillLevels,
     });
     const week = trialWeekIndex(now);
     const currentBracket = trialBracketFor(save.player.level);
@@ -475,6 +472,7 @@ export const useLeaderboardStore = defineStore('leaderboard', () => {
         // 与上面 challengeTrial 的本地复算同源：两处必须吃同一套技能栏，
         // 否则服务端复算出的伤害与客户端不一致，成绩会被判成不可信。
         selectedActiveSkillIds: currentActiveSkillIds(),
+        skillLevels: save.player.skillLevels,
       });
       if (result.verified) {
         game.markTrialBestSubmitted(

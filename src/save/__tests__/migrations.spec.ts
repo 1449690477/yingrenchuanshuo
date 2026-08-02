@@ -1496,7 +1496,11 @@ describe('v21 技能栏存档层 · 老存档零行为变化（M3-5a 验收）',
       const migrated = migrate(raw);
       const { classId, level } = migrated.player;
 
-      const afterMigration = resolveActiveSkillSlots(classId, level, migrated.player.activeSkillIds);
+      const afterMigration = resolveActiveSkillSlots(
+        classId,
+        level,
+        migrated.player.activeSkillIds,
+      );
       // 上线前的行为就是「没有这个字段」时的行为，即默认顺序。
       const beforeFeature = resolveActiveSkillSlots(classId, level, undefined);
 
@@ -1564,12 +1568,22 @@ describe('v21 技能栏存档层 · 老存档零行为变化（M3-5a 验收）',
     );
     // 存档照常读入（不抛），非法项交给 resolveActiveSkillSlots 过滤并给出原因
     const parsed = parseSave(withDeadIds);
-    const resolved = resolveActiveSkillSlots('witch', base.player.level, parsed.player.activeSkillIds);
+    const resolved = resolveActiveSkillSlots(
+      'witch',
+      base.player.level,
+      parsed.player.activeSkillIds,
+    );
     expect(resolved.selected).toEqual([]);
-    expect(resolved.dropped.map((entry) => entry.reason)).toEqual(['unknown-skill', 'unknown-skill']);
+    expect(resolved.dropped.map((entry) => entry.reason)).toEqual([
+      'unknown-skill',
+      'unknown-skill',
+    ]);
   });
-  it('v21 → v22/v23 新增 staminaClaimDay/staminaClaimCount，不改写其他资产', () => {
-    const current = createSave('体力旧档', 'shaman', 23, 1_800_000_000_000) as unknown as Record<string, unknown>;
+  it('v21 → v22/v23/v24 新增体力领取与技能等级字段，不改写其他资产', () => {
+    const current = createSave('体力旧档', 'shaman', 23, 1_800_000_000_000) as unknown as Record<
+      string,
+      unknown
+    >;
     const raw = structuredClone(current);
     delete (raw.player as Record<string, unknown>).staminaClaimDay;
     delete (raw.player as Record<string, unknown>).staminaClaimCount;
@@ -1578,6 +1592,21 @@ describe('v21 技能栏存档层 · 老存档零行为变化（M3-5a 验收）',
     expect(migrated.version).toBe(SAVE_VERSION);
     expect(migrated.player.staminaClaimDay).toBeNull();
     expect(migrated.player.staminaClaimCount).toBe(0);
+    expect(migrated.player.skillLevels).toEqual({});
     expect(migrated.player).toEqual(current.player);
+  });
+
+  it('v23 → v24 只建立空技能等级表，旧档全部技能仍按 1 级解释', () => {
+    const current = createSave('技能升级前旧档', 'kenshi', 24, 1_800_000_000_000);
+    current.player.level = 69;
+    const raw = structuredClone(current) as unknown as Record<string, unknown>;
+    raw.version = 23;
+    delete (raw.player as Record<string, unknown>).skillLevels;
+
+    const migrated = migrate(raw);
+
+    expect(migrated.version).toBe(SAVE_VERSION);
+    expect(migrated.player.level).toBe(69);
+    expect(migrated.player.skillLevels).toEqual({});
   });
 });

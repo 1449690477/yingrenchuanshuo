@@ -31,6 +31,7 @@ import {
   isPlausibleTrialDamage,
   judgeCheatEvidence,
   runTrial,
+  skillLevelRecordIssues,
   SLOT_ORDER,
   TRIAL_SEASON_ID,
   trialBracketDamageCeiling,
@@ -70,8 +71,19 @@ const submissionSchema = z
      * 这里只挡结构性荒谬（不是字符串数组、或长到明显是攻击载荷）。
      */
     selectedActiveSkillIds: z.array(z.string().min(1).max(64)).max(32).optional(),
+    /** 技能等级快照；未知旧 id 可保留，数值不能超过本次角色等级允许的上限。 */
+    skillLevels: z.record(z.string().min(1).max(64), z.number().int().min(1)).optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((value, ctx) => {
+    for (const issue of skillLevelRecordIssues(value.skillLevels ?? {}, value.level)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['skillLevels', ...(issue.skillId ? [issue.skillId] : [])],
+        message: issue.message,
+      });
+    }
+  });
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -202,6 +214,7 @@ Deno.serve(async (req: Request) => {
       level: sub.level,
       equipped: sub.equipped,
       selectedActiveSkillIds: sub.selectedActiveSkillIds,
+      skillLevels: sub.skillLevels,
     });
 
     // 技能栏丢弃留痕（M3-5）。丢弃有两个来源、结果一模一样：玩家伪造，

@@ -27,6 +27,7 @@ export { getEquipment } from '@/data/equipment';
 export { TRIAL_SEASON_ID } from '@/data/trialRules';
 export { SLOT_ORDER } from '@/data/constants';
 export { CLASS_IDS } from '@/core/types';
+export { skillLevelRecordIssues } from '@/core/skillUpgrade';
 export type { ClassId, EquipmentInstance } from '@/core/types';
 export { buildTrialFormulaStamp, TRIAL_FORMULA_VERSION } from '@/core/trialFormulaVersion';
 

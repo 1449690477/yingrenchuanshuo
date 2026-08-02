@@ -39,6 +39,7 @@ import { EQUIPMENT } from '@/data/equipment';
 import { Rng } from '../rng';
 import { buildDefaultPlayerSkillKit } from '../playerSkillKit';
 import { SLOT_ORDER } from '@/data/constants';
+import { skillsFor } from '@/data/skills';
 
 const SEASON = TRIAL_SEASON_ID;
 // 从分段表取而不是写死 id：分段会随内容曲线重划（docs/64 §一）
@@ -63,9 +64,7 @@ function levelAppropriateEquipment(classId: ClassId, level: number) {
           candidate.level <= level &&
           (!candidate.classId || candidate.classId === classId),
       )
-      .sort(
-        (left, right) => right.level - left.level || left.id.localeCompare(right.id),
-      )[0];
+      .sort((left, right) => right.level - left.level || left.id.localeCompare(right.id))[0];
     if (!definition) throw new Error(`没有 ${classId} Lv${level} 可用的 ${slot} 装备`);
     return createInstance(definition, rng, `trial-${slot}-${index}`, classId);
   });
@@ -224,6 +223,21 @@ describe('buildTrialCombatant / 搭配构建', () => {
         (entry) => entry.skill.class === 'kenshi',
       ),
     ).toBe(true);
+  });
+
+  it('客户端与服务端共用的试炼构建会读取同一份技能等级', () => {
+    const skill = skillsFor('witch').find(
+      (entry) => entry.type === 'active' && entry.unlockLevel <= 40,
+    )!;
+    const build = buildTrialCombatant({
+      name: '研习魔女',
+      classId: 'witch',
+      level: 40,
+      equipped: EMPTY_EQUIPPED,
+      skillLevels: { [skill.id]: 8 },
+      selectedActiveSkillIds: [skill.id],
+    });
+    expect(build.skillKit.active).toEqual([expect.objectContaining({ skill, level: 8 })]);
   });
 
   it('槽位数不对直接抛错', () => {

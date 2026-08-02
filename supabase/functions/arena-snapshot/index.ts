@@ -19,6 +19,7 @@ import {
   CLASS_IDS,
   equipmentInstanceSchema,
   getEquipment,
+  skillLevelRecordIssues,
   SLOT_ORDER,
   trialEquipmentSnapshotIssue,
 } from './_core.ts';
@@ -42,8 +43,18 @@ const snapshotSchema = z
      * 在这里拒绝会让「技能表改名后存档存着旧 id」的玩家每次都被打回。
      */
     selectedActiveSkillIds: z.array(z.string().min(1).max(64)).max(32).optional(),
+    skillLevels: z.record(z.string().min(1).max(64), z.number().int().min(1)).optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((value, ctx) => {
+    for (const issue of skillLevelRecordIssues(value.skillLevels ?? {}, value.level)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['skillLevels', ...(issue.skillId ? [issue.skillId] : [])],
+        message: issue.message,
+      });
+    }
+  });
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -100,6 +111,7 @@ Deno.serve(async (req: Request) => {
     // ── 3. 服务端复算战力 ──
     const build = buildTrialCombatant({
       selectedActiveSkillIds: sub.selectedActiveSkillIds,
+      skillLevels: sub.skillLevels,
       name: sub.displayName,
       classId: sub.classId,
       level: sub.level,
@@ -117,10 +129,12 @@ Deno.serve(async (req: Request) => {
       level: sub.level,
       combatPower: build.combatPower,
     });
-    await admin.from('profiles').upsert(
-      { id: user.id, display_name: sub.displayName, ...profileProgress },
-      { onConflict: 'id', ignoreDuplicates: true },
-    );
+    await admin
+      .from('profiles')
+      .upsert(
+        { id: user.id, display_name: sub.displayName, ...profileProgress },
+        { onConflict: 'id', ignoreDuplicates: true },
+      );
     await admin.from('profiles').update(profileProgress).eq('id', user.id);
 
     // ★ 技能栏必须存进快照：防守方是离线的，arena-challenge 只能从这里重建他。
@@ -131,6 +145,7 @@ Deno.serve(async (req: Request) => {
       displayName: sub.displayName,
       equipped: sub.equipped,
       selectedActiveSkillIds: sub.selectedActiveSkillIds,
+      skillLevels: sub.skillLevels,
     };
 
     const { data: existing } = await admin
