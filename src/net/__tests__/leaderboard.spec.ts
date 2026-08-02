@@ -721,6 +721,33 @@ describe('fetchPowerBoard 在版本不一致时仍然让玩家看见自己', () 
     // 版本未知时不谎称「这是最新标尺」，也不吓唬玩家说有人在重算
     expect(board.formulaVersion).toBeNull();
     expect(board.pendingRecalc).toBe(0);
+    // 但必须标成降级 —— 见下一条
+    expect(board.degraded).toBe(true);
+  });
+
+  it('★ 降级态必须标出来 —— 混排的名次不许当成正常名次展示', async () => {
+    // 这是发版顺序做错时的真实后果：客户端先上、迁移还没应用，榜退回
+    // 不筛版本直读 = 新旧两把尺在同一个字段上排序，名次失真。
+    // 失真本身可以接受（比整张榜打不开好），**但它看起来完全正常** ——
+    // 不标出来就没有任何人会发现，那正是这个仓库反复拒绝的「榜假」。
+    const builder: Record<string, unknown> = {};
+    Object.assign(builder, {
+      select: () => builder,
+      order: () => builder,
+      limit: () => Promise.resolve({ data: [profile({ id: 'honest' })], error: null }),
+    });
+    const client = {
+      rpc: () => Promise.resolve({ data: null, error: { code: 'PGRST202', message: 'not found' } }),
+      from: () => builder,
+    } as unknown as SupabaseClient;
+
+    expect((await fetchPowerBoard(client, null)).degraded).toBe(true);
+  });
+
+  it('RPC 正常时不是降级态 —— 否则那句提示天天挂着，很快就没人看了', async () => {
+    const { client } = fakeDb([profile({ id: 'me', cp_formula_version: 3 })]);
+
+    expect((await fetchPowerBoard(client, 'me')).degraded).toBe(false);
   });
 
   it('迁移执行后的正常错误仍然抛出，不会被降级路径吞掉', async () => {
