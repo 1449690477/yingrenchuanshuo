@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CLASS_IDS, type EquipmentDef, type EquipmentInstance, type Quality } from '../types';
+import { CLASS_IDS, type AffixKey, type EquipmentDef, type EquipmentInstance, type Quality } from '../types';
 import {
   addCombatBonuses,
   affixValueRange,
@@ -50,6 +50,7 @@ import {
   QUALITY_PROFESSION_AFFIX_COUNT,
   PROFESSION_AFFIX_POOLS,
 } from '@/data/constants';
+import { AFFIX_BASELINE_HISTORY } from '@/data/legacyAffixHistory';
 
 function def(overrides: Partial<EquipmentDef> = {}): EquipmentDef {
   const slot = overrides.slot ?? 'ring';
@@ -1005,5 +1006,34 @@ describe('锻造外观阶段', () => {
   it('拒绝越界等级', () => {
     expect(() => forgeStageAt(-1)).toThrow();
     expect(() => forgeStageAt(16)).toThrow();
+  });
+});
+
+describe('P0 守卫：改过基准的职业词条，旧基准合法值必须能通过持久化校验', () => {
+  it('历史基准的 T5 边界值被认，也不会完全放开（诡异值仍拒）', () => {
+    const historyKeys = Object.keys(AFFIX_BASELINE_HISTORY) as readonly AffixKey[];
+    expect(historyKeys.length).toBeGreaterThan(0);
+    for (const key of historyKeys) {
+      const spec = Object.values(PROFESSION_AFFIX_POOLS)
+        .flat()
+        .find((entry) => entry.key === key)!;
+      expect(spec, key).toBeDefined();
+      const changes = AFFIX_BASELINE_HISTORY[key]!;
+      for (const level of [20, 40, 80]) {
+        for (const change of changes) {
+          const baseline = change.oldBaseline * (spec.scalesWithLevel ? Math.pow(level, 1.3) : 1);
+          const precision = 10 ** spec.decimals;
+          const multiplier = AFFIX_TIERS.find((tier) => tier.tier === 5)!.multiplier;
+          const min = Math.round(baseline * multiplier * 0.97 * precision) / precision;
+          const max = Math.round(baseline * multiplier * 1.03 * precision) / precision;
+          expect(isVerifiablePersistedAffixValue(key, level, 5, min), `${key} Lv${level} 旧基准下界`).toBe(true);
+          expect(isVerifiablePersistedAffixValue(key, level, 5, max), `${key} Lv${level} 旧基准上界`).toBe(true);
+        }
+        // 诡异值仍拒：旧基准的 10 倍不认
+        const spec2 = Object.values(PROFESSION_AFFIX_POOLS).flat().find((entry) => entry.key === key)!;
+        const absurd = Math.round(spec2.min * Math.pow(level, 1.3) * 10 * 10 ** spec2.decimals) / 10 ** spec2.decimals;
+        expect(isVerifiablePersistedAffixValue(key, level, 5, absurd), `${key} Lv${level} 诡异值`).toBe(false);
+      }
+    }
   });
 });

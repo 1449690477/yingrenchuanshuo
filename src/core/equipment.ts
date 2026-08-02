@@ -55,7 +55,11 @@ import type {
   ProfessionAffixPoolEntry,
   ProfessionAffixRole,
 } from '@/data/constants';
-import { isV10RebasedAffixKey, V10_PROFESSION_AFFIX_REBASE } from '@/data/legacyAffixHistory';
+import {
+  baselineHistoryFor,
+  isV10RebasedAffixKey,
+  V10_PROFESSION_AFFIX_REBASE,
+} from '@/data/legacyAffixHistory';
 
 export type BaseRollGrade = (typeof EQUIPMENT_BASE_ROLL_TIERS)[number]['id'];
 export type EnhanceGainGrade = (typeof ENHANCE_GAIN_TIERS)[number]['id'];
@@ -533,6 +537,11 @@ export function isVerifiablePersistedAffixValue(
   // 当前 ±3% 离散区间之外。必须复现完整发布时序，不能拿当前公式反推历史。
   if (isMigratedV10AffixValue(key, level, tier, value, spec)) return true;
 
+  // v11 之后改过基准的职业词条：认旧基准可生成的区间（保值模式，不做迁移重标）。
+  // 该条必须在 v10 迁移路径之后检查：旧基准值与 v10 迁移产物可能重叠，
+  // 先走迁移路径保持 v10 时序优先。
+  if (isLegacyBaselineAffixValue(key, level, tier, value, spec)) return true;
+
   // v9 只有通用 AFFIX_POOL；职业词条不能借更早历史兼容扩大值域。
   const generalSpec = AFFIX_POOL.find((entry) => entry.key === key);
   if (!generalSpec) return false;
@@ -587,6 +596,51 @@ function legacyV10RolledRange(
     min: Math.round(baseline * multiplier * (1 - AFFIX_VALUE_VARIANCE) * precision) / precision,
     max: Math.round(baseline * multiplier * (1 + AFFIX_VALUE_VARIANCE) * precision) / precision,
   };
+}
+
+/**
+ * v11 之后改过基准的职业词条：判断值是否在某一段历史基准的可生成区间内。
+ *
+ * 保值模式：旧装备保留旧基准值，不做存档迁移；
+ * 服务端校验时认「旧基准 × 当前品阶系数 × ±3%」区间（sha_spirit/kenshi_blade/cat_swift
+ * 等，登记在 legacyAffixHistory.AFFIX_BASELINE_HISTORY）。
+ * 品阶系数用当前值：这些词条的旧值都是在 v11 之后的当前品阶系数下生成的。
+ */
+function legacyBaselineRolledRange(
+  level: number,
+  tier: AffixTier,
+  spec: HistoricalAffixSpec,
+  oldBaseline: number,
+): LegacyAffixValueRange | null {
+  if (!Number.isInteger(level) || level < 1) return null;
+  const baseline =
+    oldBaseline * (spec.scalesWithLevel ? Math.pow(level, 1.3) : 1);
+  if (!Number.isFinite(baseline) || baseline <= 0) return null;
+  const precision = 10 ** spec.decimals;
+  const multiplier = requireAffixTierMultiplier(tier);
+  return {
+    min: Math.round(baseline * multiplier * (1 - AFFIX_VALUE_VARIANCE) * precision) / precision,
+    max: Math.round(baseline * multiplier * (1 + AFFIX_VALUE_VARIANCE) * precision) / precision,
+  };
+}
+
+function isLegacyBaselineAffixValue(
+  key: AffixKey,
+  level: number,
+  tier: AffixTier,
+  expected: number,
+  spec: HistoricalAffixSpec,
+): boolean {
+  const history = baselineHistoryFor(key);
+  if (history.length === 0) return false;
+  for (const change of history) {
+    const rolled = legacyBaselineRolledRange(level, tier, spec, change.oldBaseline);
+    if (!rolled) continue;
+    if (expected >= rolled.min - Number.EPSILON && expected <= rolled.max + Number.EPSILON) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /**
