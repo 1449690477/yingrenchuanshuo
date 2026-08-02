@@ -280,6 +280,12 @@ const myPowerRankDetail = computed(() => lb.powerCache?.value.myRank ?? null);
 const powerBoardIsCurrent = computed(() => lb.powerCache?.value.board.isCurrent ?? true);
 
 /**
+ * 榜单处于降级态：服务端 RPC 还没建出来（迁移未应用），正在不筛版本地直读。
+ * 此时名次是新旧两把尺混排出来的，**失真但看起来完全正常** —— 必须说出来。
+ */
+const powerBoardDegraded = computed(() => lb.powerCache?.value.board.degraded === true);
+
+/**
  * 只有「算得准的名次」才给数字。
  * exact=false（扫描到上限、名次只是下界）不给 ——
  * 那种情况下写「第 N 名」是在说一个我们并不知道的数。
@@ -812,6 +818,14 @@ onUnmounted(() => {
             「从榜上消失」不可能再发生；所以这里只如实说明谁不在这张榜上、
             为什么，**不承诺任何一次同步之后会发生什么**。
           -->
+          <!--
+            降级态：迁移还没应用，榜是不筛版本直读出来的 = 新旧两把尺混排。
+            榜可以降级（比整张榜打不开好），但**名次不可以假装准确** ——
+            混排看起来完全正常，不说就没有任何人会发现，这正是这一轮要消灭的形状。
+          -->
+          <p v-if="powerBoardDegraded" class="my-power-note">
+            榜单服务正在升级，这批名次暂时是按新旧两套标尺混排的，可能不准确。
+          </p>
           <p v-if="!powerBoardIsCurrent" class="my-power-note">
             这张榜按你档案当前的战力标尺排名，而标尺已经更新过 ——
             不同标尺量出的战力不能直接比较，所以分开排。

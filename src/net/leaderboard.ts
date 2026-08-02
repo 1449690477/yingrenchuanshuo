@@ -366,6 +366,15 @@ export interface PowerBoard {
   isCurrent: boolean;
   /** 不在这张榜上（戳与我不同）的档案数 —— 用来解释「榜为什么比平时短」。 */
   pendingRecalc: number;
+  /**
+   * 降级态：RPC 不在（迁移还没应用），这张榜是**不筛版本直读**出来的。
+   *
+   * ⚠ 它意味着新旧两把尺的战力正在同一个字段上排序，**名次是失真的**。
+   * 必须让界面说出来：降级本身可以接受（比整张榜打不开好），
+   * 但把失真的名次当成正常名次展示不可以 —— 那是这个仓库反复拒绝的「榜假」。
+   * 而且它**看起来完全正常**，不说就没有任何人会发现。
+   */
+  degraded: boolean;
 }
 
 /** 榜单行在客户端还要过一道上界过滤，所以多取一些再截断。 */
@@ -418,6 +427,7 @@ export async function fetchPowerBoard(
     formulaVersion: meta ? Number(meta.formula_version) : null,
     isCurrent: meta ? meta.is_current !== false : true,
     pendingRecalc: meta ? Number(meta.pending_recalc) : 0,
+    degraded: false,
   };
 }
 
@@ -464,7 +474,15 @@ async function fetchPowerBoardUnversioned(
     };
   });
   // 版本未知：不谎称「这是最新标尺」，也不吓唬玩家说有人在重算。
-  return { rows: rankPowerRows(rows, limit), formulaVersion: null, isCurrent: true, pendingRecalc: 0 };
+  // 但 degraded 必须为真 —— 这批行是新旧两把尺混在一起排的，名次失真，
+  // 而它看起来完全正常。榜可以降级，名次不可以假装准确。
+  return {
+    rows: rankPowerRows(rows, limit),
+    formulaVersion: null,
+    isCurrent: true,
+    pendingRecalc: 0,
+    degraded: true,
+  };
 }
 
 /**
