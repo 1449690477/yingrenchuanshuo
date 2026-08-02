@@ -65,8 +65,8 @@
     "edge:build": "tsx scripts/build-edge-function.mts",
     "ops:check": "tsx scripts/ops-check.mts",
     "deploy:manifest": "tsx scripts/deploy-manifest.mts",
-    "probe:sync-profile": "tsx scripts/probe-sync-profile.mts"
-    "probe:skill-field": "tsx scripts/probe-skill-field.mts",
+    "probe:sync-profile": "tsx scripts/probe-sync-profile.mts",
+    "probe:skill-field": "tsx scripts/probe-skill-field.mts"
   },
   "repository": {
     "type": "git",
