@@ -139,8 +139,10 @@ import {
   advanceStageKillProgress,
   evaluateChapterGate,
   evaluateChallengeCost,
+  evaluateSweepCost,
   type ChapterGate,
   type ChallengeCost,
+  type SweepCost,
 } from '@/core/stageProgress';
 import { countStageMonsterKills, mergeLootResults } from '@/core/stageLoot';
 import { advanceBattleVisualCursor, battleMonsterIdAt } from '@/core/battleVisual';
@@ -160,9 +162,17 @@ import {
   recoverStamina,
   spendStamina,
   settleOffline,
+  settleSweep,
 } from '@/core/idle';
 import { trimBag } from '@/core/bag';
 import type { IdleContext } from '@/core/idle';
+
+/** 一次扫荡的结果，供 UI 汇总弹窗展示。 */
+export interface SweepResult {
+  times: number;
+  staminaSpent: number;
+  yield: IdleYield;
+}
 import { buildDefaultPlayerSkillKit } from '@/core/playerSkillKit';
 
 import {
@@ -1409,6 +1419,73 @@ export const useGameStore = defineStore('game', () => {
     advanceAfterFirstClear(firstClearedStageId);
 
     if (Date.now() - lastSaveAt > AUTO_SAVE_INTERVAL_MS) void persist();
+  }
+
+  // ─────────── 扫荡（M3-7） ───────────
+
+  /**
+   * 当前关的扫荡核算（只算不扣，与 challengeCost 同规）。
+   *
+   * 体力由 tick 与离线结算持续恢复，这里读的就是已恢复后的值。
+   */
+  function sweepCost(times: number): SweepCost {
+    const p = save.value?.player;
+    return evaluateSweepCost(
+      currentStage.value.id,
+      save.value?.progress.clearedStageIds ?? [],
+      times,
+      p?.stamina ?? 0,
+      staminaMax.value,
+      p?.staminaRecoverAt ?? Date.now(),
+      Date.now(),
+    );
+  }
+
+  /**
+   * 扫荡当前关 times 次。
+   *
+   * ## 为什么整条链都复用挂机结算，一步都不另写
+   *
+   * 产出走 `settleSweep`（core/idle.ts）→ 它内部就是 `settleIdle` 的
+   * expected 模式；入包走 `applyYield`；关卡推进走 `applyStageKills`。
+   * **与离线结算逐行同路**。若这里另写一份掉落或经验逻辑，
+   * 将来改掉落表时必然只改一处 —— 那种分叉不会报错，只会让两个入口
+   * 悄悄给出不同的产出。
+   *
+   * 失败时不抛异常、不写任何状态，返回 null 由 UI 决定怎么呈现；
+   * docs/40 红线：体力不足要表现为「今天够了」，不是弹一个错误。
+   */
+  function sweepStage(times = 1): SweepResult | null {
+    if (!save.value) return null;
+    const wanted = Math.max(1, Math.floor(times));
+    const cost = sweepCost(wanted);
+    if (!cost.ok) return null;
+
+    const ctx = buildIdleContext();
+    if (!ctx) return null;
+
+    const y = settleSweep(ctx, wanted);
+    if (y.kills <= 0) return null;
+
+    // 先扣体力再结算：两者必须在同一次调用里完成，
+    // 中途 return 会留下「扣了体力没给产出」的状态。
+    save.value.player.stamina -= cost.cost;
+
+    const lootCursor =
+      currentCleared.value && !currentStage.value.bossId
+        ? battleVisualCursor.value
+        : waveCursor.value;
+    applyYield(y);
+    save.value.stats.totalKills += y.kills;
+    const settlement = applyStageKills(y.kills, lootCursor, false);
+    advanceAfterFirstClear(settlement.firstClearedStageId);
+
+    void persist();
+    return {
+      times: wanted,
+      staminaSpent: cost.cost,
+      yield: { ...y, loot: mergeLootResults(y.loot, settlement.bonusLoot) },
+    };
   }
 
   // ─────────── 产出结算 ───────────
@@ -3548,6 +3625,8 @@ export const useGameStore = defineStore('game', () => {
     autoEnhanceEquipment,
     autoEnhanceAllEquipped,
     dismissOffline,
+    sweepCost,
+    sweepStage,
   };
 });
 
