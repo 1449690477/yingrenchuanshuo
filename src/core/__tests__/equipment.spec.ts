@@ -243,15 +243,20 @@ describe('强化与实例属性', () => {
     expect(empty).toEqual(zeroCombatBonuses());
   });
 
-  it('十五条职业专属词条全部进入对应的基础属性或战斗修正管线', () => {
+  it('二十条职业专属词条全部进入对应的基础属性或战斗修正管线', () => {
     let stats = zeroStats();
     for (const [key, value] of [
       ['swd_guard', 5.9],
       ['swd_heavy', 9.1],
+      ['swd_force', 7.8],
       ['wit_power', 7.8],
       ['wit_veil', 6.1],
       ['sha_vitality', 78],
       ['sha_spirit', 7.3],
+      ['sha_ember', 7.9],
+      ['wit_vitality', 79],
+      ['cat_tough', 76],
+      ['cat_sharp', 7.8],
       ['cat_swift', 0.039],
       ['cat_nimble', 9.1],
       ['kenshi_blade', 8.1],
@@ -260,13 +265,13 @@ describe('强化与实例属性', () => {
       stats = applyAffix(stats, { key, value });
     }
     expect(stats).toEqual({
-      atk: 15.1,
+      atk: 30.7,
       def: 5.9,
-      hp: 159,
+      hp: 314,
       acc: 0,
       eva: 15.2,
       critRate: 0,
-      critDmg: 17.2,
+      critDmg: 25.1,
       spd: 0.039,
     });
 
@@ -335,7 +340,7 @@ describe('随机词条', () => {
     ]);
   });
 
-  it('十五条职业池配置、权重、基准值与中文名严格对应策划表', () => {
+  it('二十条职业池配置、权重、基准值与中文名严格对应策划表', () => {
     expect(
       Object.fromEntries(
         CLASS_IDS.map((classId) => [
@@ -373,6 +378,15 @@ describe('随机词条', () => {
           decimals: 1,
           label: '重压',
         },
+        {
+          key: 'swd_force',
+          min: 0.5,
+          max: 0.5,
+          weight: 25,
+          scalesWithLevel: true,
+          decimals: 1,
+          label: '剑势',
+        },
       ],
       witch: [
         {
@@ -397,10 +411,19 @@ describe('随机词条', () => {
           key: 'wit_veil',
           min: 0.91,
           max: 0.91,
-          weight: 55,
+          weight: 25,
           scalesWithLevel: true,
           decimals: 1,
           label: '星纱',
+        },
+        {
+          key: 'wit_vitality',
+          min: 7.8,
+          max: 7.8,
+          weight: 25,
+          scalesWithLevel: true,
+          decimals: 1,
+          label: '星愈',
         },
       ],
       shaman: [
@@ -433,19 +456,28 @@ describe('随机词条', () => {
         },
         {
           key: 'sha_spirit',
-          min: 0.84,
-          max: 0.84,
+          min: 0.68,
+          max: 0.68,
           weight: 80,
           scalesWithLevel: true,
           decimals: 1,
           label: '灵击',
         },
+        {
+          key: 'sha_ember',
+          min: 34,
+          max: 34,
+          weight: 25,
+          scalesWithLevel: false,
+          decimals: 1,
+          label: '灵刃',
+        },
       ],
       catkin: [
         {
           key: 'cat_swift',
-          min: 0.027,
-          max: 0.027,
+          min: 0.044,
+          max: 0.044,
           weight: 30,
           scalesWithLevel: false,
           decimals: 3,
@@ -455,10 +487,28 @@ describe('随机词条', () => {
           key: 'cat_nimble',
           min: 0.91,
           max: 0.91,
-          weight: 25,
+          weight: 15,
           scalesWithLevel: true,
           decimals: 1,
           label: '灵巧',
+        },
+        {
+          key: 'cat_tough',
+          min: 7.2,
+          max: 7.2,
+          weight: 25,
+          scalesWithLevel: true,
+          decimals: 1,
+          label: '猫缘',
+        },
+        {
+          key: 'cat_sharp',
+          min: 0.53,
+          max: 0.53,
+          weight: 25,
+          scalesWithLevel: true,
+          decimals: 1,
+          label: '猫刃',
         },
       ],
       kenshi: [
@@ -473,8 +523,8 @@ describe('随机词条', () => {
         },
         {
           key: 'kenshi_blade',
-          min: 27,
-          max: 27,
+          min: 22,
+          max: 22,
           weight: 25,
           scalesWithLevel: false,
           decimals: 1,
@@ -591,7 +641,8 @@ describe('随机词条', () => {
     );
     expect(alreadyHasProfession).toHaveLength(2);
     expect(swordKeys.has(alreadyHasProfession[0]!.key)).toBe(false);
-    expect(alreadyHasProfession[1]!.key).toBe('swd_heavy');
+    expect(swordKeys.has(alreadyHasProfession[1]!.key)).toBe(true);
+    expect(alreadyHasProfession[1]!.key).not.toBe('swd_guard');
   });
 
   it('确定模板只认 fixedTemplate 显式标记，不再从词条数量猜测', () => {
@@ -805,11 +856,15 @@ describe('随机词条', () => {
       'acc',
       'eva',
       'swd_guard',
+      'swd_force',
       'wit_power',
       'wit_veil',
+      'wit_vitality',
       'sha_vitality',
       'sha_spirit',
       'cat_nimble',
+      'cat_tough',
+      'cat_sharp',
       'kenshi_honor',
     ]);
 
@@ -836,11 +891,11 @@ describe('随机词条', () => {
     expect(lowDef).toBeLessThan(1);
   });
 
-  it('rollAffixForKey 可解析全部十五条职业词条', () => {
+  it('rollAffixForKey 可解析全部二十条职业词条', () => {
     const professionKeys = Object.values(PROFESSION_AFFIX_POOLS)
       .flat()
       .map((entry) => entry.key);
-    expect(professionKeys).toHaveLength(15);
+    expect(professionKeys).toHaveLength(20);
     for (const key of professionKeys.filter(
       (candidate) => AFFIX_RUNTIME_RULES[candidate].generation === 'active',
     )) {
