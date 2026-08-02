@@ -136,7 +136,16 @@ describe('refresh / 进入竞技场', () => {
     expect(Array.isArray(payload.equipped)).toBe(true);
     expect((payload.equipped as unknown[]).length).toBe(8);
     for (const key of Object.keys(payload)) {
-      expect(['seasonId', 'classId', 'level', 'displayName', 'equipped']).toContain(key);
+      expect([
+        'seasonId',
+        'classId',
+        'level',
+        'displayName',
+        'equipped',
+        // M3-5：玩家编排的技能栏。服务端跑真实战斗要用它复算，
+        // 不传的话服务端按默认技能算，与客户端本地结果对不上。
+        'selectedActiveSkillIds',
+      ]).toContain(key);
     }
   });
 
@@ -198,6 +207,9 @@ describe('challenge / 发起挑战', () => {
         'equipped',
         'defenderId',
         'stake',
+        // M3-5：玩家编排的技能栏。服务端跑真实战斗要用它复算，
+        // 不传的话服务端按默认技能算，与客户端本地结果对不上。
+        'selectedActiveSkillIds',
       ]).toContain(key);
     }
   });
@@ -348,6 +360,8 @@ describe('challengeRevenge / 复仇反击', () => {
         'defenderId',
         'stake',
         'isRevenge',
+        // M3-5：玩家编排的技能栏，服务端复算要用
+        'selectedActiveSkillIds',
       ]).toContain(key);
     }
   });

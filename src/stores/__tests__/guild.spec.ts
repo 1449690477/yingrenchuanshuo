@@ -432,7 +432,16 @@ describe('公会远征提交', () => {
     expect(result?.points).toBe(620);
     const payload = submitGuildExpedition.mock.calls[0]![1] as Record<string, unknown>;
     expect(Object.keys(payload).sort()).toEqual(
-      ['classId', 'displayName', 'equipped', 'level', 'requestId', 'seasonId'].sort(),
+      [
+        'classId',
+        'displayName',
+        'equipped',
+        'level',
+        'requestId',
+        'seasonId',
+        // M3-5：远征由服务端跑真实战斗，技能栏必须一起送
+        'selectedActiveSkillIds',
+      ].sort(),
     );
     expect(payload).not.toHaveProperty('damage');
     expect(payload).not.toHaveProperty('points');

@@ -209,6 +209,19 @@ export const useLeaderboardStore = defineStore('leaderboard', () => {
   }
 
   /**
+   * 玩家编排的技能栏（M3-5）。
+   *
+   * ★ 直接透传存档里的值，**包括 `undefined`**：那表示「从没编排过」，
+   * 让 core 的 resolveActiveSkillSlots 走默认分支。这里若擅自补成 `[]`
+   * 或补成默认顺序，都会改变老玩家的行为 —— 见 save/schema.ts 的字段注释。
+   */
+  function currentActiveSkillIds(): readonly string[] | undefined {
+    const save = game.save;
+    if (!save) throw new Error('[排行榜] 没有存档');
+    return save.player.activeSkillIds;
+  }
+
+  /**
    * 跑一次本周试炼。
    *
    * 确定性：成绩种子由「赛季+周次+分段+搭配哈希」决定，同一套搭配永远
@@ -217,11 +230,15 @@ export const useLeaderboardStore = defineStore('leaderboard', () => {
   function challengeTrial(now = Date.now()): TrialChallengeOutcome {
     const save = game.save;
     if (!save) throw new Error('[排行榜] 没有存档');
+    // ★ 本地复算必须与服务端吃同一套技能栏，否则两边算出的伤害对不上，
+    // 表现是「成绩被判不可信」而不是报错 —— 所以这里和下面的上传载荷
+    // 必须同源，缺一处就是静默分歧。
     const build = buildTrialCombatant({
       name: save.player.name,
       classId: save.player.classId,
       level: save.player.level,
       equipped: currentEquipped(),
+      selectedActiveSkillIds: currentActiveSkillIds(),
     });
     const week = trialWeekIndex(now);
     const currentBracket = trialBracketFor(save.player.level);
@@ -455,6 +472,9 @@ export const useLeaderboardStore = defineStore('leaderboard', () => {
         level: save.player.level,
         displayName: save.player.name,
         equipped: currentEquipped(),
+        // 与上面 challengeTrial 的本地复算同源：两处必须吃同一套技能栏，
+        // 否则服务端复算出的伤害与客户端不一致，成绩会被判成不可信。
+        selectedActiveSkillIds: currentActiveSkillIds(),
       });
       if (result.verified) {
         game.markTrialBestSubmitted(

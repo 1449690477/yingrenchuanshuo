@@ -89,6 +89,12 @@ export interface GuildChallengePayload {
   level: number;
   displayName: string;
   equipped: (EquipmentInstance | null)[];
+  /**
+   * 玩家编排的主动技能栏（M3-5）。**可选**：`undefined` = 从没编排过 ⇒
+   * 服务端回落职业默认顺序，与技能栏上线前逐字一致。
+   * 合法性由服务端走 core/skillSlots.ts 逐项过滤，客户端不预先筛。
+   */
+  selectedActiveSkillIds?: readonly string[];
 }
 
 function rpcError(raw: string, fallback: string): NetRequestError {

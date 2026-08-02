@@ -113,6 +113,10 @@ export const useArenaStore = defineStore('arena', () => {
       level: save.player.level,
       displayName: save.player.name,
       equipped: currentEquipped(),
+      // M3-5：技能栏随快照一起上传。竞技场防守方是离线的，
+      // 服务端只能用这里存进快照的技能栏重建他 —— 不传的话，
+      // 配过技能栏的玩家会「进攻时生效、被打时不生效」且看不出来。
+      selectedActiveSkillIds: save.player.activeSkillIds,
     };
   }
 

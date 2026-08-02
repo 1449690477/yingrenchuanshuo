@@ -95,6 +95,9 @@ export const useGuildStore = defineStore('guild', () => {
       level: save.player.level,
       displayName: save.player.name,
       equipped: equipped(),
+      // M3-5：远征由服务端跑真实战斗，技能栏必须一起送，
+      // 否则服务端用默认技能算、客户端看到的是另一套结果。
+      selectedActiveSkillIds: save.player.activeSkillIds,
     };
   }
 
