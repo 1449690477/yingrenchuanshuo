@@ -186,7 +186,7 @@ const V10_REBASED_VALUES = {
   swd_heavy: { old: 7.8, current: 23.1 },
   wit_power: { old: 32.7, current: 22.2 },
   wit_elem: { old: 7.3, current: 3.7 },
-  cat_swift: { old: 0.033, current: 0.023 },
+  cat_swift: { old: 0.033, current: 0.038 },
 } as const;
 
 type V10RebasedKey = keyof typeof V10_REBASED_VALUES;
@@ -672,7 +672,7 @@ describe('save migrations', () => {
     });
     expect(migrated.bag.equipment[1]?.affixes[2]).toEqual({
       key: 'cat_swift',
-      value: 0.044,
+      value: 0.074,
       tier: 5,
     });
   });
@@ -788,7 +788,7 @@ describe('save migrations', () => {
     });
     expect(instance.affixes[2]).toEqual({
       key: 'cat_swift',
-      value: 0.03,
+      value: 0.051,
       tier: 4,
     });
     expect(migrated.bag.items.sigil_shaman).toBe(5);
@@ -1105,7 +1105,7 @@ describe('save migrations', () => {
       version: 10,
     });
     expect(migrated.bag.equipment.map((instance) => instance.affixes[0]?.value)).toEqual([
-      16.3, 15.6, 3.4, 0.046, 35.1,
+      16.3, 15.6, 3.4, 0.076, 35.1,
     ]);
     expect(migrated.bag.equipment[1]?.pendingAffixChange?.candidate.value).toBe(
       affixValueRange('wit_power', 20, 1).min,

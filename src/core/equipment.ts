@@ -237,20 +237,30 @@ export function applyAffix(stats: Stats, affix: FixedAffix): Stats {
       return addStats(stats, { [affix.key]: affix.value });
     case 'swd_guard':
       return addStats(stats, { def: affix.value });
+    case 'swd_force':
+      return addStats(stats, { atk: affix.value });
     case 'swd_heavy':
       return addStats(stats, { critDmg: affix.value });
     case 'wit_power':
       return addStats(stats, { atk: affix.value });
     case 'wit_veil':
       return addStats(stats, { eva: affix.value });
+    case 'wit_vitality':
+      return addStats(stats, { hp: affix.value });
     case 'sha_vitality':
       return addStats(stats, { hp: affix.value });
     case 'sha_spirit':
       return addStats(stats, { atk: affix.value });
+    case 'sha_ember':
+      return addStats(stats, { critDmg: affix.value });
     case 'cat_swift':
       return addStats(stats, { spd: affix.value });
     case 'cat_nimble':
       return addStats(stats, { eva: affix.value });
+    case 'cat_tough':
+      return addStats(stats, { hp: affix.value });
+    case 'cat_sharp':
+      return addStats(stats, { atk: affix.value });
     case 'kenshi_blade':
       return addStats(stats, { critDmg: affix.value });
     case 'kenshi_honor':
