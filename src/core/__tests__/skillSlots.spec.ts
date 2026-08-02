@@ -16,6 +16,7 @@ import {
 } from '../skillSlots';
 import { buildDefaultPlayerSkillKit } from '../playerSkillKit';
 import { buildTrialCombatant } from '../trial';
+import { buildArenaDuelSide } from '../duel';
 
 const MAX_LEVEL = 81;
 
@@ -163,6 +164,29 @@ describe('技能栏判定', () => {
     expect(build.droppedSkillSlots).toEqual([
       { skillId: 'skill_renamed_last_week', reason: 'unknown-skill' },
     ]);
+  });
+
+  it('★ 竞技场防守方也吃技能栏 —— 否则玩家「进攻时生效、被打时不生效」且看不出来', () => {
+    // 防守方是离线的，arena-challenge 只能从存储的快照重建他。
+    // 这条钉的是「只给挑战方接上」这种半截接线：那种情况下配过技能栏的玩家
+    // 防守强度会低于他自己的进攻强度，而战报里看不出任何异常。
+    const level = MAX_LEVEL;
+    const pool = selectableActiveSkillIds('kenshi', level);
+    const picked = [pool[pool.length - 1]];
+    const side = buildArenaDuelSide(
+      {
+        name: '防守方',
+        classId: 'kenshi',
+        level,
+        equipped: Array<null>(8).fill(null),
+        selectedActiveSkillIds: picked,
+      },
+      'defender',
+    );
+    // skillKit 在对决侧是可选的，所以先断它确实被带上了 ——
+    // 少了这一句的话，「防守方根本没有技能包」会以 undefined 的形式静默通过。
+    expect(side.skillKit, '防守方没有技能包').toBeDefined();
+    expect(side.skillKit!.active.map((entry) => entry.skill.id)).toEqual(picked);
   });
 
   it('★ 与生产构建入口同源：默认解析结果就是当前实际上场的技能', () => {

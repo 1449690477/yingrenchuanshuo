@@ -36,6 +36,12 @@ const snapshotSchema = z
     displayName: z.string().min(1).max(20),
     /** 八槽位穿戴快照，顺序与 SLOT_ORDER 一致 */
     equipped: z.array(equipmentInstanceSchema.nullable()).length(8),
+    /**
+     * 玩家选定的主动技能栏（M3-5）。**可选**：老客户端不发，回落职业默认顺序。
+     * 内容合法性不在 schema 里判，交给 core 的 resolveActiveSkillSlots 逐项过滤 ——
+     * 在这里拒绝会让「技能表改名后存档存着旧 id」的玩家每次都被打回。
+     */
+    selectedActiveSkillIds: z.array(z.string().min(1).max(64)).max(32).optional(),
   })
   .strict();
 
@@ -93,6 +99,7 @@ Deno.serve(async (req: Request) => {
 
     // ── 3. 服务端复算战力 ──
     const build = buildTrialCombatant({
+      selectedActiveSkillIds: sub.selectedActiveSkillIds,
       name: sub.displayName,
       classId: sub.classId,
       level: sub.level,
@@ -116,11 +123,14 @@ Deno.serve(async (req: Request) => {
     );
     await admin.from('profiles').update(profileProgress).eq('id', user.id);
 
+    // ★ 技能栏必须存进快照：防守方是离线的，arena-challenge 只能从这里重建他。
+    // 不存的话，配过技能栏的玩家会「进攻时生效、被打时不生效」—— 而且完全看不出来。
     const snapshotJson = {
       classId: sub.classId,
       level: sub.level,
       displayName: sub.displayName,
       equipped: sub.equipped,
+      selectedActiveSkillIds: sub.selectedActiveSkillIds,
     };
 
     const { data: existing } = await admin

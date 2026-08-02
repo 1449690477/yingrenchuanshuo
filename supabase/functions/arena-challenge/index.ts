@@ -52,6 +52,11 @@ const challengeSchema = z
     level: z.number().int().min(1).max(120),
     displayName: z.string().min(1).max(20),
     equipped: z.array(equipmentInstanceSchema.nullable()).length(8),
+    /**
+     * 挑战方选定的主动技能栏（M3-5）。**可选**：老客户端不发，回落职业默认顺序。
+     * 内容合法性交给 core 的 resolveActiveSkillSlots 逐项过滤，不在 schema 里拒绝。
+     */
+    selectedActiveSkillIds: z.array(z.string().min(1).max(64)).max(32).optional(),
   })
   .strict()
   .superRefine((v, ctx) => {
@@ -68,6 +73,12 @@ const storedSnapshotSchema = z
     level: z.number().int().min(1).max(120),
     displayName: z.string().min(1).max(20),
     equipped: z.array(equipmentInstanceSchema.nullable()).length(8),
+    /**
+     * 玩家选定的主动技能栏（M3-5）。**可选**：老客户端不发，回落职业默认顺序。
+     * 内容合法性不在 schema 里判，交给 core 的 resolveActiveSkillSlots 逐项过滤 ——
+     * 在这里拒绝会让「技能表改名后存档存着旧 id」的玩家每次都被打回。
+     */
+    selectedActiveSkillIds: z.array(z.string().min(1).max(64)).max(32).optional(),
   })
   .strict();
 
@@ -129,6 +140,7 @@ Deno.serve(async (req: Request) => {
         classId: sub.classId,
         level: sub.level,
         equipped: sub.equipped,
+        selectedActiveSkillIds: sub.selectedActiveSkillIds,
       },
       'attacker',
     );
@@ -235,6 +247,9 @@ Deno.serve(async (req: Request) => {
         classId: defSnap.data.classId,
         level: defSnap.data.level,
         equipped: defSnap.data.equipped,
+        // 防守方是离线的，只能用他上传快照时选定的技能栏重建（arena-snapshot 已存进快照）。
+        // 老快照没有这个字段 ⇒ undefined ⇒ 回落默认顺序，与本次改动前逐字一致。
+        selectedActiveSkillIds: defSnap.data.selectedActiveSkillIds,
       },
       'defender',
     );
