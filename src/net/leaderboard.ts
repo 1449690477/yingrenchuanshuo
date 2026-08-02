@@ -508,11 +508,20 @@ function rankPowerRows(rows: Omit<PowerBoardRow, 'rank'>[], limit: number): Powe
  *
  * PGRST202 是 PostgREST 的「schema cache 里找不到这个函数」。也匹配文案，
  * 因为 supabase-js 在不同传输层下不一定把 code 透出来。
+ *
+ * ⚠ **只认这一句原文，不要放宽成 /does not exist/ 或函数名**。
+ * 我第一版写的是 `/power_board|power_rank_scan|does not exist|schema cache/`，
+ * 那是错的：「表不存在」「列不存在」「permission denied for function power_board」
+ * 全都会命中，于是**一个真错误被悄悄降级成不筛版本的混排** —— 而榜看起来
+ * 完全正常，没有任何人会发现。判据放宽一寸，失败就长得跟成功一样。
+ *
+ * 判错方向也不对称：漏判（该降级没降级）是玩家看到一次「战力榜读取失败」，
+ * 刷新即可；误判（不该降级却降级）是**所有人长期看着一张错榜**。宁可漏判。
  */
 function isMissingFunction(error: { code?: string; message?: string } | null): boolean {
   if (!error) return false;
   if (error.code === 'PGRST202') return true;
-  return /power_board|power_rank_scan|does not exist|schema cache/i.test(error.message ?? '');
+  return /could not find the function/i.test(error.message ?? '');
 }
 
 /**

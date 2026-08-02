@@ -750,6 +750,52 @@ describe('fetchPowerBoard 在版本不一致时仍然让玩家看见自己', () 
     expect((await fetchPowerBoard(client, 'me')).degraded).toBe(false);
   });
 
+  it.each([
+    ['权限配错', { code: '42501', message: 'permission denied for function power_board' }],
+    ['表不存在', { code: '42P01', message: 'relation "profiles" does not exist' }],
+    ['列不存在', { code: '42703', message: 'column "combat_power" does not exist' }],
+  ])('★ %s 必须抛出，不能被降级路径吞成静默混排', async (_name, error) => {
+    // 判据放宽一寸，失败就长得跟成功一样：这三种都不是「迁移没应用」，
+    // 却都会命中宽匹配（我第一版正是 /does not exist|power_board/），
+    // 于是真错误被悄悄换成一张不筛版本的错榜，而它看起来完全正常。
+    // 方向不对称：漏判是玩家看到一次读取失败，误判是所有人长期看错榜。
+    const builder: Record<string, unknown> = {};
+    Object.assign(builder, {
+      select: () => builder,
+      order: () => builder,
+      limit: () => Promise.resolve({ data: [profile({ id: 'honest' })], error: null }),
+    });
+    const client = {
+      rpc: () => Promise.resolve({ data: null, error }),
+      from: () => builder,
+    } as unknown as SupabaseClient;
+
+    await expect(fetchPowerBoard(client, null)).rejects.toThrow(NetRequestError);
+  });
+
+  it('code 不透出时仍认 PGRST202 的原文形状', async () => {
+    // supabase-js 在不同传输层下不一定把 code 透出来，所以留一条文案兜底。
+    const builder: Record<string, unknown> = {};
+    Object.assign(builder, {
+      select: () => builder,
+      order: () => builder,
+      limit: () => Promise.resolve({ data: [profile({ id: 'honest' })], error: null }),
+    });
+    const client = {
+      rpc: () =>
+        Promise.resolve({
+          data: null,
+          error: {
+            message:
+              'Could not find the function public.power_board(p_limit, p_user_id) in the schema cache',
+          },
+        }),
+      from: () => builder,
+    } as unknown as SupabaseClient;
+
+    expect((await fetchPowerBoard(client, null)).degraded).toBe(true);
+  });
+
   it('迁移执行后的正常错误仍然抛出，不会被降级路径吞掉', async () => {
     const client = {
       rpc: () =>
