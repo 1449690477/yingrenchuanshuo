@@ -11,7 +11,7 @@ export const V10_PROFESSION_AFFIX_REBASE = {
   swd_heavy: { oldBaseline: 9.1, newBaseline: 27 },
   wit_power: { oldBaseline: 0.78, newBaseline: 0.53 },
   wit_elem: { oldBaseline: 8.5, newBaseline: 4.3 },
-  cat_swift: { oldBaseline: 0.039, newBaseline: 0.044 },
+  cat_swift: { oldBaseline: 0.039, newBaseline: 0.027 },
 } as const satisfies Partial<
   Record<AffixKey, { readonly oldBaseline: number; readonly newBaseline: number }>
 >;

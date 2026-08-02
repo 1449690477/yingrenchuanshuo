@@ -186,7 +186,7 @@ const V10_REBASED_VALUES = {
   swd_heavy: { old: 7.8, current: 23.1 },
   wit_power: { old: 32.7, current: 22.2 },
   wit_elem: { old: 7.3, current: 3.7 },
-  cat_swift: { old: 0.033, current: 0.038 },
+  cat_swift: { old: 0.033, current: 0.023 },
 } as const;
 
 type V10RebasedKey = keyof typeof V10_REBASED_VALUES;
@@ -640,7 +640,14 @@ describe('save migrations', () => {
       expect(pending).toBeDefined();
       expect(pending).toMatchObject({ operation: 'reforge', affixIndex: 2 });
       const candidate = pending!.candidate;
-      expect(candidate.value).toBe(V10_REBASED_VALUES[candidate.key as V10RebasedKey].current);
+      // 待决候选影射到当前可生成边界（clamp）；而 target 按 rebase 保值。
+      // cat_swift 基准今日变更后，v10 旧值重标结果落在当前区间外，被 clamp 到下界（与小督 18:51 的后果链分析一致）。
+      const candidateRange = affixValueRange(candidate.key, 20, candidate.tier);
+      const expectedCandidate = Math.min(
+        candidateRange.max,
+        Math.max(candidateRange.min, V10_REBASED_VALUES[candidate.key as V10RebasedKey].current),
+      );
+      expect(candidate.value).toBe(expectedCandidate);
     }
   });
 
@@ -672,7 +679,7 @@ describe('save migrations', () => {
     });
     expect(migrated.bag.equipment[1]?.affixes[2]).toEqual({
       key: 'cat_swift',
-      value: 0.074,
+      value: 0.044,
       tier: 5,
     });
   });
@@ -769,30 +776,33 @@ describe('save migrations', () => {
     const raw = v10Save();
     const first = (raw.bag as { equipment: Record<string, unknown>[] }).equipment[0]!;
     const shamanLow = affixValueRange('sha_vitality', 20, 4).min;
-    const oldCatHigh = 0.044;
+    // v10 时代 wit_power 的 T4 合法高值（0.78 基准、当前池未变）。
+    // 不能用 cat_swift 做保留用例：它的基准今日变更（0.027→0.044），
+    // v10 旧值重标后不会落在当前区间，必然被转换（与小督 18:51 分析一致）。
+    const witchHigh = 43.0;
     first.affixes = [
       { key: 'sha_vitality', value: shamanLow, tier: 4 },
       { key: 'atk', value: affixValueRange('atk', 20, 3).min, tier: 3 },
-      { key: 'cat_swift', value: oldCatHigh, tier: 4 },
+      { key: 'wit_power', value: witchHigh, tier: 4 },
     ];
     delete first.pendingAffixChange;
     (raw.bag as { items: Record<string, number> }).items.sigil_shaman = 4;
 
     const migrated = migrate(raw);
     const instance = migrated.bag.equipment[0]!;
-    expect(instance.affixes.map((affix) => affix.key)).toEqual(['hp', 'atk', 'cat_swift']);
+    expect(instance.affixes.map((affix) => affix.key)).toEqual(['hp', 'atk', 'wit_power']);
     expect(instance.affixes[0]).toEqual({
       key: 'hp',
       value: affixValueRange('hp', 20, 4).min,
       tier: 4,
     });
     expect(instance.affixes[2]).toEqual({
-      key: 'cat_swift',
-      value: 0.051,
+      key: 'wit_power',
+      value: 29.2,
       tier: 4,
     });
     expect(migrated.bag.items.sigil_shaman).toBe(5);
-    expect(migrated.bag.items.sigil_catkin).toBeUndefined();
+    expect(migrated.bag.items.sigil_witch).toBeUndefined();
     const repeated = migrations[10]!(migrated as unknown as Record<string, unknown>);
     expect(repeated).toEqual(migrated);
     expect((repeated.bag as { items: Record<string, number> }).items.sigil_shaman).toBe(5);
@@ -1105,7 +1115,7 @@ describe('save migrations', () => {
       version: 10,
     });
     expect(migrated.bag.equipment.map((instance) => instance.affixes[0]?.value)).toEqual([
-      16.3, 15.6, 3.4, 0.076, 35.1,
+      16.3, 15.6, 3.4, 0.046, 35.1,
     ]);
     expect(migrated.bag.equipment[1]?.pendingAffixChange?.candidate.value).toBe(
       affixValueRange('wit_power', 20, 1).min,
