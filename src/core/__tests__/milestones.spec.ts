@@ -141,9 +141,10 @@ describe('合理性下界的余量（防止把真实玩家判成作弊）', () =
   });
 
   it('档位都在当前内容可达范围内，否则榜单一上线就是空的', () => {
-    // 内容顶 Lv65 / 软上限 68（docs/56）。超出的档位没人能达成。
+    // 内容顶 Lv78 / 软上限 81（区域 7 上线后，docs/56 已更新）。
+    // 60 天水平线实测可达 Lv79；超出的档位没人能达成。
     for (const level of MILESTONE_LEVELS) {
-      expect(level).toBeLessThanOrEqual(68);
+      expect(level).toBeLessThanOrEqual(81);
     }
   });
 
