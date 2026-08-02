@@ -36,7 +36,8 @@ interface AppearanceTestProps {
   level: number;
   equipped?: EquippedRecord | null;
   variant?: 'showcase' | 'battle' | 'avatar';
-  action?: 'idle' | 'attack' | 'cast' | 'react' | 'dash' | 'flurry' | 'spin' | 'counter' | 'victory';
+  action?:
+    'idle' | 'attack' | 'cast' | 'react' | 'dash' | 'flurry' | 'spin' | 'counter' | 'victory';
   reduceMotion?: boolean;
 }
 
@@ -95,6 +96,8 @@ describe('角色换装组件的图层标记', () => {
     expect(html).toContain('class-kenshi');
     expect(html).toContain('action-dash');
     expect(html).toContain('kenshi-motion-fx');
+    expect(html).toContain('kenshi-blade-arc');
+    expect(html).toContain('kenshi-frost-seal');
     expect(html).not.toContain('catkin-motion-fx');
     expect(html).toContain('modular/kenshi/base.png');
   });

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import process from 'node:process';
 import sharp from 'sharp';
@@ -60,9 +60,10 @@ const runtimeWearables = [
     slot: 'body',
   },
   {
-    source: 'public/assets/equipment/arena/kenshi/blinkbloom-return-ring.png',
+    source: 'art-source/characters/kenshi/r2/arena/blinkbloom-return-ring.png',
     output: 'public/assets/characters/modular/arena/kenshi/blinkbloom-return-ring.png',
     slot: 'ring',
+    fullCanvas: true,
   },
   ...[
     ['snow-sakura-cat-ear-ribbon', 'head'],
@@ -441,6 +442,39 @@ async function writeOrCheck(path, buffer) {
   await sharp(output).toFile(abs(path));
 }
 
+async function writeExactFullCanvas(sourcePath, outputPath) {
+  const source = readFileSync(abs(sourcePath));
+  const metadata = await sharp(source).metadata();
+  if (
+    metadata.width !== CANVAS.width ||
+    metadata.height !== CANVAS.height ||
+    metadata.format !== 'png'
+  ) {
+    throw new Error(
+      `[樱酱可穿资产] 全画布母版格式错误：${sourcePath}（${metadata.width}×${metadata.height} ${metadata.format}）`,
+    );
+  }
+  if (CHECK) {
+    if (!existsSync(abs(outputPath))) {
+      throw new Error(`[樱酱可穿资产] 缺少运行时文件：${outputPath}`);
+    }
+    const [expected, actual] = await Promise.all([
+      decodedRgba(source),
+      decodedRgba(abs(outputPath)),
+    ]);
+    if (
+      expected.info.width !== actual.info.width ||
+      expected.info.height !== actual.info.height ||
+      !expected.data.equals(actual.data)
+    ) {
+      throw new Error(`[樱酱可穿资产] 全画布母版未逐像素直通：${sourcePath} -> ${outputPath}`);
+    }
+    return;
+  }
+  ensureParent(outputPath);
+  writeFileSync(abs(outputPath), source);
+}
+
 async function cleanLargestComponent(input) {
   const source = Buffer.isBuffer(input) ? input : abs(input);
   const { data, info } = await sharp(source)
@@ -781,6 +815,10 @@ async function build() {
   for (const entry of runtimeWearables) {
     if (!existsSync(abs(entry.source))) {
       throw new Error(`[樱酱可穿资产] 缺少母版：${entry.source}`);
+    }
+    if (entry.fullCanvas) {
+      await writeExactFullCanvas(entry.source, entry.output);
+      continue;
     }
     let output =
       entry.slot === 'body'

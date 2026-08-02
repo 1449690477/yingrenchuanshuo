@@ -9,11 +9,47 @@ const PUBLIC_ROOT = resolve('public');
 const PNG = 'png';
 const WEBP = 'webp';
 
-const portrait = (path) => ({ path, kind: 'portrait', width: 640, height: 960, format: PNG, maxBytes: 550 * 1024 });
-const layer = (path, options = {}) => ({ path, kind: 'layer', width: 640, height: 960, format: PNG, maxBytes: 300 * 1024, ...options });
-const icon = (path) => ({ path, kind: 'icon', width: 256, height: 256, format: PNG, maxBytes: 120 * 1024 });
-const effect = (path) => ({ path, kind: 'effect', width: 512, height: 512, format: PNG, maxBytes: 250 * 1024 });
-const scene = (path) => ({ path, kind: 'scene', width: 960, height: 640, format: WEBP, maxBytes: 480 * 1024 });
+const portrait = (path) => ({
+  path,
+  kind: 'portrait',
+  width: 640,
+  height: 960,
+  format: PNG,
+  maxBytes: 550 * 1024,
+});
+const layer = (path, options = {}) => ({
+  path,
+  kind: 'layer',
+  width: 640,
+  height: 960,
+  format: PNG,
+  maxBytes: 300 * 1024,
+  ...options,
+});
+const icon = (path) => ({
+  path,
+  kind: 'icon',
+  width: 256,
+  height: 256,
+  format: PNG,
+  maxBytes: 120 * 1024,
+});
+const effect = (path) => ({
+  path,
+  kind: 'effect',
+  width: 512,
+  height: 512,
+  format: PNG,
+  maxBytes: 250 * 1024,
+});
+const scene = (path) => ({
+  path,
+  kind: 'scene',
+  width: 960,
+  height: 640,
+  format: WEBP,
+  maxBytes: 480 * 1024,
+});
 
 const REGION_FAMILIES = [
   'r1',
@@ -27,6 +63,7 @@ const REGION_FAMILIES = [
   'r7',
   'r7-bloodmoon',
 ];
+const NO_SHOES_REGION_FAMILIES = ['r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r7'];
 const REGION_WEAPON_APPEARANCES = [
   'r1-weapon',
   'r2-weapon',
@@ -158,12 +195,8 @@ const contractGroups = {
         }),
       ),
     ),
-    ...BOUTIQUE_THEMES.map((theme) =>
-      icon(`assets/equipment/shop/${theme}/weapon-kenshi.png`),
-    ),
-    ...BOUTIQUE_THEMES.map((theme) =>
-      effect(`assets/effects/boutique/${theme}-kenshi.png`),
-    ),
+    ...BOUTIQUE_THEMES.map((theme) => icon(`assets/equipment/shop/${theme}/weapon-kenshi.png`)),
+    ...BOUTIQUE_THEMES.map((theme) => effect(`assets/effects/boutique/${theme}-kenshi.png`)),
   ],
   dungeon: [
     ...DUNGEON_TIERS.flatMap((tier) =>
@@ -176,9 +209,7 @@ const contractGroups = {
       ),
     ),
     ...DUNGEON_TIERS.flatMap((tier) =>
-      ['body', 'weapon'].map((slot) =>
-        icon(`assets/equipment/dungeon/${tier}/${slot}-kenshi.png`),
-      ),
+      ['body', 'weapon'].map((slot) => icon(`assets/equipment/dungeon/${tier}/${slot}-kenshi.png`)),
     ),
   ],
   arena: [
@@ -256,6 +287,76 @@ const SLOT_RECTS = {
   belt: [250, 385, 140, 100],
   shoes: [240, 790, 170, 130],
 };
+const R2_ARENA_RING_LAYER = 'assets/characters/modular/arena/kenshi/blinkbloom-return-ring.png';
+const R2_ARENA_RING_HAND_RECT = [420, 430, 80, 80];
+
+async function noShoesError(body, shoesPath) {
+  const base = await sharp(
+    resolve(PUBLIC_ROOT, 'assets/characters/modular/kenshi/base-noshoes.png'),
+  )
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const shoes = await sharp(resolve(PUBLIC_ROOT, shoesPath))
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  let compared = 0;
+  let premultipliedDifference = 0;
+  let alphaDifference = 0;
+  for (let index = 0; index < body.info.width * body.info.height; index += 1) {
+    const offset = index * body.info.channels;
+    if ((shoes.data[offset + 3] ?? 0) <= 20) continue;
+    const bodyAlpha = (body.data[offset + 3] ?? 0) / 255;
+    const baseAlpha = (base.data[offset + 3] ?? 0) / 255;
+    for (let channel = 0; channel < 3; channel += 1) {
+      premultipliedDifference += Math.abs(
+        (body.data[offset + channel] ?? 0) * bodyAlpha -
+          (base.data[offset + channel] ?? 0) * baseAlpha,
+      );
+    }
+    alphaDifference += Math.abs((body.data[offset + 3] ?? 0) - (base.data[offset + 3] ?? 0));
+    compared += 1;
+  }
+  return {
+    compared,
+    rgbMae: premultipliedDifference / Math.max(1, compared * 3),
+    alphaMae: alphaDifference / Math.max(1, compared),
+  };
+}
+
+function isTextureGatedAsset(entry) {
+  if (entry.kind === 'portrait') return true;
+  if (entry.path.startsWith('assets/characters/modular/kenshi/')) return true;
+  if (/assets\/characters\/modular\/(?:shop|dungeon)\/[^/]+\/kenshi-body\.png$/.test(entry.path)) {
+    return true;
+  }
+  if (entry.path.startsWith('assets/icons/skills/kenshi-')) return true;
+  if (entry.path.startsWith('assets/effects/kenshi-')) return true;
+  return entry.path === 'assets/effects/basic/kenshi-iai.png';
+}
+
+function edgeContamination(data, info) {
+  let semiTransparent = 0;
+  let greenEdge = 0;
+  let nearBlackEdge = 0;
+  for (let index = 0; index < info.width * info.height; index += 1) {
+    const offset = index * info.channels;
+    const alpha = data[offset + 3] ?? 255;
+    if (alpha <= 20 || alpha >= 245) continue;
+    semiTransparent += 1;
+    const red = data[offset] ?? 0;
+    const green = data[offset + 1] ?? 0;
+    const blue = data[offset + 2] ?? 0;
+    if (green >= 170 && green > red * 1.42 && green > blue * 1.28) greenEdge += 1;
+    if (red < 24 && green < 24 && blue < 24) nearBlackEdge += 1;
+  }
+  return {
+    semiTransparent,
+    greenRatio: greenEdge / Math.max(1, semiTransparent),
+    nearBlackRatio: nearBlackEdge / Math.max(1, semiTransparent),
+  };
+}
 
 function fail(message) {
   errors.push(message);
@@ -456,15 +557,51 @@ async function validateAsset(entry) {
     fail(`[空图] ${entry.path}: 没有可见像素`);
     return;
   }
-  if (bounds.minX <= 0 || bounds.minY <= 0 || bounds.maxX >= info.width - 1 || bounds.maxY >= info.height - 1) {
+  if (
+    bounds.minX <= 0 ||
+    bounds.minY <= 0 ||
+    bounds.maxX >= info.width - 1 ||
+    bounds.maxY >= info.height - 1
+  ) {
     fail(`[触边] ${entry.path}: bbox=${bounds.minX},${bounds.minY},${bounds.maxX},${bounds.maxY}`);
   }
   if (bounds.green / bounds.opaque > 0.0004) {
-    fail(`[绿幕] ${entry.path}: ${(100 * bounds.green / bounds.opaque).toFixed(4)}% > 0.0400%`);
+    fail(`[绿幕] ${entry.path}: ${((100 * bounds.green) / bounds.opaque).toFixed(4)}% > 0.0400%`);
+  }
+  if (isTextureGatedAsset(entry)) {
+    const nativeEdge = edgeContamination(data, info);
+    if (nativeEdge.greenRatio > 0.005) {
+      fail(
+        `[R2绿边] ${entry.path}: 半透明边缘绿污染 ${(nativeEdge.greenRatio * 100).toFixed(3)}% > 0.500%`,
+      );
+    }
+    if (nativeEdge.nearBlackRatio > 0.07) {
+      fail(
+        `[R2黑边] ${entry.path}: 半透明边缘黑蒙版 ${(nativeEdge.nearBlackRatio * 100).toFixed(3)}% > 7.000%`,
+      );
+    }
+    const displayPixels = await sharp(filePath)
+      .ensureAlpha()
+      .resize({ width: Math.min(160, info.width) })
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    const displayEdge = edgeContamination(displayPixels.data, displayPixels.info);
+    if (displayEdge.greenRatio > 0.01) {
+      fail(
+        `[R2手机绿边] ${entry.path}: 160px 显示边缘绿污染 ${(displayEdge.greenRatio * 100).toFixed(3)}% > 1.000%`,
+      );
+    }
+    if (displayEdge.nearBlackRatio > 0.09) {
+      fail(
+        `[R2手机黑边] ${entry.path}: 160px 显示边缘黑蒙版 ${(displayEdge.nearBlackRatio * 100).toFixed(3)}% > 9.000%`,
+      );
+    }
   }
   if (entry.kind === 'icon') {
     if (bounds.minX < 12 || bounds.minY < 12 || bounds.maxX > 243 || bounds.maxY > 243) {
-      fail(`[图标边距] ${entry.path}: bbox=${bounds.minX},${bounds.minY},${bounds.maxX},${bounds.maxY}，要求四边至少 12px`);
+      fail(
+        `[图标边距] ${entry.path}: bbox=${bounds.minX},${bounds.minY},${bounds.maxX},${bounds.maxY}，要求四边至少 12px`,
+      );
     }
     if (CLEAN_COMPONENT_ICONS.has(entry.path)) {
       const components = alphaComponentAreas(data, info);
@@ -493,8 +630,71 @@ async function validateAsset(entry) {
   if (entry.wearableSlot && SLOT_RECTS[entry.wearableSlot]) {
     const visible = alphaInRect(data, info, SLOT_RECTS[entry.wearableSlot]);
     if (visible <= 80) {
+      fail(`[穿戴槽位] ${entry.path}: ${entry.wearableSlot} 对应区域仅 ${visible} 个可见像素`);
+    }
+  }
+  if (entry.path === R2_ARENA_RING_LAYER) {
+    if (bounds.opaque < 2500 || bounds.opaque > 5000) {
       fail(
-        `[穿戴槽位] ${entry.path}: ${entry.wearableSlot} 对应区域仅 ${visible} 个可见像素`,
+        `[竞技戒指可见度] ${entry.path}: alpha>20=${bounds.opaque}，要求 2500–5000，兼顾手机辨识与不遮人物`,
+      );
+    }
+    const handPixels = alphaInRect(data, info, R2_ARENA_RING_HAND_RECT);
+    if (handPixels < 900) {
+      fail(`[竞技戒指锚点] ${entry.path}: 手腕区域仅 ${handPixels} 像素，要求至少 900`);
+    }
+    const base = await sharp(resolve(PUBLIC_ROOT, 'assets/characters/modular/kenshi/base.png'))
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    let overlap = 0;
+    for (let index = 0; index < info.width * info.height; index += 1) {
+      if ((data[index * info.channels + 3] ?? 0) > 20 && (base.data[index * 4 + 3] ?? 0) > 20) {
+        overlap += 1;
+      }
+    }
+    if (overlap < 250 || overlap / bounds.opaque < 0.2) {
+      fail(
+        `[竞技戒指贴合] ${entry.path}: 与手腕主体相交 ${overlap}/${bounds.opaque}，要求至少 250 且占自身 20%`,
+      );
+    }
+    const bboxArea = (bounds.maxX - bounds.minX + 1) * (bounds.maxY - bounds.minY + 1);
+    if (bounds.opaque / bboxArea > 0.58) {
+      fail(
+        `[竞技戒指形态] ${entry.path}: bbox 填充率 ${((100 * bounds.opaque) / bboxArea).toFixed(1)}% > 58%，疑似圆形图标底盘`,
+      );
+    }
+  }
+  const boutiqueMatch = entry.path.match(
+    /^assets\/characters\/modular\/shop\/(berry-cream|moon-sugar|rose-night)\/kenshi-body\.png$/,
+  );
+  const dungeonMatch = entry.path.match(
+    /^assets\/characters\/modular\/dungeon\/(azure|violet|auric|crimson)\/kenshi-body\.png$/,
+  );
+  const regionMatch = entry.path.match(
+    /^assets\/characters\/modular\/kenshi\/(r1|r2|r3|r4|r5|r6|r7)-body\.png$/,
+  );
+  const noShoesContract = boutiqueMatch
+    ? {
+        label: `精品/${boutiqueMatch[1]}`,
+        shoes: `assets/characters/modular/shop/${boutiqueMatch[1]}/kenshi-shoes.png`,
+      }
+    : dungeonMatch
+      ? {
+          label: `副本/${dungeonMatch[1]}`,
+          shoes: `assets/characters/modular/dungeon/${dungeonMatch[1]}/kenshi-shoes.png`,
+        }
+      : regionMatch && NO_SHOES_REGION_FAMILIES.includes(regionMatch[1])
+        ? {
+            label: `区域/${regionMatch[1]}`,
+            shoes: `assets/characters/modular/kenshi/${regionMatch[1]}-shoes.png`,
+          }
+        : null;
+  if (noShoesContract) {
+    const noShoes = await noShoesError({ data, info }, noShoesContract.shoes);
+    if (noShoes.compared < 1000 || noShoes.rgbMae > 0.1 || noShoes.alphaMae > 0.1) {
+      fail(
+        `[整身替换无鞋] ${noShoesContract.label} ${entry.path}: mask=${noShoes.compared}，premultiplied RGB MAE=${noShoes.rgbMae.toFixed(3)}，alpha MAE=${noShoes.alphaMae.toFixed(3)}；要求 >=1000 / <=0.1 / <=0.1`,
       );
     }
   }
@@ -527,17 +727,21 @@ function validateSourceWiring() {
     selectedSources.map((path) => [path, readFileSync(resolve(path), 'utf8')]),
   );
   const forbidden = [
-    ["src/data/characterAppearance.ts", "classId === 'kenshi' ? 'catkin'"],
-    ["src/data/characterAppearance.ts", "candidate === 'kenshi' ? 'catkin'"],
-    ["src/data/characterAppearance.ts", "kenshi: 'assets/characters/modular/catkin"],
-    ["src/data/characterAppearance.ts", "kenshi: 'assets/effects/basic/catkin"],
-    ["src/data/equipment.ts", "classId === 'kenshi' ? 'catkin'"],
-    ["src/data/equipment.ts", "item.classId === 'kenshi' ? 'catkin'"],
+    ['src/data/characterAppearance.ts', "classId === 'kenshi' ? 'catkin'"],
+    ['src/data/characterAppearance.ts', "candidate === 'kenshi' ? 'catkin'"],
+    ['src/data/characterAppearance.ts', "kenshi: 'assets/characters/modular/catkin"],
+    ['src/data/characterAppearance.ts', "kenshi: 'assets/effects/basic/catkin"],
+    ['src/data/equipment.ts', "classId === 'kenshi' ? 'catkin'"],
+    ['src/data/equipment.ts', "item.classId === 'kenshi' ? 'catkin'"],
   ];
   for (const [path, snippet] of forbidden) {
     if (source[path].includes(snippet)) fail(`[回落] ${path}: ${snippet}`);
   }
-  if (/kenshi\s*:\s*['"`]assets\/effects\/boutique\/[^'"`]*catkin/.test(source['src/data/boutique.ts'])) {
+  if (
+    /kenshi\s*:\s*['"`]assets\/effects\/boutique\/[^'"`]*catkin/.test(
+      source['src/data/boutique.ts'],
+    )
+  ) {
     fail('[回落] src/data/boutique.ts: kenshi 仍引用 catkin 精品特效');
   }
   const kenshiDungeonBlock = source['src/data/equipmentDungeonGear.ts'].match(
@@ -552,10 +756,18 @@ function validateSourceWiring() {
   if (kenshiSigilBlock?.[1] !== 'assets/items/sigil_kenshi.png') {
     fail('[回落] src/data/items.ts: 樱酱徽记未引用独立 sigil_kenshi.png');
   }
-  const kenshiVisualCount = (source['src/data/skillVisuals.ts'].match(/'skill_kenshi_[^']+'/g) ?? []).length;
-  const kenshiEffectCount = (source['src/data/skillVisuals.ts'].match(/'assets\/effects\/kenshi-[^']+\.png'/g) ?? []).length;
-  const kenshiPassiveIconCount = (source['src/data/skillVisuals.ts'].match(/'assets\/icons\/skills\/kenshi-[^']+\.png'/g) ?? []).length;
-  const kenshiSkillIconCount = (source['src/data/skills.ts'].match(/icon:\s*'assets\/icons\/skills\/kenshi-[^']+\.png'/g) ?? []).length;
+  const kenshiVisualCount = (
+    source['src/data/skillVisuals.ts'].match(/'skill_kenshi_[^']+'/g) ?? []
+  ).length;
+  const kenshiEffectCount = (
+    source['src/data/skillVisuals.ts'].match(/'assets\/effects\/kenshi-[^']+\.png'/g) ?? []
+  ).length;
+  const kenshiPassiveIconCount = (
+    source['src/data/skillVisuals.ts'].match(/'assets\/icons\/skills\/kenshi-[^']+\.png'/g) ?? []
+  ).length;
+  const kenshiSkillIconCount = (
+    source['src/data/skills.ts'].match(/icon:\s*'assets\/icons\/skills\/kenshi-[^']+\.png'/g) ?? []
+  ).length;
   if (
     kenshiVisualCount !== 14 ||
     kenshiEffectCount !== 9 ||
@@ -607,6 +819,7 @@ if (errors.length > 0) {
 } else {
   console.log(
     '樱酱资产门禁通过：157 项角色运行时资产 + 1 枚独立职业徽记，' +
-      'RGBA/轮廓零复用、主题 alpha IoU < 0.900、武器命中居合佩刀锚点。',
+      'RGBA/轮廓零复用、主题 alpha IoU < 0.900、武器命中居合佩刀锚点；' +
+      'R2 核心资产原生/160px 半透明绿边与近黑蒙版均低于硬阈值。',
   );
 }

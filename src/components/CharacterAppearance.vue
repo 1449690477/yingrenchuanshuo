@@ -128,7 +128,9 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
       aria-hidden="true"
     >
       <b />
-      <i v-for="index in 6" :key="index" :style="{ '--kenshi-index': index }" />
+      <em class="kenshi-blade-arc" />
+      <em class="kenshi-frost-seal" />
+      <i v-for="index in 8" :key="index" :style="{ '--kenshi-index': index }" />
     </span>
 
     <span v-if="appearance.activeDungeonTier" class="dungeon-effect" aria-hidden="true">
@@ -184,10 +186,45 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
 }
 
 .kenshi-motion-fx b,
+.kenshi-motion-fx em,
 .kenshi-motion-fx i {
   position: absolute;
   opacity: 0;
   pointer-events: none;
+}
+
+.kenshi-motion-fx em {
+  display: block;
+  font-style: normal;
+}
+
+.kenshi-blade-arc {
+  top: 14%;
+  left: 9%;
+  width: 82%;
+  aspect-ratio: 1;
+  border: 3px solid transparent;
+  border-top-color: rgb(221 248 255 / 94%);
+  border-right-color: rgb(126 188 255 / 86%);
+  border-radius: 50%;
+  filter: drop-shadow(0 0 6px rgb(120 193 255 / 88%));
+  transform: rotate(-34deg) scale(0.46);
+}
+
+.kenshi-frost-seal {
+  left: 25%;
+  bottom: 7%;
+  width: 50%;
+  aspect-ratio: 1;
+  border: 1px solid rgb(196 239 255 / 78%);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, transparent 42%, rgb(169 226 255 / 22%) 43% 47%, transparent 48%),
+    repeating-conic-gradient(from 22.5deg, rgb(223 248 255 / 78%) 0deg 3deg, transparent 3deg 45deg);
+  box-shadow:
+    inset 0 0 12px rgb(171 224 255 / 36%),
+    0 0 12px rgb(116 184 255 / 58%);
+  transform: rotateX(68deg) scale(0.54);
 }
 
 .kenshi-motion-fx b {
@@ -222,6 +259,23 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
 .action-flurry .kenshi-motion-fx b,
 .action-spin .kenshi-motion-fx b {
   animation: kenshi-iai-line 0.56s cubic-bezier(0.16, 0.82, 0.24, 1) both;
+}
+
+.action-attack .kenshi-blade-arc,
+.action-flurry .kenshi-blade-arc,
+.action-spin .kenshi-blade-arc,
+.action-counter .kenshi-blade-arc {
+  animation: kenshi-blade-arc 0.66s cubic-bezier(0.14, 0.84, 0.22, 1) both;
+}
+
+.action-dash .kenshi-blade-arc {
+  animation: kenshi-dash-arc 0.62s cubic-bezier(0.14, 0.84, 0.22, 1) both;
+}
+
+.action-cast .kenshi-frost-seal,
+.action-spin .kenshi-frost-seal,
+.action-victory .kenshi-frost-seal {
+  animation: kenshi-frost-seal 0.92s ease-out both;
 }
 
 .action-dash .kenshi-motion-fx b {
@@ -297,6 +351,48 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
   100% {
     opacity: 0;
     transform: rotate(70deg) scaleX(1.18);
+  }
+}
+
+@keyframes kenshi-blade-arc {
+  0% {
+    opacity: 0;
+    transform: rotate(-62deg) scale(0.3);
+  }
+  34% {
+    opacity: 0.96;
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(24deg) scale(1.08);
+  }
+}
+
+@keyframes kenshi-dash-arc {
+  0% {
+    opacity: 0;
+    transform: translateX(-38%) rotate(-44deg) scale(0.24, 0.52);
+  }
+  38% {
+    opacity: 0.92;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(34%) rotate(-10deg) scale(1.16, 0.72);
+  }
+}
+
+@keyframes kenshi-frost-seal {
+  0% {
+    opacity: 0;
+    transform: rotateX(68deg) rotateZ(-24deg) scale(0.32);
+  }
+  40% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+    transform: rotateX(68deg) rotateZ(42deg) scale(1.12);
   }
 }
 
@@ -402,16 +498,14 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
 @keyframes catkin-slash-mark {
   0% {
     opacity: 0;
-    transform: translate(-26%, 22%) rotate(calc(-24deg + var(--cat-index) * 6deg))
-      scaleX(0.3);
+    transform: translate(-26%, 22%) rotate(calc(-24deg + var(--cat-index) * 6deg)) scaleX(0.3);
   }
   32% {
     opacity: 0.95;
   }
   100% {
     opacity: 0;
-    transform: translate(12%, -16%) rotate(calc(-24deg + var(--cat-index) * 6deg))
-      scaleX(1.16);
+    transform: translate(12%, -16%) rotate(calc(-24deg + var(--cat-index) * 6deg)) scaleX(1.16);
   }
 }
 
@@ -2126,14 +2220,14 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
     .catkin-motion-fx b,
     .catkin-motion-fx i,
     .kenshi-motion-fx b,
+    .kenshi-motion-fx em,
     .kenshi-motion-fx i
   ) {
   animation: none !important;
   transition: none !important;
 }
 
-.character-appearance.reduce-motion
-  :is(.catkin-motion-fx, .kenshi-motion-fx, .boutique-effect) {
+.character-appearance.reduce-motion :is(.catkin-motion-fx, .kenshi-motion-fx, .boutique-effect) {
   display: none;
 }
 
@@ -2150,6 +2244,7 @@ function layerStyle(layer: ResolvedAppearanceLayer): Record<string, string> {
     .catkin-motion-fx b,
     .catkin-motion-fx i,
     .kenshi-motion-fx b,
+    .kenshi-motion-fx em,
     .kenshi-motion-fx i
   ) {
     animation: none !important;
