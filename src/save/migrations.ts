@@ -1003,10 +1003,11 @@ function migrateV10EquipmentInstance(
 function rebaseV10Affix(value: unknown, path: string): Record<string, unknown> {
   const affix = asObject(value, 10, path);
   const key = affix.key;
-  const baselineRule =
+  const rebaseKey =
     typeof key === 'string' && isV10RebasedAffixKey(key as AffixKey)
-      ? V10_PROFESSION_AFFIX_REBASE[key]
-      : undefined;
+      ? (key as V10RebasedAffixKey)
+      : null;
+  const baselineRule = rebaseKey ? V10_PROFESSION_AFFIX_REBASE[rebaseKey] : undefined;
   const tierMultiplier = affix.tier === 5 ? 1.64 / 1.54 : 1;
   if (!baselineRule && tierMultiplier === 1) return { ...affix };
 

@@ -15,16 +15,16 @@
  * 不能移动旧档位。
  *
  * 取值依据（sim 逐日曲线：D1≈Lv21 / D5≈Lv34 / D10≈Lv45 / D15≈Lv53 /
- * D20≈Lv58 / D25≈Lv63 / D30≈Lv68）：
+ * D20≈Lv58 / D25≈Lv63 / D30≈Lv68；60 天水平线 D60≈Lv79）：
  *   - **20**：典型玩家第一天就能达成 —— 这是「一入坑就能上榜」的兑现，
  *     没有它，新玩家仍要等一周才有榜可上，机制就白设计了
  *   - **40**：约 D8，第一个需要「玩得好」才拉得开差距的档位
- *   - **60**：约 D22，当前内容（顶 Lv65 / 软上限 68）范围内的最高档
- *
- * 区域 7 上线后（内容顶 78 / 软上限 81）可追加 **80**；届时只需在数组
- * 末尾加一项并补一条合理性下界，已有记录完全不受影响。
+ *   - **60**：约 D22，旧内容（顶 Lv65 / 软上限 68）范围内的最高档
+ *   - **80**：区域 7 上线后（内容顶 78 / 软上限 81）追加；典型玩家在 60 天
+ *     水平线外（D60≈Lv79，按末段 ≈1 级/天外推取 ≈65 天，宁大不小）。
+ *     只追加不移动，已有记录完全不受影响。
  */
-export const MILESTONE_LEVELS = [20, 40, 60] as const;
+export const MILESTONE_LEVELS = [20, 40, 60, 80] as const;
 
 export type MilestoneLevel = (typeof MILESTONE_LEVELS)[number];
 
@@ -33,6 +33,7 @@ export const MILESTONE_LABELS: Readonly<Record<number, string>> = {
   20: '初登 Lv20',
   40: '疾行 Lv40',
   60: '登顶 Lv60',
+  80: '绝顶 Lv80',
 };
 
 const HOUR_MS = 3_600_000;
@@ -49,6 +50,7 @@ const HOUR_MS = 3_600_000;
  *   Lv20  典型 ≈ 1.0 天 → 下界 4 小时
  *   Lv40  典型 ≈ 7.7 天 → 下界 36 小时
  *   Lv60  典型 ≈ 22 天  → 下界 100 小时
+ *   Lv80  典型 ≈ 65 天（60 天水平线外推）→ 下界 12 天（288 小时）
  *
  * 5 倍余量的依据：挂机游戏的升级速度受每秒击杀上限约束，
  * 满强化肝帝（×2.2~2.35 战力）相对典型玩家（TYPICAL_ENHANCE_MUL 1.6）
@@ -61,6 +63,7 @@ export const MILESTONE_MIN_ELAPSED_MS: Readonly<Record<number, number>> = {
   20: 4 * HOUR_MS,
   40: 36 * HOUR_MS,
   60: 100 * HOUR_MS,
+  80: 288 * HOUR_MS,
 };
 
 /**
@@ -73,6 +76,7 @@ export const MILESTONE_TYPICAL_DAYS: Readonly<Record<number, number>> = {
   20: 1.0,
   40: 7.7,
   60: 22.0,
+  80: 65.0,
 };
 
 export function isMilestoneLevel(level: number): level is MilestoneLevel {
