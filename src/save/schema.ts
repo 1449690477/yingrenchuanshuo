@@ -66,7 +66,7 @@ export type { EquipmentCodexLedger } from '@/core/equipmentCodex';
 export type { EquipmentPresetState } from '@/core/equipmentPresets';
 
 /** 当前存档版本。加字段就 +1。 */
-export const SAVE_VERSION = 20;
+export const SAVE_VERSION = 21;
 
 export const SAVE_KEY = 'main';
 
@@ -80,6 +80,24 @@ export interface PlayerSave {
   stamina: number;
   /** 体力恢复的计时基准（毫秒时间戳） */
   staminaRecoverAt: number;
+  /**
+   * 玩家自己编排的主动技能栏（M3-5）。
+   *
+   * ⚠ **「字段不存在」与「空数组」是两件不同的事**，别把它们合并：
+   * · **不存在（undefined）** = 玩家从没编排过 ⇒ 回落职业默认顺序。
+   *   **所有 v20 及更早的存档迁移后都是这个状态**，因此行为与 M3-5 上线前逐字一致。
+   * · **`[]`** = 玩家**明确清空**了技能栏 ⇒ 尊重它，本次不带任何主动技。
+   *
+   * 合并两者就没法在「不改变老玩家行为」的前提下让新玩家清栏。
+   * 判定逻辑不在这里：一律走 `core/skillSlots.ts` 的 `resolveActiveSkillSlots`，
+   * 客户端与服务端共用同一个判定点。
+   *
+   * 这里**不限制长度、不校验技能 id 是否存在**，是刻意的：存档校验一旦拒绝，
+   * 玩家会连游戏都进不去；而技能表改名/删除导致旧 id 失效，在这个项目里
+   * 比伪造常见得多。非法项由 `resolveActiveSkillSlots` **过滤**并给出原因，
+   * 不由存档层**拒绝**。
+   */
+  activeSkillIds?: string[];
 }
 
 export interface BagSave {
@@ -784,6 +802,11 @@ export const saveDataSchema = z
         gold: nonNegativeInteger,
         stamina: nonNegativeInteger,
         staminaRecoverAt: timestamp,
+        // 可选：不存在 = 从没编排过（老存档与新号都是这个状态）。
+        // 不设长度上限、不校验 id 是否存在 —— 见 PlayerSave.activeSkillIds 注释：
+        // 存档层拒绝会让玩家进不去游戏，非法项交给 resolveActiveSkillSlots 过滤。
+        // 无上限也与本文件既有先例一致（如 progress.clearedStageIds）。
+        activeSkillIds: z.array(z.string().min(1)).optional(),
       })
       .strict(),
     equipped: equippedSchema,

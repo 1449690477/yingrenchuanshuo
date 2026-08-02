@@ -5,7 +5,8 @@ import type { EquipmentInstance } from '@/core/types';
 import { AFFIX_POOL, ENHANCE_MAX, ENHANCE_PER_LEVEL, SLOT_ORDER } from '@/data/constants';
 import { requireEquipment } from '@/data/equipment';
 import { ORDERED_STAGE_IDS } from '@/data/stages';
-import { createSave, SAVE_VERSION, SaveValidationError } from '../schema';
+import { createSave, parseSave, SAVE_VERSION, SaveValidationError } from '../schema';
+import { resolveActiveSkillSlots, selectableActiveSkillIds } from '@/core/skillSlots';
 import { migrate, MigrationError, migrations, SaveTooNewError } from '../migrations';
 import { V10_EQUIPMENT_DEFINITION_IDS } from '../v10EquipmentDefinitions';
 
@@ -1447,5 +1448,114 @@ describe('save migrations', () => {
       version: SAVE_VERSION + 1,
     };
     expect(() => migrate(future)).toThrow(SaveTooNewError);
+  });
+});
+
+/**
+ * M3-5a 技能栏存档层的验收：**老存档迁移后行为逐字不变**。
+ *
+ * 「零行为变化」这种验收最容易假绿 —— 迁移根本没跑、样本本来就是空的、
+ * 或者比较的两侧其实是同一个东西，**三种情况都表现为一片绿**。
+ * 所以下面除了主张断言，还钉了「这批断言确实检验过东西」的保险。
+ */
+describe('v21 技能栏存档层 · 老存档零行为变化（M3-5a 验收）', () => {
+  /** 覆盖多个历史版本的老存档样本；迁移链越长越能暴露中途被改坏的字段。 */
+  const OLD_SAVES: ReadonlyArray<readonly [string, Record<string, unknown>]> = [
+    ['v0', v0Save()],
+    ['v3', v3Save()],
+    ['v9', v9Save()],
+    ['v10', v10Save()],
+  ];
+
+  it('★ 迁移后 activeSkillIds 必须「不存在」——写成 [] 会让老玩家上场不带任何主动技', () => {
+    for (const [label, raw] of OLD_SAVES) {
+      const migrated = migrate(raw);
+      expect(migrated.version, `${label} 没迁到当前版本`).toBe(SAVE_VERSION);
+      expect(
+        Object.prototype.hasOwnProperty.call(migrated.player, 'activeSkillIds'),
+        `${label} 迁移后写入了 activeSkillIds。` +
+          '「没选过」的正确表示是字段不存在；写成 [] 是「玩家明确清空技能栏」，' +
+          '会让老玩家一次更新之后光着手上场。',
+      ).toBe(false);
+      expect(migrated.player.activeSkillIds).toBeUndefined();
+    }
+  });
+
+  it('★ 迁移后实际上场的技能与 M3-5 上线前逐字一致（走默认顺序、零丢弃）', () => {
+    for (const [label, raw] of OLD_SAVES) {
+      const migrated = migrate(raw);
+      const { classId, level } = migrated.player;
+
+      const afterMigration = resolveActiveSkillSlots(classId, level, migrated.player.activeSkillIds);
+      // 上线前的行为就是「没有这个字段」时的行为，即默认顺序。
+      const beforeFeature = resolveActiveSkillSlots(classId, level, undefined);
+
+      expect(afterMigration, `${label} 迁移后上场技能变了`).toEqual(beforeFeature);
+      expect(afterMigration.usedDefault, `${label} 没走默认分支`).toBe(true);
+      expect(afterMigration.dropped, `${label} 迁移后出现了被丢弃的技能`).toEqual([]);
+    }
+  });
+
+  it('样本非空且默认技能栏真的有技能 —— 否则上面两条恒绿', () => {
+    expect(OLD_SAVES.length).toBeGreaterThan(1);
+    for (const [label, raw] of OLD_SAVES) {
+      const migrated = migrate(raw);
+      const { classId, level } = migrated.player;
+      expect(
+        resolveActiveSkillSlots(classId, level, undefined).selected.length,
+        `${label} 的默认技能栏是空的：此时「迁移前后一致」退化成「空等于空」，什么也没验到`,
+      ).toBeGreaterThan(0);
+    }
+  });
+
+  /**
+   * ⚠ 这里不能用 `createSave` 的默认等级：新号是 Lv1，而 Lv1 一个主动技都没解锁。
+   * 那样「没选过」解析出来也是空，和「明确清空」的空**撞在一起**，
+   * 这条断言就退化成「空等于空」——照样全绿，却什么都没验到。
+   * （第一版就是这么写的，被上面那条「默认技能栏真的有技能」的保险当场抓出来。）
+   * 所以等级从契约自己推：取首个真的有主动技可选的等级，数据调整了也不会失效。
+   */
+  const LEVEL_WITH_ACTIVE_SKILLS = (() => {
+    for (let level = 1; level <= 120; level += 1) {
+      if (selectableActiveSkillIds('swordsman', level).length > 0) return level;
+    }
+    throw new Error('剑士在 1~120 级都没有可选的主动技，测试前提不成立');
+  })();
+
+  it('★ 「没选过」与「明确清空」经过一次存档往返之后仍然可区分', () => {
+    const base = createSave('技能栏', 'swordsman', 7, 1_800_000_000_000);
+    const level = LEVEL_WITH_ACTIVE_SKILLS;
+    const raw = JSON.parse(JSON.stringify({ ...base, player: { ...base.player, level } }));
+
+    // ① 没选过：字段不存在
+    const neverChose = parseSave(raw);
+    expect(neverChose.player.activeSkillIds).toBeUndefined();
+
+    // ② 明确清空：空数组必须能被存下来，且不被 schema 抹成 undefined
+    const cleared = parseSave({ ...raw, player: { ...raw.player, activeSkillIds: [] } });
+    expect(cleared.player.activeSkillIds).toEqual([]);
+
+    // ③ 两者在判定层是不同的结果：没选过回落默认，清空就是真的不带主动技
+    const a = resolveActiveSkillSlots('swordsman', level, neverChose.player.activeSkillIds);
+    const b = resolveActiveSkillSlots('swordsman', level, cleared.player.activeSkillIds);
+    expect(a.usedDefault).toBe(true);
+    expect(a.selected.length).toBeGreaterThan(0);
+    expect(b.usedDefault).toBe(false);
+    expect(b.selected).toEqual([]);
+  });
+
+  it('存档层不因技能 id 失效而拒绝整个存档 —— 拒绝会让玩家连游戏都进不去', () => {
+    const base = createSave('改名受害者', 'witch', 7, 1_800_000_000_000);
+    const withDeadIds = JSON.parse(
+      JSON.stringify({
+        ...base,
+        player: { ...base.player, activeSkillIds: ['skill_被删掉了', 'skill_改名了'] },
+      }),
+    );
+    // 存档照常读入（不抛），非法项交给 resolveActiveSkillSlots 过滤并给出原因
+    const parsed = parseSave(withDeadIds);
+    const resolved = resolveActiveSkillSlots('witch', base.player.level, parsed.player.activeSkillIds);
+    expect(resolved.selected).toEqual([]);
+    expect(resolved.dropped.map((entry) => entry.reason)).toEqual(['unknown-skill', 'unknown-skill']);
   });
 });
