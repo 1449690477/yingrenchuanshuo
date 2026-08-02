@@ -15,7 +15,7 @@ import { makeMonster, makePlayer } from '../progression';
 import { estimateDps } from '../combat';
 import { Rng } from '../rng';
 import type { LootTable } from '../types';
-import { DAILY_STAMINA_CLAIM_AMOUNT, OFFLINE_CAP_SECONDS, STAMINA_RECOVER_SECONDS } from '@/data/constants';
+import { OFFLINE_CAP_SECONDS, STAMINA_RECOVER_SECONDS } from '@/data/constants';
 import { REGION_CRIMSON_SET } from '@/data/regionEquipmentSets';
 
 const FLAMEBURST = REGION_CRIMSON_SET.bonuses.flatMap((bonus) => bonus.onHitTriggers ?? [])[0]!;
@@ -364,35 +364,45 @@ describe('dailyStaminaClaim', () => {
   const day = new Date(now + (8 - 4) * 3_600_000).toISOString().slice(0, 10);
 
   it('今天未领过：先结算自然恢复再叠加免费额度，不超上限', () => {
-    const r = dailyStaminaClaim(100, 120, now - 600_000, null, now);
+    const r = dailyStaminaClaim(100, 120, now - 600_000, null, 0, now);
     expect(r.claimed).toBe(true);
-    expect(r.stamina).toBe(120); // 100 + 2(恢复) + 50 > 120 → 封顶
-    expect(r.nextClaimDay).toBe(day);
+    expect(r.stamina).toBe(120);
+    expect(r.claimedCount).toBe(1);
+    expect(r.claimedDay).toBe(day);
   });
 
-  it('今天已领：不重复发放，但自然恢复正常结算', () => {
-    const r = dailyStaminaClaim(60, 120, now - 600_000, day, now);
+  it('今天已领 1 次：第二次可继续领，自然恢复正常结算', () => {
+    const r = dailyStaminaClaim(60, 120, now - 600_000, day, 1, now);
+    expect(r.claimed).toBe(true);
+    expect(r.stamina).toBe(92);
+    expect(r.claimedCount).toBe(2);
+  });
+
+  it('今天已领满 3 次：不重复发放，但自然恢复正常结算', () => {
+    const r = dailyStaminaClaim(60, 120, now - 600_000, day, 3, now);
     expect(r.claimed).toBe(false);
-    expect(r.stamina).toBe(62); // 只有自然恢复 2 点
+    expect(r.stamina).toBe(62);
+    expect(r.claimedCount).toBe(3);
   });
 
   it('体力不足时领取也不会超过上限', () => {
-    const r = dailyStaminaClaim(80, 120, now, null, now);
+    const r = dailyStaminaClaim(80, 120, now, null, 0, now);
     expect(r.claimed).toBe(true);
-    expect(r.stamina).toBe(120); // 80 + 50 = 130 > 120 → 封顶
+    expect(r.stamina).toBe(110);
     expect(r.nextRecoverAt).toBe(now);
   });
 
   it('满体力领取不浪费（封顶为上限）', () => {
-    const r = dailyStaminaClaim(120, 120, now, null, now);
+    const r = dailyStaminaClaim(120, 120, now, null, 0, now);
     expect(r.claimed).toBe(true);
     expect(r.stamina).toBe(120);
   });
 
-  it('跨日：明天可再领', () => {
+  it('跨日：明天重置次数可再领', () => {
     const tomorrow = now + 24 * 3_600_000;
-    const r = dailyStaminaClaim(10, 120, tomorrow, day, tomorrow);
+    const r = dailyStaminaClaim(10, 120, tomorrow, day, 3, tomorrow);
     expect(r.claimed).toBe(true);
-    expect(r.stamina).toBe(10 + DAILY_STAMINA_CLAIM_AMOUNT);
+    expect(r.stamina).toBe(40);
+    expect(r.claimedCount).toBe(1);
   });
 });

@@ -1505,12 +1505,14 @@ export const useGameStore = defineStore('game', () => {
       staminaMax.value,
       p.staminaRecoverAt,
       p.staminaClaimDay,
+      p.staminaClaimCount,
       Date.now(),
     );
     if (!result.claimed) return null;
     saveData.player.stamina = result.stamina;
     saveData.player.staminaRecoverAt = result.nextRecoverAt;
-    saveData.player.staminaClaimDay = result.nextClaimDay;
+    saveData.player.staminaClaimDay = result.claimedDay;
+    saveData.player.staminaClaimCount = result.claimedCount;
     void persist();
     return result;
   }

@@ -112,8 +112,10 @@ const dailyClaimState = computed(() => {
   if (!p) return { claimable: false, claimedDay: null, stamina: 0, max: 0 };
   const today = businessDayKey(Date.now());
   const claimed = p.staminaClaimDay === today;
+  const remaining = claimed ? 3 - p.staminaClaimCount : 3;
   return {
-    claimable: !claimed,
+    claimable: remaining > 0,
+    remaining,
     claimedDay: p.staminaClaimDay,
     stamina: p.stamina,
     max: game.staminaMax,
@@ -125,9 +127,9 @@ let dailyClaimToastTimer = 0;
 function onDailyClaim(): void {
   const result = game.claimDailyStamina();
   if (!result) {
-    dailyClaimToast.value = '今天已领过体力补给，明天再来吧';
+    dailyClaimToast.value = '今天的体力补给已领完，明天再来吧';
   } else {
-    dailyClaimToast.value = '免费领取 +50 体力';
+    dailyClaimToast.value = '免费领取 +30 体力';
   }
   clearTimeout(dailyClaimToastTimer);
   dailyClaimToastTimer = window.setTimeout(() => (dailyClaimToast.value = ''), 2600);
@@ -433,9 +435,9 @@ function openLootEntry(entry: { itemId: string; isEquipment: boolean; count: num
         :disabled="dailyClaimState.stamina >= dailyClaimState.max"
         @click="onDailyClaim"
       >
-        每日补给 +50
+        每日补给 +30（{{ dailyClaimState.remaining }}/3）
       </button>
-      <span v-else class="stamina-claimed">今日已领</span>
+      <span v-else class="stamina-claimed">今日已领 {{ dailyClaimState.remaining }}/3</span>
       <span v-if="dailyClaimToast" class="stamina-toast">{{ dailyClaimToast }}</span>
     </div>
 

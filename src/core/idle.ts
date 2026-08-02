@@ -25,6 +25,7 @@ import {
   OFFLINE_CAP_SECONDS,
   OFFLINE_EFFICIENCY,
   DAILY_STAMINA_CLAIM_AMOUNT,
+  DAILY_STAMINA_CLAIM_MAX,
   STAMINA_RECOVER_SECONDS,
   SWEEP_EQUIV_SECONDS,
 } from '@/data/constants';
@@ -264,15 +265,6 @@ export function recoverStamina(
   };
 }
 
-export interface DailyStaminaClaimResult {
-  /** 本次是否发放了免费额度（今天已领则 false）。 */
-  claimed: boolean;
-  stamina: number;
-  nextRecoverAt: number;
-  /** 下一次可领取的日切 key（今天已领则为明天）。 */
-  nextClaimDay: string;
-}
-
 /**
  * 每日免费领取体力（M3-6）。
  *
@@ -281,24 +273,46 @@ export interface DailyStaminaClaimResult {
  * 2. 若今天日切未领过，再叠加免费额度（不超上限）；
  * 3. 日切统一走 businessDayKey（北京 04:00），与好感/试炼同一口径。
  */
+export interface DailyStaminaClaimResult {
+  /** 本次是否发放了免费额度（今天已领满 3 次则 false）。 */
+  claimed: boolean;
+  stamina: number;
+  nextRecoverAt: number;
+  /** 本次领取后当日已领次数（0~3）。 */
+  claimedCount: number;
+  /** 当前日切 key。 */
+  claimedDay: string;
+}
+
+/**
+ * 每日免费领取体力（M3-6）。
+ *
+ * 纯函数：不读时钟外状态。规则：
+ * 1. 先结算自然恢复（与 recoverStamina 同一路）；
+ * 2. 若当前日切已领次数 < 3，再叠加一份免费额度（+30，不超上限）；
+ * 3. 日切统一走 businessDayKey（北京 04:00），与好感/试炼同一口径。
+ */
 export function dailyStaminaClaim(
   current: number,
   max: number,
   lastRecoverAt: number,
   claimedDay: string | null,
+  claimedCount: number,
   now: number,
 ): DailyStaminaClaimResult {
   const today = businessDayKey(now);
   const recovered = recoverStamina(current, max, lastRecoverAt, now);
-  if (claimedDay === today) {
-    return { claimed: false, ...recovered, nextClaimDay: today };
+  const count = claimedDay === today ? claimedCount : 0;
+  if (count >= DAILY_STAMINA_CLAIM_MAX) {
+    return { claimed: false, ...recovered, claimedCount: count, claimedDay: today };
   }
   const stamina = Math.min(max, recovered.stamina + DAILY_STAMINA_CLAIM_AMOUNT);
   return {
     claimed: true,
     stamina,
     nextRecoverAt: stamina >= max ? now : recovered.nextRecoverAt,
-    nextClaimDay: today,
+    claimedCount: count + 1,
+    claimedDay: today,
   };
 }
 

@@ -382,6 +382,20 @@ export const migrations: Record<number, Migration> = {
     player: {
       ...(save.player as Record<string, unknown> | null | undefined),
       staminaClaimDay: null,
+      staminaClaimCount: 0,
+    },
+  }),
+  /**
+   * v23：每日免费领取改为 3 次×30（合 docs/10 §3.4）。
+   * 新增 player.staminaClaimCount；v22 仅在当天存在（未发布给玩家），
+   * 迁移填 0 = 今天还没领，行为与新号一致。
+   */
+  22: (save) => ({
+    ...save,
+    version: 23,
+    player: {
+      ...(save.player as Record<string, unknown> | null | undefined),
+      staminaClaimCount: 0,
     },
   }),
 };

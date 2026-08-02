@@ -1120,7 +1120,9 @@ export const SWEEP_STAMINA_COST = 5;
  * 是「加速补给」而非主导（docs/73 D1-B：体力只限扫荡这种加速手段）。
  * 不超上限：满体力时领取不浪费（被封顶）。
  */
-export const DAILY_STAMINA_CLAIM_AMOUNT = 50;
+export const DAILY_STAMINA_CLAIM_AMOUNT = 30;
+/** 每日免费领取次数上限（M3-6：3 次×30 = 90 点/日，合 docs/10 §3.4 口径）。 */
+export const DAILY_STAMINA_CLAIM_MAX = 3;
 /** 一次扫荡等同多少秒的挂机产出 */
 export const SWEEP_EQUIV_SECONDS = 30 * 60;
 
