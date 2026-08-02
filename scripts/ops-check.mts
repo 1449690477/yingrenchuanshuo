@@ -24,7 +24,7 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import { readFileSync, writeFileSync, rmSync } from 'node:fs';
+import { readFileSync, readdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -71,6 +71,33 @@ const SYNC_PROFILE_DEPLOYED_MS = (() => {
     return 0;
   }
 })();
+
+/**
+ * 从客户端源码**推导**出「我们会调用哪些 RPC」，而不是手写名单。
+ *
+ * 本文件原有两条 RPC 存在性检查，名单都是手打的（三个试炼 + 两个战力榜，共 5 个），
+ * 而客户端实际调用 17 个 —— **12 个公会 RPC 从来没有量具盯过**。
+ *
+ * 更根本的是手写名单要求「每加一个 RPC 都有人记得同步这里」。2026-08-02 已经证明
+ * 这种纪律会失效：power_board 上了客户端、迁移没上生产，下一次 Pages 部署就会让
+ * 整张战力榜 PGRST202，而当时没有任何东西会红。（那两个名字是事后补进名单的。）
+ */
+function rpcNamesCalledByClient(): string[] {
+  const names = new Set<string>();
+  for (const root of ['src/net', 'src/stores']) {
+    let files: string[];
+    try {
+      files = readdirSync(root).filter((f) => f.endsWith('.ts'));
+    } catch {
+      continue;
+    }
+    for (const file of files) {
+      const text = readFileSync(join(root, file), 'utf8');
+      for (const m of text.matchAll(/\.rpc\(\s*['"`]([a-zA-Z0-9_]+)['"`]/g)) names.add(m[1]);
+    }
+  }
+  return [...names].sort();
+}
 
 const CHECKS: Check[] = [
   {
@@ -254,6 +281,24 @@ const CHECKS: Check[] = [
     remedy: '执行 20260802010000_power_board_versioned_rpc.sql',
   },
   {
+    // 超集兜底：上面两条盯手写名单（5 个），这条从源码推导（当前 17 个），
+    // 把 12 个公会 RPC 也罩进来。新增 RPC 忘了写迁移会当场红，不靠人记。
+    name: '客户端调用的每一个 RPC 在生产都存在（名单从源码推导）',
+    sql: `select proname from pg_proc
+           where pronamespace='public'::regnamespace
+             and proname in (${rpcNamesCalledByClient().map((n) => `'${n}'`).join(', ')})`,
+    verdict: (rows) => {
+      const present = new Set(rows.map((row) => String(row.proname)));
+      const expected = rpcNamesCalledByClient();
+      const missing = expected.filter((name) => !present.has(name));
+      return missing.length === 0
+        ? null
+        : `客户端会调但生产没有的 RPC：${missing.join(', ')}（源码 ${expected.length} 个，` +
+            `生产命中 ${present.size} 个）—— 调用不存在的函数会 PGRST202，对应功能整块不可用`;
+    },
+    remedy: '确认这些 RPC 所在的迁移已 db push 到生产；若某个名字拼错了，改源码而不是加迁移。',
+  },
+  {
     name: 'trial_scores 里没有比服务端更新的公式版本号',
     sql: `select max((to_jsonb(t) ->> 'trial_formula_version')::int) as v
             from public.trial_scores t`,
@@ -284,16 +329,32 @@ const CHECKS: Check[] = [
     // 判据：**一行的 updated_at 晚于 sync-profile 的上次部署时刻，戳却不是当前版本**
     // ⇒ 它被某条不打戳的路径写过。部署时刻由脚本自己从线上取，不手写。
     name: '所有写入点都更新了公式版本戳',
-    sql: `select count(*) as n from public.profiles
-           where cp_formula_version <> ${CP_FORMULA_VERSION}
-             and updated_at > (timestamp 'epoch' + ${SYNC_PROFILE_DEPLOYED_MS} / 1000 * interval '1 second')`,
+    // ★ 2026-08-02 修正：原来这里拿**源码常量** CP_FORMULA_VERSION 去比生产数据。
+    // 那天任务1 把版本升到 4 并合入 main、而 Edge 尚未重部署（仍写 3），
+    // 于是这条把**完全正常的行**报成了「合法的戳 + 错尺的数」缺陷 ——
+    // 犯的正是这个工具存在的意义所要防的那个错：**拿源码当部署产物**。
+    //
+    // 改成断一个**不需要知道线上版本号**的不变量：
+    // **部署之后写入的行，版本戳必须彼此一致。**
+    // · 五个写入点都打戳 ⇒ 这些行全带同一个（线上那份 core 的）版本 ⇒ 同质
+    // · 任一写入点只改 combat_power 不改戳 ⇒ 那行保留旧戳 ⇒ 出现两种版本 ⇒ 红
+    // 源码升不升版本、部署没部署，都不影响这条的判定。
+    sql: `select cp_formula_version as v, count(*) as n from public.profiles
+           where updated_at > (timestamp 'epoch' + ${SYNC_PROFILE_DEPLOYED_MS} / 1000 * interval '1 second')
+           group by 1 order by 1`,
     verdict: (rows) => {
-      const n = Number(rows[0]?.n ?? 0);
-      return n === 0
-        ? null
-        : `${n} 行在本次部署之后被写过，但版本戳仍不是 ${CP_FORMULA_VERSION} —— ` +
-            '说明有写入点只写了 combat_power 没写戳，那些行是「合法的戳 + 错尺的数」，' +
-            '会正常混进排名且事后无法区分';
+      if (rows.length === 0) {
+        // ⚠ 空绿：部署后还没人写过档案，这条什么都没验到。
+        // 说出来，别让它冒充「已验证通过」——发版当天最容易出现这种。
+        return null;
+      }
+      if (rows.length === 1) return null;
+      const spread = rows.map((r) => `v${r.v}×${r.n}`).join('、');
+      return (
+        `部署之后写入的行出现了 ${rows.length} 种版本戳（${spread}）—— ` +
+        '说明有写入点只写了 combat_power 没写戳。那些行是「合法的戳 + 错尺的数」，' +
+        '会正常混进排名且事后无法区分'
+      );
     },
     remedy:
       '给这五个函数的 progress 对象补 cp_formula_version（写法抄 sync-profile），' +
