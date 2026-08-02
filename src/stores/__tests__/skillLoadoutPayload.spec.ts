@@ -96,6 +96,29 @@ describe('技能栏进入上传载荷', () => {
     expect(Object.hasOwn(submitted!, 'selectedActiveSkillIds')).toBe(true);
   });
 
+  /**
+   * 「明确清空」是第三个状态，上面两条都盖不住它。
+   *
+   * 上一条守住的是 `undefined`（没编排过）不许被补成别的东西。但反方向同样会
+   * 静默出错：**把 `[]` 当成「没填」而不发出去**，服务端就会回落默认顺序，
+   * 于是**玩家明明清空了技能栏，上场却照样放技能**，而他没有收到任何提示。
+   *
+   * 触发它不需要谁写错，只需要一次看起来很合理的「优化」：
+   * `ids?.length ? ids : undefined`。那一行会让本文件其余用例**全部照常绿**
+   * —— 空数组这个分支根本没人走过。
+   */
+  it('★ 玩家明确清空：载荷里必须是空数组，不许退化成 undefined', async () => {
+    const { lb } = loadSave([]);
+    lb.challengeTrial();
+    await lb.submitBest();
+    expect(submitted).not.toBeNull();
+    expect(
+      submitted!.selectedActiveSkillIds,
+      '清空被当成了「没编排过」发出去 —— 服务端会回落默认顺序，' +
+        '玩家清空了技能栏却照样放技能，而且不会有任何报错。',
+    ).toEqual([]);
+  });
+
   it('★ 本地复算确实吃了技能栏 —— 换一套编排，本地伤害必须跟着变', async () => {
     // 这条是「同源」的另一半：上一条证明载荷带上了，这条证明本地也用了。
     // 只证明其中一边的话，恰好就是那种「两边各算各的」的静默分歧。

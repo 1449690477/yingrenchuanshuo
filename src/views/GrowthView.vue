@@ -23,6 +23,9 @@ import { itemName } from '@/data/items';
 import { visualSkillsFor } from '@/data/skills';
 import EquipDetail from '@/components/EquipDetail.vue';
 import CollapsibleCard from '@/components/CollapsibleCard.vue';
+import SkillLoadoutPanel from '@/components/SkillLoadoutPanel.vue';
+import { resolveActiveSkillSlots } from '@/core/skillSlots';
+import { useGameStore } from '@/stores/game';
 import CharacterShowcase from '@/components/CharacterShowcase.vue';
 import CharacterAppearance from '@/components/CharacterAppearance.vue';
 import ClassSwitchModal from '@/components/ClassSwitchModal.vue';
@@ -47,6 +50,7 @@ import { prefersCompactLayout } from '@/ui/useFold';
 const inventory = useInventoryStore();
 const player = usePlayerStore();
 const settings = useSettingsStore();
+const game = useGameStore();
 const detail = ref<EquipmentInstance | null>(null);
 const feedback = ref('');
 const classSwitchOpen = ref(false);
@@ -79,6 +83,20 @@ let giftFeedbackTimer = 0;
 const GIFT_BUSY_MIN_MS = 420;
 
 const equipped = computed(() => inventory.equipped);
+
+/** 折叠态也要能一眼看出自己是「跟随默认」还是「自己排过」。 */
+const loadoutPeek = computed(() => {
+  const p = player.player;
+  if (!p) return '';
+  if (p.activeSkillIds !== undefined && p.activeSkillIds.length === 0) return '已清空';
+  const resolved = resolveActiveSkillSlots(p.classId, p.level, p.activeSkillIds);
+  return `${resolved.usedDefault ? '默认' : '自定义'} ${resolved.selected.length}/4`;
+});
+
+/** undefined（没编排过）与 []（明确清空）原样透传给存档，不在这里合并。 */
+function onLoadoutChange(ids: string[] | undefined): void {
+  game.setActiveSkillIds(ids);
+}
 const visualSkills = computed(() => (player.player ? visualSkillsFor(player.player.classId) : []));
 /** 矮屏（手机主流）折叠卡的默认值都按收起走，玩家手动切换后由 localStorage 记忆 */
 const compactLayout = prefersCompactLayout();
@@ -695,10 +713,28 @@ onUnmounted(() => {
       </div>
     </CollapsibleCard>
 
+    <CollapsibleCard
+      class="loadout-card row-in"
+      style="--row-delay: 165ms"
+      title="主动技能编成"
+      subtitle="最多 4 个"
+      persist-key="growth.loadout"
+      :default-open="false"
+    >
+      <template #peek>
+        <span class="loadout-peek">{{ loadoutPeek }}</span>
+      </template>
+      <SkillLoadoutPanel
+        :class-id="player.player.classId"
+        :level="player.player.level"
+        :model-value="player.player.activeSkillIds"
+        @update:model-value="onLoadoutChange"
+      />
+    </CollapsibleCard>
+
     <section class="card soon row-in" style="--row-delay: 190ms">
       <div class="card-head"><span>成长预告</span></div>
       <div class="soon-list">
-        <span class="chip">主动技能编成 · 筹备中</span>
         <span class="chip">宠物协战 · 筹备中</span>
       </div>
     </section>
