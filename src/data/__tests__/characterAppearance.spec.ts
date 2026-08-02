@@ -348,3 +348,31 @@ describe('角色换装外观解析', () => {
     }
   });
 });
+
+describe('沉默视觉槽（silentVisualSlots）', () => {
+  // 2026-08-02：老板连发两张截图把「区域/副本鞋不渲染」当 bug 报。
+  // 那是刻意设计（整身装自带靴、独立鞋层悬空错位），但 UI 从不解释。
+  // 这两条钉住新契约：会被期待变化的四槽里，穿了不渲染的装备必须被点名。
+  it('穿区域鞋时 shoes 进入沉默清单——玩家该得到解释而不是以为坏了', () => {
+    const equipped = {
+      weapon: null, head: null, body: null, necklace: null,
+      bracelet: null, ring: null, belt: null,
+      shoes: { uid: 's', defId: 'eq_r6_shoes_legendary', enhance: 15, baseRollPermille: 1000,
+        enhanceGainPermille: [], enhanceLuck: {}, affixes: [], reforgeResonance: 0, locked: false },
+    } as never;
+    const r = resolveCharacterAppearance('catkin', 71, equipped);
+    expect(r.silentVisualSlots).toContain('shoes');
+    expect(r.visibleEquippedCount).toBe(0);
+  });
+
+  it('首饰四槽从不进入沉默清单——玩家不期待项链改变立绘', () => {
+    const equipped = {
+      weapon: null, head: null, body: null, shoes: null,
+      necklace: { uid: 'n', defId: 'eq_r6_necklace_legendary', enhance: 15, baseRollPermille: 1000,
+        enhanceGainPermille: [], enhanceLuck: {}, affixes: [], reforgeResonance: 0, locked: false },
+      bracelet: null, ring: null, belt: null,
+    } as never;
+    const r = resolveCharacterAppearance('catkin', 71, equipped);
+    expect(r.silentVisualSlots).toHaveLength(0);
+  });
+});

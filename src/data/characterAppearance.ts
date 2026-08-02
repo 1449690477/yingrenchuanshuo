@@ -570,6 +570,17 @@ export interface ResolvedCharacterAppearance {
   layers: ResolvedAppearanceLayer[];
   equippedCount: number;
   visibleEquippedCount: number;
+  /**
+   * 穿着了装备、但该装备**不改变外观**的视觉槽（weapon/head/body/shoes 四槽里
+   * renderMode 为 slot-only 的那些）。
+   *
+   * 为什么要暴露它：2026-08-02 老板连发两张截图问「穿了鞋/裙为什么没变化」——
+   * 区域与副本的鞋是**刻意**不渲染的（副本整身装自带靴子、独立鞋层会悬空错位，
+   * 见 buildEquipmentDungeonAppearances 的注释），但 UI 从不解释，
+   * 玩家把设计当成了 bug。首饰四槽（项链/手镯/戒指/腰带）从不渲染、
+   * 玩家也不期待，所以不在此列 —— 只报玩家**会期待变化**的那四槽。
+   */
+  silentVisualSlots: EquipSlot[];
   highestVisibleQuality: Quality;
   activeBoutiqueTheme: BoutiqueThemeId | null;
   boutiqueEffectAsset: string | null;
@@ -613,6 +624,7 @@ export function resolveCharacterAppearance(
   let hasVisibleShoes = false;
   let visibleEquippedCount = 0;
   const visibleNames: string[] = [];
+  const silentVisualSlots: EquipSlot[] = [];
 
   if (equipped) {
     for (const [slot, instance] of Object.entries(equipped) as [
@@ -646,7 +658,12 @@ export function resolveCharacterAppearance(
       ) {
         activeDungeonTier = dungeonTier.id;
       }
-      if (appearance.renderMode === 'slot-only') continue;
+      if (appearance.renderMode === 'slot-only') {
+        if (slot === 'weapon' || slot === 'head' || slot === 'body' || slot === 'shoes') {
+          silentVisualSlots.push(slot);
+        }
+        continue;
+      }
       if (QUALITY_RANK[equipment.quality] > QUALITY_RANK[highestVisibleQuality]) {
         highestVisibleQuality = equipment.quality;
       }
@@ -717,6 +734,7 @@ export function resolveCharacterAppearance(
     layers,
     equippedCount,
     visibleEquippedCount,
+    silentVisualSlots,
     highestVisibleQuality,
     activeBoutiqueTheme,
     boutiqueEffectAsset: boutiqueEffectAsset ?? null,

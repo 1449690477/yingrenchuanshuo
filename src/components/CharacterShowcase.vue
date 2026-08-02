@@ -104,6 +104,10 @@ function instanceOf(slot: EquipSlot): EquipmentInstance | null {
   return props.equipped?.[slot] ?? null;
 }
 
+const silentSlotNames = computed(() =>
+  appearance.value.silentVisualSlots.map((slot) => SLOT_LABELS[slot]).join('、'),
+);
+
 function equipmentName(slot: EquipSlot): string {
   const instance = instanceOf(slot);
   return instance
@@ -189,7 +193,21 @@ onUnmounted(() => clearTimeout(previewTimer));
     <div class="growth-status">
       <span class="tier-badge">{{ appearance.growthTier.label }}</span>
       <span>{{ appearance.equippedCount }}/8 已装备</span>
-      <span>{{ appearance.visibleEquippedCount }}/4 外观部位已变化</span>
+      <!--
+        原来写「x/4 外观部位已变化」。但四个视觉槽里，鞋在区域与副本装备下
+        是刻意不渲染的（整身装自带靴、独立鞋层会悬空错位）——绝大多数玩家
+        永远到不了 4，「3/4」读起来就像有一件坏了。老板拿着截图当 bug 报了
+        两次（樱酱衣裙、喵喵鞋子），其实两次渲染都符合设计。
+        分母是个兑现不了的承诺，删掉它；沉默槽单独点名并说明原因。
+      -->
+      <span>{{ appearance.visibleEquippedCount }} 处外观已生效</span>
+      <span
+        v-if="appearance.silentVisualSlots.length"
+        class="silent-note"
+        :title="'这些部位的当前装备不改变外观：区域与副本的鞋靴由整身装束自带，独立鞋层会悬空错位，故不叠加'"
+      >
+        {{ silentSlotNames }}不改变外观
+      </span>
       <span v-if="forgeStageLabel" class="forge-badge">{{ forgeStageLabel }}</span>
       <span v-if="boutiqueTheme" class="boutique-badge">{{ boutiqueTheme.shortName }}特效</span>
     </div>
@@ -445,6 +463,13 @@ onUnmounted(() => clearTimeout(previewTimer));
   font-size: 8px;
   color: var(--text-dim);
   background: rgb(255 255 255 / 48%);
+}
+
+.silent-note {
+  color: var(--ink-3, #9aa);
+  font-size: 0.72rem;
+  border-bottom: 1px dotted currentColor;
+  cursor: help;
 }
 
 .tier-badge {
