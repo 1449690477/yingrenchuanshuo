@@ -16,6 +16,7 @@ import type {
 } from './types';
 import type { Rng } from './rng';
 import { combatPressure } from './combat';
+import { businessDayKey } from './dayKey';
 import type { OnHitElementalDamageTrigger } from './equipmentSets';
 import type { SkillCombatKit } from './skillCombat';
 import { expectedLoot, rollLoot, type PityCounters } from './loot';
@@ -23,6 +24,7 @@ import {
   DEFAULT_MAX_KILLS_PER_SEC,
   OFFLINE_CAP_SECONDS,
   OFFLINE_EFFICIENCY,
+  DAILY_STAMINA_CLAIM_AMOUNT,
   STAMINA_RECOVER_SECONDS,
   SWEEP_EQUIV_SECONDS,
 } from '@/data/constants';
@@ -259,6 +261,44 @@ export function recoverStamina(
   return {
     stamina,
     nextRecoverAt: stamina >= max ? now : lastRecoverAt + consumed,
+  };
+}
+
+export interface DailyStaminaClaimResult {
+  /** 本次是否发放了免费额度（今天已领则 false）。 */
+  claimed: boolean;
+  stamina: number;
+  nextRecoverAt: number;
+  /** 下一次可领取的日切 key（今天已领则为明天）。 */
+  nextClaimDay: string;
+}
+
+/**
+ * 每日免费领取体力（M3-6）。
+ *
+ * 纯函数：不读时钟外状态。规则：
+ * 1. 先结算自然恢复（与 recoverStamina 同一路）；
+ * 2. 若今天日切未领过，再叠加免费额度（不超上限）；
+ * 3. 日切统一走 businessDayKey（北京 04:00），与好感/试炼同一口径。
+ */
+export function dailyStaminaClaim(
+  current: number,
+  max: number,
+  lastRecoverAt: number,
+  claimedDay: string | null,
+  now: number,
+): DailyStaminaClaimResult {
+  const today = businessDayKey(now);
+  const recovered = recoverStamina(current, max, lastRecoverAt, now);
+  if (claimedDay === today) {
+    return { claimed: false, ...recovered, nextClaimDay: today };
+  }
+  const stamina = Math.min(max, recovered.stamina + DAILY_STAMINA_CLAIM_AMOUNT);
+  return {
+    claimed: true,
+    stamina,
+    nextRecoverAt: stamina >= max ? now : recovered.nextRecoverAt,
+    nextClaimDay: today,
   };
 }
 

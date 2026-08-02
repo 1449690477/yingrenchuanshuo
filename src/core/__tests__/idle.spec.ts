@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   accumulateIdle,
+  dailyStaminaClaim,
   idleCombatEfficiency,
   killsPerSecond,
   recoverStamina,
@@ -14,7 +15,7 @@ import { makeMonster, makePlayer } from '../progression';
 import { estimateDps } from '../combat';
 import { Rng } from '../rng';
 import type { LootTable } from '../types';
-import { OFFLINE_CAP_SECONDS, STAMINA_RECOVER_SECONDS } from '@/data/constants';
+import { DAILY_STAMINA_CLAIM_AMOUNT, OFFLINE_CAP_SECONDS, STAMINA_RECOVER_SECONDS } from '@/data/constants';
 import { REGION_CRIMSON_SET } from '@/data/regionEquipmentSets';
 
 const FLAMEBURST = REGION_CRIMSON_SET.bonuses.flatMap((bonus) => bonus.onHitTriggers ?? [])[0]!;
@@ -355,5 +356,43 @@ describe('spendStamina', () => {
     expect(() => spendStamina(5, 120, 1, 6, 2)).toThrow('体力不足');
     expect(() => spendStamina(5, 120, 1, -1, 2)).toThrow('消耗');
     expect(() => spendStamina(5.5, 120, 1, 1, 2)).toThrow('当前体力');
+  });
+});
+
+describe('dailyStaminaClaim', () => {
+  const now = 1_800_000_000_000;
+  const day = new Date(now + (8 - 4) * 3_600_000).toISOString().slice(0, 10);
+
+  it('今天未领过：先结算自然恢复再叠加免费额度，不超上限', () => {
+    const r = dailyStaminaClaim(100, 120, now - 600_000, null, now);
+    expect(r.claimed).toBe(true);
+    expect(r.stamina).toBe(120); // 100 + 2(恢复) + 50 > 120 → 封顶
+    expect(r.nextClaimDay).toBe(day);
+  });
+
+  it('今天已领：不重复发放，但自然恢复正常结算', () => {
+    const r = dailyStaminaClaim(60, 120, now - 600_000, day, now);
+    expect(r.claimed).toBe(false);
+    expect(r.stamina).toBe(62); // 只有自然恢复 2 点
+  });
+
+  it('体力不足时领取也不会超过上限', () => {
+    const r = dailyStaminaClaim(80, 120, now, null, now);
+    expect(r.claimed).toBe(true);
+    expect(r.stamina).toBe(120); // 80 + 50 = 130 > 120 → 封顶
+    expect(r.nextRecoverAt).toBe(now);
+  });
+
+  it('满体力领取不浪费（封顶为上限）', () => {
+    const r = dailyStaminaClaim(120, 120, now, null, now);
+    expect(r.claimed).toBe(true);
+    expect(r.stamina).toBe(120);
+  });
+
+  it('跨日：明天可再领', () => {
+    const tomorrow = now + 24 * 3_600_000;
+    const r = dailyStaminaClaim(10, 120, tomorrow, day, tomorrow);
+    expect(r.claimed).toBe(true);
+    expect(r.stamina).toBe(10 + DAILY_STAMINA_CLAIM_AMOUNT);
   });
 });

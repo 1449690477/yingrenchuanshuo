@@ -158,11 +158,13 @@ import {
 } from '@/core/battleRhythm';
 import {
   accumulateIdle,
+  dailyStaminaClaim,
   idleCombatRates,
   recoverStamina,
   spendStamina,
   settleOffline,
   settleSweep,
+  type DailyStaminaClaimResult,
 } from '@/core/idle';
 import { trimBag } from '@/core/bag';
 import type { IdleContext } from '@/core/idle';
@@ -1486,6 +1488,31 @@ export const useGameStore = defineStore('game', () => {
       staminaSpent: cost.cost,
       yield: { ...y, loot: mergeLootResults(y.loot, settlement.bonusLoot) },
     };
+  }
+
+  /**
+   * M3-6 每日免费领取体力。
+   *
+   * 纯函数规则在 core/idle.dailyStaminaClaim：先结算自然恢复再叠加额度，
+   * 不超上限。今天已领过返回 null，UI 展示“明天可领”而不是报错。
+   */
+  function claimDailyStamina(): DailyStaminaClaimResult | null {
+    const saveData = save.value;
+    const p = player.value;
+    if (!saveData || !p) return null;
+    const result = dailyStaminaClaim(
+      p.stamina,
+      staminaMax.value,
+      p.staminaRecoverAt,
+      p.staminaClaimDay,
+      Date.now(),
+    );
+    if (!result.claimed) return null;
+    saveData.player.stamina = result.stamina;
+    saveData.player.staminaRecoverAt = result.nextRecoverAt;
+    saveData.player.staminaClaimDay = result.nextClaimDay;
+    void persist();
+    return result;
   }
 
   // ─────────── 产出结算 ───────────
@@ -3656,6 +3683,7 @@ export const useGameStore = defineStore('game', () => {
     dismissOffline,
     sweepCost,
     sweepStage,
+    claimDailyStamina,
   };
 });
 

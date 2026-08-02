@@ -6,6 +6,7 @@ import { battleVitalsAtProgress } from '@/core/battleVisual';
 import { aggregateLootEntries, type LootDisplayCategory } from '@/core/lootGrouping';
 import { makeMonster, makePlayer } from '@/core/progression';
 import { useGameStore, type SweepResult } from '@/stores/game';
+import { businessDayKey } from '@/core/dayKey';
 import SweepResultModal from '@/components/SweepResultModal.vue';
 import { useInventoryStore } from '@/stores/inventory';
 import { usePlayerStore } from '@/stores/player';
@@ -103,6 +104,34 @@ const sweepBatchTimes = computed(() => Math.min(10, Math.max(1, sweepOnce.value.
 
 /** 一次都扫不动时才禁用，此时按钮改成显示恢复倒计时。 */
 const sweepBlocked = computed(() => canSweep.value && sweepOnce.value.affordableTimes < 1);
+
+// ──── M3-6 · 每日免费领取体力：与挑战/扫荡共用同一个跳秒，避免两处各刷各的。
+const dailyClaimState = computed(() => {
+  void staminaNow.value;
+  const p = game.player;
+  if (!p) return { claimable: false, claimedDay: null, stamina: 0, max: 0 };
+  const today = businessDayKey(Date.now());
+  const claimed = p.staminaClaimDay === today;
+  return {
+    claimable: !claimed,
+    claimedDay: p.staminaClaimDay,
+    stamina: p.stamina,
+    max: game.staminaMax,
+  };
+});
+
+const dailyClaimToast = ref('');
+let dailyClaimToastTimer = 0;
+function onDailyClaim(): void {
+  const result = game.claimDailyStamina();
+  if (!result) {
+    dailyClaimToast.value = '今天已领过体力补给，明天再来吧';
+  } else {
+    dailyClaimToast.value = '免费领取 +50 体力';
+  }
+  clearTimeout(dailyClaimToastTimer);
+  dailyClaimToastTimer = window.setTimeout(() => (dailyClaimToast.value = ''), 2600);
+}
 
 const sweepResult = ref<SweepResult | null>(null);
 
@@ -390,6 +419,25 @@ function openLootEntry(entry: { itemId: string; isEquipment: boolean; count: num
         <span class="chev">切换 ›</span>
       </span>
     </button>
+
+    <!-- M3-6 每日免费领取体力：全场景可见，不占据挑战/扫荡状态 -->
+    <div class="stamina-row">
+      <span class="stamina-label">
+        体力
+        <small>每 5 分钟恢复 1 点</small>
+      </span>
+      <span class="stamina-num num">{{ dailyClaimState.stamina }}/{{ dailyClaimState.max }}</span>
+      <button
+        v-if="dailyClaimState.claimable"
+        class="stamina-claim-btn"
+        :disabled="dailyClaimState.stamina >= dailyClaimState.max"
+        @click="onDailyClaim"
+      >
+        每日补给 +50
+      </button>
+      <span v-else class="stamina-claimed">今日已领</span>
+      <span v-if="dailyClaimToast" class="stamina-toast">{{ dailyClaimToast }}</span>
+    </div>
 
     <!-- M3-7 扫荡：仅已通关关卡出现；体力不足时 ×10 自动降级而不是拦人 -->
     <div v-if="canSweep" class="sweep-row">
@@ -861,6 +909,64 @@ function openLootEntry(entry: { itemId: string; isEquipment: boolean; count: num
   font-weight: 700;
   color: #fff;
   text-shadow: 0 1px 4px rgb(24 38 52 / 58%);
+}
+
+/* M3-6 每日体力补给行：与扫荡行同宽同视觉 */
+.stamina-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  background: var(--surface-2, #faf5fa);
+  margin-bottom: 6px;
+}
+
+.stamina-label {
+  display: flex;
+  flex: 1;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.stamina-label small {
+  font-weight: 400;
+  font-size: 10px;
+  color: var(--text-dim, #8a7f8a);
+}
+
+.stamina-num {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim, #8a7f8a);
+}
+
+.stamina-claim-btn {
+  padding: 5px 10px;
+  border: none;
+  border-radius: 8px;
+  background: var(--accent, #d9689a);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.stamina-claim-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.stamina-claimed {
+  font-size: 11px;
+  color: var(--text-dim, #8a7f8a);
+}
+
+.stamina-toast {
+  font-size: 11px;
+  color: var(--accent, #d9689a);
 }
 
 /* M3-7 扫荡入口：与关卡条同宽，视觉上归属当前关 */

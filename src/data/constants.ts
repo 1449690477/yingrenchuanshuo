@@ -1112,6 +1112,15 @@ export const DEFEAT_LOW_EFFICIENCY_SECONDS = 45;
 export const STAMINA_BASE_MAX = 120;
 export const STAMINA_RECOVER_SECONDS = 300; // 5 分钟 1 点
 export const SWEEP_STAMINA_COST = 5;
+/**
+ * 每日免费领取体力额（M3-6）。
+ *
+ * 对照：自然恢复 1 点/5分钟 = 每日约 288 点（约 57 次扫荡）；
+ * 每日免费领 50 点 = 10 次扫荠或约 8 次挑战，
+ * 是「加速补给」而非主导（docs/73 D1-B：体力只限扫荡这种加速手段）。
+ * 不超上限：满体力时领取不浪费（被封顶）。
+ */
+export const DAILY_STAMINA_CLAIM_AMOUNT = 50;
 /** 一次扫荡等同多少秒的挂机产出 */
 export const SWEEP_EQUIV_SECONDS = 30 * 60;
 

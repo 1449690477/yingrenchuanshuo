@@ -370,6 +370,20 @@ export const migrations: Record<number, Migration> = {
    * 所以这条差别是真会被玩家碰到的。
    */
   20: (save) => ({ ...save, version: 21 }),
+  /**
+   * v22：每日免费领取体力（M3-6）。
+   *
+   * 新增 player.staminaClaimDay（日切 key）。旧档没有可证明的领取历史，
+   * 迁移填 null = “从未领过”，首次打开当天即可领取（与新号行为一致）。
+   */
+  21: (save) => ({
+    ...save,
+    version: 22,
+    player: {
+      ...(save.player as Record<string, unknown> | null | undefined),
+      staminaClaimDay: null,
+    },
+  }),
 };
 
 function migrateV10Save(

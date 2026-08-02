@@ -66,7 +66,7 @@ export type { EquipmentCodexLedger } from '@/core/equipmentCodex';
 export type { EquipmentPresetState } from '@/core/equipmentPresets';
 
 /** 当前存档版本。加字段就 +1。 */
-export const SAVE_VERSION = 21;
+export const SAVE_VERSION = 22;
 
 export const SAVE_KEY = 'main';
 
@@ -80,6 +80,8 @@ export interface PlayerSave {
   stamina: number;
   /** 体力恢复的计时基准（毫秒时间戳） */
   staminaRecoverAt: number;
+  /** 每日免费领取的日切 key（'YYYY-MM-DD'）；null = 从未领过。 */
+  staminaClaimDay: string | null;
   /**
    * 玩家自己编排的主动技能栏（M3-5）。
    *
@@ -279,6 +281,7 @@ export function createSave(name: string, classId: ClassId, seed: number, now: nu
       gold: 0,
       stamina: STAMINA_BASE_MAX,
       staminaRecoverAt: now,
+      staminaClaimDay: null,
     },
     equipped: emptyEquipped(),
     bag: { equipment: [], items: {} },
@@ -802,6 +805,8 @@ export const saveDataSchema = z
         gold: nonNegativeInteger,
         stamina: nonNegativeInteger,
         staminaRecoverAt: timestamp,
+        /** 每日免费领取日切 key（'YYYY-MM-DD'）；null = 从未领过（今天可领）。 */
+        staminaClaimDay: z.string().nullable(),
         // 可选：不存在 = 从没编排过（老存档与新号都是这个状态）。
         // 不设长度上限、不校验 id 是否存在 —— 见 PlayerSave.activeSkillIds 注释：
         // 存档层拒绝会让玩家进不去游戏，非法项交给 resolveActiveSkillSlots 过滤。

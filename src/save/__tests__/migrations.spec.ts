@@ -1558,4 +1558,14 @@ describe('v21 技能栏存档层 · 老存档零行为变化（M3-5a 验收）',
     expect(resolved.selected).toEqual([]);
     expect(resolved.dropped.map((entry) => entry.reason)).toEqual(['unknown-skill', 'unknown-skill']);
   });
+  it('v21 → v22 新增 staminaClaimDay=null，不改写其他资产', () => {
+    const current = createSave('体力旧档', 'shaman', 22, 1_800_000_000_000) as unknown as Record<string, unknown>;
+    const raw = structuredClone(current);
+    delete (raw.player as Record<string, unknown>).staminaClaimDay;
+    raw.version = 21;
+    const migrated = migrate(raw);
+    expect(migrated.version).toBe(SAVE_VERSION);
+    expect(migrated.player.staminaClaimDay).toBeNull();
+    expect(migrated.player).toEqual(current.player);
+  });
 });
