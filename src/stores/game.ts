@@ -2217,6 +2217,34 @@ export const useGameStore = defineStore('game', () => {
     return true;
   }
 
+  /**
+   * 写入玩家自己编排的主动技能栏（M3-5）。
+   *
+   * ⚠ `undefined` 与 `[]` 是**两件不同的事**，这里必须原样落盘，不许合并：
+   * · `undefined` = 从没编排过 ⇒ 字段**不存在** ⇒ 上场回落职业默认顺序，
+   *   并且随等级解锁自动补进新技能。老存档迁移后就是这个状态。
+   * · `[]` = 玩家**明确清空** ⇒ 上场只有普攻与被动。
+   *
+   * 把 `undefined` 写成 `[]` 等于替玩家做了「清空」这个决定；把 `[]` 当成
+   * 「没设置」而删掉字段，玩家的清空会被静默忽略。**两个方向都不会报错。**
+   *
+   * 合法性不在这里判：一律走 `core/skillSlots.ts` 的 `resolveActiveSkillSlots`，
+   * 与服务端同一个判定点。非法 id（多半来自技能改名）由它过滤并给出原因，
+   * 存档层不拒绝——拒绝会让玩家连游戏都进不去。
+   */
+  function setActiveSkillIds(ids: readonly string[] | undefined): boolean {
+    if (!save.value) return false;
+    const player = save.value.player;
+    if (ids === undefined) {
+      if (!('activeSkillIds' in player)) return false;
+      delete player.activeSkillIds;
+    } else {
+      player.activeSkillIds = [...ids];
+    }
+    void persist();
+    return true;
+  }
+
   function unequip(slot: EquipSlot): boolean {
     if (!save.value) return false;
     const s = save.value;
@@ -3515,6 +3543,7 @@ export const useGameStore = defineStore('game', () => {
     equip,
     unequip,
     equipBest,
+    setActiveSkillIds,
     captureEquipmentPreset,
     applyEquipmentPreset,
     deleteEquipmentPreset,
