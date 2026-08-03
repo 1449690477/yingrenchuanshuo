@@ -7,6 +7,8 @@ import { aggregateLootEntries, type LootDisplayCategory } from '@/core/lootGroup
 import { makeMonster, makePlayer } from '@/core/progression';
 import { useGameStore, type SweepResult } from '@/stores/game';
 import { businessDayKey } from '@/core/dayKey';
+import { signInStatus } from '@/core/checkin';
+import { SIGN_IN_CYCLE_REWARDS, type SignInReward } from '@/data/checkin';
 import SweepResultModal from '@/components/SweepResultModal.vue';
 import { useInventoryStore } from '@/stores/inventory';
 import { usePlayerStore } from '@/stores/player';
@@ -136,6 +138,56 @@ function onDailyClaim(): void {
 }
 
 const sweepResult = ref<SweepResult | null>(null);
+
+// M4-2 每日签到：与体力补给同日切口径（北京 04:00），断签不重置不惩罚。
+const signInState = computed(() => {
+  void staminaNow.value;
+  const p = game.player;
+  if (!p) return null;
+  return signInStatus(
+    {
+      lastSignInDay: p.signInDay,
+      cycleClaimed: p.signInCycleClaimed,
+      monthKey: p.signInMonth,
+      monthCount: p.signInMonthCount,
+    },
+    businessDayKey(Date.now()),
+  );
+});
+
+function signInRewardText(reward: SignInReward | undefined): string {
+  if (!reward) return '';
+  const parts: string[] = [];
+  if (reward.gold) parts.push(`${abbr(reward.gold)} 金币`);
+  if (reward.stamina) parts.push(`体力 +${reward.stamina}`);
+  for (const [itemId, count] of Object.entries(reward.items ?? {})) {
+    parts.push(`${requireItem(itemId).name} ×${count}`);
+  }
+  return parts.join(' · ');
+}
+
+const signInNextReward = computed(() => {
+  const status = signInState.value;
+  if (!status) return '';
+  return signInRewardText(SIGN_IN_CYCLE_REWARDS[status.rewardIndex]);
+});
+
+const signInToast = ref('');
+let signInToastTimer = 0;
+function onSignIn(): void {
+  const result = game.claimSignIn();
+  if (!result) {
+    signInToast.value = '今天已签到，明天再来吧';
+  } else {
+    const parts = [signInRewardText(result.reward)];
+    if (result.milestone) {
+      parts.push(`累计 ${result.milestone.days} 天里程碑：${signInRewardText(result.milestone.reward)}`);
+    }
+    signInToast.value = `签到成功：${parts.join('｜')}`;
+  }
+  clearTimeout(signInToastTimer);
+  signInToastTimer = window.setTimeout(() => (signInToast.value = ''), 3200);
+}
 
 function doSweep(times: number): void {
   const r = game.sweepStage(times);
@@ -439,6 +491,21 @@ function openLootEntry(entry: { itemId: string; isEquipment: boolean; count: num
       </button>
       <span v-else class="stamina-claimed">今日已领 {{ dailyClaimState.remaining }}/3</span>
       <span v-if="dailyClaimToast" class="stamina-toast">{{ dailyClaimToast }}</span>
+    </div>
+
+    <!-- M4-2 每日签到：七日循环 + 月度累计，断签不重置（信息型福利） -->
+    <div v-if="signInState" class="stamina-row signin-row">
+      <span class="stamina-label">
+        签到
+        <small v-if="signInState.nextMilestoneDays !== null"
+          >本月 {{ signInState.monthCount }} 天 · {{ signInState.nextMilestoneDays }} 天领里程碑</small
+        >
+        <small v-else>本月 {{ signInState.monthCount }} 天 · 里程碑全达成</small>
+      </span>
+      <span class="stamina-num">{{ signInNextReward }}</span>
+      <button v-if="signInState.claimable" class="stamina-claim-btn" @click="onSignIn">签到</button>
+      <span v-else class="stamina-claimed">今日已签</span>
+      <span v-if="signInToast" class="stamina-toast">{{ signInToast }}</span>
     </div>
 
     <!-- M3-7 扫荡：仅已通关关卡出现；体力不足时 ×10 自动降级而不是拦人 -->

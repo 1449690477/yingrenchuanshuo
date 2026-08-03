@@ -174,6 +174,9 @@ import {
   type SkillUpgradeAssessment,
   type SkillUpgradeBlockReason,
 } from '@/core/skillUpgrade';
+import { applySignIn, type SignInApplyResult } from '@/core/checkin';
+import type { SignInReward } from '@/data/checkin';
+import { businessDayKey } from '@/core/dayKey';
 
 /** 一次扫荡的结果，供 UI 汇总弹窗展示。 */
 export interface SweepResult {
@@ -1526,6 +1529,56 @@ export const useGameStore = defineStore('game', () => {
     saveData.player.staminaClaimCount = result.claimedCount;
     void persist();
     return result;
+  }
+
+  /**
+   * M4-2 每日签到（七日循环 + 月度累计）。
+   *
+   * 纯函数规则在 core/checkin.applySignIn：每天可签一次，奖励按累计签到次数
+   * 走七日循环，断签不重置；月度里程碑奖励随达标当天一并发放。
+   * store 层只把奖励落账（金币 / 体力按上限截断 / 背包材料），
+   * 今天已签返回 null，UI 展示「今日已签」而不是报错。
+   */
+  function claimSignIn(): SignInApplyResult | null {
+    const saveData = save.value;
+    const p = player.value;
+    if (!saveData || !p) return null;
+    const result = applySignIn(
+      {
+        lastSignInDay: p.signInDay,
+        cycleClaimed: p.signInCycleClaimed,
+        monthKey: p.signInMonth,
+        monthCount: p.signInMonthCount,
+      },
+      businessDayKey(Date.now()),
+    );
+    if (!result) return null;
+    grantSignInReward(result.reward);
+    if (result.milestone) grantSignInReward(result.milestone.reward);
+    saveData.player.signInDay = result.state.lastSignInDay;
+    saveData.player.signInCycleClaimed = result.state.cycleClaimed;
+    saveData.player.signInMonth = result.state.monthKey;
+    saveData.player.signInMonthCount = result.state.monthCount;
+    void persist();
+    return result;
+  }
+
+  /** 签到奖励落账：体力与每日补给同口径按上限截断，材料并入背包。 */
+  function grantSignInReward(reward: SignInReward): void {
+    const saveData = save.value;
+    if (!saveData) return;
+    if (reward.gold) saveData.player.gold += reward.gold;
+    if (reward.stamina) {
+      saveData.player.stamina = Math.min(
+        staminaMax.value,
+        saveData.player.stamina + reward.stamina,
+      );
+    }
+    if (reward.items) {
+      for (const [itemId, count] of Object.entries(reward.items)) {
+        saveData.bag.items[itemId] = (saveData.bag.items[itemId] ?? 0) + count;
+      }
+    }
   }
 
   // ─────────── 产出结算 ───────────
@@ -3753,6 +3806,7 @@ export const useGameStore = defineStore('game', () => {
     sweepCost,
     sweepStage,
     claimDailyStamina,
+    claimSignIn,
   };
 });
 
