@@ -300,6 +300,9 @@ function vibrate(cue: AffectionMood | 'prismatic-drop'): void {
   triggerHaptic(cue, settings.settings?.haptics ?? false, prefersReducedMotion());
 }
 
+// M4-11：全局 sfx 关闭时语音同生共死（AffectionStoryModal 契约：voiceMuted=true 即静音）。
+const voiceMuted = computed(() => !(settings.settings?.sfx ?? true));
+
 function open(slot: EquipSlot): void {
   const instance = equipped.value?.[slot] ?? null;
   if (instance) {
@@ -768,6 +771,7 @@ onUnmounted(() => {
       :feedback="storyFeedback"
       :portrait-label="`${affectionCharacter.name}身穿当前实际装备的剧情立绘`"
       :replay="activeStoryReplay"
+      :voice-muted="voiceMuted"
       @close="closeStory"
       @choose="previewStoryChoice"
       @finish="finishStory"
