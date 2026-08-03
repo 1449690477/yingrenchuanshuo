@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
+  alignDailyDungeonDay,
   canChallengeDailyDungeon,
+  createDailyDungeonState,
   dailyDungeonOfDay,
   dailyDungeonReward,
   dailyDungeonThemeIdOfDay,
   unlockedDailyDungeonTiers,
   weekdayIndexOf,
+  type DailyDungeonState,
   type DailyDungeonGateInput,
 } from '../dailyDungeons';
 import {
@@ -145,5 +148,52 @@ describe('奖励结算（dailyDungeonReward）', () => {
   it('未知主题/难度抛错', () => {
     expect(() => dailyDungeonReward('none' as never, 'tier-1')).toThrow('主题');
     expect(() => dailyDungeonReward('stone', 'tier-9' as never)).toThrow('难度');
+  });
+});
+
+describe('存档状态（DailyDungeonState）', () => {
+  it('新建状态：day 空串 + 空通过记录 + 空今日次数', () => {
+    const s = createDailyDungeonState();
+    expect(s.day).toBe('');
+    expect(s.clearedTierIds).toEqual([]);
+    expect(s.todayRuns).toEqual({});
+  });
+
+  it('同日对齐幂等：原对象原样返回', () => {
+    const s: DailyDungeonState = {
+      day: '2026-08-03',
+      clearedTierIds: ['tier-1'],
+      todayRuns: { 'tier-1': 1 },
+    };
+    expect(alignDailyDungeonDay(s, '2026-08-03')).toBe(s);
+  });
+
+  it('跨日对齐：今日次数清零、历史通过难度保留、day 更新', () => {
+    const s: DailyDungeonState = {
+      day: '2026-08-03',
+      clearedTierIds: ['tier-1'],
+      todayRuns: { 'tier-1': 1, 'tier-2': 1 },
+    };
+    const next = alignDailyDungeonDay(s, '2026-08-04');
+    expect(next.day).toBe('2026-08-04');
+    expect(next.todayRuns).toEqual({});
+    expect(next.clearedTierIds).toEqual(['tier-1']);
+    // 入参不被修改
+    expect(s.day).toBe('2026-08-03');
+    expect(s.todayRuns).toEqual({ 'tier-1': 1, 'tier-2': 1 });
+  });
+
+  it('空串首次对齐即初始化当日状态', () => {
+    const s = createDailyDungeonState();
+    const first = alignDailyDungeonDay(s, '2026-08-03');
+    expect(first.day).toBe('2026-08-03');
+    expect(first.clearedTierIds).toEqual([]);
+    expect(first.todayRuns).toEqual({});
+  });
+
+  it('非法 dayKey 抛错', () => {
+    expect(() => alignDailyDungeonDay(createDailyDungeonState(), 'not-a-date')).toThrow(
+      'dayKey',
+    );
   });
 });

@@ -140,3 +140,33 @@ function assertGateInput(input: DailyDungeonGateInput): void {
     throw new Error(`[日常副本] level 必须是正整数，收到 ${input.level}`);
   }
 }
+
+/**
+ * 日常副本存档状态（store 层读写，与 dailyTasks 同款日切对齐模式）：
+ * - day：当前日切 key；与存档里的 day 不同时今日次数自动清零；
+ * - clearedTierIds：历史上通过过的难度，通过一次永久解锁，永不清零；
+ * - todayRuns：今天各难度已挑战次数（key = tierId）。
+ */
+export interface DailyDungeonState {
+  day: string;
+  clearedTierIds: readonly DailyDungeonTierId[];
+  todayRuns: Readonly<Partial<Record<DailyDungeonTierId, number>>>;
+}
+
+/** 新档初始状态：day 空串，首次对齐日切时自动初始化。 */
+export function createDailyDungeonState(): DailyDungeonState {
+  return { day: '', clearedTierIds: [], todayRuns: {} };
+}
+
+/**
+ * 把状态对齐到指定日切 key：跨日时清零今日次数（历史通过难度永久保留）。
+ * 返回新对象，不修改入参。
+ */
+export function alignDailyDungeonDay(
+  state: DailyDungeonState,
+  dayKey: string,
+): DailyDungeonState {
+  assertDayKey(dayKey);
+  if (state.day === dayKey) return state;
+  return { day: dayKey, clearedTierIds: [...state.clearedTierIds], todayRuns: {} };
+}
