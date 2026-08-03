@@ -16,6 +16,7 @@ import {
   hasGauge,
   RESONANCE_EFFECTS,
   REACTION_ICD_MS,
+  expectedReactionDpsShare,
   resolveReaction,
   tickGauge,
   type ElementGauge,
@@ -150,6 +151,27 @@ describe('共鸣形态（docs/83 P3 能量形态分化）', () => {
       damageKind: 'elemental-append',
       applyStatus: 'slow',
     });
+  });
+});
+
+describe('expectedReactionDpsShare（docs/83 批 3 挂机期望占比）', () => {
+  it('中性 3 击攒满：hitRate=1 → 5%（0.15/3）', () => {
+    expect(expectedReactionDpsShare(1.0, false)).toBeCloseTo(0.05, 5);
+  });
+
+  it('克制 2 击攒满：hitRate=1 → 6%（ICD 2.5s 兜底）', () => {
+    expect(expectedReactionDpsShare(1.0, true)).toBeCloseTo(0.06, 5);
+  });
+
+  it('高攻速被 ICD 卡频：占比回落（喵喵 hitRate=1.25 中性 ≈4.8%）', () => {
+    const share = expectedReactionDpsShare(1.25, false);
+    expect(share).toBeLessThan(expectedReactionDpsShare(1.0, false));
+    expect(share).toBeCloseTo(0.15 / (2.5 * 1.25), 5);
+  });
+
+  it('非法命中率返回 0（不除零）', () => {
+    expect(expectedReactionDpsShare(0, false)).toBe(0);
+    expect(expectedReactionDpsShare(Number.NaN, true)).toBe(0);
   });
 });
 
