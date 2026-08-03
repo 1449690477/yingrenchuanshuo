@@ -55,7 +55,7 @@ function mountShop() {
  * 下架期间由 src/views/__tests__/shopIceSnowDelisted.spec.ts 反向守住
  * 「买不到、打不到、但定义一件不少」。
  */
-describe.skip('冰雪华年独立货架 UI（下架期间停用）', () => {
+describe('冰雪华年独立货架 UI（2026-08-03 复上架）', () => {
   it('用数据驱动货架切换，并只展示当前职业八件冰雪装备', async () => {
     const { element } = mountShop();
     const iceButton = element.querySelector<HTMLButtonElement>('.shelf-switcher button.ice')!;
@@ -115,7 +115,7 @@ describe.skip('冰雪华年独立货架 UI（下架期间停用）', () => {
     const source = readFileSync(resolve('src/views/MoreView.vue'), 'utf8');
 
     expect(source).toMatch(
-      /v-show="!\(showShop \|\| shopLeaving \|\| showGuild \|\| guildLeaving \|\| showCodex \|\| codexLeaving\)"[\s\S]*?class="more-content"/,
+      /v-show="!\(showShop \|\| shopLeaving \|\| showGuild \|\| guildLeaving \|\| showCodex \|\| codexLeaving \|\| showMail \|\| mailLeaving \|\| showAchievements \|\| achievementsLeaving \|\| showTitles \|\| titlesLeaving \|\| showMonsterCodex \|\| monsterCodexLeaving\)"[\s\S]*?class="more-content"/,
     );
   });
 });

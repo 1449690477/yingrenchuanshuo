@@ -38,16 +38,9 @@ export const BOUTIQUE_BOSS_DROP_THEME: Readonly<Record<string, BoutiqueThemeId>>
   '2-1': 'berry-cream',
   '2-3': 'moon-sugar',
   '2-5': 'rose-night',
-  // '7-5': 'ice-snow',
-  //   ↑ 2026-08-03 随冰雪套下架一并停掉，重新上架时**必须连同这一行一起恢复**。
-  //
-  //   只把货架从 BOUTIQUE_SHELF_LIST 摘掉是不够的：本表是 boutiqueBossDropIds()
-  //   的唯一来源，而它被 lootTables 整包塞进章节 BOSS 掉落。留着这一行，
-  //   玩家照样能从 7-5 BOSS 拿到同一批描图外观，**只是不能买了而已**，
-  //   下架就形同虚设。
-  //
-  //   ★ 停的是「继续获得」，不是「已经拥有」：装备定义、已掉落的实例、
-  //   已购买记录全部原样保留，已持有的玩家照常穿戴与提交成绩。
+  // 2026-08-03 复上架：v2 全新母版上线，恢复 7-5 BOSS 同款直掉
+  // （商店=高价确定性保底，「装备靠打不靠抽」铁律）。
+  '7-5': 'ice-snow',
 };
 
 export function boutiqueBossDropIds(chapterId: string): string[] {
