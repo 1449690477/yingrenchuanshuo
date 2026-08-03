@@ -100,6 +100,14 @@ function updateReduceMotion(event: Event) {
   settings.setReduceMotion((event.currentTarget as HTMLInputElement).checked);
 }
 
+function updateSfx(event: Event) {
+  settings.setSfx((event.currentTarget as HTMLInputElement).checked);
+}
+
+function updateBgm(event: Event) {
+  settings.setBgm((event.currentTarget as HTMLInputElement).checked);
+}
+
 function updateAutoDecompose(event: Event) {
   const value = (event.currentTarget as HTMLSelectElement).value as
     | 'none'
@@ -306,6 +314,42 @@ function say(text: string, ok: boolean) {
             :checked="settings.settings?.haptics ?? false"
             aria-label="角色心情震动"
             @change="updateHaptics"
+          />
+          <span class="setting-switch" aria-hidden="true"><i /></span>
+        </label>
+      </CollapsibleCard>
+
+      <CollapsibleCard title="声音" persist-key="more.sound">
+        <template #peek>
+          <span class="peek-note">{{
+            settings.settings?.sfx ?? true ? '音效已开' : '音效已关'
+          }}</span>
+        </template>
+        <label class="setting-row">
+          <span class="setting-copy">
+            <strong>音效</strong>
+            <small>界面与剧情语音等短促声音；关闭后语音同步静音。</small>
+            <em>当前尚未投放音效资产，开关先行生效。</em>
+          </span>
+          <input
+            type="checkbox"
+            :checked="settings.settings?.sfx ?? true"
+            aria-label="音效"
+            @change="updateSfx"
+          />
+          <span class="setting-switch" aria-hidden="true"><i /></span>
+        </label>
+        <label class="setting-row">
+          <span class="setting-copy">
+            <strong>背景音乐</strong>
+            <small>循环播放的场景曲目；默认关闭，想听时手动打开。</small>
+            <em>当前尚未投放曲目，开关先行生效。</em>
+          </span>
+          <input
+            type="checkbox"
+            :checked="settings.settings?.bgm ?? false"
+            aria-label="背景音乐"
+            @change="updateBgm"
           />
           <span class="setting-switch" aria-hidden="true"><i /></span>
         </label>
