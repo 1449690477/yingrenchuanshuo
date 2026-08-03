@@ -14,7 +14,10 @@ import { z } from 'zod';
 import { createEncounterState, type EncounterState } from '@/core/encounters';
 import { createEquipmentDungeonState, type EquipmentDungeonState } from '@/core/equipmentDungeon';
 import { createAffectionState, type AffectionState } from '@/core/affection';
+import { createDailyTaskState, type DailyTaskState } from '@/core/dailyTasks';
+import { createMonsterCodexLedger, type MonsterCodexLedger } from '@/core/monsterCodex';
 import { skillLevelRecordIssues } from '@/core/skillUpgrade';
+import { DAILY_TASKS, type DailyTaskId } from '@/data/dailyTasks';
 import { isRolledAffixValue } from '@/core/equipment';
 import { isProfessionAffixSlot, promoteAffix } from '@/core/reforge';
 import {
@@ -50,6 +53,10 @@ import { EQUIPMENT_DUNGEON_TIERS } from '@/data/equipmentDungeonGear';
 import { DEPTH_PER_TIER } from '@/data/equipmentDungeonDepthRules';
 
 const EQUIPMENT_DUNGEON_TIER_IDS = new Set<string>(EQUIPMENT_DUNGEON_TIERS.map((tier) => tier.id));
+
+const DAILY_TASK_ID_ENUM = z.enum(
+  DAILY_TASKS.map((task) => task.id) as [DailyTaskId, ...DailyTaskId[]],
+);
 import { AFFECTION_CHARACTERS } from '@/data/affection';
 import { affectionEquipmentIdsForClass } from '@/data/affectionEquipment';
 import { AFFECTION_RULES } from '@/data/affectionRules';
@@ -67,7 +74,7 @@ export type { EquipmentCodexLedger } from '@/core/equipmentCodex';
 export type { EquipmentPresetState } from '@/core/equipmentPresets';
 
 /** 当前存档版本。加字段就 +1。 */
-export const SAVE_VERSION = 24;
+export const SAVE_VERSION = 25;
 
 export const SAVE_KEY = 'main';
 
@@ -111,6 +118,16 @@ export interface PlayerSave {
    * 并且不能超过角色等级允许的上限。
    */
   skillLevels: Record<string, number>;
+  /**
+   * M4-2 签到：最近一次签到的日切 key（'YYYY-MM-DD'，北京 04:00 日切）；null = 从未签过。
+   */
+  signInDay: string | null;
+  /** 签到累计次数（只增不减；七日循环奖励位置 = 本值 % 7，断签不重置）。 */
+  signInCycleClaimed: number;
+  /** signInMonthCount 所属自然月（'YYYY-MM'）；null = 从未签过。 */
+  signInMonth: string | null;
+  /** 所属自然月内的累计签到天数（跨月归零，用于 7/14/21/28 里程碑）。 */
+  signInMonthCount: number;
 }
 
 export interface BagSave {
@@ -150,7 +167,7 @@ export interface ProgressSave {
 }
 
 export interface SettingsSave {
-  /** 自动分解低于该品质的装备。'none' = 不自动分解 */
+  /** 自动分解该品质及以下的装备（门槛含该品质）。'none' = 不自动分解 */
   autoDecomposeBelow: Quality | 'none';
   bgm: boolean;
   sfx: boolean;
@@ -158,6 +175,8 @@ export interface SettingsSave {
   haptics: boolean;
   /** 降低动画以省电 */
   reduceMotion: boolean;
+  /** 画质档：'standard' = 完整特效；'lite' = 关闭战斗粒子 / 动态背景（M4-12B）。 */
+  visualQuality: 'standard' | 'lite';
 }
 
 export interface StatsSave {
@@ -260,6 +279,10 @@ export interface SaveData {
   equipmentCodex: EquipmentCodexLedger;
   /** 三套可复用的完整装备快照与按关卡自动切换开关。 */
   equipmentPresets: EquipmentPresetState;
+  /** M4-1 日常任务：日切 key + 当日进度 + 已领活跃度档位。 */
+  dailyTasks: DailyTaskState;
+  /** M4-8 怪物永久图鉴：只增不删的发现记录。 */
+  monsterCodex: MonsterCodexLedger;
 }
 
 export function emptyEquipped(): Record<EquipSlot, EquipmentInstance | null> {
@@ -295,6 +318,10 @@ export function createSave(name: string, classId: ClassId, seed: number, now: nu
       staminaClaimDay: null,
       staminaClaimCount: 0,
       skillLevels: {},
+      signInDay: null,
+      signInCycleClaimed: 0,
+      signInMonth: null,
+      signInMonthCount: 0,
     },
     equipped: emptyEquipped(),
     bag: { equipment: [], items: {} },
@@ -307,11 +334,12 @@ export function createSave(name: string, classId: ClassId, seed: number, now: nu
       seenTutorials: [],
     },
     settings: {
-      autoDecomposeBelow: 'none',
+      autoDecomposeBelow: 'rare',
       bgm: false,
       sfx: true,
       haptics: true,
       reduceMotion: false,
+      visualQuality: 'standard',
     },
     stats: { totalKills: 0, totalPlaySec: 0, bossKills: {} },
     shop: { purchasedOfferIds: [] },
@@ -322,6 +350,8 @@ export function createSave(name: string, classId: ClassId, seed: number, now: nu
     milestones: [],
     equipmentCodex: createEquipmentCodexLedger(),
     equipmentPresets: createEquipmentPresetState(),
+    dailyTasks: createDailyTaskState(now),
+    monsterCodex: createMonsterCodexLedger(),
   };
 }
 
@@ -828,6 +858,20 @@ export const saveDataSchema = z
         // 无上限也与本文件既有先例一致（如 progress.clearedStageIds）。
         activeSkillIds: z.array(z.string().min(1)).optional(),
         skillLevels: z.record(z.string().min(1), z.number().int().positive()),
+        /** M4-2 签到日切 key（'YYYY-MM-DD'）；null = 从未签过。 */
+        signInDay: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
+          .nullable(),
+        /** 签到累计次数（奖励位置 = 本值 % 7）。 */
+        signInCycleClaimed: z.number().int().min(0),
+        /** 签到月度计数所属自然月（'YYYY-MM'）；null = 从未签过。 */
+        signInMonth: z
+          .string()
+          .regex(/^\d{4}-\d{2}$/)
+          .nullable(),
+        /** 自然月内累计签到天数。 */
+        signInMonthCount: z.number().int().min(0).max(31),
       })
       .strict(),
     equipped: equippedSchema,
@@ -854,6 +898,7 @@ export const saveDataSchema = z
         sfx: z.boolean(),
         haptics: z.boolean(),
         reduceMotion: z.boolean(),
+        visualQuality: z.enum(['standard', 'lite']),
       })
       .strict(),
     stats: z
@@ -943,6 +988,16 @@ export const saveDataSchema = z
     // 整档读不出来。展示层查不到定义时跳过即可。
     equipmentCodex: z.object({ discoveredDefIds: z.array(z.string().min(1)) }).strict(),
     equipmentPresets: equipmentPresetStateSchema,
+    dailyTasks: z
+      .object({
+        day: z.string(),
+        progress: z.record(DAILY_TASK_ID_ENUM, nonNegativeInteger),
+        claimedTiers: z.array(z.number().int().min(0)),
+      })
+      .strict(),
+    monsterCodex: z
+      .object({ discoveredMonsterIds: z.array(z.string().min(1)) })
+      .strict(),
   })
   .strict()
   .superRefine((save, ctx) => {

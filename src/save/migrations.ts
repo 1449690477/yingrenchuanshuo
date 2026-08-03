@@ -417,6 +417,55 @@ export const migrations: Record<number, Migration> = {
       skillLevels: {},
     },
   }),
+  /**
+   * v25：M4 统一合批（M4-2 签到 + M4-1 日常任务 + M4-8 怪物图鉴 + M4-12 设置）。
+   *
+   * - player 新增 signInDay / signInCycleClaimed / signInMonth / signInMonthCount（签到）。
+   *   旧档没有签到历史，诚实迁移 = 全部归初（从未签过），与新号行为一致。
+   * - 顶层新增 dailyTasks（日常任务）：day 空串 + 空进度 + 空已领档位，
+   *   首次使用时 core 的日切对齐必然重置（空串 ≠ 任何日切 key）。
+   * - 顶层新增 monsterCodex（怪物图鉴）：空发现记录（从未发现，诚实迁移）。
+   * - settings 新增 visualQuality 默认 'standard'（M4-12B 画质档）。
+   * - settings.autoDecomposeBelow 物化：字段休眠期默认 'none' 但隐式行为 = 白/绿/蓝
+   *   （trimBag 缺省门槛）；M4-12 接线后若不物化，老玩家超容自动分解会被意外关闭，
+   *   因此 'none' → 'rare' 是保持现状而非改变行为（M4-12 笔 A 约定）。
+   */
+  24: (save) => {
+    const settings = (save.settings ?? {}) as Record<string, unknown>;
+    const autoDecomposeBelow = settings.autoDecomposeBelow;
+    return {
+      ...save,
+      version: 25,
+      player: {
+        ...(save.player as Record<string, unknown> | null | undefined),
+        signInDay: null,
+        signInCycleClaimed: 0,
+        signInMonth: null,
+        signInMonthCount: 0,
+      },
+      settings: {
+        ...settings,
+        visualQuality: 'standard',
+        autoDecomposeBelow:
+          autoDecomposeBelow === 'none' ? 'rare' : (autoDecomposeBelow ?? 'rare'),
+      },
+      dailyTasks: {
+        day: '',
+        progress: {
+          'idle-minutes': 0,
+          challenge: 0,
+          sweep: 0,
+          enhance: 0,
+          reforge: 0,
+          affection: 0,
+          dungeon: 0,
+          arena: 0,
+        },
+        claimedTiers: [],
+      },
+      monsterCodex: { discoveredMonsterIds: [] },
+    };
+  },
 };
 
 function migrateV10Save(

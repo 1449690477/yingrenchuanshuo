@@ -1609,4 +1609,69 @@ describe('v21 技能栏存档层 · 老存档零行为变化（M3-5a 验收）',
     expect(migrated.player.level).toBe(69);
     expect(migrated.player.skillLevels).toEqual({});
   });
+
+  it('v24 → v25 统一合批：签到四字段归初 + dailyTasks/monsterCodex 空初始 + visualQuality 默认 + autoDecompose 物化', () => {
+    const current = createSave('签到前旧档', 'swordsman', 24, 1_800_000_000_000) as unknown as Record<
+      string,
+      unknown
+    >;
+    const raw = structuredClone(current);
+    delete (raw.player as Record<string, unknown>).signInDay;
+    delete (raw.player as Record<string, unknown>).signInCycleClaimed;
+    delete (raw.player as Record<string, unknown>).signInMonth;
+    delete (raw.player as Record<string, unknown>).signInMonthCount;
+    delete (raw.settings as Record<string, unknown>).visualQuality;
+    delete raw.dailyTasks;
+    delete raw.monsterCodex;
+    (raw.settings as Record<string, unknown>).autoDecomposeBelow = 'none';
+    raw.version = 24;
+
+    const migrated = migrate(raw);
+
+    expect(migrated.version).toBe(SAVE_VERSION);
+    expect(migrated.player.signInDay).toBeNull();
+    expect(migrated.player.signInCycleClaimed).toBe(0);
+    expect(migrated.player.signInMonth).toBeNull();
+    expect(migrated.player.signInMonthCount).toBe(0);
+    expect(migrated.player).toEqual(current.player);
+    expect(migrated.dailyTasks).toEqual({
+      day: '',
+      progress: {
+        'idle-minutes': 0,
+        challenge: 0,
+        sweep: 0,
+        enhance: 0,
+        reforge: 0,
+        affection: 0,
+        dungeon: 0,
+        arena: 0,
+      },
+      claimedTiers: [],
+    });
+    expect(migrated.monsterCodex).toEqual({ discoveredMonsterIds: [] });
+    expect(migrated.settings.visualQuality).toBe('standard');
+    expect(migrated.settings.autoDecomposeBelow).toBe('rare');
+    expect(() => parseSave(migrated as Parameters<typeof parseSave>[0])).not.toThrow();
+  });
+
+  it('v24 → v25 autoDecompose 物化只作用于旧默认 none：玩家已设档位保持不变', () => {
+    const current = createSave('已设档位旧档', 'swordsman', 24, 1_800_000_000_000) as unknown as Record<
+      string,
+      unknown
+    >;
+    const raw = structuredClone(current);
+    delete (raw.player as Record<string, unknown>).signInDay;
+    delete (raw.player as Record<string, unknown>).signInCycleClaimed;
+    delete (raw.player as Record<string, unknown>).signInMonth;
+    delete (raw.player as Record<string, unknown>).signInMonthCount;
+    delete (raw.settings as Record<string, unknown>).visualQuality;
+    delete raw.dailyTasks;
+    delete raw.monsterCodex;
+    (raw.settings as Record<string, unknown>).autoDecomposeBelow = 'epic';
+    raw.version = 24;
+
+    const migrated = migrate(raw);
+
+    expect(migrated.settings.autoDecomposeBelow).toBe('epic');
+  });
 });
