@@ -73,6 +73,7 @@
     "sim:r7": "tsx scripts/region7-economy.mts",
     "edge:build": "tsx scripts/build-edge-function.mts",
     "ops:check": "tsx scripts/ops-check.mts",
+    "ops:edge-drift": "tsx scripts/ops-edge-drift.mts",
     "deploy:manifest": "tsx scripts/deploy-manifest.mts",
     "probe:sync-profile": "tsx scripts/probe-sync-profile.mts",
     "probe:skill-field": "tsx scripts/probe-skill-field.mts"
