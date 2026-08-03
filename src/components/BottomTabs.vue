@@ -1,9 +1,13 @@
 <script setup lang="ts">
 import { computed, type Component } from 'vue';
 import { Backpack, Castle, Menu, Sparkles, Swords, Trophy } from '@lucide/vue';
+import { RED_DOT_LABELS } from '@/core/redDots';
+import { useRedDotStore } from '@/stores/redDots';
 import { useUiStore, type TabKey } from '@/stores/ui';
+import RedDot from './RedDot.vue';
 
 const ui = useUiStore();
+const redDots = useRedDotStore();
 
 const tabs: { key: TabKey; label: string; icon: Component }[] = [
   { key: 'idle', label: '挂机', icon: Swords },
@@ -15,6 +19,7 @@ const tabs: { key: TabKey; label: string; icon: Component }[] = [
 ];
 
 const activeIndex = computed(() => tabs.findIndex((t) => t.key === ui.activeTab));
+const dots = computed(() => redDots.dots);
 </script>
 
 <template>
@@ -30,9 +35,9 @@ const activeIndex = computed(() => tabs.findIndex((t) => t.key === ui.activeTab)
     >
       <span class="icon">
         <component :is="tab.icon" :size="19" :stroke-width="2.2" aria-hidden="true" />
+        <RedDot v-if="dots[tab.key]" :label="RED_DOT_LABELS[tab.key]" />
       </span>
       <span class="label">{{ tab.label }}</span>
-      <!-- 红点占位，M3-11 接入红点系统 -->
     </button>
   </nav>
 </template>
@@ -101,6 +106,7 @@ const activeIndex = computed(() => tabs.findIndex((t) => t.key === ui.activeTab)
 }
 
 .icon {
+  position: relative;
   display: grid;
   place-items: center;
   width: 22px;
