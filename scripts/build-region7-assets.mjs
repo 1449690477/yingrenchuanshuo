@@ -6,6 +6,7 @@
  */
 
 import { createHash } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -33,6 +34,17 @@ const CONTACT_PATH = resolve(ROOT, 'art-source/qa/r7-assets-contact.webp');
 const CONTACT_ONLY = process.argv.includes('--contact-only');
 const CHECK_KENSHI_REBUILD = process.argv.includes('--check-kenshi-rebuild');
 const REBUILD_KENSHI_ONLY = process.argv.includes('--rebuild-kenshi-only');
+
+// 樱酱层已归 build-kenshi-r2-assets.mjs 独占（docs/85 §4.0），本脚本两条樱酱
+// 写入路径都已停用。这里显式拦下旧旗标，而不是让它继续跑出与 R2 冲突的产物 ——
+// 实测过：用它重建 r7 weapon 之后 R2 的确定性自检当场报错，两边各写一份同名文件。
+if (REBUILD_KENSHI_ONLY || CHECK_KENSHI_REBUILD) {
+  throw new Error(
+    '[区域7] --rebuild-kenshi-only / --check-kenshi-rebuild 已废弃：\n' +
+      '  樱酱纸娃娃层由 scripts/build-kenshi-r2-assets.mjs 唯一生产与校验。\n' +
+      '  重建请用 npm run assets:kenshi:r2，校验请用 npm run assets:kenshi:r2:check。',
+  );
+}
 
 const CANVAS = Object.freeze({ width: 640, height: 960 });
 
@@ -314,13 +326,26 @@ async function splitAtCenter(source, side) {
 async function buildLayer(entry) {
   const key = `${entry.classId}:${entry.family}:${entry.slot}`;
   if (entry.classId === 'kenshi') {
+    // 樱酱纸娃娃层**不再由本脚本生产**，唯一生产者是
+    // scripts/build-kenshi-r2-assets.mjs（见 docs/85 §4.0）。
+    //
+    // 这里原先直接 writeFile 覆盖 public/.../modular/kenshi/。R2 用统一软遮罩
+    // 重制母版、并按无鞋合同重建 body 之后，旧管线再写一次就会**把 R2 的产物
+    // 连同 §3.2 的无鞋合同一起冲掉**，而且不带任何旗标跑一次全量重建就会发生，
+    // 当场不会有任何东西变红 —— 这正是本函数此前的实际风险。
+    //
+    // 现在只返回既有产物的路径，交给调用方去 record()/校验，**不写不覆盖**。
     const output = resolve(
       ROOT,
       'public/assets/characters/modular/kenshi',
       `${entry.family}-${entry.slot}.png`,
     );
-    await mkdirFor(output);
-    await writeFile(output, await encodeKenshiLayer(await buildKenshiLayerCanvas(entry)));
+    if (!existsSync(output)) {
+      throw new Error(
+        `[区域7] 缺少樱酱运行时层：${output}\n` +
+          '  本脚本已不再生产樱酱层。请先跑 npm run assets:kenshi:r2 生成，再回来跑本脚本。',
+      );
+    }
     return output;
   }
   const placement = PLACEMENTS[key];
