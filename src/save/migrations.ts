@@ -478,6 +478,29 @@ export const migrations: Record<number, Migration> = {
     version: 26,
     mail: { messages: [] },
   }),
+  /**
+   * v27：M4-7 成就计数（stats 六字段）。
+   *
+   * 新增 stats.enhanceCount / reforgeCount / sweepCount / affectionCount /
+   * arenaCount / dungeonCount，全部归 0（只增不减，从 v27 起计数；老档不补历史，
+   * 诚实迁移——计数类成就在升级后从当前时刻开始累计）。
+   */
+  26: (save) => {
+    const stats = (save.stats ?? {}) as Record<string, unknown>;
+    return {
+      ...save,
+      version: 27,
+      stats: {
+        ...stats,
+        enhanceCount: 0,
+        reforgeCount: 0,
+        sweepCount: 0,
+        affectionCount: 0,
+        arenaCount: 0,
+        dungeonCount: 0,
+      },
+    };
+  },
 };
 
 function migrateV10Save(

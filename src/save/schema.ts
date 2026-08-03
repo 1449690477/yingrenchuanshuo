@@ -75,7 +75,7 @@ export type { EquipmentCodexLedger } from '@/core/equipmentCodex';
 export type { EquipmentPresetState } from '@/core/equipmentPresets';
 
 /** 当前存档版本。加字段就 +1。 */
-export const SAVE_VERSION = 26;
+export const SAVE_VERSION = 27;
 
 export const SAVE_KEY = 'main';
 
@@ -185,6 +185,18 @@ export interface StatsSave {
   totalPlaySec: number;
   /** BOSS 累计击杀数，key 为怪物 id。套装保底用。 */
   bossKills: Record<string, number>;
+  /** M4-7 成就计数（只增不减，v27）：累计强化次数。 */
+  enhanceCount: number;
+  /** M4-7 成就计数（只增不减，v27）：累计洗练词条次数。 */
+  reforgeCount: number;
+  /** M4-7 成就计数（只增不减，v27）：累计扫荡次数。 */
+  sweepCount: number;
+  /** M4-7 成就计数（只增不减，v27）：累计好感互动次数。 */
+  affectionCount: number;
+  /** M4-7 成就计数（只增不减，v27）：累计竞技场挑战次数。 */
+  arenaCount: number;
+  /** M4-7 成就计数（只增不减，v27）：累计装备副本挑战次数。 */
+  dungeonCount: number;
 }
 
 export interface ShopSave {
@@ -344,7 +356,17 @@ export function createSave(name: string, classId: ClassId, seed: number, now: nu
       reduceMotion: false,
       visualQuality: 'standard',
     },
-    stats: { totalKills: 0, totalPlaySec: 0, bossKills: {} },
+    stats: {
+      totalKills: 0,
+      totalPlaySec: 0,
+      bossKills: {},
+      enhanceCount: 0,
+      reforgeCount: 0,
+      sweepCount: 0,
+      affectionCount: 0,
+      arenaCount: 0,
+      dungeonCount: 0,
+    },
     shop: { purchasedOfferIds: [] },
     encounters: createEncounterState(),
     equipmentDungeon: createEquipmentDungeonState(now),
@@ -910,6 +932,12 @@ export const saveDataSchema = z
         totalKills: nonNegativeInteger,
         totalPlaySec: nonNegativeNumber,
         bossKills: z.record(z.string(), nonNegativeInteger),
+        enhanceCount: nonNegativeInteger,
+        reforgeCount: nonNegativeInteger,
+        sweepCount: nonNegativeInteger,
+        affectionCount: nonNegativeInteger,
+        arenaCount: nonNegativeInteger,
+        dungeonCount: nonNegativeInteger,
       })
       .strict(),
     shop: z

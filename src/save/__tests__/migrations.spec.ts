@@ -1694,6 +1694,34 @@ describe('v21 技能栏存档层 · 老存档零行为变化（M3-5a 验收）',
     expect(() => parseSave(migrated as Parameters<typeof parseSave>[0])).not.toThrow();
   });
 
+  it('v26 → v27 新增成就六计数归 0，不改写其他资产（计数从 v27 起算，诚实迁移）', () => {
+    const current = createSave('成就前旧档', 'catkin', 24, 1_800_000_000_000) as unknown as Record<
+      string,
+      unknown
+    >;
+    const raw = structuredClone(current);
+    const stats = raw.stats as Record<string, unknown>;
+    delete stats.enhanceCount;
+    delete stats.reforgeCount;
+    delete stats.sweepCount;
+    delete stats.affectionCount;
+    delete stats.arenaCount;
+    delete stats.dungeonCount;
+    raw.version = 26;
+
+    const migrated = migrate(raw);
+
+    expect(migrated.version).toBe(SAVE_VERSION);
+    expect(migrated.stats.enhanceCount).toBe(0);
+    expect(migrated.stats.reforgeCount).toBe(0);
+    expect(migrated.stats.sweepCount).toBe(0);
+    expect(migrated.stats.affectionCount).toBe(0);
+    expect(migrated.stats.arenaCount).toBe(0);
+    expect(migrated.stats.dungeonCount).toBe(0);
+    expect(migrated.player).toEqual(current.player);
+    expect(() => parseSave(migrated as Parameters<typeof parseSave>[0])).not.toThrow();
+  });
+
   it('v25 → v26 无视导入档伪造的 mail 字段：合法 v25 无邮件，注入内容一律被空邮箱覆盖', () => {
     const current = createSave('带信旧档', 'catkin', 24, 1_800_000_000_000) as unknown as Record<
       string,

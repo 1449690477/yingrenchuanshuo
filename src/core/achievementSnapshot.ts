@@ -11,7 +11,16 @@ import type { AchievementInput } from './achievements';
 /** 装配所需的存档子集（结构类型，SaveData 天然兼容；core 不反向依赖 save 层）。 */
 export interface AchievementSnapshotSource {
   player: { level: number; gold: number };
-  stats: { totalKills: number; bossKills: Record<string, number> };
+  stats: {
+    totalKills: number;
+    bossKills: Record<string, number>;
+    enhanceCount: number;
+    reforgeCount: number;
+    sweepCount: number;
+    affectionCount: number;
+    arenaCount: number;
+    dungeonCount: number;
+  };
   progress: { clearedStageIds: string[] };
   equipmentCodex: { discoveredDefIds: string[] };
   monsterCodex: { discoveredMonsterIds: string[] };
@@ -76,12 +85,12 @@ export function buildAchievementInput(save: AchievementSnapshotSource, cp: numbe
     totalCodexCount: equipmentCodexCount + monsterCodexCount,
     clearedChapterCount: chapters.size,
     clearedStageCount: save.progress.clearedStageIds.length,
-    enhanceCount: 0,
-    reforgeCount: 0,
-    sweepCount: 0,
-    affectionCount: 0,
-    arenaCount: 0,
-    dungeonCount: 0,
+    enhanceCount: save.stats.enhanceCount,
+    reforgeCount: save.stats.reforgeCount,
+    sweepCount: save.stats.sweepCount,
+    affectionCount: save.stats.affectionCount,
+    arenaCount: save.stats.arenaCount,
+    dungeonCount: save.stats.dungeonCount,
   };
 }
 
