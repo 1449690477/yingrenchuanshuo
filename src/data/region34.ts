@@ -187,6 +187,7 @@ export const REGION_4: RegionSpec = {
       element: 'none',
       normals: ['提灯小幽灵', '锈甲骷髅', '月见草灵', '铁门石像'],
       materials: ['dust_bone', 'herb_moonlit'],
+      tutorial: '墓园的材料用来给装备升阶。稀有材料只有章节 BOSS 会掉，但有保底，不用担心。',
       mapAsset: 'assets/maps/chapter-4-1.webp',
       battleAsset: 'assets/battlefields/chapter-4-1.webp',
     },

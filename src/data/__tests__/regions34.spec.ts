@@ -164,6 +164,17 @@ describe('区域 3/4 独立内容清单', () => {
     expect(REGION_4.chapters.every((chapter) => chapter.element === 'none')).toBe(true);
   });
 
+  it('月下墓园只在 4-1 给入场教学，且稀有材料确由章节 BOSS 带保底产出', () => {
+    expect(REGION_4.chapters[0]?.tutorial).toContain('升阶');
+    expect(REGION_4.chapters[0]?.tutorial).toContain('保底');
+    expect(REGION_4.chapters.slice(1).every((chapter) => chapter.tutorial === undefined)).toBe(
+      true,
+    );
+    const bossMaterial = REGION_34_MATERIALS.find((material) => material.id === 'tear_eternal');
+    expect(bossMaterial?.source).toBe('boss');
+    expect(bossMaterial?.pityCount).toBe(12);
+  });
+
   it('关卡选择能从任意后续章节推导真实区域，而不是全部落回 r2', () => {
     expect(regionIdForChapterId('1-5')).toBe('r1');
     expect(regionIdForChapterId('3-1')).toBe('r3');
