@@ -944,6 +944,32 @@ function classSwitchSave(): SaveData {
   return save;
 }
 
+describe('设置 setter（M4-12 设置页）', () => {
+  it('setReduceMotion 写入省电动画开关', () => {
+    const game = useGameStore();
+    game.loadFrom(createSave('设置测试', 'swordsman', 1, Date.now()));
+    expect(game.setReduceMotion(true)).toBe(true);
+    expect(game.save?.settings.reduceMotion).toBe(true);
+    expect(game.setReduceMotion(false)).toBe(true);
+    expect(game.save?.settings.reduceMotion).toBe(false);
+  });
+
+  it('setAutoDecomposeBelow 写入自动分解门槛', () => {
+    const game = useGameStore();
+    game.loadFrom(createSave('设置测试', 'swordsman', 1, Date.now()));
+    expect(game.setAutoDecomposeBelow('fine')).toBe(true);
+    expect(game.save?.settings.autoDecomposeBelow).toBe('fine');
+    expect(game.setAutoDecomposeBelow('none')).toBe(true);
+    expect(game.save?.settings.autoDecomposeBelow).toBe('none');
+  });
+
+  it('无存档时 setter 返回 false 且不抛错', () => {
+    const game = useGameStore();
+    expect(game.setReduceMotion(true)).toBe(false);
+    expect(game.setAutoDecomposeBelow('rare')).toBe(false);
+  });
+});
+
 function sharedProgressSnapshot(save: SaveData): unknown {
   const snapshot = jsonClone(save);
   return {

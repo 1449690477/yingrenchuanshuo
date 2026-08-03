@@ -19,6 +19,7 @@ import type {
   EquipmentInstance,
   IdleYield,
   LootResult,
+  Quality,
   ShopOffer,
   Stats,
 } from '@/core/types';
@@ -1621,18 +1622,23 @@ export const useGameStore = defineStore('game', () => {
     const s = save.value;
     if (s.bag.equipment.length <= BAG_CAPACITY) return 0;
 
-    const { kept, removed } = trimBag(s.bag.equipment, BAG_CAPACITY, {
-      // 用装备自身战力，而不是 equipmentContributionCp。
-      // 后者要跟当前穿戴做换装差值，每次都遍历 8 个槽位重算全身属性；
-      // 裁剪只需要「谁更垃圾」的相对排序，自身战力足够且便宜得多。
-      valueOf: (inst) => itemCp(inst),
-      slotOf: (inst) => requireEquipment(inst.defId).slot,
-      qualityOf: (inst) => requireEquipment(inst.defId).quality,
-      weaponElementOf: (inst) => {
-        const definition = requireEquipment(inst.defId);
-        return definition.slot === 'weapon' ? definition.element : undefined;
+    const { kept, removed } = trimBag(
+      s.bag.equipment,
+      BAG_CAPACITY,
+      {
+        // 用装备自身战力，而不是 equipmentContributionCp。
+        // 后者要跟当前穿戴做换装差值，每次都遍历 8 个槽位重算全身属性；
+        // 裁剪只需要「谁更垃圾」的相对排序，自身战力足够且便宜得多。
+        valueOf: (inst) => itemCp(inst),
+        slotOf: (inst) => requireEquipment(inst.defId).slot,
+        qualityOf: (inst) => requireEquipment(inst.defId).quality,
+        weaponElementOf: (inst) => {
+          const definition = requireEquipment(inst.defId);
+          return definition.slot === 'weapon' ? definition.element : undefined;
+        },
       },
-    });
+      { autoDecomposeBelow: s.settings.autoDecomposeBelow },
+    );
     if (removed.length === 0) return 0;
 
     let gold = 0;
@@ -3552,6 +3558,22 @@ export const useGameStore = defineStore('game', () => {
     return true;
   }
 
+  /** 降低动画以省电（M4-12 设置页）。 */
+  function setReduceMotion(enabled: boolean): boolean {
+    if (!save.value) return false;
+    save.value.settings.reduceMotion = enabled;
+    void persist();
+    return true;
+  }
+
+  /** 自动分解品质门槛（含该品质；'none' = 关闭自动分解，M4-12 设置页）。 */
+  function setAutoDecomposeBelow(threshold: Quality | 'none'): boolean {
+    if (!save.value) return false;
+    save.value.settings.autoDecomposeBelow = threshold;
+    void persist();
+    return true;
+  }
+
   /**
    * 记录一周试炼的个人最好成绩。
    *
@@ -3785,6 +3807,8 @@ export const useGameStore = defineStore('game', () => {
     evaluateImprint,
     imprintEquipment,
     setHaptics,
+    setReduceMotion,
+    setAutoDecomposeBelow,
     recordTrialBest,
     markMilestoneSubmitted,
     markTrialBestSubmitted,

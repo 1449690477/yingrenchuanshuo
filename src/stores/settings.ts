@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import { defineStore } from 'pinia';
 import type { SaveData } from '@/save/schema';
+import type { Quality } from '@/core/types';
 import { useGameStore } from './game';
 
 export const useSettingsStore = defineStore('settings', () => {
@@ -20,6 +21,14 @@ export const useSettingsStore = defineStore('settings', () => {
     return game.setHaptics(enabled);
   }
 
+  function setReduceMotion(enabled: boolean): boolean {
+    return game.setReduceMotion(enabled);
+  }
+
+  function setAutoDecomposeBelow(threshold: Quality | 'none'): boolean {
+    return game.setAutoDecomposeBelow(threshold);
+  }
+
   return {
     settings,
     saveData,
@@ -28,6 +37,8 @@ export const useSettingsStore = defineStore('settings', () => {
     persist: game.persist,
     importSave,
     setHaptics,
+    setReduceMotion,
+    setAutoDecomposeBelow,
     reset: game.resetGame,
   };
 });

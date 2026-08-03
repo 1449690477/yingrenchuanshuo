@@ -67,6 +67,26 @@ export function shouldAutoLock(quality: Quality, isMiracleRoll: boolean): boolea
  */
 const AUTO_DECOMPOSE_QUALITIES: ReadonlySet<Quality> = new Set<Quality>(['common', 'fine', 'rare']);
 
+/** 自动分解门槛选项（M4-12 设置页接线）。 */
+export interface TrimOptions {
+  /**
+   * 自动分解的品质门槛（**含该品质**，即「门槛及以下」可自动分解）。
+   * - 'none'：关闭自动分解（超出容量时宁可通过其他保护，也不删任何装备）；
+   * - 缺省：白 / 绿 / 蓝（= 历史行为，史诗及以上永不自动分解的硬保护不变）。
+   */
+  autoDecomposeBelow?: Quality | 'none';
+}
+
+const NO_AUTO_DECOMPOSE: ReadonlySet<Quality> = new Set<Quality>();
+
+/** 门槛及以下的所有品质（含门槛本身）。 */
+function qualitiesUpTo(threshold: Quality): ReadonlySet<Quality> {
+  const rank = QUALITY_RANK[threshold];
+  return new Set<Quality>(
+    (Object.keys(QUALITY_RANK) as Quality[]).filter((q) => QUALITY_RANK[q] <= rank),
+  );
+}
+
 export interface TrimContext {
   /** 装备的战力评分，越高越值钱 */
   valueOf: (inst: EquipmentInstance) => number;
@@ -211,10 +231,18 @@ export function trimBag(
   equipment: readonly EquipmentInstance[],
   capacity: number,
   ctx: TrimContext,
+  options?: TrimOptions,
 ): TrimResult {
   if (capacity <= 0 || equipment.length <= capacity) {
     return { kept: [...equipment], removed: [] };
   }
+
+  const autoDecomposeQualities =
+    options?.autoDecomposeBelow === undefined
+      ? AUTO_DECOMPOSE_QUALITIES
+      : options.autoDecomposeBelow === 'none'
+        ? NO_AUTO_DECOMPOSE
+        : qualitiesUpTo(options.autoDecomposeBelow);
 
   // ⚠ 战力必须先一次性算好缓存起来。
   // 早先在排序比较器里直接调 ctx.valueOf，1.5 万件会触发约 43 万次战力计算，
@@ -294,7 +322,7 @@ export function trimBag(
     if (inst.locked) return true;
     const q = ctx.qualityOf(inst);
     // 品质查不到时按受保护处理，宁可不删也不能误删
-    if (!q || !AUTO_DECOMPOSE_QUALITIES.has(q)) return true;
+    if (!q || !autoDecomposeQualities.has(q)) return true;
     const slot = ctx.slotOf(inst);
     if (slot && bestPerSlot.get(slot) === inst.uid) return true;
     if (combatAffixChampions.has(inst.uid)) return true;

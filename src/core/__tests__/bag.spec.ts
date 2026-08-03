@@ -302,6 +302,61 @@ describe('trimBag', () => {
   });
 });
 
+describe('trimBag · autoDecomposeBelow 门槛选项（M4-12 设置页接线）', () => {
+  it('缺省行为不变：白/绿/蓝可被自动分解，史诗及以上受保护', () => {
+    const list = [
+      mk('w1', { value: 1, quality: 'common', slot: 'head' }),
+      mk('w2', { value: 2, quality: 'common', slot: 'head' }),
+      mk('f1', { value: 3, quality: 'fine', slot: 'head' }),
+      mk('r1', { value: 4, quality: 'rare', slot: 'head' }),
+      mk('e1', { value: 5, quality: 'epic', slot: 'head' }),
+    ];
+    const r = trimBag(list, 2, ctx);
+    expect(r.removed.length).toBeGreaterThan(0);
+    expect(r.removed.some((e) => e.uid === 'e1')).toBe(false);
+    expect(r.kept.some((e) => e.uid === 'e1')).toBe(true);
+  });
+
+  it("autoDecomposeBelow: 'common' 只删白装，蓝/绿受保护", () => {
+    const list = [
+      mk('w1', { value: 1, quality: 'common', slot: 'head' }),
+      mk('w2', { value: 2, quality: 'common', slot: 'head' }),
+      mk('f1', { value: 3, quality: 'fine', slot: 'head' }),
+      mk('r1', { value: 4, quality: 'rare', slot: 'head' }),
+      mk('keep-h', { value: 99, quality: 'fine', slot: 'head' }),
+    ];
+    const r = trimBag(list, 2, ctx, { autoDecomposeBelow: 'common' });
+    expect(r.removed.map((e) => e.uid).sort()).toEqual(['w1', 'w2']);
+    expect(r.kept.some((e) => e.uid === 'f1')).toBe(true);
+    expect(r.kept.some((e) => e.uid === 'r1')).toBe(true);
+  });
+
+  it("autoDecomposeBelow: 'fine' 门槛含该品质：只删白+绿", () => {
+    const list = [
+      mk('w1', { value: 1, quality: 'common', slot: 'head' }),
+      mk('w2', { value: 2, quality: 'common', slot: 'head' }),
+      mk('f1', { value: 3, quality: 'fine', slot: 'head' }),
+      mk('f2', { value: 4, quality: 'fine', slot: 'head' }),
+      mk('r1', { value: 5, quality: 'rare', slot: 'head' }),
+    ];
+    const r = trimBag(list, 2, ctx, { autoDecomposeBelow: 'fine' });
+    expect(r.removed.map((e) => e.uid).sort()).toEqual(['f1', 'w1', 'w2']);
+    expect(r.kept.some((e) => e.uid === 'r1')).toBe(true);
+  });
+
+  it("autoDecomposeBelow: 'none' 关闭自动分解，宁可超容也不删", () => {
+    const list = [
+      mk('w1', { value: 1, quality: 'common', slot: 'head' }),
+      mk('w2', { value: 2, quality: 'common', slot: 'head' }),
+      mk('f1', { value: 3, quality: 'fine', slot: 'head' }),
+      mk('r1', { value: 4, quality: 'rare', slot: 'head' }),
+    ];
+    const r = trimBag(list, 2, ctx, { autoDecomposeBelow: 'none' });
+    expect(r.removed).toEqual([]);
+    expect(r.kept).toHaveLength(4);
+  });
+});
+
 describe('isOverCapacity', () => {
   it('容量为 0 视为不限制', () => {
     expect(isOverCapacity(9999, 0)).toBe(false);

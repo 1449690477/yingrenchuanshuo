@@ -80,6 +80,19 @@ function updateHaptics(event: Event) {
   settings.setHaptics((event.currentTarget as HTMLInputElement).checked);
 }
 
+function updateReduceMotion(event: Event) {
+  settings.setReduceMotion((event.currentTarget as HTMLInputElement).checked);
+}
+
+function updateAutoDecompose(event: Event) {
+  const value = (event.currentTarget as HTMLSelectElement).value as
+    | 'none'
+    | 'common'
+    | 'fine'
+    | 'rare';
+  settings.setAutoDecomposeBelow(value);
+}
+
 async function afterShopLeave() {
   shopLeaving.value = false;
   await nextTick();
@@ -250,6 +263,46 @@ function say(text: string, ok: boolean) {
             @change="updateHaptics"
           />
           <span class="setting-switch" aria-hidden="true"><i /></span>
+        </label>
+      </CollapsibleCard>
+
+      <CollapsibleCard title="设置" persist-key="more.settings">
+        <template #peek>
+          <span class="peek-note">{{
+            settings.settings?.reduceMotion ? '省电动画已开' : '省电动画已关'
+          }}</span>
+        </template>
+        <label class="setting-row">
+          <span class="setting-copy">
+            <strong>省电动画</strong>
+            <small>降低战斗与界面动画，挂机更省电、也更安静。</small>
+            <em>系统开启“减少动态效果”时同样生效。</em>
+          </span>
+          <input
+            type="checkbox"
+            :checked="settings.settings?.reduceMotion ?? false"
+            aria-label="省电动画"
+            @change="updateReduceMotion"
+          />
+          <span class="setting-switch" aria-hidden="true"><i /></span>
+        </label>
+        <label class="setting-row setting-row-select">
+          <span class="setting-copy">
+            <strong>自动分解</strong>
+            <small>背包超容时自动分解“该品质及以下”的最不值钱装备。</small>
+            <em>史诗及以上、锁定、各部位最强与战斗词条冠军永远受保护，不会误删。</em>
+          </span>
+          <select
+            class="setting-select"
+            :value="settings.settings?.autoDecomposeBelow ?? 'none'"
+            aria-label="自动分解品质门槛"
+            @change="updateAutoDecompose"
+          >
+            <option value="none">关闭</option>
+            <option value="common">白装及以下</option>
+            <option value="fine">绿装及以下</option>
+            <option value="rare">蓝装及以下</option>
+          </select>
         </label>
       </CollapsibleCard>
 
@@ -554,6 +607,26 @@ function say(text: string, ok: boolean) {
 .setting-row input:focus-visible + .setting-switch {
   outline: 3px solid rgb(255 126 168 / 28%);
   outline-offset: 3px;
+}
+
+.setting-row-select {
+  align-items: center;
+}
+
+.setting-select {
+  justify-self: end;
+  min-width: 118px;
+  padding: 8px 10px;
+  font-size: 13px;
+  color: var(--text-main);
+  background: #f3f5f9;
+  border: 1px solid #cfd6df;
+  border-radius: 10px;
+}
+
+.setting-select:focus-visible {
+  outline: 3px solid rgb(255 126 168 / 28%);
+  outline-offset: 2px;
 }
 
 .warn-note {
