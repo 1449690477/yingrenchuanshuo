@@ -214,6 +214,7 @@ import {
 import { DEFEAT_EFFICIENCY_FLOOR, DEFEAT_LOW_EFFICIENCY_SECONDS } from '@/data/constants';
 import { getEquipment, requireEquipment } from '@/data/equipment';
 import { requireMonster } from '@/data/monsters';
+import { recordDiscoveredMonsters } from '@/core/monsterCodex';
 import { requireLootTable } from '@/data/lootTables';
 import {
   ENCOUNTERS,
@@ -1772,6 +1773,15 @@ export const useGameStore = defineStore('game', () => {
     if (!save.value) return { firstClearedStageId: null, bonusLoot: [] };
     const stage = currentStage.value;
     const distribution = countStageMonsterKills(stage, startCursor, kills);
+    // M4-8 怪物图鉴：把本批真实击杀过的怪物记入永久账本（只增不删，仅在
+    // 有新发现时写回存档，避免每 tick 无谓写入）。覆盖挂机 / 扫荡 / 离线三条路径。
+    const codexResult = recordDiscoveredMonsters(
+      save.value.monsterCodex,
+      Object.keys(distribution.counts),
+    );
+    if (codexResult.newlyDiscovered.length > 0) {
+      save.value.monsterCodex = codexResult.ledger;
+    }
     const cycleLength = stage.waves.reduce(
       (sum, w) => sum + w.monsters.reduce((n, m) => n + m.count, 0),
       0,

@@ -2,7 +2,8 @@ import 'fake-indexeddb/auto';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { SWEEP_STAMINA_COST } from '@/data/constants';
-import { FIRST_STAGE_ID } from '@/data/stages';
+import { FIRST_STAGE_ID, STAGES } from '@/data/stages';
+import { MONSTERS } from '@/data/monsters';
 import { clearSave } from '@/save/storage';
 import { useGameStore } from '@/stores/game';
 
@@ -90,6 +91,29 @@ describe('扫荡 · store', () => {
     expect(r10.yield.kills).toBeLessThanOrEqual(r1.yield.kills * 10 + 10);
     // 但方向性必须成立：十次远多于一次，不能因为取整就少给一个数量级
     expect(r10.yield.kills).toBeGreaterThan(r1.yield.kills * 9);
+  });
+
+  it('扫荡后图鉴账本记录本关全部怪物，且只增不删（M4-8）', async () => {
+    const game = await clearedSave();
+    const stage = STAGES[FIRST_STAGE_ID];
+    const expected = new Set(stage.waves.flatMap((w) => w.monsters.map((m) => m.id)));
+    expect(expected.size).toBeGreaterThan(0);
+    expect(game.save!.monsterCodex.discoveredMonsterIds).toEqual([]);
+
+    expect(game.sweepStage(1)).not.toBeNull();
+    const ids = new Set(game.save!.monsterCodex.discoveredMonsterIds);
+    for (const id of expected) {
+      expect(ids.has(id), `图鉴缺少本关怪物 ${id}`).toBe(true);
+    }
+    // 不夹带不存在的怪物
+    for (const id of ids) {
+      expect(MONSTERS[id], `图鉴出现未知怪物 ${id}`).toBeDefined();
+    }
+
+    // 只增不删：再扫一次不重复、不缩小
+    const afterFirst = game.save!.monsterCodex.discoveredMonsterIds.length;
+    expect(game.sweepStage(1)).not.toBeNull();
+    expect(game.save!.monsterCodex.discoveredMonsterIds.length).toBe(afterFirst);
   });
 
   it('★ 体力不足时整体拒绝，不做「扣得起多少算多少」的半次扫荡', async () => {
