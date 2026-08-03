@@ -229,6 +229,12 @@ export interface CombatEstimateOptions {
    * 默认 0 = 不启用：试炼/竞技/服务端复算路径不接入，直至同源落地（批 3b）。
    */
   gaugeReactionShare?: number;
+  /**
+   * 本地 PvE 玩家伤害乘区（M4-8 P3 图鉴集齐加成 / M4-7 成就奖励共用，
+   * 与 simulateFight 的 playerDamageMultiplier 同名同义——docs/83 批 3b 钩子）。
+   * 默认 undefined = 1，零行为变化；试炼/竞技/服务端复算不传此值。
+   */
+  playerDamageMultiplier?: number;
 }
 
 /**
@@ -1731,7 +1737,8 @@ export function combatPressure(
   const playerDps =
     (skillEstimate?.dps ??
       estimateDps(player, monster, skillMultiplier, options.playerOnHitTriggers)) *
-    (1 + (options.gaugeReactionShare ?? 0));
+    (1 + (options.gaugeReactionShare ?? 0)) *
+    (options.playerDamageMultiplier ?? 1);
   const incomingDps = estimateIncomingDps(player, monster, 1, options.monsterOnHitTriggers);
   const lifestealPerSecond =
     skillEstimate?.lifestealPerSecond ??

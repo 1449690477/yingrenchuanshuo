@@ -645,3 +645,38 @@ describe('estimateIncomingDps', () => {
     expect(estimateIncomingDps(p, mon(60))).toBeGreaterThan(estimateIncomingDps(p, mon(20)));
   });
 });
+
+describe('combatPressure 本地 PvE 玩家乘区（M4-8 P3 / 批3b 同名钩子）', () => {
+  it('playerDamageMultiplier 缺省与显式 1 完全一致（零行为变化）', () => {
+    const player = makePlayer(
+      'p',
+      20,
+      s({ atk: 1_000, hp: 2_000, def: 0, acc: 99_999, eva: 0, critRate: 0 }),
+    );
+    const monster = makePlayer(
+      'm',
+      20,
+      s({ atk: 100, hp: 12_000, def: 0, acc: 99_999, eva: 0, critRate: 0 }),
+    );
+    const a = combatPressure(player, monster);
+    const b = combatPressure(player, monster, 1, { playerDamageMultiplier: 1 });
+    expect(a.playerDps).toBe(b.playerDps);
+    expect(a.efficiency).toBe(b.efficiency);
+  });
+
+  it('乘区 ×2 时 playerDps 精确 ×2', () => {
+    const player = makePlayer(
+      'p',
+      20,
+      s({ atk: 1_000, hp: 2_000, def: 0, acc: 99_999, eva: 0, critRate: 0 }),
+    );
+    const monster = makePlayer(
+      'm',
+      20,
+      s({ atk: 100, hp: 12_000, def: 0, acc: 99_999, eva: 0, critRate: 0 }),
+    );
+    const base = combatPressure(player, monster);
+    const boosted = combatPressure(player, monster, 1, { playerDamageMultiplier: 2 });
+    expect(boosted.playerDps / base.playerDps).toBeCloseTo(2, 9);
+  });
+});
