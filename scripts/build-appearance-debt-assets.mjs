@@ -121,11 +121,6 @@ const SHOE_RECTS = {
   ],
 };
 
-const STATIC_KENSHI_WEAPONS = [
-  ...Array.from({ length: 5 }, (_, index) => `r${index + 1}`),
-  'r5-crimson',
-];
-
 function abs(path) {
   return resolve(ROOT, path);
 }
@@ -283,37 +278,18 @@ async function buildBodyIcons() {
   }
 }
 
-async function carryWeaponLayer(source) {
-  const normalized = await sharp(abs(source))
-    .ensureAlpha()
-    .resize(CANVAS.width, CANVAS.height, { fit: 'fill' })
-    .resize(544, 816, { fit: 'fill', kernel: sharp.kernel.lanczos3 })
-    .png()
-    .toBuffer();
-  // docs/82 选定 B 案：以画布中心缩至 0.85，再左移 110px、下移 150px。
-  const targetLeft = Math.round((CANVAS.width - 544) / 2 - 110);
-  const targetTop = Math.round((CANVAS.height - 816) / 2 + 150);
-  const sourceLeft = Math.max(0, -targetLeft);
-  const sourceTop = Math.max(0, -targetTop);
-  const width = Math.min(544 - sourceLeft, CANVAS.width - Math.max(0, targetLeft));
-  const height = Math.min(816 - sourceTop, CANVAS.height - Math.max(0, targetTop));
-  const visible = await sharp(normalized)
-    .extract({ left: sourceLeft, top: sourceTop, width, height })
-    .png()
-    .toBuffer();
-  return transparentCanvas()
-    .composite([{ input: visible, left: Math.max(0, targetLeft), top: Math.max(0, targetTop) }])
-    .png()
-    .toBuffer();
-}
-
-async function buildStaticKenshiWeapons() {
-  for (const family of STATIC_KENSHI_WEAPONS) {
-    const source = `art-source/characters/kenshi/regions/${family}-weapon-alpha.png`;
-    const output = `public/assets/characters/modular/kenshi/${family}-weapon.png`;
-    await writeOrCheck(output, await carryWeaponLayer(source));
-  }
-}
+/*
+ * 樱酱区域武器层（r1–r5、r5-crimson）**不再由本脚本生产**。
+ *
+ * 它们由 scripts/build-kenshi-r2-assets.mjs 唯一拥有并逐字节校验，见 docs/85 §4.0。
+ * 此处原有一份 carryWeaponLayer + buildStaticKenshiWeapons，从同一批 alpha 母版
+ * 再推导一次；R2 用统一软遮罩重制母版后，两边推出的像素不再逐字节相同
+ * （实测 r1-weapon mae=0.116、max=175，撞穿本脚本 mae<=0.5 / max<=12 的容差）。
+ *
+ * **红的不是素材，是同一个文件有两个生产者。** 删除重复推导即消除分歧；
+ * 覆盖面未减少：R2 的 FAMILIES 含 r1–r7 全部族，且实测 --rebuild 后
+ * r1-weapon.png 字节不变，证明它能精确重现这批文件。
+ */
 
 async function buildArenaWearables() {
   for (const [classId, slots] of Object.entries(ARENA_SPECS)) {
@@ -445,10 +421,9 @@ async function buildContacts() {
 
 if (!REBUILD && !CHECK) throw new Error('用法：node scripts/build-appearance-debt-assets.mjs [--rebuild|--check]');
 
-await buildStaticKenshiWeapons();
 await buildBodyIcons();
 await buildArenaWearables();
 await buildShoes();
 if (!CHECK) await buildContacts();
 
-console.log(CHECK ? '✓ 外观补全资产可确定性重建' : '✓ 外观补全资产已重建（静态区域武器 6 / 服装图标 18 / 圣痕 12 / 鞋 55）');
+console.log(CHECK ? '✓ 外观补全资产可确定性重建' : '✓ 外观补全资产已重建（服装图标 18 / 圣痕 12 / 鞋 55；樱酱区域武器归 R2）');

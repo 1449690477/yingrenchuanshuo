@@ -3,14 +3,12 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { ArrowLeft, Coins, LockKeyhole, Sparkles, X } from '@lucide/vue';
 import { abbr, signed } from '@/core/format';
 import type { EquipmentInstance, Quality } from '@/core/types';
-import {
-  BOUTIQUE_SHELF_LIST,
-  type BoutiqueShelfId,
-} from '@/data/boutique';
+import { BOUTIQUE_SHELF_LIST, type BoutiqueShelfId } from '@/data/boutique';
 import type { EquippedRecord } from '@/data/characterAppearance';
 import { QUALITY_LABELS, SLOT_LABELS } from '@/data/constants';
 import { equipmentDisplayPresentation } from '@/data/equipmentPresentation';
 import { useInventoryStore } from '@/stores/inventory';
+import { equipmentVisualPresentation } from '@/ui/equipmentVisualPresentation';
 import { usePlayerStore } from '@/stores/player';
 import { useShopStore } from '@/stores/shop';
 import CharacterAppearance from '@/components/CharacterAppearance.vue';
@@ -80,6 +78,9 @@ const selected = computed(() =>
   selectedId.value
     ? (shop.offers.find((entry) => entry.offer.id === selectedId.value) ?? null)
     : null,
+);
+const selectedVisual = computed(() =>
+  selected.value ? equipmentVisualPresentation(selected.value.def) : null,
 );
 const presentation = (definition: (typeof shop.offers)[number]['def']) =>
   equipmentDisplayPresentation(definition, activeClassId.value);
@@ -364,13 +365,11 @@ onUnmounted(() => {
             <div class="effect-copy">
               <Sparkles :size="16" aria-hidden="true" />
               <span>
-                <strong>专属视觉</strong>
-                {{ selected.def.uniqueEffect }}
+                <strong>{{ selectedVisual?.label }}</strong>
+                {{ selectedVisual?.copy }}
               </span>
             </div>
-            <p class="honest-note">
-              固定高档属性已真实生效；这里标注的是外观与攻击演出换肤，不冒充尚未接入的技能机制。
-            </p>
+            <p class="honest-note">{{ selectedVisual?.note }}</p>
           </div>
 
           <footer class="buy-bar">
@@ -1007,8 +1006,8 @@ onUnmounted(() => {
   z-index: 5;
   top: 10px;
   right: 10px;
-  width: 42px;
-  height: 42px;
+  width: 44px;
+  height: 44px;
   display: grid;
   place-items: center;
   color: var(--text-mid);

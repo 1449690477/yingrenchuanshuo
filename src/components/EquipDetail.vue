@@ -21,6 +21,7 @@ import { IMPRINT_BATCH_ACTIVE } from '@/ui/imprintActivation';
 import { AFFIX_LABELS, QUALITY_LABELS, SLOT_LABELS, STAT_LABELS } from '@/data/constants';
 import { REFORGE_RESONANCE_MAX } from '@/data/reforgeRules';
 import { WEAPON_ELEMENT_LABELS } from '@/data/weaponElements';
+import { equipmentVisualPresentation } from '@/ui/equipmentVisualPresentation';
 import {
   affixDisplayName,
   affixProfession,
@@ -57,6 +58,7 @@ const activeClassId = computed(() => {
 });
 const def = computed(() => requireEquipment(props.inst.defId));
 const presentation = computed(() => equipmentDisplayPresentation(def.value, activeClassId.value));
+const visualPresentation = computed(() => equipmentVisualPresentation(def.value));
 const advancementOption = computed(() => inventory.equipmentAdvancementOption(props.inst.uid));
 
 const stats = computed<Stats>(() =>
@@ -327,9 +329,9 @@ function doDecompose() {
         </section>
 
         <section v-if="def.uniqueEffect" class="unique-effect">
-          <strong>专属视觉</strong>
-          <span>{{ def.uniqueEffect }}</span>
-          <small>当前为真实外观与演出换肤；战斗机制效果将在技能系统接通后单独标明。</small>
+          <strong>{{ visualPresentation.label }}</strong>
+          <span>{{ visualPresentation.copy }}</span>
+          <small>{{ visualPresentation.note }}</small>
         </section>
 
         <p v-if="setOriginMark" class="set-origin-mark">{{ setOriginMark }}</p>

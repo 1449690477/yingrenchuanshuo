@@ -1,0 +1,2986 @@
+{
+  "contract": "4 boutique themes × 5 classes × 4 visible slots + cardboard-cat 2 + arena shop 16 visible layers",
+  "failures": [],
+  "assets": [
+    {
+      "key": "berry-cream/swordsman/body",
+      "path": "public/assets/characters/modular/shop/berry-cream/swordsman-body.png",
+      "bbox": [
+        156,
+        140,
+        484,
+        559
+      ],
+      "alphaPixels": 80541,
+      "opaquePixels": 77808,
+      "anchorAlpha": null,
+      "sha256": "b3bfb01c18dc54290338c0615a1a5dc1e6a41c44c7aea96de36dcb98be3fb9c9",
+      "alphaSha256": "27353e64d7dae58b8c5cd34569c6d96969ea646af3fb5b73f1eb9b0015666984",
+      "sameThemeShoeOverlapPixels": 0
+    },
+    {
+      "key": "berry-cream/swordsman/head",
+      "path": "public/assets/characters/modular/shop/berry-cream/swordsman-head.png",
+      "bbox": [
+        215,
+        1,
+        424,
+        153
+      ],
+      "alphaPixels": 15041,
+      "opaquePixels": 13831,
+      "anchorAlpha": null,
+      "sha256": "505da8f9078429eb9785174fb82a2d079cacc280068993fea87c7dd63a226557",
+      "alphaSha256": "4f111c291126649e59811ffa5a2afb1e4e51646e6294a607f934ffefdde6f192"
+    },
+    {
+      "key": "berry-cream/swordsman/shoes",
+      "path": "public/assets/characters/modular/shop/berry-cream/swordsman-shoes.png",
+      "bbox": [
+        169,
+        758,
+        471,
+        927
+      ],
+      "alphaPixels": 17467,
+      "opaquePixels": 16174,
+      "anchorAlpha": null,
+      "sha256": "92fc8403c1f636f4e74a14bdf03a72f00455a4ad8be9f7ceb65dd5ea787a2b4e",
+      "alphaSha256": "8f5c7c17557ec971983ac246d28e8fef08aac624a3f92bf03f314188326ecea2"
+    },
+    {
+      "key": "berry-cream/swordsman/weapon",
+      "path": "public/assets/characters/modular/shop/berry-cream/swordsman-weapon.png",
+      "bbox": [
+        22,
+        72,
+        211,
+        493
+      ],
+      "alphaPixels": 13510,
+      "opaquePixels": 11687,
+      "anchorAlpha": 2387,
+      "sha256": "4267a83cf08c0bedb8e34defc014ab80a128fab508049d6fbfc5c8e8e23d25df",
+      "alphaSha256": "9f7d8f580c85df6d76bc92e1498639ed6d0f999f1806bd58cbec497e3c2adbc1"
+    },
+    {
+      "key": "berry-cream/witch/body",
+      "path": "public/assets/characters/modular/shop/berry-cream/witch-body.png",
+      "bbox": [
+        138,
+        138,
+        500,
+        527
+      ],
+      "alphaPixels": 84142,
+      "opaquePixels": 81688,
+      "anchorAlpha": null,
+      "sha256": "39d6bbba41bbb9567fcf3256fdd643329da5e559358361ae8d9c4f26e869756f",
+      "alphaSha256": "3dd17dd50b2c1e36681ca08f39b19e4b5926e162737c838a07102989dcc11c50",
+      "sameThemeShoeOverlapPixels": 0
+    },
+    {
+      "key": "berry-cream/witch/head",
+      "path": "public/assets/characters/modular/shop/berry-cream/witch-head.png",
+      "bbox": [
+        220,
+        3,
+        419,
+        140
+      ],
+      "alphaPixels": 11454,
+      "opaquePixels": 10264,
+      "anchorAlpha": null,
+      "sha256": "358bf63e5fb99c97f2e6e629206ee2891279bc63e5c07d77d16c87f7cb946114",
+      "alphaSha256": "9e1cd04e889cd3ab2ef1961afa9deb6ffb026ac30b6aca9d6e842c7e814f2908"
+    },
+    {
+      "key": "berry-cream/witch/shoes",
+      "path": "public/assets/characters/modular/shop/berry-cream/witch-shoes.png",
+      "bbox": [
+        210,
+        758,
+        428,
+        935
+      ],
+      "alphaPixels": 22105,
+      "opaquePixels": 20945,
+      "anchorAlpha": null,
+      "sha256": "39bc321ee5f13dcb8a6ef25adc628ed167d0221a569b247683fa06f75159898f",
+      "alphaSha256": "316f0c251ab35b2441d6e5f9512ffc4d29b98dac430c7565f58b99ec09a031b0"
+    },
+    {
+      "key": "berry-cream/witch/weapon",
+      "path": "public/assets/characters/modular/shop/berry-cream/witch-weapon.png",
+      "bbox": [
+        458,
+        57,
+        627,
+        383
+      ],
+      "alphaPixels": 11538,
+      "opaquePixels": 9336,
+      "anchorAlpha": 2267,
+      "sha256": "01aa50790b2f01b4f837122851977619386a245294eb033685f7d59e1c27eb5e",
+      "alphaSha256": "99bffdc08f9d6838b158f75568eb0e8064e24960736fa47778675e4a4538fa85"
+    },
+    {
+      "key": "berry-cream/shaman/body",
+      "path": "public/assets/characters/modular/shop/berry-cream/shaman-body.png",
+      "bbox": [
+        174,
+        145,
+        466,
+        564
+      ],
+      "alphaPixels": 80314,
+      "opaquePixels": 77245,
+      "anchorAlpha": null,
+      "sha256": "7c074e32d163c3cb60bd6b3956ad9702a0f0107e1da97de2b2c4546f2ff1cd67",
+      "alphaSha256": "e78a84e794f17b442c22b06773a9d83ff4c920a3605e8d40b88b9eac215958bb",
+      "sameThemeShoeOverlapPixels": 0
+    },
+    {
+      "key": "berry-cream/shaman/head",
+      "path": "public/assets/characters/modular/shop/berry-cream/shaman-head.png",
+      "bbox": [
+        215,
+        0,
+        424,
+        156
+      ],
+      "alphaPixels": 12406,
+      "opaquePixels": 10680,
+      "anchorAlpha": null,
+      "sha256": "e991b4033adfed055d179b757e9e7ea042b8ba754b812bb2b18048a61ed957e7",
+      "alphaSha256": "7d05cefafc7620638c2cf41a7324a7e897837aab66948cb4d451c586a40ad36f"
+    },
+    {
+      "key": "berry-cream/shaman/shoes",
+      "path": "public/assets/characters/modular/shop/berry-cream/shaman-shoes.png",
+      "bbox": [
+        212,
+        742,
+        428,
+        936
+      ],
+      "alphaPixels": 26595,
+      "opaquePixels": 25101,
+      "anchorAlpha": null,
+      "sha256": "80da46a43c56434eb5f5430ace41e8481a3f60f643aa288eb8782db6f151c173",
+      "alphaSha256": "f7ad85e638e2863a09b8da376b141b926acb510c7e62f6b000def23a718e15d7"
+    },
+    {
+      "key": "berry-cream/shaman/weapon",
+      "path": "public/assets/characters/modular/shop/berry-cream/shaman-weapon.png",
+      "bbox": [
+        463,
+        78,
+        624,
+        368
+      ],
+      "alphaPixels": 11249,
+      "opaquePixels": 9498,
+      "anchorAlpha": 3836,
+      "sha256": "d57b43c1a0fe4937a6da56c431cf69abaa2213ba74fec785ecf66f8250ca88e9",
+      "alphaSha256": "ba00d029253f7b591200707cae89190f9ca723da3b1b67b1c0b03c86c9e77293"
+    },
+    {
+      "key": "berry-cream/catkin/body",
+      "path": "public/assets/characters/modular/shop/berry-cream/catkin-body.png",
+      "bbox": [
+        138,
+        138,
+        500,
+        527
+      ],
+      "alphaPixels": 82539,
+      "opaquePixels": 81645,
+      "anchorAlpha": null,
+      "sha256": "736bbbe73f6619dd0d5de38b460a270842580a2eb271f1d56de5fffe424686c9",
+      "alphaSha256": "690047c34b916815b9a9d4a4b3f20a0ea9a4a9a1e9adf249346cfae12d9647a8",
+      "sameThemeShoeOverlapPixels": 0
+    },
+    {
+      "key": "berry-cream/catkin/head",
+      "path": "public/assets/characters/modular/shop/berry-cream/catkin-head.png",
+      "bbox": [
+        220,
+        3,
+        419,
+        140
+      ],
+      "alphaPixels": 10656,
+      "opaquePixels": 10264,
+      "anchorAlpha": null,
+      "sha256": "2495c046daa1530ef376005e81487e9dfcd67287321f9e3d493b07beb09f5e10",
+      "alphaSha256": "8af7f47e743e6246f89924f34b4d7299d3bbe48574b7eda4e65b552941b6755f"
+    },
+    {
+      "key": "berry-cream/catkin/shoes",
+      "path": "public/assets/characters/modular/shop/berry-cream/catkin-shoes.png",
+      "bbox": [
+        190,
+        752,
+        439,
+        928
+      ],
+      "alphaPixels": 22017,
+      "opaquePixels": 20924,
+      "anchorAlpha": null,
+      "sha256": "d832b649434936acc19385a17fc983f25e579a753bed3412e6d4b2e18c1c4acc",
+      "alphaSha256": "dd5114c2dd91190288b9612ae3dbc619eeea86051fa9aa4d4845238208b7ae2f"
+    },
+    {
+      "key": "berry-cream/catkin/weapon",
+      "path": "public/assets/characters/modular/shop/berry-cream/catkin-weapon.png",
+      "bbox": [
+        160,
+        280,
+        596,
+        575
+      ],
+      "alphaPixels": 21142,
+      "opaquePixels": 18478,
+      "anchorAlpha": 8474,
+      "sha256": "a91d355dde2bbdb23514f560b5068d5eb9f0601ceaf44d0e1a47dc22da6097b8",
+      "alphaSha256": "d22d009c2d084db2c6ee6964cb539f0c0d8aed3586403dc09f477ac5145ef6f4"
+    },
+    {
+      "key": "berry-cream/kenshi/body",
+      "path": "public/assets/characters/modular/shop/berry-cream/kenshi-body.png",
+      "bbox": [
+        117,
+        14,
+        535,
+        927
+      ],
+      "alphaPixels": 148624,
+      "opaquePixels": 140817,
+      "anchorAlpha": null,
+      "sha256": "d81e9f56ff3a6e325f862b9936bd1a63a5c12390f8795be15aad14fe2fb2197a",
+      "alphaSha256": "3c1837fa128824f696783db178e9a80462976bee865bb494ea545e08291589e0",
+      "shoeMaskPixels": 10907,
+      "shoePremultipliedMae": 0,
+      "shoeAlphaMae": 0
+    },
+    {
+      "key": "berry-cream/kenshi/head",
+      "path": "public/assets/characters/modular/shop/berry-cream/kenshi-head.png",
+      "bbox": [
+        268,
+        2,
+        370,
+        104
+      ],
+      "alphaPixels": 5911,
+      "opaquePixels": 4960,
+      "anchorAlpha": null,
+      "sha256": "dbaf2a88337eb387ec97f9722388e84d5d517e97c0c28237c5cbcd4a28598dde",
+      "alphaSha256": "89d23a070fa7b488e1d05f0bc6959a64561c7e30c97392421afa0bdd5964428e"
+    },
+    {
+      "key": "berry-cream/kenshi/shoes",
+      "path": "public/assets/characters/modular/shop/berry-cream/kenshi-shoes.png",
+      "bbox": [
+        257,
+        760,
+        410,
+        925
+      ],
+      "alphaPixels": 11856,
+      "opaquePixels": 10511,
+      "anchorAlpha": null,
+      "sha256": "9d3ebe0b2e85988cac1d83029d62e71d2838bea34424ff87adc7a50edfd19e2c",
+      "alphaSha256": "688f5dfe4aa95dd27fa74c1d71cf72c5201562cb170ccbd35c4d3ecee6ac4778"
+    },
+    {
+      "key": "berry-cream/kenshi/weapon",
+      "path": "public/assets/characters/modular/shop/berry-cream/kenshi-weapon.png",
+      "bbox": [
+        176,
+        582,
+        359,
+        951
+      ],
+      "alphaPixels": 16751,
+      "opaquePixels": 14449,
+      "anchorAlpha": 5361,
+      "sha256": "45384650e51d9d5a8bd2f5d74ebe9084f08c2aafdb09cfbc72285df266578aee",
+      "alphaSha256": "1809f911ddc725ea1a56346d103e4cb913c0ac26a5a45e672e0c51a0e4e64dc7"
+    },
+    {
+      "key": "moon-sugar/swordsman/body",
+      "path": "public/assets/characters/modular/shop/moon-sugar/swordsman-body.png",
+      "bbox": [
+        145,
+        152,
+        494,
+        527
+      ],
+      "alphaPixels": 70370,
+      "opaquePixels": 69068,
+      "anchorAlpha": null,
+      "sha256": "f2196c098adb73ee71a40de5b2573f152d956da9b288b76198bc110db0ab5928",
+      "alphaSha256": "e0909dc898d5f27f201330b9fe11ddcd5030cd7d34d08a69a39443209e653c24",
+      "sameThemeShoeOverlapPixels": 0
+    },
+    {
+      "key": "moon-sugar/swordsman/head",
+      "path": "public/assets/characters/modular/shop/moon-sugar/swordsman-head.png",
+      "bbox": [
+        221,
+        0,
+        422,
+        142
+      ],
+      "alphaPixels": 12340,
+      "opaquePixels": 10681,
+      "anchorAlpha": null,
+      "sha256": "19431f682249707cfd532eb7670d46a2df24b858ce7cb61e5abd840988d5e2b9",
+      "alphaSha256": "990aed355ae0882c53ecef3639bebff88e07947cd538c413add7fb923a5e0975"
+    },
+    {
+      "key": "moon-sugar/swordsman/shoes",
+      "path": "public/assets/characters/modular/shop/moon-sugar/swordsman-shoes.png",
+      "bbox": [
+        151,
+        752,
+        487,
+        926
+      ],
+      "alphaPixels": 18255,
+      "opaquePixels": 17168,
+      "anchorAlpha": null,
+      "sha256": "241144ed9424e17a3b98584669bbebd86f0e0abbf0e04b696c0334ad3012bf60",
+      "alphaSha256": "67d5c229fe8bd680f1998dda12ea061af543e51baa9e2b0651228ec0fcc219af"
+    },
+    {
+      "key": "moon-sugar/swordsman/weapon",
+      "path": "public/assets/characters/modular/shop/moon-sugar/swordsman-weapon.png",
+      "bbox": [
+        24,
+        136,
+        194,
+        458
+      ],
+      "alphaPixels": 13525,
+      "opaquePixels": 12022,
+      "anchorAlpha": 1228,
+      "sha256": "f7062ec1dc51dea7a01db9726c3e959dfb1d833856df99a6a0588bfea2a68224",
+      "alphaSha256": "d3a6aa1644b8f1b7344a07421015bca9e99775e989844ce429c4d120a80728da"
+    },
+    {
+      "key": "moon-sugar/witch/body",
+      "path": "public/assets/characters/modular/shop/moon-sugar/witch-body.png",
+      "bbox": [
+        141,
+        150,
+        497,
+        534
+      ],
+      "alphaPixels": 85859,
+      "opaquePixels": 84012,
+      "anchorAlpha": null,
+      "sha256": "88ad20f2cca51b011769690fb35251c8d952db53d75b56eea28ccde7c412547a",
+      "alphaSha256": "f726c0e31b6e92b7abd1801471b6ecae43ba4ea3bcae63bdd7d0bf4de1168806",
+      "sameThemeShoeOverlapPixels": 0
+    },
+    {
+      "key": "moon-sugar/witch/head",
+      "path": "public/assets/characters/modular/shop/moon-sugar/witch-head.png",
+      "bbox": [
+        226,
+        2,
+        412,
+        154
+      ],
+      "alphaPixels": 13330,
+      "opaquePixels": 11197,
+      "anchorAlpha": null,
+      "sha256": "f9d7443309f75d3e8cf800ed80b5aa17d269a4431ec72912d8fab2738a7819e7",
+      "alphaSha256": "6a8b27b708ab2f83417c5ccd4cad2178d93264c39ca01d3fd626c11d9f63a73f"
+    },
+    {
+      "key": "moon-sugar/witch/shoes",
+      "path": "public/assets/characters/modular/shop/moon-sugar/witch-shoes.png",
+      "bbox": [
+        235,
+        755,
+        404,
+        914
+      ],
+      "alphaPixels": 15825,
+      "opaquePixels": 14893,
+      "anchorAlpha": null,
+      "sha256": "fe127a9586b1e1b021628cefbbd62d623fe373d5a4333e0333430705372afcac",
+      "alphaSha256": "5b0aa2a10a21b3da344c2d0cc6031c4f53de1130b04fe428fabb4378635ac3cd"
+    },
+    {
+      "key": "moon-sugar/witch/weapon",
+      "path": "public/assets/characters/modular/shop/moon-sugar/witch-weapon.png",
+      "bbox": [
+        188,
+        155,
+        332,
+        574
+      ],
+      "alphaPixels": 13401,
+      "opaquePixels": 10983,
+      "anchorAlpha": 1300,
+      "sha256": "7cf9064a2555b2e101a6032ee2efc9e4b9dc5640d41429fb17c202cff398cf6e",
+      "alphaSha256": "82ea8398798abfc841d5c0796cb144bf6a3c16fa73d35f79b2b4d267bc98ad14"
+    },
+    {
+      "key": "moon-sugar/shaman/body",
+      "path": "public/assets/characters/modular/shop/moon-sugar/shaman-body.png",
+      "bbox": [
+        155,
+        181,
+        484,
+        523
+      ],
+      "alphaPixels": 62646,
+      "opaquePixels": 60970,
+      "anchorAlpha": null,
+      "sha256": "fdc487244ae56660d76ecb419498373f51dd8f38ee18491694cc3b7513d60a45",
+      "alphaSha256": "b96fe79a9cb04b153257bc70484e5d578287a3518c7c2568a33a1e3cf8c7b3dd",
+      "sameThemeShoeOverlapPixels": 0
+    },
+    {
+      "key": "moon-sugar/shaman/head",
+      "path": "public/assets/characters/modular/shop/moon-sugar/shaman-head.png",
+      "bbox": [
+        228,
+        0,
+        410,
+        173
+      ],
+      "alphaPixels": 12143,
+      "opaquePixels": 10313,
+      "anchorAlpha": null,
+      "sha256": "90475cc5ec67a7ff47448c0b95cb67730ff41f39d8c2ac20503e30325020a72e",
+      "alphaSha256": "e3f328bd15504d764cbbfb0c9671dd6c7364a475fc0d8b80ed7e81818255d950"
+    },
+    {
+      "key": "moon-sugar/shaman/shoes",
+      "path": "public/assets/characters/modular/shop/moon-sugar/shaman-shoes.png",
+      "bbox": [
+        251,
+        740,
+        397,
+        899
+      ],
+      "alphaPixels": 13303,
+      "opaquePixels": 12345,
+      "anchorAlpha": null,
+      "sha256": "1a2f0a86af26b3cf999db6e2b97a0c838af510fbdd4b1c7e53af7addbd2e7912",
+      "alphaSha256": "0b6ad7c7a7890edc4ec3b2335db4e4eeb40088b4f62bcd1d82239ee5d8c4c7c3"
+    },
+    {
+      "key": "moon-sugar/shaman/weapon",
+      "path": "public/assets/characters/modular/shop/moon-sugar/shaman-weapon.png",
+      "bbox": [
+        220,
+        265,
+        399,
+        629
+      ],
+      "alphaPixels": 21390,
+      "opaquePixels": 18938,
+      "anchorAlpha": 3949,
+      "sha256": "2cda6978c2b76189263846d9ec2ca1cc6299a907e19ab78abc5d06be64ba2507",
+      "alphaSha256": "1f7388d8f4ce4e02bf652f3b392f8e0ac1d22e1b1f38115f7bfe803a68658b4e"
+    },
+    {
+      "key": "moon-sugar/catkin/body",
+      "path": "public/assets/characters/modular/shop/moon-sugar/catkin-body.png",
+      "bbox": [
+        141,
+        150,
+        497,
+        534
+      ],
+      "alphaPixels": 85096,
+      "opaquePixels": 84012,
+      "anchorAlpha": null,
+      "sha256": "e8c86578ba6556f156b54e57712f35d47495dfffb6427bbd443cef23201f5c05",
+      "alphaSha256": "521f343df38fbc9d0d1edf5323a8f47a970d7379f2af270824033b1ed6ec46f3",
+      "sameThemeShoeOverlapPixels": 0
+    },
+    {
+      "key": "moon-sugar/catkin/head",
+      "path": "public/assets/characters/modular/shop/moon-sugar/catkin-head.png",
+      "bbox": [
+        226,
+        2,
+        412,
+        151
+      ],
+      "alphaPixels": 12553,
+      "opaquePixels": 11170,
+      "anchorAlpha": null,
+      "sha256": "dbeae5e727d900b80b2a6588b1a211c45a5d962a230dff535ba877a1b8376e1d",
+      "alphaSha256": "f21c744696a43a8a12fb9181689037754de9d5a7669d093a84a6f7d9a0ad26f1"
+    },
+    {
+      "key": "moon-sugar/catkin/shoes",
+      "path": "public/assets/characters/modular/shop/moon-sugar/catkin-shoes.png",
+      "bbox": [
+        201,
+        767,
+        433,
+        925
+      ],
+      "alphaPixels": 15776,
+      "opaquePixels": 14927,
+      "anchorAlpha": null,
+      "sha256": "8d455b906a4cfc6aa49f18f8c6df2fdb54552d57aece51acbbed85ad7c23e676",
+      "alphaSha256": "9ab6120aa1b846b92bcd54ab6acbb09ad1b2db967db5686802516a329641d993"
+    },
+    {
+      "key": "moon-sugar/catkin/weapon",
+      "path": "public/assets/characters/modular/shop/moon-sugar/catkin-weapon.png",
+      "bbox": [
+        162,
+        279,
+        599,
+        567
+      ],
+      "alphaPixels": 19833,
+      "opaquePixels": 16850,
+      "anchorAlpha": 8157,
+      "sha256": "00537b76b438a5985b9daae006157e02004b765a77c76f0c490e3076096bd332",
+      "alphaSha256": "4516f967cd4968ed25187ae358532a1805274978e2f62c4629e3679458a57630"
+    },
+    {
+      "key": "moon-sugar/kenshi/body",
+      "path": "public/assets/characters/modular/shop/moon-sugar/kenshi-body.png",
+      "bbox": [
+        110,
+        12,
+        545,
+        927
+      ],
+      "alphaPixels": 179783,
+      "opaquePixels": 173033,
+      "anchorAlpha": null,
+      "sha256": "b46049a0d1b5c66befb212376e7f03105474097e376ceeed4ac767152f4b5b10",
+      "alphaSha256": "6faf691572edce61bd45ce720439f19ba890cc23ae15a97e72cb82c01fbeb347",
+      "shoeMaskPixels": 10604,
+      "shoePremultipliedMae": 0,
+      "shoeAlphaMae": 0
+    },
+    {
+      "key": "moon-sugar/kenshi/head",
+      "path": "public/assets/characters/modular/shop/moon-sugar/kenshi-head.png",
+      "bbox": [
+        275,
+        2,
+        364,
+        104
+      ],
+      "alphaPixels": 5073,
+      "opaquePixels": 3892,
+      "anchorAlpha": null,
+      "sha256": "d55a3c0edadc347dd9fb8cba7008b36e922badab59bb0025652cafde9f18b76f",
+      "alphaSha256": "c0ed91124691cfeb8e9049d2a42a5343e5cf0959764c180236184c552c989763"
+    },
+    {
+      "key": "moon-sugar/kenshi/shoes",
+      "path": "public/assets/characters/modular/shop/moon-sugar/kenshi-shoes.png",
+      "bbox": [
+        258,
+        760,
+        408,
+        925
+      ],
+      "alphaPixels": 11496,
+      "opaquePixels": 10223,
+      "anchorAlpha": null,
+      "sha256": "0604daa39731fc43f6eb151da2701111a5bc891dfd8114380d83494daa712375",
+      "alphaSha256": "7e69cb254ea47b1a4171a0716e8c64d74a3585a2beb286a06aaf33ee2878cd12"
+    },
+    {
+      "key": "moon-sugar/kenshi/weapon",
+      "path": "public/assets/characters/modular/shop/moon-sugar/kenshi-weapon.png",
+      "bbox": [
+        174,
+        582,
+        360,
+        951
+      ],
+      "alphaPixels": 17110,
+      "opaquePixels": 14854,
+      "anchorAlpha": 5678,
+      "sha256": "8f5165d232cb6cabd1717dc8a0cbfaa671e0c6f6e3bd7af201e3f096b242ba6b",
+      "alphaSha256": "bcace5b8d4d9c5c98955ac6c6225ec32f751e9985c7e84c7a21921d12296bab4"
+    },
+    {
+      "key": "rose-night/swordsman/body",
+      "path": "public/assets/characters/modular/shop/rose-night/swordsman-body.png",
+      "bbox": [
+        150,
+        146,
+        489,
+        553
+      ],
+      "alphaPixels": 77142,
+      "opaquePixels": 75380,
+      "anchorAlpha": null,
+      "sha256": "be99bbc57829c2f1b1c15ff0757b850082261ee55a89c94c18ebc1178a26c123",
+      "alphaSha256": "f284f4450f398d307cbcf9a6ab4272a60bb3de3ceb23b27b93d7671b029bdf63",
+      "sameThemeShoeOverlapPixels": 0
+    },
+    {
+      "key": "rose-night/swordsman/head",
+      "path": "public/assets/characters/modular/shop/rose-night/swordsman-head.png",
+      "bbox": [
+        258,
+        0,
+        387,
+        114
+      ],
+      "alphaPixels": 9974,
+      "opaquePixels": 9310,
+      "anchorAlpha": null,
+      "sha256": "c5a9fa533908237b0f69e695408f25583e2b6623438366a7a4f909266f6031a1",
+      "alphaSha256": "5be84e5e4fc8192bf8c102b253876e448acbe0b734f0690ab4da3968aabec249"
+    },
+    {
+      "key": "rose-night/swordsman/shoes",
+      "path": "public/assets/characters/modular/shop/rose-night/swordsman-shoes.png",
+      "bbox": [
+        152,
+        746,
+        517,
+        939
+      ],
+      "alphaPixels": 37281,
+      "opaquePixels": 35836,
+      "anchorAlpha": null,
+      "sha256": "79dcdcaedb7c97d38fa450eb3d1d65c6cf5cacb8230c3057b1cc5ea79f9139f3",
+      "alphaSha256": "cf754ec2b21833d4fb5232edd3b5424ce25fa177eb85c3e0b9966df1851215b7"
+    },
+    {
+      "key": "rose-night/swordsman/weapon",
+      "path": "public/assets/characters/modular/shop/rose-night/swordsman-weapon.png",
+      "bbox": [
+        390,
+        22,
+        568,
+        441
+      ],
+      "alphaPixels": 12460,
+      "opaquePixels": 10180,
+      "anchorAlpha": 3663,
+      "sha256": "3cdff61964629f9e606d5ce6500906e5ebabcb5895cde7538e612485de19870e",
+      "alphaSha256": "ef8b40198cc68657d22b855f96e521045340563ddb75115547188c8a5138d906"
+    },
+    {
+      "key": "rose-night/witch/body",
+      "path": "public/assets/characters/modular/shop/rose-night/witch-body.png",
+      "bbox": [
+        165,
+        146,
+        504,
+        563
+      ],
+      "alphaPixels": 81399,
+      "opaquePixels": 79546,
+      "anchorAlpha": null,
+      "sha256": "e245b91dc04bcb3064a80b372eb593ecaa2b734e7ccde63fe2df54863a1650cd",
+      "alphaSha256": "38872a32275b177b2b06333dca049a2e051d69ccafd3b75cfe5f524dd0de8bc5",
+      "sameThemeShoeOverlapPixels": 0
+    },
+    {
+      "key": "rose-night/witch/head",
+      "path": "public/assets/characters/modular/shop/rose-night/witch-head.png",
+      "bbox": [
+        245,
+        0,
+        393,
+        111
+      ],
+      "alphaPixels": 11491,
+      "opaquePixels": 10730,
+      "anchorAlpha": null,
+      "sha256": "8cc60a189c3f5b3606d7a9ea01cf86dc95e1fd72a7eb0896940547c2178b1816",
+      "alphaSha256": "8e16feaa4cb34f421cab9403766c3bcdecb7d7c66d5cf272cfda93c3b94be198"
+    },
+    {
+      "key": "rose-night/witch/shoes",
+      "path": "public/assets/characters/modular/shop/rose-night/witch-shoes.png",
+      "bbox": [
+        215,
+        748,
+        438,
+        921
+      ],
+      "alphaPixels": 28640,
+      "opaquePixels": 27214,
+      "anchorAlpha": null,
+      "sha256": "1a6b5cf5d8dc92d9e369adecec068f717faf65e31aa8714d471dadc9aa6fb4c0",
+      "alphaSha256": "597a9d3799a573a4b24e196a3218966fde897225cdd05047d7fda47555fa6d36"
+    },
+    {
+      "key": "rose-night/witch/weapon",
+      "path": "public/assets/characters/modular/shop/rose-night/witch-weapon.png",
+      "bbox": [
+        382,
+        175,
+        559,
+        524
+      ],
+      "alphaPixels": 10603,
+      "opaquePixels": 8643,
+      "anchorAlpha": 1823,
+      "sha256": "047e142fd5dbbc274a965000455f812920917ff7003d8d81f2bb2bf5ac185aed",
+      "alphaSha256": "976634b3f0a6e66bc8de4f95d25258925bff713c842cd79b0c578235850f0850"
+    },
+    {
+      "key": "rose-night/shaman/body",
+      "path": "public/assets/characters/modular/shop/rose-night/shaman-body.png",
+      "bbox": [
+        165,
+        177,
+        484,
+        541
+      ],
+      "alphaPixels": 64366,
+      "opaquePixels": 62967,
+      "anchorAlpha": null,
+      "sha256": "65af892519a9dab75ab8d8260efa90677c9e83889871a5c796eb34a5a3d58ad5",
+      "alphaSha256": "d7fd33ecdd38ea03566dcadee7e79642cb6146db803c581992195ad59972b42b",
+      "sameThemeShoeOverlapPixels": 0
+    },
+    {
+      "key": "rose-night/shaman/head",
+      "path": "public/assets/characters/modular/shop/rose-night/shaman-head.png",
+      "bbox": [
+        243,
+        2,
+        395,
+        119
+      ],
+      "alphaPixels": 12453,
+      "opaquePixels": 11852,
+      "anchorAlpha": null,
+      "sha256": "dd5f3a850bc3ce92fed9b091974aba6451ed9a7c7f3ab527a89df872d522d8bc",
+      "alphaSha256": "6ebdaf9c5bee80acb43fd01a895ecc9af224b15c2ebdad132fb7192f4cb82429"
+    },
+    {
+      "key": "rose-night/shaman/shoes",
+      "path": "public/assets/characters/modular/shop/rose-night/shaman-shoes.png",
+      "bbox": [
+        230,
+        729,
+        423,
+        914
+      ],
+      "alphaPixels": 28756,
+      "opaquePixels": 27634,
+      "anchorAlpha": null,
+      "sha256": "de2f5a86ff9a12a3d2c0ae34f768185c98a1df5fc0461a562e3a5c4630c2b452",
+      "alphaSha256": "c932806520e13e29eb6c22a22bf4640438788f2aeac3272badd5d013918967e4"
+    },
+    {
+      "key": "rose-night/shaman/weapon",
+      "path": "public/assets/characters/modular/shop/rose-night/shaman-weapon.png",
+      "bbox": [
+        365,
+        211,
+        584,
+        388
+      ],
+      "alphaPixels": 19016,
+      "opaquePixels": 17550,
+      "anchorAlpha": 10035,
+      "sha256": "e7f8a0a694f4404f4bf0b2479c6226f452833a9503881c8fb3a9120f7ef4c0e9",
+      "alphaSha256": "16db47dfa2c523b132f2f6fa83b8b01ff4856db4cf32af541a1fc8945d30e936"
+    },
+    {
+      "key": "rose-night/catkin/body",
+      "path": "public/assets/characters/modular/shop/rose-night/catkin-body.png",
+      "bbox": [
+        165,
+        146,
+        504,
+        563
+      ],
+      "alphaPixels": 80484,
+      "opaquePixels": 79546,
+      "anchorAlpha": null,
+      "sha256": "c128f3c1d1407c82597ba79ff4e5150b314870cbcef0bcebb52b00e551bac4a1",
+      "alphaSha256": "a02d571c9d054b79c31477aa3b713cb0e2373eff0039ca849059b3eb200d15d0",
+      "sameThemeShoeOverlapPixels": 0
+    },
+    {
+      "key": "rose-night/catkin/head",
+      "path": "public/assets/characters/modular/shop/rose-night/catkin-head.png",
+      "bbox": [
+        245,
+        0,
+        393,
+        111
+      ],
+      "alphaPixels": 10980,
+      "opaquePixels": 10744,
+      "anchorAlpha": null,
+      "sha256": "ff13091aeec8df30b553dfa0af1ef400fb2dca8b1d7ad088883c5746a3dcac67",
+      "alphaSha256": "97854f1af8c603f7f85459bc9f180ace6f609f8008a4ec5ab7d6461e91a79a5b"
+    },
+    {
+      "key": "rose-night/catkin/shoes",
+      "path": "public/assets/characters/modular/shop/rose-night/catkin-shoes.png",
+      "bbox": [
+        185,
+        754,
+        454,
+        927
+      ],
+      "alphaPixels": 28640,
+      "opaquePixels": 27193,
+      "anchorAlpha": null,
+      "sha256": "213133348eb5baa79cf17fc4973fe02122bd7583b174454b8407cb840dd9aac3",
+      "alphaSha256": "1a4558308076a4e91a83dd1c653a3c11828573471079c516de7a6d70b5e477cf"
+    },
+    {
+      "key": "rose-night/catkin/weapon",
+      "path": "public/assets/characters/modular/shop/rose-night/catkin-weapon.png",
+      "bbox": [
+        166,
+        278,
+        603,
+        592
+      ],
+      "alphaPixels": 21678,
+      "opaquePixels": 18980,
+      "anchorAlpha": 8726,
+      "sha256": "c58b5b270f0cfd12a8dfd5fda8977338e61ef8c987339543126686a5fa34b664",
+      "alphaSha256": "f9d7fec648571fa27601ff38b734e0418778a29b1b0e423819c452a4e85eded5"
+    },
+    {
+      "key": "rose-night/kenshi/body",
+      "path": "public/assets/characters/modular/shop/rose-night/kenshi-body.png",
+      "bbox": [
+        118,
+        7,
+        534,
+        927
+      ],
+      "alphaPixels": 155243,
+      "opaquePixels": 148618,
+      "anchorAlpha": null,
+      "sha256": "9a85ad1cbe6b802f97fa5b49bfd0089f0b544e2bb7d71f4c4d4c12ea1bea4907",
+      "alphaSha256": "ea122b167e67b930792119a29b6248a8cddcfefab928456f3a2a8f0948f3907f",
+      "shoeMaskPixels": 10746,
+      "shoePremultipliedMae": 0,
+      "shoeAlphaMae": 0
+    },
+    {
+      "key": "rose-night/kenshi/head",
+      "path": "public/assets/characters/modular/shop/rose-night/kenshi-head.png",
+      "bbox": [
+        278,
+        2,
+        361,
+        104
+      ],
+      "alphaPixels": 4731,
+      "opaquePixels": 3854,
+      "anchorAlpha": null,
+      "sha256": "c94b0672ab9ce5a2785993e4dc62d32e0939589d5229be71d841f8204941d304",
+      "alphaSha256": "fabba124d54946dc5c6300893d679d0aadb23721563317007fa9878cdb007734"
+    },
+    {
+      "key": "rose-night/kenshi/shoes",
+      "path": "public/assets/characters/modular/shop/rose-night/kenshi-shoes.png",
+      "bbox": [
+        256,
+        760,
+        411,
+        925
+      ],
+      "alphaPixels": 11628,
+      "opaquePixels": 10325,
+      "anchorAlpha": null,
+      "sha256": "9f4be65ae0c3be7a91a09eb924a7f0a84e2024f967d5a5f3ecfe831f83837e76",
+      "alphaSha256": "3d185fb3d6c872b384c5c03995efda1aa639f1e8e0e85c05e1654db9f026a838"
+    },
+    {
+      "key": "rose-night/kenshi/weapon",
+      "path": "public/assets/characters/modular/shop/rose-night/kenshi-weapon.png",
+      "bbox": [
+        179,
+        582,
+        357,
+        951
+      ],
+      "alphaPixels": 15222,
+      "opaquePixels": 13278,
+      "anchorAlpha": 4735,
+      "sha256": "bfc0d2a8f27ac9bce77b8c9d0b69b6b1b106a0fe59f7cc9710e1f4dca57efabb",
+      "alphaSha256": "59066848ef0b0d50f54a83e9e9f68b365c614645ecbd7b3b535626aededf05d7"
+    },
+    {
+      "key": "ice-snow/swordsman/body",
+      "path": "public/assets/characters/modular/shop/ice-snow/swordsman-body.png",
+      "bbox": [
+        121,
+        146,
+        543,
+        651
+      ],
+      "alphaPixels": 98891,
+      "opaquePixels": 82032,
+      "anchorAlpha": null,
+      "sha256": "a60bcae1eac609b6a712082e69bc9f19a62fce93bce012c8d697138bf78ea460",
+      "alphaSha256": "5b3cfdcf9ff1063e86b27f60541cf6fcbc3b4d5a1fb6a4abec533df68e22fb8d",
+      "sameThemeShoeOverlapPixels": 0
+    },
+    {
+      "key": "ice-snow/swordsman/head",
+      "path": "public/assets/characters/modular/shop/ice-snow/swordsman-head.png",
+      "bbox": [
+        249,
+        2,
+        395,
+        79
+      ],
+      "alphaPixels": 7257,
+      "opaquePixels": 6651,
+      "anchorAlpha": null,
+      "sha256": "a260b5ea569000561562d94dc3944902c5261f39f154da006046bde9e819cb68",
+      "alphaSha256": "8b96ff63b2d1d8fa3e066d82a8ae8c7a0fe7b43a721478adb327a79c5bee5715"
+    },
+    {
+      "key": "ice-snow/swordsman/shoes",
+      "path": "public/assets/characters/modular/shop/ice-snow/swordsman-shoes.png",
+      "bbox": [
+        134,
+        746,
+        530,
+        939
+      ],
+      "alphaPixels": 44225,
+      "opaquePixels": 40839,
+      "anchorAlpha": null,
+      "sha256": "44dd663c44efdec2ccfbff1b6af19bfc4b6148c19fac9336df475cd161dd3ee0",
+      "alphaSha256": "fa30a614a83991585be3c98fedc9a7e90af8f4d18cef11f60d288e6386ff3d7b"
+    },
+    {
+      "key": "ice-snow/swordsman/weapon",
+      "path": "public/assets/characters/modular/shop/ice-snow/swordsman-weapon.png",
+      "bbox": [
+        376,
+        22,
+        568,
+        526
+      ],
+      "alphaPixels": 21797,
+      "opaquePixels": 15650,
+      "anchorAlpha": 3956,
+      "sha256": "a6c9c148264f2c73c3eadf52878a5851e4a3cc06e41235f0f27c659ebd31facd",
+      "alphaSha256": "cbfa0d612bdc797324433b3d90a405fa280489befadaaa552d6e1bde4196ebef"
+    },
+    {
+      "key": "ice-snow/witch/body",
+      "path": "public/assets/characters/modular/shop/ice-snow/witch-body.png",
+      "bbox": [
+        136,
+        146,
+        558,
+        661
+      ],
+      "alphaPixels": 103389,
+      "opaquePixels": 87293,
+      "anchorAlpha": null,
+      "sha256": "55c3dec43debbd2aa41d57d4b5e7dfb6d85ae4003144652a5b58629daf9d7559",
+      "alphaSha256": "08c68aab9a1e8ebd215113470124ae21d70f463429212b16646234fb3fc37f38",
+      "sameThemeShoeOverlapPixels": 0
+    },
+    {
+      "key": "ice-snow/witch/head",
+      "path": "public/assets/characters/modular/shop/ice-snow/witch-head.png",
+      "bbox": [
+        245,
+        0,
+        393,
+        64
+      ],
+      "alphaPixels": 6547,
+      "opaquePixels": 5983,
+      "anchorAlpha": null,
+      "sha256": "056e455c7ab2d16dcd3613641abffc3c603aa0470d057e890e529e65b3d1157c",
+      "alphaSha256": "72a20a87bae597ed698943c1db2b7ce51c6143c86aef37f2477f7eba4915bbec"
+    },
+    {
+      "key": "ice-snow/witch/shoes",
+      "path": "public/assets/characters/modular/shop/ice-snow/witch-shoes.png",
+      "bbox": [
+        203,
+        748,
+        451,
+        921
+      ],
+      "alphaPixels": 32020,
+      "opaquePixels": 29687,
+      "anchorAlpha": null,
+      "sha256": "48a068801bc5fd17df9e9f0bd92abf38ed1789713597a7f8e7579fd6dafee5c1",
+      "alphaSha256": "887a1e40b68c51f216d9c5f3c1e341e5acc7451e5de8f0f2e66cd2984fc78fe2"
+    },
+    {
+      "key": "ice-snow/witch/weapon",
+      "path": "public/assets/characters/modular/shop/ice-snow/witch-weapon.png",
+      "bbox": [
+        382,
+        171,
+        559,
+        524
+      ],
+      "alphaPixels": 17759,
+      "opaquePixels": 14225,
+      "anchorAlpha": 1867,
+      "sha256": "ae7eca718ac217fef543fce5161aec43f0db0dea4be5f339c957c4d2911b6b29",
+      "alphaSha256": "4cbe53ec6ddea8086dc64dc48933ff6b733d85feee5e557afa8ff77d4eba3a55"
+    },
+    {
+      "key": "ice-snow/shaman/body",
+      "path": "public/assets/characters/modular/shop/ice-snow/shaman-body.png",
+      "bbox": [
+        136,
+        177,
+        538,
+        639
+      ],
+      "alphaPixels": 85905,
+      "opaquePixels": 71129,
+      "anchorAlpha": null,
+      "sha256": "a85a3be3c16bca1acb8935a6601093e64256f7cbdd899af11b9e660598d642b9",
+      "alphaSha256": "7ae3f49772632c236d265ffaefa3772cfe8c6459e622039171e2cb031dc9e316",
+      "sameThemeShoeOverlapPixels": 0
+    },
+    {
+      "key": "ice-snow/shaman/head",
+      "path": "public/assets/characters/modular/shop/ice-snow/shaman-head.png",
+      "bbox": [
+        243,
+        0,
+        395,
+        68
+      ],
+      "alphaPixels": 7200,
+      "opaquePixels": 6585,
+      "anchorAlpha": null,
+      "sha256": "02ce7f8f9be53dcb2b3f2d14fcfbce8c2af0f80274222ab06b7fb7333e6ce63a",
+      "alphaSha256": "a7c8682af52f9d54bdbd071ead5081fdaa441d6a864328fb47766b90750e5320"
+    },
+    {
+      "key": "ice-snow/shaman/shoes",
+      "path": "public/assets/characters/modular/shop/ice-snow/shaman-shoes.png",
+      "bbox": [
+        210,
+        729,
+        444,
+        914
+      ],
+      "alphaPixels": 31573,
+      "opaquePixels": 29746,
+      "anchorAlpha": null,
+      "sha256": "b131b08c2df4363ff8a2804691b5c87477d5fd03a2a3c471358cad0059b1c61e",
+      "alphaSha256": "87d9b547cb18bc7083675e72f40b67139b4b94ff68f49cc134cea440f31b1069"
+    },
+    {
+      "key": "ice-snow/shaman/weapon",
+      "path": "public/assets/characters/modular/shop/ice-snow/shaman-weapon.png",
+      "bbox": [
+        365,
+        176,
+        584,
+        455
+      ],
+      "alphaPixels": 28077,
+      "opaquePixels": 23795,
+      "anchorAlpha": 10035,
+      "sha256": "12e89c1e0b62142955a8c874607ee875f0f0818af25273d596277fbdd3816ed3",
+      "alphaSha256": "e13aed7d0902359083a9e017d3767c21da957f66760eab0317b74523949b8901"
+    },
+    {
+      "key": "ice-snow/catkin/body",
+      "path": "public/assets/characters/modular/shop/ice-snow/catkin-body.png",
+      "bbox": [
+        136,
+        146,
+        558,
+        661
+      ],
+      "alphaPixels": 102722,
+      "opaquePixels": 87291,
+      "anchorAlpha": null,
+      "sha256": "c47e387ec803f06ec5830291b78bf5e5b992ccc4fd70816c7d25192de00898f1",
+      "alphaSha256": "6beabfde2fa8e9afad05fb0cfa1fef416ca208e925ae164e572037430cb6b229",
+      "sameThemeShoeOverlapPixels": 0
+    },
+    {
+      "key": "ice-snow/catkin/head",
+      "path": "public/assets/characters/modular/shop/ice-snow/catkin-head.png",
+      "bbox": [
+        245,
+        0,
+        393,
+        64
+      ],
+      "alphaPixels": 6467,
+      "opaquePixels": 5979,
+      "anchorAlpha": null,
+      "sha256": "dec2ddfa527f8892305bd6ec97e9ffbdc35db39588f25480c85208ab302c5e6b",
+      "alphaSha256": "a2d2279b116e5ce186d74396a1fe5e91f2eb56af28b803432b0569583f53e785"
+    },
+    {
+      "key": "ice-snow/catkin/shoes",
+      "path": "public/assets/characters/modular/shop/ice-snow/catkin-shoes.png",
+      "bbox": [
+        179,
+        754,
+        460,
+        927
+      ],
+      "alphaPixels": 32949,
+      "opaquePixels": 30257,
+      "anchorAlpha": null,
+      "sha256": "bef539549da0db566fc9576c03f549baebb471e86ce4b3e54800f6758ed2974c",
+      "alphaSha256": "a4fcd76a9cfcc1239b071ec9675239172e62dbc3971b506e3ac5840ffdbfebb4"
+    },
+    {
+      "key": "ice-snow/catkin/weapon",
+      "path": "public/assets/characters/modular/shop/ice-snow/catkin-weapon.png",
+      "bbox": [
+        119,
+        261,
+        603,
+        592
+      ],
+      "alphaPixels": 36098,
+      "opaquePixels": 29554,
+      "anchorAlpha": 10059,
+      "sha256": "8427544930610462af504b894eec9469c14773ef39ea94a577651e1d71edfc2e",
+      "alphaSha256": "1dfbf2dd6e805e11da5906c1fec7c9ee4e8c167160a0667f1e441c08f3cfc988"
+    },
+    {
+      "key": "ice-snow/kenshi/body",
+      "path": "public/assets/characters/modular/shop/ice-snow/kenshi-body.png",
+      "bbox": [
+        91,
+        4,
+        587,
+        925
+      ],
+      "alphaPixels": 191075,
+      "opaquePixels": 154564,
+      "anchorAlpha": null,
+      "sha256": "d540617145317a9c3fddba9f87189af7326a7d7ff64659f0976ab2f213f79ad8",
+      "alphaSha256": "ed1d8e235373f108bd503e2e6616f2a578a9df7d032c55ef6f320b91fef47760",
+      "shoeMaskPixels": 15844,
+      "shoePremultipliedMae": 0,
+      "shoeAlphaMae": 0
+    },
+    {
+      "key": "ice-snow/kenshi/head",
+      "path": "public/assets/characters/modular/shop/ice-snow/kenshi-head.png",
+      "bbox": [
+        278,
+        0,
+        361,
+        60
+      ],
+      "alphaPixels": 2746,
+      "opaquePixels": 2121,
+      "anchorAlpha": null,
+      "sha256": "41e4acedcfa8a8b84f610807835b8e229065b70b73472e368ca30076233fe726",
+      "alphaSha256": "7577fda08e2c6bc93aba2b87bf19d6f8ca90f242475eada8f11c92ff1d9f6a75"
+    },
+    {
+      "key": "ice-snow/kenshi/shoes",
+      "path": "public/assets/characters/modular/shop/ice-snow/kenshi-shoes.png",
+      "bbox": [
+        243,
+        760,
+        426,
+        925
+      ],
+      "alphaPixels": 17043,
+      "opaquePixels": 14863,
+      "anchorAlpha": null,
+      "sha256": "75c1d627b4e34dc97c5c179db74cbd447fcaa81d1b211146717384ceaabe025b",
+      "alphaSha256": "acbf5f1660904c975c05dc0600547486df810fa5190eca0768194aeaf22d6c18"
+    },
+    {
+      "key": "ice-snow/kenshi/weapon",
+      "path": "public/assets/characters/modular/shop/ice-snow/kenshi-weapon.png",
+      "bbox": [
+        156,
+        582,
+        360,
+        957
+      ],
+      "alphaPixels": 25873,
+      "opaquePixels": 19365,
+      "anchorAlpha": 7743,
+      "sha256": "879a7f08c4e738c1efa68e0f322c345038f5ca5d1fd897247336e18f5f4c3d05",
+      "alphaSha256": "fd8bb70ef08f5658f2e75457509c560a7ec6d43ed06d8e3406e1aad852d89175"
+    },
+    {
+      "key": "cardboard-cat/catkin/body",
+      "path": "public/assets/characters/modular/shop/cardboard-cat/catkin-body.png",
+      "bbox": [
+        64,
+        11,
+        551,
+        919
+      ],
+      "alphaPixels": 145890,
+      "opaquePixels": 139309,
+      "anchorAlpha": null,
+      "sha256": "f3207ca941b85a1fc80829e2ed7da2ca0537452c4d6f34e3e39697e436e0a688",
+      "alphaSha256": "aa6884c9ca565ae1ddc887b3ddd77e9222c80989c77c53af675667c7cf04a51f"
+    },
+    {
+      "key": "cardboard-cat/catkin/weapon",
+      "path": "public/assets/characters/modular/shop/cardboard-cat/catkin-weapon.png",
+      "bbox": [
+        117,
+        254,
+        567,
+        568
+      ],
+      "alphaPixels": 28667,
+      "opaquePixels": 26833,
+      "anchorAlpha": 11316,
+      "sha256": "b98cf214044e88191c65803d9d2ec881e0e983ef15de6a9fc1a17fac40a8d762",
+      "alphaSha256": "b637d91b332d0dd9fe5664e86fa9c34caf69d47ec4a5fe978d58d9293d5e637b"
+    },
+    {
+      "key": "arena-stigma/swordsman/body",
+      "path": "public/assets/characters/modular/arena/swordsman/triumph-battle-mantle.png",
+      "bbox": [
+        150,
+        197,
+        489,
+        531
+      ],
+      "alphaPixels": 76750,
+      "opaquePixels": 74205,
+      "anchorAlpha": null,
+      "sha256": "32c372802fbbe94612db797a74cf314082d29b1c28ecc43022aec0bf2b1233a6",
+      "alphaSha256": "25cadf7a720e3f6a04d1320d4bacf31235969cf75e997dc8596e5290b33649ce"
+    },
+    {
+      "key": "arena-stigma/swordsman/head",
+      "path": "public/assets/characters/modular/arena/swordsman/triumph-laurel-crown.png",
+      "bbox": [
+        235,
+        25,
+        404,
+        108
+      ],
+      "alphaPixels": 10228,
+      "opaquePixels": 8661,
+      "anchorAlpha": null,
+      "sha256": "5e24a79781ebd95a96221b9d1648fa6c9983f8e89362ef5023fb30e3cffa1ed8",
+      "alphaSha256": "acb66d2548be20d90cc8593a0c01f150049ca4a77dbe2bbdfaa6ab21de7bc8ff"
+    },
+    {
+      "key": "arena-stigma/swordsman/weapon",
+      "path": "public/assets/characters/modular/arena/swordsman/triumph-verdict-blade.png",
+      "bbox": [
+        10,
+        176,
+        229,
+        402
+      ],
+      "alphaPixels": 11528,
+      "opaquePixels": 9749,
+      "anchorAlpha": 2059,
+      "sha256": "f05a86bedfa4313dd5bd696160ceffbb1ad7b8d013335d4c0d7add7e60e624c2",
+      "alphaSha256": "c67e726b7721114b13011920e2c474b06ed79816aa3e1037dd127e26259399bf"
+    },
+    {
+      "key": "arena-stigma/witch/body",
+      "path": "public/assets/characters/modular/arena/witch/starjudge-orbit-robe.png",
+      "bbox": [
+        130,
+        128,
+        509,
+        561
+      ],
+      "alphaPixels": 115638,
+      "opaquePixels": 109854,
+      "anchorAlpha": null,
+      "sha256": "8498421fcb501830ba6bf80ded7b65c87db814a19944713222b3edf81969f900",
+      "alphaSha256": "ae668fb9084ef741b81d1df4e9f9194e4e2aa43d7be7ff52378e214fdd16ac86"
+    },
+    {
+      "key": "arena-stigma/witch/head",
+      "path": "public/assets/characters/modular/arena/witch/starjudge-observatory-crown.png",
+      "bbox": [
+        244,
+        8,
+        395,
+        122
+      ],
+      "alphaPixels": 9771,
+      "opaquePixels": 8424,
+      "anchorAlpha": null,
+      "sha256": "799be17b3bcf207894a3f93119c180b0f3a147b04da0057e115d515d6b1f6a38",
+      "alphaSha256": "5f61be49acc821302c021d47db7ee3d471017b10373c5255a6c432b22bfe482e"
+    },
+    {
+      "key": "arena-stigma/witch/weapon",
+      "path": "public/assets/characters/modular/arena/witch/starjudge-scale-staff.png",
+      "bbox": [
+        440,
+        102,
+        629,
+        347
+      ],
+      "alphaPixels": 9353,
+      "opaquePixels": 7035,
+      "anchorAlpha": 1623,
+      "sha256": "273d2f1fff63398fcf896620fdab992ee1724a616f53bf43d5da4aeeccf70eb7",
+      "alphaSha256": "e2cb3a8f620e9426473d6e19f2ebea787157fb78bd1aaf83928e30897f801099"
+    },
+    {
+      "key": "arena-stigma/shaman/body",
+      "path": "public/assets/characters/modular/arena/shaman/oracle-ritual-vestment.png",
+      "bbox": [
+        155,
+        202,
+        484,
+        532
+      ],
+      "alphaPixels": 72763,
+      "opaquePixels": 69564,
+      "anchorAlpha": null,
+      "sha256": "1cccc4b31c2377df263563d306f02be6bb8b60abb9b3d7db7cd37b535622ba4f",
+      "alphaSha256": "2dcd8c7850c0bf76d2277a74e47546b6e7daf94a77f79f68aa3f244af695404f"
+    },
+    {
+      "key": "arena-stigma/shaman/head",
+      "path": "public/assets/characters/modular/arena/shaman/oracle-rite-crown.png",
+      "bbox": [
+        238,
+        10,
+        400,
+        129
+      ],
+      "alphaPixels": 11184,
+      "opaquePixels": 9801,
+      "anchorAlpha": null,
+      "sha256": "984ef3d039cef1e8e1c4e621f956f9e1b5b2076687f06c26d0b96fab8d59121a",
+      "alphaSha256": "9c6354d0380080ec7e7ab3c7d97ebe96a201c9d57141a373b0472872faa9960b"
+    },
+    {
+      "key": "arena-stigma/shaman/weapon",
+      "path": "public/assets/characters/modular/arena/shaman/oracle-spirit-bell-staff.png",
+      "bbox": [
+        440,
+        91,
+        629,
+        388
+      ],
+      "alphaPixels": 18213,
+      "opaquePixels": 13676,
+      "anchorAlpha": 4601,
+      "sha256": "7ace1def3a9ce953c141b82cf7ae3fe06e5b18612435906e4710cda2194abb64",
+      "alphaSha256": "d13ac8032077be165f6398260e302f56c38770e28eea881795d091bc1fca81e8"
+    },
+    {
+      "key": "arena-stigma/catkin/body",
+      "path": "public/assets/characters/modular/arena/catkin/swiftshadow-stalker-suit.png",
+      "bbox": [
+        130,
+        134,
+        509,
+        634
+      ],
+      "alphaPixels": 110137,
+      "opaquePixels": 101488,
+      "anchorAlpha": null,
+      "sha256": "149d534b095342a9fac880e027bb8564aa4672e45db853373714a68cd6b22487",
+      "alphaSha256": "d2997a933ef5436b26de439e5a0838c317a69b95c6801e944ccb36d1f7b9e80e"
+    },
+    {
+      "key": "arena-stigma/catkin/head",
+      "path": "public/assets/characters/modular/arena/catkin/swiftshadow-nighthunt-ears.png",
+      "bbox": [
+        204,
+        9,
+        434,
+        144
+      ],
+      "alphaPixels": 17590,
+      "opaquePixels": 15641,
+      "anchorAlpha": null,
+      "sha256": "f77aa356207eeca5c04905ba0bb7418c117353e059f9f353082875d167f24d58",
+      "alphaSha256": "5240767a22238b063759c337b5f8722fb6edc6d72996ee00def5d878a4746544"
+    },
+    {
+      "key": "arena-stigma/catkin/weapon",
+      "path": "public/assets/characters/modular/arena/catkin/swiftshadow-twin-claws.png",
+      "bbox": [
+        144,
+        235,
+        574,
+        534
+      ],
+      "alphaPixels": 25937,
+      "opaquePixels": 23416,
+      "anchorAlpha": 13102,
+      "sha256": "883066f66097c8a558b8b0dcc056ab15e497739e49414b828ad6a5b6a388a0a0",
+      "alphaSha256": "a4829cd10b330bffe5ea1dfae258e507e06fe12ef55078de835b7387b076d51f"
+    },
+    {
+      "key": "arena-stigma/kenshi/body",
+      "path": "public/assets/characters/modular/arena/kenshi/blinkbloom-whitefeather-garb.png",
+      "bbox": [
+        115,
+        20,
+        524,
+        924
+      ],
+      "alphaPixels": 156940,
+      "opaquePixels": 148639,
+      "anchorAlpha": null,
+      "sha256": "55245e4881198544080c792145afdd93eead9345b8900caa49f2be767faaa82e",
+      "alphaSha256": "6ff66404a7c775ca149c47c8d723bd0976c26b6d680a3c4a8cb0b4ac36513276"
+    },
+    {
+      "key": "arena-stigma/kenshi/head",
+      "path": "public/assets/characters/modular/arena/kenshi/blinkbloom-snowear-crown.png",
+      "bbox": [
+        366,
+        114,
+        422,
+        174
+      ],
+      "alphaPixels": 2347,
+      "opaquePixels": 1891,
+      "anchorAlpha": null,
+      "sha256": "c467870c207bdf97fcb94dc14679f92add85d4cb76e833e264f35514fed7af26",
+      "alphaSha256": "2c1dc07610212a1736bc34643142d99b62c1ce2adcdaa0bb1cc5e10722a7bbe3"
+    },
+    {
+      "key": "arena-stigma/kenshi/weapon",
+      "path": "public/assets/characters/modular/arena/kenshi/blinkbloom-boundary-katana.png",
+      "bbox": [
+        182,
+        527,
+        340,
+        718
+      ],
+      "alphaPixels": 7947,
+      "opaquePixels": 6676,
+      "anchorAlpha": 7238,
+      "sha256": "38d7cd6bd3b04d8a36a758878a4a3702b6573c079b1eb19c420632f4e2ce174c",
+      "alphaSha256": "009c1a177c4859870644ea94bf45952bdb921a2da8c73d1a5e2a84fc67acd709"
+    },
+    {
+      "key": "arena-stigma/kenshi/ring",
+      "path": "public/assets/characters/modular/arena/kenshi/blinkbloom-return-ring.png",
+      "bbox": [
+        411,
+        424,
+        504,
+        488
+      ],
+      "alphaPixels": 3829,
+      "opaquePixels": 2486,
+      "anchorAlpha": 3459,
+      "sha256": "23c97bcf5ac7a50c2d8fe3d6af3f85a087dfe3ced4231af4417d2bd6b4f6f071",
+      "alphaSha256": "3133b6cff07c43baa4bd5992a41a1a4c8b5df21edf86247419336b6b8e5401ba"
+    }
+  ],
+  "icons": [
+    {
+      "key": "berry-cream/belt.png",
+      "path": "public/assets/equipment/shop/berry-cream/belt.png",
+      "bbox": [
+        16,
+        60,
+        239,
+        196
+      ],
+      "alphaPixels": 22447,
+      "meanLuminance": 180.8,
+      "meanChroma": 78.41,
+      "nearWhiteRatio": 0.0967,
+      "darkPixelRatio": 0.6572,
+      "sha256": "3c91185451561309c9fd6f52f9912c111194fb628166f9a72a0cae3be7f0fd22"
+    },
+    {
+      "key": "berry-cream/body.png",
+      "path": "public/assets/equipment/shop/berry-cream/body.png",
+      "bbox": [
+        24,
+        16,
+        231,
+        239
+      ],
+      "alphaPixels": 28370,
+      "meanLuminance": 208.38,
+      "meanChroma": 55.57,
+      "nearWhiteRatio": 0.2129,
+      "darkPixelRatio": 0.3259,
+      "sha256": "c9c910844b5087fb1d923fa31d69c45752d0b71ff1ae7a522fad7d443f5f6b82"
+    },
+    {
+      "key": "berry-cream/bracelet.png",
+      "path": "public/assets/equipment/shop/berry-cream/bracelet.png",
+      "bbox": [
+        18,
+        16,
+        238,
+        239
+      ],
+      "alphaPixels": 28888,
+      "meanLuminance": 190.78,
+      "meanChroma": 70.33,
+      "nearWhiteRatio": 0.1475,
+      "darkPixelRatio": 0.4862,
+      "sha256": "cd871665618d68b0f86d159b7eaea70cc00cc400e5911b0da41c52f351024df6"
+    },
+    {
+      "key": "berry-cream/head.png",
+      "path": "public/assets/equipment/shop/berry-cream/head.png",
+      "bbox": [
+        16,
+        51,
+        239,
+        205
+      ],
+      "alphaPixels": 14296,
+      "meanLuminance": 201.17,
+      "meanChroma": 53.73,
+      "nearWhiteRatio": 0.2484,
+      "darkPixelRatio": 0.3868,
+      "sha256": "cfce058a1fb7825f9329ad98f40ba365c9519c559a54590b7d5bdec76d027359"
+    },
+    {
+      "key": "berry-cream/necklace.png",
+      "path": "public/assets/equipment/shop/berry-cream/necklace.png",
+      "bbox": [
+        26,
+        16,
+        230,
+        239
+      ],
+      "alphaPixels": 11100,
+      "meanLuminance": 191.41,
+      "meanChroma": 78.67,
+      "nearWhiteRatio": 0.177,
+      "darkPixelRatio": 0.4322,
+      "sha256": "9830ea72f2714905add35cb5c5d632f0823d12f33fe7e9031e31b1bdab99cb52"
+    },
+    {
+      "key": "berry-cream/ring.png",
+      "path": "public/assets/equipment/shop/berry-cream/ring.png",
+      "bbox": [
+        16,
+        17,
+        239,
+        239
+      ],
+      "alphaPixels": 24386,
+      "meanLuminance": 185.31,
+      "meanChroma": 79.98,
+      "nearWhiteRatio": 0.2134,
+      "darkPixelRatio": 0.5189,
+      "sha256": "f9482e9ce6eb567706ee2ea37b454f01179de36dbe00e9e2912f83aa71219ec4"
+    },
+    {
+      "key": "berry-cream/shoes.png",
+      "path": "public/assets/equipment/shop/berry-cream/shoes.png",
+      "bbox": [
+        16,
+        37,
+        239,
+        219
+      ],
+      "alphaPixels": 23531,
+      "meanLuminance": 204.59,
+      "meanChroma": 55.49,
+      "nearWhiteRatio": 0.3737,
+      "darkPixelRatio": 0.3721,
+      "sha256": "539fe5669b61f1db7283ecb39dd06174998f6642da2ef90745deed1b4552fc53"
+    },
+    {
+      "key": "berry-cream/weapon-swordsman.png",
+      "path": "public/assets/equipment/shop/berry-cream/weapon-swordsman.png",
+      "bbox": [
+        78,
+        16,
+        178,
+        239
+      ],
+      "alphaPixels": 4219,
+      "meanLuminance": 203.62,
+      "meanChroma": 56.9,
+      "nearWhiteRatio": 0.2591,
+      "darkPixelRatio": 0.3886,
+      "sha256": "d2e3ad73c3740a2e8d63bdef514bedf3b98cf16eab3b69b25938e0ce5200f562"
+    },
+    {
+      "key": "berry-cream/weapon-witch.png",
+      "path": "public/assets/equipment/shop/berry-cream/weapon-witch.png",
+      "bbox": [
+        70,
+        16,
+        185,
+        239
+      ],
+      "alphaPixels": 5873,
+      "meanLuminance": 194.95,
+      "meanChroma": 62.62,
+      "nearWhiteRatio": 0.1572,
+      "darkPixelRatio": 0.4619,
+      "sha256": "e89490bf8d93a6f16ecb46ef6c764009ccd79e13ca48bfb87d101e96684b8183"
+    },
+    {
+      "key": "berry-cream/weapon-shaman.png",
+      "path": "public/assets/equipment/shop/berry-cream/weapon-shaman.png",
+      "bbox": [
+        57,
+        16,
+        199,
+        239
+      ],
+      "alphaPixels": 7655,
+      "meanLuminance": 182.43,
+      "meanChroma": 63.65,
+      "nearWhiteRatio": 0.0944,
+      "darkPixelRatio": 0.5806,
+      "sha256": "21ecde9fe84cd0833b4b41108c8706a976a52d63e1ed69c3a98e9de6512e59c1"
+    },
+    {
+      "key": "berry-cream/weapon-catkin.png",
+      "path": "public/assets/equipment/shop/berry-cream/weapon-catkin.png",
+      "bbox": [
+        49,
+        32,
+        209,
+        223
+      ],
+      "alphaPixels": 14354,
+      "meanLuminance": 202.15,
+      "meanChroma": 57.8,
+      "nearWhiteRatio": 0.2633,
+      "darkPixelRatio": 0.3602,
+      "sha256": "02e41674ab0e94c2c8d16ffb84af659f73317d0bbc6ba7dbd5298dfab9b986a6"
+    },
+    {
+      "key": "berry-cream/weapon-kenshi.png",
+      "path": "public/assets/equipment/shop/berry-cream/weapon-kenshi.png",
+      "bbox": [
+        73,
+        16,
+        182,
+        239
+      ],
+      "alphaPixels": 6642,
+      "meanLuminance": 183.21,
+      "meanChroma": 47.76,
+      "nearWhiteRatio": 0.2194,
+      "darkPixelRatio": 0.5695,
+      "sha256": "c1394d30aeca3fea89fb30be5efa971754bf72625816407842167ef1ee018fd1"
+    },
+    {
+      "key": "moon-sugar/belt.png",
+      "path": "public/assets/equipment/shop/moon-sugar/belt.png",
+      "bbox": [
+        16,
+        76,
+        239,
+        179
+      ],
+      "alphaPixels": 17540,
+      "meanLuminance": 109.94,
+      "meanChroma": 39.27,
+      "nearWhiteRatio": 0.0294,
+      "darkPixelRatio": 0.8563,
+      "sha256": "bcaac05cae21a6fb093a05feb861cf19d1db966d32f1bd4f2e1f2fbcb9afe79a"
+    },
+    {
+      "key": "moon-sugar/body.png",
+      "path": "public/assets/equipment/shop/moon-sugar/body.png",
+      "bbox": [
+        24,
+        16,
+        231,
+        239
+      ],
+      "alphaPixels": 30069,
+      "meanLuminance": 121.62,
+      "meanChroma": 50.44,
+      "nearWhiteRatio": 0.0716,
+      "darkPixelRatio": 0.8191,
+      "sha256": "abf4495a55ce7b8f5cf80a41e49f805875b13e969d97f5ea1696496702db0540"
+    },
+    {
+      "key": "moon-sugar/bracelet.png",
+      "path": "public/assets/equipment/shop/moon-sugar/bracelet.png",
+      "bbox": [
+        16,
+        30,
+        239,
+        225
+      ],
+      "alphaPixels": 25614,
+      "meanLuminance": 108.36,
+      "meanChroma": 49.76,
+      "nearWhiteRatio": 0.0537,
+      "darkPixelRatio": 0.8337,
+      "sha256": "8ac9162b7e15d9cc946b62ff879fa9776d16b1dedb5df049b7da75475c74bba4"
+    },
+    {
+      "key": "moon-sugar/head.png",
+      "path": "public/assets/equipment/shop/moon-sugar/head.png",
+      "bbox": [
+        16,
+        32,
+        239,
+        223
+      ],
+      "alphaPixels": 20422,
+      "meanLuminance": 159.63,
+      "meanChroma": 45.06,
+      "nearWhiteRatio": 0.0928,
+      "darkPixelRatio": 0.733,
+      "sha256": "70a322ba062b7f1c9c7a3a16cabebcdb09cbb2e19419422001301c587a1ca362"
+    },
+    {
+      "key": "moon-sugar/necklace.png",
+      "path": "public/assets/equipment/shop/moon-sugar/necklace.png",
+      "bbox": [
+        22,
+        16,
+        233,
+        239
+      ],
+      "alphaPixels": 15646,
+      "meanLuminance": 133.97,
+      "meanChroma": 56.74,
+      "nearWhiteRatio": 0.0541,
+      "darkPixelRatio": 0.7954,
+      "sha256": "2f415c3781060f956306a0b3ccfdce66470ad763a56dca160a5d14fe43ff4a58"
+    },
+    {
+      "key": "moon-sugar/ring.png",
+      "path": "public/assets/equipment/shop/moon-sugar/ring.png",
+      "bbox": [
+        16,
+        21,
+        239,
+        234
+      ],
+      "alphaPixels": 28717,
+      "meanLuminance": 154.59,
+      "meanChroma": 79.04,
+      "nearWhiteRatio": 0.1134,
+      "darkPixelRatio": 0.7277,
+      "sha256": "02bab5e474ee575ab4ed16f908b42ee6d7b64331cb55d8ada9c030eeb5a3209c"
+    },
+    {
+      "key": "moon-sugar/shoes.png",
+      "path": "public/assets/equipment/shop/moon-sugar/shoes.png",
+      "bbox": [
+        16,
+        22,
+        239,
+        232
+      ],
+      "alphaPixels": 27503,
+      "meanLuminance": 158.09,
+      "meanChroma": 44.33,
+      "nearWhiteRatio": 0.2193,
+      "darkPixelRatio": 0.6202,
+      "sha256": "4d1638fb50aefc8adf3e9f500951a5a6da4fc3245a9cd70b7e408f9fa1f8dccd"
+    },
+    {
+      "key": "moon-sugar/weapon-swordsman.png",
+      "path": "public/assets/equipment/shop/moon-sugar/weapon-swordsman.png",
+      "bbox": [
+        69,
+        16,
+        186,
+        239
+      ],
+      "alphaPixels": 6879,
+      "meanLuminance": 153.68,
+      "meanChroma": 45.97,
+      "nearWhiteRatio": 0.1105,
+      "darkPixelRatio": 0.6766,
+      "sha256": "b7f4a4841bcf88576fcea2f58b4600bb1b0c17e1e5f63c9d4cea82a38da5c364"
+    },
+    {
+      "key": "moon-sugar/weapon-witch.png",
+      "path": "public/assets/equipment/shop/moon-sugar/weapon-witch.png",
+      "bbox": [
+        16,
+        16,
+        238,
+        239
+      ],
+      "alphaPixels": 7111,
+      "meanLuminance": 170.92,
+      "meanChroma": 53.44,
+      "nearWhiteRatio": 0.0974,
+      "darkPixelRatio": 0.6198,
+      "sha256": "5e4dde9948aeb46af3b2b16ec3b8f6ef29eb9553d35e37d70711de9be9dd772c"
+    },
+    {
+      "key": "moon-sugar/weapon-shaman.png",
+      "path": "public/assets/equipment/shop/moon-sugar/weapon-shaman.png",
+      "bbox": [
+        86,
+        16,
+        169,
+        239
+      ],
+      "alphaPixels": 7554,
+      "meanLuminance": 157.7,
+      "meanChroma": 44.42,
+      "nearWhiteRatio": 0.1152,
+      "darkPixelRatio": 0.6794,
+      "sha256": "b5d9270cc3313d55353006bb92af9822096c5561e10ca935dd6fdd0cef6505e0"
+    },
+    {
+      "key": "moon-sugar/weapon-catkin.png",
+      "path": "public/assets/equipment/shop/moon-sugar/weapon-catkin.png",
+      "bbox": [
+        61,
+        31,
+        210,
+        222
+      ],
+      "alphaPixels": 13977,
+      "meanLuminance": 153.03,
+      "meanChroma": 48.14,
+      "nearWhiteRatio": 0.1489,
+      "darkPixelRatio": 0.6426,
+      "sha256": "9ab9c45a8907afdc120f0819871d9971bc9c9f671612b5572cea3a229a7a587d"
+    },
+    {
+      "key": "moon-sugar/weapon-kenshi.png",
+      "path": "public/assets/equipment/shop/moon-sugar/weapon-kenshi.png",
+      "bbox": [
+        72,
+        16,
+        182,
+        239
+      ],
+      "alphaPixels": 6779,
+      "meanLuminance": 120.66,
+      "meanChroma": 65.37,
+      "nearWhiteRatio": 0.0274,
+      "darkPixelRatio": 0.8551,
+      "sha256": "459c15e59b4d18b7caba729a8482d6902fc7cda8bc97189231fd9717b133ea81"
+    },
+    {
+      "key": "rose-night/belt.png",
+      "path": "public/assets/equipment/shop/rose-night/belt.png",
+      "bbox": [
+        16,
+        42,
+        239,
+        212
+      ],
+      "alphaPixels": 27822,
+      "meanLuminance": 84.1,
+      "meanChroma": 58.28,
+      "nearWhiteRatio": 0.0354,
+      "darkPixelRatio": 0.8701,
+      "sha256": "2ee36f29e3284aa7a90d6bb0b5b71200726c25d5e2cda3eb97ce2cd70caadb0f"
+    },
+    {
+      "key": "rose-night/body.png",
+      "path": "public/assets/equipment/shop/rose-night/body.png",
+      "bbox": [
+        36,
+        16,
+        218,
+        239
+      ],
+      "alphaPixels": 24051,
+      "meanLuminance": 106.62,
+      "meanChroma": 60.54,
+      "nearWhiteRatio": 0.0682,
+      "darkPixelRatio": 0.8109,
+      "sha256": "ac9aab65a4e4cef0171586784e668a5883bdde5b3f88a50a1efc8d6cd072dcf6"
+    },
+    {
+      "key": "rose-night/bracelet.png",
+      "path": "public/assets/equipment/shop/rose-night/bracelet.png",
+      "bbox": [
+        16,
+        47,
+        239,
+        208
+      ],
+      "alphaPixels": 23358,
+      "meanLuminance": 110.4,
+      "meanChroma": 73.9,
+      "nearWhiteRatio": 0.0659,
+      "darkPixelRatio": 0.7858,
+      "sha256": "035daf8d681557831ba760e33d1c622b3c1f3047b3f5559d4fefddc5d109bfc6"
+    },
+    {
+      "key": "rose-night/head.png",
+      "path": "public/assets/equipment/shop/rose-night/head.png",
+      "bbox": [
+        16,
+        44,
+        239,
+        211
+      ],
+      "alphaPixels": 25558,
+      "meanLuminance": 96.8,
+      "meanChroma": 87.42,
+      "nearWhiteRatio": 0.0435,
+      "darkPixelRatio": 0.8398,
+      "sha256": "f889d6d64d1e68681fefe187fb3b7ea543c451cf12c305e181ca64939d4df74c"
+    },
+    {
+      "key": "rose-night/necklace.png",
+      "path": "public/assets/equipment/shop/rose-night/necklace.png",
+      "bbox": [
+        50,
+        16,
+        205,
+        239
+      ],
+      "alphaPixels": 12715,
+      "meanLuminance": 131.11,
+      "meanChroma": 78.08,
+      "nearWhiteRatio": 0.0401,
+      "darkPixelRatio": 0.7989,
+      "sha256": "c0715f13b39c3e1c1933a4b5708590560fe7fba5875dcf1ff92395bf6b44df41"
+    },
+    {
+      "key": "rose-night/ring.png",
+      "path": "public/assets/equipment/shop/rose-night/ring.png",
+      "bbox": [
+        16,
+        16,
+        238,
+        239
+      ],
+      "alphaPixels": 31412,
+      "meanLuminance": 110.56,
+      "meanChroma": 97.88,
+      "nearWhiteRatio": 0.0471,
+      "darkPixelRatio": 0.8582,
+      "sha256": "9e16db160bff8accab990a80b72821266bb9ca365177917a4c22e658e2822b47"
+    },
+    {
+      "key": "rose-night/shoes.png",
+      "path": "public/assets/equipment/shop/rose-night/shoes.png",
+      "bbox": [
+        16,
+        68,
+        239,
+        186
+      ],
+      "alphaPixels": 14547,
+      "meanLuminance": 88.01,
+      "meanChroma": 57.8,
+      "nearWhiteRatio": 0.0257,
+      "darkPixelRatio": 0.8877,
+      "sha256": "708c6101cbe4a1134a05635afd8c0d571ae2b4b89859bb688ecc786949ff7fe6"
+    },
+    {
+      "key": "rose-night/weapon-swordsman.png",
+      "path": "public/assets/equipment/shop/rose-night/weapon-swordsman.png",
+      "bbox": [
+        80,
+        16,
+        175,
+        239
+      ],
+      "alphaPixels": 4022,
+      "meanLuminance": 163.01,
+      "meanChroma": 58.74,
+      "nearWhiteRatio": 0.0954,
+      "darkPixelRatio": 0.6712,
+      "sha256": "ae019a1ed8864ee23ef64cd222b7b31a80a1c29d2c9ce5bf564f2a987deac10c"
+    },
+    {
+      "key": "rose-night/weapon-witch.png",
+      "path": "public/assets/equipment/shop/rose-night/weapon-witch.png",
+      "bbox": [
+        70,
+        16,
+        184,
+        239
+      ],
+      "alphaPixels": 4768,
+      "meanLuminance": 162.19,
+      "meanChroma": 69.13,
+      "nearWhiteRatio": 0.1356,
+      "darkPixelRatio": 0.6393,
+      "sha256": "38de93aba1ccec55556e9613eb920bed6eda106ec1cb3f0b716a13478de20a65"
+    },
+    {
+      "key": "rose-night/weapon-shaman.png",
+      "path": "public/assets/equipment/shop/rose-night/weapon-shaman.png",
+      "bbox": [
+        16,
+        37,
+        239,
+        217
+      ],
+      "alphaPixels": 20036,
+      "meanLuminance": 107.37,
+      "meanChroma": 101.54,
+      "nearWhiteRatio": 0.0149,
+      "darkPixelRatio": 0.8893,
+      "sha256": "83f65bf22bc949e0008ee0e617dec4cbdcc839cc882067d0caa52adfe8df7aef"
+    },
+    {
+      "key": "rose-night/weapon-catkin.png",
+      "path": "public/assets/equipment/shop/rose-night/weapon-catkin.png",
+      "bbox": [
+        51,
+        30,
+        203,
+        227
+      ],
+      "alphaPixels": 13524,
+      "meanLuminance": 107.5,
+      "meanChroma": 81.87,
+      "nearWhiteRatio": 0.0755,
+      "darkPixelRatio": 0.8474,
+      "sha256": "7c970b75b36a5b1a9176c64283b3d7daae5d7b132c76c2b7a00da8a0b68fb480"
+    },
+    {
+      "key": "rose-night/weapon-kenshi.png",
+      "path": "public/assets/equipment/shop/rose-night/weapon-kenshi.png",
+      "bbox": [
+        74,
+        16,
+        180,
+        239
+      ],
+      "alphaPixels": 6043,
+      "meanLuminance": 85.02,
+      "meanChroma": 45.63,
+      "nearWhiteRatio": 0.0054,
+      "darkPixelRatio": 0.9268,
+      "sha256": "ec46f2d361120c27a68520af8d1e58083a5b0b34f77d1d27c8d1c36608d5680d"
+    },
+    {
+      "key": "ice-snow/belt.png",
+      "path": "public/assets/equipment/shop/ice-snow/belt.png",
+      "bbox": [
+        16,
+        42,
+        239,
+        212
+      ],
+      "alphaPixels": 27822,
+      "meanLuminance": 188.14,
+      "meanChroma": 6.99,
+      "nearWhiteRatio": 0.0083,
+      "darkPixelRatio": 0.712,
+      "sha256": "cf19fb7df0d970d2df45ec1c699f460b255a21d46adc90c78466b1c0a2790dee"
+    },
+    {
+      "key": "ice-snow/body.png",
+      "path": "public/assets/equipment/shop/ice-snow/body.png",
+      "bbox": [
+        36,
+        16,
+        218,
+        239
+      ],
+      "alphaPixels": 24051,
+      "meanLuminance": 193.7,
+      "meanChroma": 7.18,
+      "nearWhiteRatio": 0.0135,
+      "darkPixelRatio": 0.6186,
+      "sha256": "36c21a88fb0510ba78c8ed57f3a893f28b8d12d806d2f7a0562dbcc156e9d94c"
+    },
+    {
+      "key": "ice-snow/bracelet.png",
+      "path": "public/assets/equipment/shop/ice-snow/bracelet.png",
+      "bbox": [
+        16,
+        47,
+        239,
+        208
+      ],
+      "alphaPixels": 23358,
+      "meanLuminance": 193.94,
+      "meanChroma": 7.02,
+      "nearWhiteRatio": 0.0109,
+      "darkPixelRatio": 0.58,
+      "sha256": "5acb4044337f7c6cc50b3a8b6fb45b47ccb395132d2ce13bccfa8628e16832c3"
+    },
+    {
+      "key": "ice-snow/head.png",
+      "path": "public/assets/equipment/shop/ice-snow/head.png",
+      "bbox": [
+        16,
+        44,
+        239,
+        211
+      ],
+      "alphaPixels": 25558,
+      "meanLuminance": 192.48,
+      "meanChroma": 7.16,
+      "nearWhiteRatio": 0.0227,
+      "darkPixelRatio": 0.6727,
+      "sha256": "4052788610c5998b4fb12a124bdc5953fe3225475e21401440072fe464ce7aba"
+    },
+    {
+      "key": "ice-snow/necklace.png",
+      "path": "public/assets/equipment/shop/ice-snow/necklace.png",
+      "bbox": [
+        50,
+        16,
+        205,
+        239
+      ],
+      "alphaPixels": 12715,
+      "meanLuminance": 201.04,
+      "meanChroma": 6.66,
+      "nearWhiteRatio": 0.0434,
+      "darkPixelRatio": 0.4316,
+      "sha256": "3094d736206cf0acaad031fea01490a44766329d419518e450dd954feb572d86"
+    },
+    {
+      "key": "ice-snow/ring.png",
+      "path": "public/assets/equipment/shop/ice-snow/ring.png",
+      "bbox": [
+        16,
+        16,
+        238,
+        239
+      ],
+      "alphaPixels": 31412,
+      "meanLuminance": 195.11,
+      "meanChroma": 6.89,
+      "nearWhiteRatio": 0.0132,
+      "darkPixelRatio": 0.5892,
+      "sha256": "5c08899cc86daf8c17739055268d3457956bcf1d023bdea476e697388734b62c"
+    },
+    {
+      "key": "ice-snow/shoes.png",
+      "path": "public/assets/equipment/shop/ice-snow/shoes.png",
+      "bbox": [
+        16,
+        68,
+        239,
+        186
+      ],
+      "alphaPixels": 14547,
+      "meanLuminance": 190.17,
+      "meanChroma": 6.74,
+      "nearWhiteRatio": 0.0147,
+      "darkPixelRatio": 0.7292,
+      "sha256": "cf1a04960013f1f00e4809ec6a6a50ae0d9216eee64a3e39a43a16b292b83f01"
+    },
+    {
+      "key": "ice-snow/weapon-swordsman.png",
+      "path": "public/assets/equipment/shop/ice-snow/weapon-swordsman.png",
+      "bbox": [
+        80,
+        16,
+        175,
+        239
+      ],
+      "alphaPixels": 4022,
+      "meanLuminance": 181.21,
+      "meanChroma": 51.35,
+      "nearWhiteRatio": 0.0569,
+      "darkPixelRatio": 0.831,
+      "sha256": "1503b7644a1bb9bd724a6644830dbb3d4ba7aa8c0cbf98c6b2699224a6c02dab"
+    },
+    {
+      "key": "ice-snow/weapon-witch.png",
+      "path": "public/assets/equipment/shop/ice-snow/weapon-witch.png",
+      "bbox": [
+        70,
+        16,
+        184,
+        239
+      ],
+      "alphaPixels": 4768,
+      "meanLuminance": 180.26,
+      "meanChroma": 51.94,
+      "nearWhiteRatio": 0.048,
+      "darkPixelRatio": 0.8413,
+      "sha256": "9d04b50a766513b20aa05ed097269e17200180050b4bc9e8caeaa5ce7fd85bc2"
+    },
+    {
+      "key": "ice-snow/weapon-shaman.png",
+      "path": "public/assets/equipment/shop/ice-snow/weapon-shaman.png",
+      "bbox": [
+        16,
+        37,
+        239,
+        217
+      ],
+      "alphaPixels": 20036,
+      "meanLuminance": 196.16,
+      "meanChroma": 7.38,
+      "nearWhiteRatio": 0.0324,
+      "darkPixelRatio": 0.626,
+      "sha256": "c411b2de1d540eabde87b1ca332f28035c07cbba4b3336b161c73498d5ad061e"
+    },
+    {
+      "key": "ice-snow/weapon-catkin.png",
+      "path": "public/assets/equipment/shop/ice-snow/weapon-catkin.png",
+      "bbox": [
+        51,
+        30,
+        203,
+        227
+      ],
+      "alphaPixels": 13524,
+      "meanLuminance": 195.81,
+      "meanChroma": 6.75,
+      "nearWhiteRatio": 0.0475,
+      "darkPixelRatio": 0.6412,
+      "sha256": "848621f167407fb3250beb51bdbfceba0c0522a2411cfacc6e1c2a34ebfac7ec"
+    },
+    {
+      "key": "ice-snow/weapon-kenshi.png",
+      "path": "public/assets/equipment/shop/ice-snow/weapon-kenshi.png",
+      "bbox": [
+        74,
+        16,
+        180,
+        239
+      ],
+      "alphaPixels": 6043,
+      "meanLuminance": 190.86,
+      "meanChroma": 6.83,
+      "nearWhiteRatio": 0.0341,
+      "darkPixelRatio": 0.7332,
+      "sha256": "da29233ed24180577ce755f5d6db7740e09f7a0a18cbb54901ab218ae39d7e54"
+    },
+    {
+      "key": "berry-cream/body-kenshi-presentation.png",
+      "path": "public/assets/equipment/bodies/boutique-berry-cream-body/kenshi.png",
+      "bbox": [
+        13,
+        12,
+        242,
+        243
+      ],
+      "alphaPixels": 36087,
+      "meanLuminance": 202.69,
+      "meanChroma": 40.65,
+      "nearWhiteRatio": 0.2422,
+      "darkPixelRatio": 0.4492,
+      "sha256": "79b725819c365baf8161c7aff245faf59fab5e3500ae951fa92f4e9a619ae32b"
+    },
+    {
+      "key": "moon-sugar/body-kenshi-presentation.png",
+      "path": "public/assets/equipment/bodies/boutique-moon-sugar-body/kenshi.png",
+      "bbox": [
+        12,
+        31,
+        243,
+        224
+      ],
+      "alphaPixels": 29195,
+      "meanLuminance": 187.83,
+      "meanChroma": 36.86,
+      "nearWhiteRatio": 0.0841,
+      "darkPixelRatio": 0.5234,
+      "sha256": "e3ef6be048a4b956060b9cc3db9f0983cdb1b68d86549fbdd2d9465c050c1c51"
+    },
+    {
+      "key": "rose-night/body-kenshi-presentation.png",
+      "path": "public/assets/equipment/bodies/boutique-rose-night-body/kenshi.png",
+      "bbox": [
+        24,
+        12,
+        230,
+        243
+      ],
+      "alphaPixels": 31476,
+      "meanLuminance": 77.66,
+      "meanChroma": 40.48,
+      "nearWhiteRatio": 0.0223,
+      "darkPixelRatio": 0.9575,
+      "sha256": "e25fdb87b0018c50d7afa8751842b17ee6d5e5feb698df5a52f480532b48240b"
+    },
+    {
+      "key": "ice-snow/body-kenshi-presentation.png",
+      "path": "public/assets/equipment/bodies/boutique-ice-snow-body/kenshi.png",
+      "bbox": [
+        68,
+        8,
+        196,
+        241
+      ],
+      "alphaPixels": 13384,
+      "meanLuminance": 197.06,
+      "meanChroma": 17.68,
+      "nearWhiteRatio": 0.0595,
+      "darkPixelRatio": 0.5854,
+      "sha256": "9a51e7882652764bfa6e3b2c09774297d8e484c86935f76c3c736fddea52dc15"
+    },
+    {
+      "key": "cardboard-cat/body-catkin.png",
+      "path": "public/assets/equipment/shop/cardboard-cat/body-catkin.png",
+      "bbox": [
+        68,
+        17,
+        186,
+        238
+      ],
+      "alphaPixels": 10176,
+      "meanLuminance": 157.56,
+      "meanChroma": 53.94,
+      "nearWhiteRatio": 0.1244,
+      "darkPixelRatio": 0.6927,
+      "sha256": "fb1fc95dc0313b712c9ea769c20e55e020c22b6abfa210449453f4779fa8201a"
+    },
+    {
+      "key": "cardboard-cat/weapon-catkin.png",
+      "path": "public/assets/equipment/shop/cardboard-cat/weapon-catkin.png",
+      "bbox": [
+        17,
+        51,
+        238,
+        204
+      ],
+      "alphaPixels": 7618,
+      "meanLuminance": 171.34,
+      "meanChroma": 66,
+      "nearWhiteRatio": 0.1433,
+      "darkPixelRatio": 0.6156,
+      "sha256": "a75df5af0464ca66f344cbebd2e06d68d9a4dd1b24e419bb80c3b94cc8790f79"
+    },
+    {
+      "key": "arena-stigma/swordsman/body-icon",
+      "path": "public/assets/equipment/arena/swordsman/triumph-battle-mantle.png",
+      "bbox": [
+        16,
+        17,
+        239,
+        237
+      ],
+      "alphaPixels": 33275,
+      "meanLuminance": 156.73,
+      "meanChroma": 74.34,
+      "nearWhiteRatio": 0.1853,
+      "darkPixelRatio": 0.6395,
+      "sha256": "a0c995fc9fb07157f39677d6d0cbe74af9ace2b0bf823b4ea33f3724d3c98a64"
+    },
+    {
+      "key": "arena-stigma/swordsman/head-icon",
+      "path": "public/assets/equipment/arena/swordsman/triumph-laurel-crown.png",
+      "bbox": [
+        16,
+        72,
+        239,
+        182
+      ],
+      "alphaPixels": 16995,
+      "meanLuminance": 156.73,
+      "meanChroma": 96.71,
+      "nearWhiteRatio": 0.1472,
+      "darkPixelRatio": 0.6769,
+      "sha256": "e4051690559c8d35e64530df98d29e60783b860c26c3ce24995b01317607c2e0"
+    },
+    {
+      "key": "arena-stigma/swordsman/weapon-icon",
+      "path": "public/assets/equipment/arena/swordsman/triumph-verdict-blade.png",
+      "bbox": [
+        19,
+        16,
+        235,
+        239
+      ],
+      "alphaPixels": 11031,
+      "meanLuminance": 164.41,
+      "meanChroma": 82.09,
+      "nearWhiteRatio": 0.1937,
+      "darkPixelRatio": 0.5775,
+      "sha256": "25501819edf14b646f98fc2bf0d6ffdf306a9736d927c3577ad5b30caf409f45"
+    },
+    {
+      "key": "arena-stigma/swordsman/ring-icon",
+      "path": "public/assets/equipment/arena/swordsman/triumph-oath-ring.png",
+      "bbox": [
+        16,
+        18,
+        239,
+        237
+      ],
+      "alphaPixels": 33839,
+      "meanLuminance": 155.69,
+      "meanChroma": 119.43,
+      "nearWhiteRatio": 0.1245,
+      "darkPixelRatio": 0.6819,
+      "sha256": "826398888e456adc7d139f030dfc0d4e4ec6c7df753fe31f336e1361005e7ee8"
+    },
+    {
+      "key": "arena-stigma/witch/body-icon",
+      "path": "public/assets/equipment/arena/witch/starjudge-orbit-robe.png",
+      "bbox": [
+        30,
+        16,
+        225,
+        239
+      ],
+      "alphaPixels": 30667,
+      "meanLuminance": 128.72,
+      "meanChroma": 64.23,
+      "nearWhiteRatio": 0.0412,
+      "darkPixelRatio": 0.7726,
+      "sha256": "ff8ec72fca820a42c0f727a6eb3fff0872f4deabfad2723388ca1b2257767d1a"
+    },
+    {
+      "key": "arena-stigma/witch/head-icon",
+      "path": "public/assets/equipment/arena/witch/starjudge-observatory-crown.png",
+      "bbox": [
+        16,
+        43,
+        239,
+        211
+      ],
+      "alphaPixels": 20826,
+      "meanLuminance": 138.68,
+      "meanChroma": 90.74,
+      "nearWhiteRatio": 0.0802,
+      "darkPixelRatio": 0.7688,
+      "sha256": "8671cdda81a5c8a50854d43ca83364b49a3c728f71b7d908ce30326a6c57c196"
+    },
+    {
+      "key": "arena-stigma/witch/weapon-icon",
+      "path": "public/assets/equipment/arena/witch/starjudge-scale-staff.png",
+      "bbox": [
+        41,
+        16,
+        213,
+        239
+      ],
+      "alphaPixels": 7604,
+      "meanLuminance": 149.75,
+      "meanChroma": 83.2,
+      "nearWhiteRatio": 0.0667,
+      "darkPixelRatio": 0.7913,
+      "sha256": "3ae07cb7974d476e1c077eecf6269923adc33b76889473eccb78fbba80bbc524"
+    },
+    {
+      "key": "arena-stigma/witch/ring-icon",
+      "path": "public/assets/equipment/arena/witch/starjudge-fixedstar-ring.png",
+      "bbox": [
+        30,
+        16,
+        224,
+        239
+      ],
+      "alphaPixels": 25751,
+      "meanLuminance": 144.9,
+      "meanChroma": 98.83,
+      "nearWhiteRatio": 0.1206,
+      "darkPixelRatio": 0.7216,
+      "sha256": "0e822ed32a6512c880d076871bbabe088decd52e85bba0b6d86edecaf99d9615"
+    },
+    {
+      "key": "arena-stigma/shaman/body-icon",
+      "path": "public/assets/equipment/arena/shaman/oracle-ritual-vestment.png",
+      "bbox": [
+        16,
+        16,
+        238,
+        239
+      ],
+      "alphaPixels": 33217,
+      "meanLuminance": 169.06,
+      "meanChroma": 63.96,
+      "nearWhiteRatio": 0.1252,
+      "darkPixelRatio": 0.6715,
+      "sha256": "4aef917a5f64227687070e974804920e49d19ed1c2edc1ee7c555de575e3880e"
+    },
+    {
+      "key": "arena-stigma/shaman/head-icon",
+      "path": "public/assets/equipment/arena/shaman/oracle-rite-crown.png",
+      "bbox": [
+        16,
+        45,
+        239,
+        209
+      ],
+      "alphaPixels": 20489,
+      "meanLuminance": 166.07,
+      "meanChroma": 83.83,
+      "nearWhiteRatio": 0.1433,
+      "darkPixelRatio": 0.6616,
+      "sha256": "820d8080974c355b13acf6d7557e8a797bf6491a2eeaefa1002f0e0742a1134f"
+    },
+    {
+      "key": "arena-stigma/shaman/weapon-icon",
+      "path": "public/assets/equipment/arena/shaman/oracle-spirit-bell-staff.png",
+      "bbox": [
+        56,
+        16,
+        198,
+        239
+      ],
+      "alphaPixels": 10047,
+      "meanLuminance": 163.44,
+      "meanChroma": 78.05,
+      "nearWhiteRatio": 0.0872,
+      "darkPixelRatio": 0.7083,
+      "sha256": "2cd3773880dc3baa12730261e2eddc1f9a86722842ded0e01de95e1e7e864acb"
+    },
+    {
+      "key": "arena-stigma/shaman/ring-icon",
+      "path": "public/assets/equipment/arena/shaman/oracle-pact-ring.png",
+      "bbox": [
+        33,
+        16,
+        221,
+        239
+      ],
+      "alphaPixels": 26554,
+      "meanLuminance": 161.46,
+      "meanChroma": 97.34,
+      "nearWhiteRatio": 0.123,
+      "darkPixelRatio": 0.6915,
+      "sha256": "967f44dc091cac1aebb6211775209be11a9bffbadeabb732361640803efbec7b"
+    },
+    {
+      "key": "arena-stigma/catkin/body-icon",
+      "path": "public/assets/equipment/arena/catkin/swiftshadow-stalker-suit.png",
+      "bbox": [
+        43,
+        16,
+        212,
+        239
+      ],
+      "alphaPixels": 21938,
+      "meanLuminance": 106.25,
+      "meanChroma": 59.49,
+      "nearWhiteRatio": 0.0393,
+      "darkPixelRatio": 0.8665,
+      "sha256": "c6ff1187e0cf3cc3aaaf37b6523316b3b1347ab09bdfff68f97e2553c2b5acde"
+    },
+    {
+      "key": "arena-stigma/catkin/head-icon",
+      "path": "public/assets/equipment/arena/catkin/swiftshadow-nighthunt-ears.png",
+      "bbox": [
+        16,
+        62,
+        239,
+        193
+      ],
+      "alphaPixels": 16527,
+      "meanLuminance": 111.75,
+      "meanChroma": 91.55,
+      "nearWhiteRatio": 0.0456,
+      "darkPixelRatio": 0.8529,
+      "sha256": "18e33b09a3f0bf643f4a196957f7a22934f10e980761b91cf091b107ccd3b07e"
+    },
+    {
+      "key": "arena-stigma/catkin/weapon-icon",
+      "path": "public/assets/equipment/arena/catkin/swiftshadow-twin-claws.png",
+      "bbox": [
+        16,
+        39,
+        239,
+        216
+      ],
+      "alphaPixels": 19943,
+      "meanLuminance": 121.98,
+      "meanChroma": 77.06,
+      "nearWhiteRatio": 0.0794,
+      "darkPixelRatio": 0.7964,
+      "sha256": "0517dce03cebe7c37b7ad8935ed6020bff6ed750f06c00851ac649357edf8e98"
+    },
+    {
+      "key": "arena-stigma/catkin/ring-icon",
+      "path": "public/assets/equipment/arena/catkin/swiftshadow-agile-ring.png",
+      "bbox": [
+        18,
+        16,
+        237,
+        239
+      ],
+      "alphaPixels": 30559,
+      "meanLuminance": 132.1,
+      "meanChroma": 101.07,
+      "nearWhiteRatio": 0.0932,
+      "darkPixelRatio": 0.7355,
+      "sha256": "f228f90dc14064db3cf3a83779d1296a45b2414f48ad7f0f63d75ad1b1183758"
+    },
+    {
+      "key": "arena-stigma/kenshi/body-icon",
+      "path": "public/assets/equipment/arena/kenshi/blinkbloom-whitefeather-garb.png",
+      "bbox": [
+        49,
+        30,
+        240,
+        235
+      ],
+      "alphaPixels": 29553,
+      "meanLuminance": 151.64,
+      "meanChroma": 28.41,
+      "nearWhiteRatio": 0.2883,
+      "darkPixelRatio": 0.5811,
+      "sha256": "4e6e8232c36d17d791b66fb13ce550f7e9ed49671cd267d5158a5f7caca951b1"
+    },
+    {
+      "key": "arena-stigma/kenshi/head-icon",
+      "path": "public/assets/equipment/arena/kenshi/blinkbloom-snowear-crown.png",
+      "bbox": [
+        45,
+        29,
+        240,
+        236
+      ],
+      "alphaPixels": 26477,
+      "meanLuminance": 183.64,
+      "meanChroma": 33.36,
+      "nearWhiteRatio": 0.3041,
+      "darkPixelRatio": 0.4803,
+      "sha256": "f2f35447d9b0450850506000aa350e58ca5a1e28ef72d347f55fee6eb3242ffe"
+    },
+    {
+      "key": "arena-stigma/kenshi/weapon-icon",
+      "path": "public/assets/equipment/arena/kenshi/blinkbloom-boundary-katana.png",
+      "bbox": [
+        35,
+        15,
+        220,
+        240
+      ],
+      "alphaPixels": 11602,
+      "meanLuminance": 165.83,
+      "meanChroma": 43.33,
+      "nearWhiteRatio": 0.1557,
+      "darkPixelRatio": 0.6185,
+      "sha256": "8e60bee465c76c74607843c44abf5aaa684d1522ac4e614761ceaf73fc392ab1"
+    },
+    {
+      "key": "arena-stigma/kenshi/ring-icon",
+      "path": "public/assets/equipment/arena/kenshi/blinkbloom-return-ring.png",
+      "bbox": [
+        73,
+        20,
+        240,
+        234
+      ],
+      "alphaPixels": 18954,
+      "meanLuminance": 179.15,
+      "meanChroma": 56.65,
+      "nearWhiteRatio": 0.1529,
+      "darkPixelRatio": 0.5506,
+      "sha256": "3e72e526272893cb25e49942b8a6c99b259f3efefcad6dedb020a4983425463f"
+    }
+  ],
+  "effects": [
+    {
+      "key": "berry-cream/swordsman/effect",
+      "path": "public/assets/effects/boutique/berry-cream-swordsman.png",
+      "bbox": [
+        17,
+        44,
+        493,
+        468
+      ],
+      "alphaPixels": 84928,
+      "opaquePixels": 69661,
+      "sha256": "c7c54d110a6425a418b67496110a320fa7acc363f7d0ccd0ab01469d51a62ed7",
+      "alphaSha256": "2e8a794ce49acfe1dfd996e6384e6baf2a33790c6744de8dc468648533d04c6a"
+    },
+    {
+      "key": "berry-cream/witch/effect",
+      "path": "public/assets/effects/boutique/berry-cream-witch.png",
+      "bbox": [
+        18,
+        20,
+        493,
+        492
+      ],
+      "alphaPixels": 73825,
+      "opaquePixels": 48267,
+      "sha256": "32ca77882923281a8ee6492f3df503c6c7124d992742cc3717e86efc4d9e5cfd",
+      "alphaSha256": "5e4410d094810090bd9f663b5e9c090353327ca7d671875f3be7bf74388b45b7"
+    },
+    {
+      "key": "berry-cream/shaman/effect",
+      "path": "public/assets/effects/boutique/berry-cream-shaman.png",
+      "bbox": [
+        28,
+        18,
+        484,
+        493
+      ],
+      "alphaPixels": 144377,
+      "opaquePixels": 114665,
+      "sha256": "f9077e4474cc914ca295ca61f222f8d6169bb060f3fb9a6d5d01db130e59c78b",
+      "alphaSha256": "0c75f8819c220a49424992f68e24d7569d960e56945035e02f707afef1f534cf"
+    },
+    {
+      "key": "berry-cream/catkin/effect",
+      "path": "public/assets/effects/boutique/berry-cream-catkin.png",
+      "bbox": [
+        130,
+        143,
+        381,
+        349
+      ],
+      "alphaPixels": 19717,
+      "opaquePixels": 16716,
+      "sha256": "e408a6c26b7039ee542d75a5ce6dd67e5593709b1b03523c1673421a14592a2b",
+      "alphaSha256": "0344b92ab96e941c48f3bdbd2132e93107659ad2ce76a999719b5006b86c3543"
+    },
+    {
+      "key": "berry-cream/kenshi/effect",
+      "path": "public/assets/effects/boutique/berry-cream-kenshi.png",
+      "bbox": [
+        83,
+        74,
+        477,
+        462
+      ],
+      "alphaPixels": 11997,
+      "opaquePixels": 8964,
+      "sha256": "a0b56dbd1a57da6f80cb294cc80e862a4a22357f1bbb84bed52c5882a8c2adc6",
+      "alphaSha256": "c74ffaf2dc663491e1b4b3c67fe96cdf280b095b26e3e6116023fb19d5900944"
+    },
+    {
+      "key": "moon-sugar/swordsman/effect",
+      "path": "public/assets/effects/boutique/moon-sugar-swordsman.png",
+      "bbox": [
+        16,
+        21,
+        495,
+        489
+      ],
+      "alphaPixels": 66151,
+      "opaquePixels": 53240,
+      "sha256": "ff02311c428f1fb137bdc0da418d95a3290b28f48ab06701688e617a9be1f10f",
+      "alphaSha256": "8e5187c2347e526d4381abb1aeb9565c34e8a5b2444c6c1591176ba2ef2e1ca5"
+    },
+    {
+      "key": "moon-sugar/witch/effect",
+      "path": "public/assets/effects/boutique/moon-sugar-witch.png",
+      "bbox": [
+        23,
+        16,
+        487,
+        495
+      ],
+      "alphaPixels": 89256,
+      "opaquePixels": 71655,
+      "sha256": "047f35a53a74ee9001033e7e2e275e5bded8dcec4b174b4a589066ad49932de8",
+      "alphaSha256": "0ee63acb0c0c43fba0ae0a55d7cff2f43dc443e4c805dbb8cc9389dd759947ae"
+    },
+    {
+      "key": "moon-sugar/shaman/effect",
+      "path": "public/assets/effects/boutique/moon-sugar-shaman.png",
+      "bbox": [
+        24,
+        16,
+        487,
+        495
+      ],
+      "alphaPixels": 119782,
+      "opaquePixels": 101993,
+      "sha256": "f43312d2786be82becd4349dd4697cdc1bcedf49374d7882d2ff4143696f71f1",
+      "alphaSha256": "e2467de9341ab30ecb2ce02bd2afd1b505c9dee889e7fafaa98d03b6598b721f"
+    },
+    {
+      "key": "moon-sugar/catkin/effect",
+      "path": "public/assets/effects/boutique/moon-sugar-catkin.png",
+      "bbox": [
+        137,
+        142,
+        375,
+        350
+      ],
+      "alphaPixels": 19590,
+      "opaquePixels": 15733,
+      "sha256": "7a4e477eb7d1ae93d2486e5b6b1e6a4a2fc13cec728f7e0d9e8aae43f18ad4f5",
+      "alphaSha256": "30936bd83c18347b7e8a2150cdb374f986b37083026f37db1c151e7a93dcb09d"
+    },
+    {
+      "key": "moon-sugar/kenshi/effect",
+      "path": "public/assets/effects/boutique/moon-sugar-kenshi.png",
+      "bbox": [
+        80,
+        73,
+        451,
+        447
+      ],
+      "alphaPixels": 5015,
+      "opaquePixels": 3417,
+      "sha256": "fc79483405d94afee7dccbe0794ea52975c52eb47138327ef05a4d336303ccb8",
+      "alphaSha256": "4210cbfda37abfca564d5c606e871ee58570e28aec7dcf8d0dc8369f2bdfc47a"
+    },
+    {
+      "key": "rose-night/swordsman/effect",
+      "path": "public/assets/effects/boutique/rose-night-swordsman.png",
+      "bbox": [
+        20,
+        32,
+        491,
+        478
+      ],
+      "alphaPixels": 81498,
+      "opaquePixels": 71755,
+      "sha256": "01621e7161a76c49c3a52fddcf5577b7d7f4cad1efca72301b749302b6a98a3e",
+      "alphaSha256": "211045f7553524376dbb864c0acfb6c9ed3099ae7e8259d6d72da1893871a68a"
+    },
+    {
+      "key": "rose-night/witch/effect",
+      "path": "public/assets/effects/boutique/rose-night-witch.png",
+      "bbox": [
+        21,
+        20,
+        489,
+        491
+      ],
+      "alphaPixels": 145304,
+      "opaquePixels": 125280,
+      "sha256": "401582200c4a8fa8c5b87df6760b297e1bb4cb98f72177236f7e4dba46db7c75",
+      "alphaSha256": "760b6dae489c53f1a546edd917ca3cc846485b7f6c0ff3e33be0d7aa107e617a"
+    },
+    {
+      "key": "rose-night/shaman/effect",
+      "path": "public/assets/effects/boutique/rose-night-shaman.png",
+      "bbox": [
+        20,
+        56,
+        491,
+        455
+      ],
+      "alphaPixels": 94656,
+      "opaquePixels": 77539,
+      "sha256": "c1c74a7260eb067ba01683e72c020d72bd67231d1535454d2ee96af756fd7c15",
+      "alphaSha256": "246c39ae89be8c20595e76ded39b0a000034dfe5ea276102f7332cbe20d504cd"
+    },
+    {
+      "key": "rose-night/catkin/effect",
+      "path": "public/assets/effects/boutique/rose-night-catkin.png",
+      "bbox": [
+        120,
+        112,
+        399,
+        382
+      ],
+      "alphaPixels": 31077,
+      "opaquePixels": 26468,
+      "sha256": "be701cc82a832453b3728af1c669c95ec486f4ed0cc36f729258e5c03c189538",
+      "alphaSha256": "5e6b0548f6115f7b5d656efceaeb86da3af2d055709a5c33a1f96517df97dcd8"
+    },
+    {
+      "key": "rose-night/kenshi/effect",
+      "path": "public/assets/effects/boutique/rose-night-kenshi.png",
+      "bbox": [
+        80,
+        72,
+        472,
+        461
+      ],
+      "alphaPixels": 11797,
+      "opaquePixels": 9771,
+      "sha256": "9e58a5575bc27efd76266d32afeab477f0fd9af25ee5ff17faff348285988dbd",
+      "alphaSha256": "4cb4b2cca50c7a023906c91b36ac343273942bd4ef91d52cd8b15c28f4a722c2"
+    },
+    {
+      "key": "ice-snow/swordsman/effect",
+      "path": "public/assets/effects/boutique/ice-snow-swordsman.png",
+      "bbox": [
+        33,
+        41,
+        491,
+        472
+      ],
+      "alphaPixels": 57288,
+      "opaquePixels": 51051,
+      "sha256": "4974d7c7046d283a6f2d6a4696076ef7dab5ce3f20ef44796c83c607775fd93f",
+      "alphaSha256": "3df1296c3471e6087ee87d6f10f13d1aa7b08b58f76a3640531c66c93b40aca4"
+    },
+    {
+      "key": "ice-snow/witch/effect",
+      "path": "public/assets/effects/boutique/ice-snow-witch.png",
+      "bbox": [
+        57,
+        17,
+        468,
+        492
+      ],
+      "alphaPixels": 92605,
+      "opaquePixels": 63500,
+      "sha256": "cd0578f078832097d361fe06db17e88492effe28e3840987f690eccd16157b9c",
+      "alphaSha256": "3497f717a4f2205fb9ee40a7ae927b98637c4b4b6040bb3a2f8bd7f0cde92bda"
+    },
+    {
+      "key": "ice-snow/shaman/effect",
+      "path": "public/assets/effects/boutique/ice-snow-shaman.png",
+      "bbox": [
+        93,
+        21,
+        421,
+        483
+      ],
+      "alphaPixels": 65732,
+      "opaquePixels": 54091,
+      "sha256": "72f08facc07eb5eb43b536ae4afe9096c4b7d88c57ce2423d27b641b4658fc03",
+      "alphaSha256": "cec98c2b7dfb8b622f0d9bed2acb2a7bd18ced72b3b6be328dc4694efced0fc0"
+    },
+    {
+      "key": "ice-snow/catkin/effect",
+      "path": "public/assets/effects/boutique/ice-snow-catkin.png",
+      "bbox": [
+        0,
+        0,
+        511,
+        511
+      ],
+      "alphaPixels": 83015,
+      "opaquePixels": 46549,
+      "sha256": "23a14a0c7cfbbd953b3d273927da973da75d8c2234fe7f950e93c7840ea38e77",
+      "alphaSha256": "f3b980d6e7a3309148c6553106afe8e021fed5561bfb836e79c6e2f8226e8d68"
+    },
+    {
+      "key": "ice-snow/kenshi/effect",
+      "path": "public/assets/effects/boutique/ice-snow-kenshi.png",
+      "bbox": [
+        11,
+        141,
+        502,
+        366
+      ],
+      "alphaPixels": 35570,
+      "opaquePixels": 22519,
+      "sha256": "19778108bce43c43338a4d568a45b14531a3de01f5ee8d1d0840024d33a34741",
+      "alphaSha256": "24e3c995c368bf005d8c9f70c350fcb07c14bd49cc8a26683016a09850991eb6"
+    },
+    {
+      "key": "cardboard-cat/catkin/effect",
+      "path": "public/assets/effects/boutique/cardboard-cat-catkin.png",
+      "bbox": [
+        88,
+        86,
+        423,
+        420
+      ],
+      "alphaPixels": 58761,
+      "opaquePixels": 48241,
+      "sha256": "87f03fa4104c147c4cc23406cb1de7a9f7edbe7c117566710742693dc604e7b8",
+      "alphaSha256": "ee398905157fee02b1ff8535731948ac5f0eec3bedc46a2b06d161dd72f1d6ff"
+    }
+  ]
+}

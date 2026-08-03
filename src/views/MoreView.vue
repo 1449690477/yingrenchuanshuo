@@ -138,6 +138,7 @@ function say(text: string, ok: boolean) {
 <template>
   <div class="more scroll-y">
     <div
+      v-show="!(showShop || shopLeaving || showGuild || guildLeaving || showCodex || codexLeaving)"
       class="more-content"
       :inert="showShop || shopLeaving || showGuild || guildLeaving || showCodex || codexLeaving"
       :aria-hidden="

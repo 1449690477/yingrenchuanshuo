@@ -156,6 +156,9 @@ function buildBoutiqueAppearances(): Record<string, EquipmentAppearance> {
           slot: 'body',
           renderMode: 'replacement',
           assets: boutiqueClassAssets(theme.id, 'body', item.classId),
+          // 纸箱猫是自带专属靴的完整机动工装；喵喵无鞋底模没有脚部，
+          // 不能为追求混穿把她裁成残脚。外部鞋层进入 silentVisualSlots 诚实说明。
+          ...(theme.id === 'cardboard-cat' ? { replacementIncludes: ['shoes'] as const } : {}),
         };
         continue;
       }
@@ -167,11 +170,11 @@ function buildBoutiqueAppearances(): Record<string, EquipmentAppearance> {
           renderMode: 'layer',
           assets: boutiqueClassAssets(theme.id, slot, item.classId),
           transforms: alignedTransforms,
-          // 冰雪樱酱 body 是已经包含头饰与鞋履的完整人物源；只对本主题启用
-          // replacement，避免把她叠在旧底模上后再由 face-layer 覆盖回旧脸。
-          ...(slot === 'body' && theme.id === 'ice-snow'
+          // 樱酱的精品衣裙是统一人物替换画布（鞋区由独立 shoes 层提供），
+          // 不是可叠在旧底模上的衣物层；老四职业仍保留普通衣裙层。
+          ...(slot === 'body'
             ? {
-                replacementClasses: ['kenshi'] as const,
+                replacementClasses: KENSHI_REGION_BODY_REPLACEMENT,
               }
             : {}),
           // 精品店帽饰是戴在头顶的整帽，两名猫耳职业都要压过安全脸层，否则整顶会被头发埋住。

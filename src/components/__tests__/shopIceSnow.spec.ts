@@ -72,8 +72,37 @@ describe('冰雪华年独立货架 UI', () => {
 
     expect(element.querySelector('.detail-sheet')).toBeTruthy();
     expect(element.querySelector('.character-appearance')).toBeTruthy();
-    expect(element.textContent).toContain('固定高档属性已真实生效');
+    expect(element.textContent).toContain('固定属性与外观换肤已真实生效');
     const source = readFileSync(resolve('src/views/ShopView.vue'), 'utf8');
     expect(source).toMatch(/\.shop-filters button\s*\{[\s\S]*?min-height:\s*44px/);
+    expect(source).toMatch(/\.close\s*\{[\s\S]*?width:\s*44px;[\s\S]*?height:\s*44px/);
+  });
+
+  it('无独立纸娃娃层的饰品明确说明系列演出，不再冒充逐件外观', async () => {
+    const { element } = mountShop();
+    element.querySelector<HTMLButtonElement>('.shelf-switcher button.ice')!.click();
+    await nextTick();
+
+    const necklaceCard = [...element.querySelectorAll<HTMLButtonElement>('.offer-card')].find(
+      (card) => card.textContent?.includes('雪魄珍珠项链'),
+    );
+    expect(necklaceCard).toBeTruthy();
+    necklaceCard!.click();
+    await nextTick();
+
+    expect(element.querySelector('.detail-sheet')).toBeTruthy();
+    expect(element.querySelector('.effect-copy strong')?.textContent).toContain('系列演出');
+    expect(element.textContent).toContain('饰品本身不单独叠加纸娃娃图层');
+    expect(element.textContent).toContain('当前穿戴中品阶最高的精品主题');
+    expect(element.textContent).toContain('不会单独显示项链、腕饰、戒指或腰封');
+    expect(element.textContent).not.toContain('本装备会改变人物立绘层');
+  });
+
+  it('打开商城时不让底层更多页撑大移动端弹层高度', () => {
+    const source = readFileSync(resolve('src/views/MoreView.vue'), 'utf8');
+
+    expect(source).toMatch(
+      /v-show="!\(showShop \|\| shopLeaving \|\| showGuild \|\| guildLeaving \|\| showCodex \|\| codexLeaving\)"[\s\S]*?class="more-content"/,
+    );
   });
 });

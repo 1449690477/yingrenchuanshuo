@@ -3,7 +3,7 @@
  * 外观体检预览页（dev only，不进入生产构建）。
  *
  * 遍历 EQUIPMENT 注册表按外观分组，用真实 CharacterAppearance 组件渲染
- * 全部套装 × 四职业的穿戴矩阵，配合浏览器截图逐套核对图层位置。
+ * 全部套装 × 五职业的穿戴矩阵，配合浏览器截图逐套核对图层位置。
  */
 import { computed } from 'vue';
 import type { ClassId, EquipmentDef, EquipmentInstance, EquipSlot } from '@/core/types';
@@ -110,7 +110,7 @@ const allRows = computed<PreviewRow[]>(() => {
     });
     result.push({
       title: `${theme.name} · 只穿裙`,
-      subtitle: `boutique-${theme.id}-body（base + body）`,
+      subtitle: `boutique-${theme.id}-body（老四职业 base + body；樱酱整身 replacement）`,
       cells: singleSlotCells(`boutique-${theme.id}-body`, 'body'),
     });
     result.push({
@@ -186,7 +186,9 @@ const CLASS_LABEL: Record<ClassId, string> = {
     </header>
 
     <section v-for="row in rows" :key="row.title" class="preview-row">
-      <h2>{{ row.title }} <small>{{ row.subtitle }}</small></h2>
+      <h2>
+        {{ row.title }} <small>{{ row.subtitle }}</small>
+      </h2>
       <div class="cell-grid">
         <figure v-for="cell in row.cells" :key="cell.classId" class="cell">
           <div class="stage">
@@ -262,8 +264,7 @@ const CLASS_LABEL: Record<ClassId, string> = {
   width: 200px;
   height: 300px;
   overflow: hidden;
-  background:
-    radial-gradient(circle at 50% 88%, #ffffff 0%, #f4f7fc 62%, #e8eef7 100%);
+  background: radial-gradient(circle at 50% 88%, #ffffff 0%, #f4f7fc 62%, #e8eef7 100%);
   border: 1px solid #dfe5ee;
   border-radius: 10px;
 }

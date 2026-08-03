@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ActiveEquipmentSet } from '@/core/equipmentSets';
 import type { EquipSlot, EquipmentInstance } from '@/core/types';
 import { equipmentAdvancementOption as resolveEquipmentAdvancementOption } from '@/data/equipmentAdvancement';
+import { boutiqueEquipmentId } from '@/data/boutique';
 import { requireEquipment } from '@/data/equipment';
 import { REGION_CRIMSON_SET } from '@/data/regionEquipmentSets';
 import EquipDetail from '../EquipDetail.vue';
@@ -86,6 +87,23 @@ beforeEach(() => {
 });
 
 describe('装备详情的武器元素来源', () => {
+  it('精品饰品与商店共用诚实说明，不展示尚未落地的逐件效果', async () => {
+    const html = await render(boutiqueEquipmentId('berry-cream', 'ring'));
+
+    expect(html).toContain('系列演出');
+    expect(html).toContain('只有当莓霜是当前穿戴中品阶最高的精品主题时');
+    expect(html).toContain('不会单独显示项链、腕饰、戒指或腰封');
+    expect(html).not.toContain('互动结束时凝成一颗莓红爱心');
+  });
+
+  it('没有独立层的荣誉戒指不把套装机制冒充专属视觉', async () => {
+    const html = await render('eq_arena_witch_starjudge-fixedstar-ring');
+
+    expect(html).toContain('外观说明');
+    expect(html).toContain('当前没有独立纸娃娃图层');
+    expect(html).not.toContain('集齐 2 / 4 件');
+  });
+
   it('明确展示真实炎武器与无属性武器', async () => {
     expect(await render('eq_r2_weapon_fine')).toContain('炎属性武器');
     expect(await render('eq_r1_weapon_common')).toContain('无属性武器');

@@ -20,17 +20,18 @@ from PIL import Image, ImageDraw, ImageFont
 ROOT = Path(__file__).resolve().parent.parent / 'public' / 'assets' / 'characters' / 'modular'
 OUT = Path(__file__).resolve().parent.parent / 'tmp' / 'appearance-preview'
 
-CLASSES = ['swordsman', 'witch', 'shaman', 'catkin']
+CLASSES = ['swordsman', 'witch', 'shaman', 'catkin', 'kenshi']
 # clip-path: ellipse(rx ry at x y)，rx 相对宽、ry 相对高（百分比）
 FACE = {
     'swordsman': (52.0, 10.0, 19.0, 9.0),
     'witch': (50.0, 10.0, 18.0, 8.8),
     'shaman': (50.0, 10.0, 17.0, 8.8),
     'catkin': (50.0, 9.7, 18.5, 9.3),
+    'kenshi': (50.0, 9.7, 18.5, 9.3),
 }
 W, H = 640, 960
 
-SHOP_THEMES = ['berry-cream', 'moon-sugar', 'rose-night']
+SHOP_THEMES = ['berry-cream', 'moon-sugar', 'rose-night', 'ice-snow']
 DUNGEON_TIERS = ['azure', 'violet', 'auric', 'crimson']
 REGIONS = ['r1', 'r2']
 
@@ -87,7 +88,7 @@ def compose(class_id: str, body=None, head=None, shoes=None, weapon=None,
     return canvas
 
 
-def sheet(cells: list[tuple[str, Image.Image]], path: Path, cols: int = 4,
+def sheet(cells: list[tuple[str, Image.Image]], path: Path, cols: int = 5,
           cell_w: int = 320, label_h: int = 34) -> None:
     cell_h = int(cell_w * H / W) + label_h
     rows = (len(cells) + cols - 1) // cols
@@ -139,7 +140,9 @@ def main() -> None:
                     layer = shop_layer(theme, c, slot)
                     if layer is None:
                         continue
-                    mode = 'replacement' if (theme == 'cardboard-cat' and slot == 'body') else 'layer'
+                    mode = 'replacement' if (
+                        slot == 'body' and (theme == 'cardboard-cat' or c == 'kenshi')
+                    ) else 'layer'
                     kw = {slot: layer}
                     cells.append((f'{c} · {slot}', compose(
                         c, body_mode=mode, head_above_face=(slot == 'head'), **kw)))
@@ -154,6 +157,7 @@ def main() -> None:
                 cells.append((f'{c} · {theme} 整套', compose(
                     c,
                     body=shop_layer(theme, c, 'body'),
+                    body_mode='replacement' if c == 'kenshi' else 'layer',
                     head=shop_layer(theme, c, 'head'),
                     head_above_face=True,
                     shoes=shop_layer(theme, c, 'shoes'),
