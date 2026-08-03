@@ -173,10 +173,20 @@ import {
   recordDailyTaskProgress,
 } from '@/core/dailyTasks';
 import {
+  alignDailyDungeonDay,
+  canChallengeDailyDungeon,
+  dailyDungeonReward,
+  dailyDungeonThemeIdOfDay,
+  type DailyDungeonBlockReason,
+  type DailyDungeonGateInput,
+  type DailyDungeonReward,
+} from '@/core/dailyDungeons';
+import {
   ACTIVITY_TIER_REWARDS,
   type DailyTaskId,
   type DailyTierReward,
 } from '@/data/dailyTasks';
+import type { DailyDungeonTier, DailyDungeonTierId } from '@/data/dailyDungeons';
 import type { IdleContext } from '@/core/idle';
 import {
   assessSkillUpgrade,
@@ -3783,6 +3793,51 @@ export const useGameStore = defineStore('game', () => {
     return { threshold: result.tier.threshold, rewardId: result.tier.rewardId, reward };
   }
 
+  /**
+   * M4-4 日常材料副本挑战：门禁校验 → 扣体力 → 发奖励（材料+金币）→
+   * 记今日次数与历史通过 → 持久化。失败零消费，返回原因由 UI 文案映射。
+   * 次数口径：失败也消耗（每档每天 1 次，与关卡挑战体力同口径、防无限试）。
+   */
+  function challengeDailyDungeon(
+    tierId: DailyDungeonTierId,
+  ):
+    | { ok: true; tier: DailyDungeonTier; reward: DailyDungeonReward; firstClear: boolean }
+    | { ok: false; reason: DailyDungeonBlockReason | 'stamina-insufficient' | 'no-save' } {
+    const s = save.value;
+    if (!s) return { ok: false, reason: 'no-save' };
+    const dayKey = businessDayKey(Date.now());
+    const aligned = alignDailyDungeonDay(s.dailyDungeons, dayKey);
+    const gate: DailyDungeonGateInput = {
+      level: s.player.level,
+      clearedTierIds: aligned.clearedTierIds,
+      todayRuns: aligned.todayRuns,
+    };
+    const verdict = canChallengeDailyDungeon(gate, tierId);
+    if (!verdict.ok) return { ok: false, reason: verdict.reason };
+    if (s.player.stamina < verdict.tier.staminaCost) {
+      return { ok: false, reason: 'stamina-insufficient' };
+    }
+
+    const reward = dailyDungeonReward(dailyDungeonThemeIdOfDay(dayKey), tierId);
+    s.player.stamina -= verdict.tier.staminaCost;
+    s.player.gold += reward.gold;
+    for (const [itemId, count] of Object.entries(reward.items)) {
+      s.bag.items[itemId] = (s.bag.items[itemId] ?? 0) + count;
+    }
+
+    const runs = aligned.todayRuns[tierId] ?? 0;
+    const firstClear = !aligned.clearedTierIds.includes(tierId);
+    s.dailyDungeons = {
+      day: dayKey,
+      clearedTierIds: firstClear
+        ? [...aligned.clearedTierIds, tierId]
+        : aligned.clearedTierIds,
+      todayRuns: { ...aligned.todayRuns, [tierId]: runs + 1 },
+    };
+    void persist();
+    return { ok: true, tier: verdict.tier, reward, firstClear };
+  }
+
   async function persist(): Promise<void> {
     if (storageConflict || resetPersistencePending) return;
     if (paidPersistencePending) {
@@ -3951,6 +4006,7 @@ export const useGameStore = defineStore('game', () => {
     claimDailyStamina,
     recordDailyTask,
     claimDailyTier,
+    challengeDailyDungeon,
     claimSignIn,
   };
 });

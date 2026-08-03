@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { CalendarDays, Check, LockKeyhole, Swords, Zap } from '@lucide/vue';
 import { abbr } from '@/core/format';
 import {
+  alignDailyDungeonDay,
   canChallengeDailyDungeon,
   dailyDungeonReward,
   type DailyDungeonGateInput,
@@ -22,16 +23,20 @@ const props = defineProps<{
   theme: DailyDungeonTheme;
   /** 日常副本存档状态。 */
   state: DailyDungeonState;
+  /** 当前日切 key（'YYYY-MM-DD'，业务日切口径），展示层先对齐再判定。 */
+  dayKey: string;
   /** 角色等级（门禁判定）。 */
   level: number;
   /** 挑战回调：父级接线（扣体力/发奖/记次数）。 */
   onChallenge?: (tierId: DailyDungeonTierId) => void;
 }>();
 
+const alignedState = computed(() => alignDailyDungeonDay(props.state, props.dayKey));
+
 const gate = computed<DailyDungeonGateInput>(() => ({
   level: props.level,
-  clearedTierIds: props.state.clearedTierIds,
-  todayRuns: props.state.todayRuns,
+  clearedTierIds: alignedState.value.clearedTierIds,
+  todayRuns: alignedState.value.todayRuns,
 }));
 
 function lockCopy(
@@ -53,7 +58,7 @@ const tierRows = computed(() =>
       tier,
       can: verdict.ok,
       lock: verdict.ok ? null : lockCopy(verdict.reason, tier.unlockLevel),
-      done: (props.state.todayRuns[tier.id] ?? 0) >= DAILY_DUNGEON_RUNS_PER_TIER,
+      done: (alignedState.value.todayRuns[tier.id] ?? 0) >= DAILY_DUNGEON_RUNS_PER_TIER,
       material: materialId ? requireItem(materialId) : null,
       materialCount,
       gold: reward.gold,

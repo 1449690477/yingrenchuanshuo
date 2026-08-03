@@ -501,6 +501,18 @@ export const migrations: Record<number, Migration> = {
       },
     };
   },
+  /**
+   * v28：M4-4 日常材料副本。
+   *
+   * 顶层新增 dailyDungeons：day 空串 + 空通过记录 + 空今日次数。
+   * day 空串 ≠ 任何日切 key，首次使用时 core 的日切对齐必然初始化当日状态；
+   * 难度通过记录从 v28 起积累（老玩家诚实迁移：从未打过日常材料本）。
+   */
+  27: (save) => ({
+    ...save,
+    version: 28,
+    dailyDungeons: { day: '', clearedTierIds: [], todayRuns: {} },
+  }),
 };
 
 function migrateV10Save(

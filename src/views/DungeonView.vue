@@ -20,7 +20,9 @@ import {
   isEquipmentDungeonStageUnlocked,
   type EquipmentDungeonClearRecord,
 } from '@/core/equipmentDungeon';
+import { dailyDungeonOfDay } from '@/core/dailyDungeons';
 import { abbr } from '@/core/format';
+import { businessDayKey } from '@/core/dayKey';
 import {
   CLASS_INFO,
   EQUIPMENT_BASE_ROLL_TIERS,
@@ -28,6 +30,7 @@ import {
   SLOT_LABELS,
 } from '@/data/constants';
 import { requireEquipment } from '@/data/equipment';
+import { requireItem } from '@/data/items';
 import { equipmentDisplayPresentation } from '@/data/equipmentPresentation';
 import {
   EQUIPMENT_DUNGEON_PORTALS,
@@ -44,6 +47,7 @@ import { requireEquipmentDungeonSet } from '@/data/equipmentDungeonSets';
 import { emptyEquipped } from '@/save/schema';
 import { useGameStore, type EquipmentDungeonRunResult } from '@/stores/game';
 import EquipmentDungeonBattle from '@/components/EquipmentDungeonBattle.vue';
+import DailyDungeonCard from '@/components/DailyDungeonCard.vue';
 import EquipmentIcon from '@/components/EquipmentIcon.vue';
 import SystemArtwork from '@/components/SystemArtwork.vue';
 import CollapsibleCard from '@/components/CollapsibleCard.vue';
@@ -83,12 +87,6 @@ const { open: setOpen, toggle: toggleSetFold } = useFold('dungeon.set', !compact
 const { open: dropOpen, toggle: toggleDropFold } = useFold('dungeon.drops', dropsDefaultOpen);
 
 const planned = [
-  {
-    name: '日常材料副本',
-    when: '筹备中',
-    desc: '周一到周日轮换，定向刷强化材料',
-    icon: CalendarDays,
-  },
   { name: '无尽塔', when: '筹备中', desc: '爬塔，层数上排行榜', icon: TowerControl },
   {
     name: '世界 BOSS',
@@ -103,6 +101,32 @@ const planned = [
     icon: UsersRound,
   },
 ] as const;
+
+/** M4-4 日常材料副本：当日轮换主题（周一~周日表，业务日切口径）。 */
+const dailyDungeonTheme = computed(() => dailyDungeonOfDay(businessDayKey(Date.now())));
+const dailyDungeonNotice = ref('');
+let dailyDungeonNoticeTimer = 0;
+function onDailyDungeonChallenge(tierId: Parameters<typeof game.challengeDailyDungeon>[0]): void {
+  const result = game.challengeDailyDungeon(tierId);
+  if (result.ok) {
+    const [materialId, materialCount] = Object.entries(result.reward.items)[0] ?? [null, 0];
+    dailyDungeonNotice.value = result.firstClear
+      ? `首通${result.tier.label}：${materialId ? requireItem(materialId).name : ''} ×${materialCount} · 金币 ${abbr(result.reward.gold)}`
+      : `挑战成功：${materialId ? requireItem(materialId).name : ''} ×${materialCount} · 金币 ${abbr(result.reward.gold)}`;
+  } else {
+    const copy: Record<string, string> = {
+      'level-locked': '等级不足',
+      'tier-locked': '先通过前一档',
+      'runs-exhausted': '今日已挑战',
+      'stamina-insufficient': '体力不足',
+      'no-save': '存档未就绪',
+      'unknown-tier': '未知难度',
+    };
+    dailyDungeonNotice.value = copy[result.reason] ?? '挑战失败';
+  }
+  clearTimeout(dailyDungeonNoticeTimer);
+  dailyDungeonNoticeTimer = window.setTimeout(() => (dailyDungeonNotice.value = ''), 3200);
+}
 
 const portal = computed(() =>
   EQUIPMENT_DUNGEON_PORTALS.find((candidate) => candidate.slot === selectedSlot.value)!,
@@ -437,6 +461,17 @@ onUnmounted(() => {
         <b>{{ game.equipmentDungeonRemaining }} / {{ EQUIPMENT_DUNGEON_RULES.dailyClears }}</b>
       </div>
     </section>
+
+    <!-- M4-4 日常材料副本：当日主题 + 三难度门禁 + 奖励预览 -->
+    <DailyDungeonCard
+      v-if="game.save"
+      :theme="dailyDungeonTheme"
+      :state="game.save.dailyDungeons"
+      :day-key="businessDayKey(Date.now())"
+      :level="playerLevel"
+      :on-challenge="onDailyDungeonChallenge"
+    />
+    <span v-if="dailyDungeonNotice" class="stamina-toast">{{ dailyDungeonNotice }}</span>
 
     <!-- 挑战配置折叠卡：收起时一行读完当前选择，展开才两步挑选 -->
     <CollapsibleCard
@@ -1759,6 +1794,27 @@ onUnmounted(() => {
   color: #72566e;
   background: #fff2f7;
   border-radius: 9px;
+}
+
+.stamina-toast {
+  display: block;
+  padding: 7px 9px;
+  font-size: 11px;
+  color: #72566e;
+  background: #fff2f7;
+  border-radius: 9px;
+  animation: toast-in 0.18s ease-out;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .future-row {

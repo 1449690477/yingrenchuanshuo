@@ -17,8 +17,13 @@ import { createAffectionState, type AffectionState } from '@/core/affection';
 import { createDailyTaskState, type DailyTaskState } from '@/core/dailyTasks';
 import { createMonsterCodexLedger, type MonsterCodexLedger } from '@/core/monsterCodex';
 import { createMailState, type MailState } from '@/core/mail';
+import {
+  createDailyDungeonState,
+  type DailyDungeonState,
+} from '@/core/dailyDungeons';
 import { skillLevelRecordIssues } from '@/core/skillUpgrade';
 import { DAILY_TASKS, type DailyTaskId } from '@/data/dailyTasks';
+import { DAILY_DUNGEON_TIERS } from '@/data/dailyDungeons';
 import { isRolledAffixValue } from '@/core/equipment';
 import { isProfessionAffixSlot, promoteAffix } from '@/core/reforge';
 import {
@@ -75,7 +80,7 @@ export type { EquipmentCodexLedger } from '@/core/equipmentCodex';
 export type { EquipmentPresetState } from '@/core/equipmentPresets';
 
 /** 当前存档版本。加字段就 +1。 */
-export const SAVE_VERSION = 27;
+export const SAVE_VERSION = 28;
 
 export const SAVE_KEY = 'main';
 
@@ -298,6 +303,8 @@ export interface SaveData {
   monsterCodex: MonsterCodexLedger;
   /** M4-5 邮箱：系统邮件列表（永不过期，templateId 幂等入箱，上限 50 条）。 */
   mail: MailState;
+  /** M4-4 日常材料副本：日切 key + 历史通过难度 + 今日各档挑战次数。 */
+  dailyDungeons: DailyDungeonState;
 }
 
 export function emptyEquipped(): Record<EquipSlot, EquipmentInstance | null> {
@@ -378,6 +385,7 @@ export function createSave(name: string, classId: ClassId, seed: number, now: nu
     dailyTasks: createDailyTaskState(now),
     monsterCodex: createMonsterCodexLedger(),
     mail: createMailState(),
+    dailyDungeons: createDailyDungeonState(),
   };
 }
 
@@ -1030,6 +1038,17 @@ export const saveDataSchema = z
     monsterCodex: z
       .object({ discoveredMonsterIds: z.array(z.string().min(1)) })
       .strict(),
+    dailyDungeons: z
+      .object({
+        day: z.string(),
+        clearedTierIds: z.array(
+          z.enum(DAILY_DUNGEON_TIERS.map((tier) => tier.id) as [string, ...string[]]),
+        ),
+        // Partial 语义：只有打过/挑战过的档才有 key（zod v4 的 record+enum 会强制
+        // 所有枚举 key 存在，不适用于稀疏次数表）；key 白名单在 superRefine 校验。
+        todayRuns: z.record(z.string(), nonNegativeInteger),
+      })
+      .strict(),
     // templateId 不校验存在性（与 skillLevels 同口径）：模板改名/删除时
     // 旧邮件仍可读取，core 按空件降级处理；存档层只拦结构伪造。
     mail: z
@@ -1049,6 +1068,16 @@ export const saveDataSchema = z
   })
   .strict()
   .superRefine((save, ctx) => {
+    const dailyDungeonTierIds = new Set<string>(DAILY_DUNGEON_TIERS.map((tier) => tier.id));
+    for (const tierId of Object.keys(save.dailyDungeons.todayRuns)) {
+      if (!dailyDungeonTierIds.has(tierId)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['dailyDungeons', 'todayRuns', tierId],
+          message: `未知日常副本难度：${tierId}`,
+        });
+      }
+    }
     for (const issue of skillLevelRecordIssues(save.player.skillLevels, save.player.level)) {
       ctx.addIssue({
         code: 'custom',

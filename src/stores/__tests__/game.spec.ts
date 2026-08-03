@@ -3,7 +3,9 @@ import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { battleMonsterIdAt } from '@/core/battleVisual';
 import { combatEfficiency } from '@/core/combat';
+import { dailyDungeonReward, dailyDungeonThemeIdOfDay } from '@/core/dailyDungeons';
 import { decomposeGold } from '@/core/economy';
+import { businessDayKey } from '@/core/dayKey';
 import { createInstance, rollAffixForKey } from '@/core/equipment';
 import { averageSkillMultiplier, expToNext, makeMonster, makePlayer } from '@/core/progression';
 import { CLASS_IDS, type EquipmentInstance } from '@/core/types';
@@ -2200,5 +2202,96 @@ describe('M4-1 日常任务接线', () => {
     expect(game.save!.dailyTasks.claimedTiers).toEqual([20, 80]);
     expect((game.save!.bag.items.stone_enhance ?? 0)).toBe(stoneBefore); // 80 档无强化石
     expect(game.save!.bag.items.lucky_nine).toBe(2);
+  });
+});
+
+describe('M4-4 日常材料副本接线', () => {
+  const NOW = 1_800_000_000_000;
+
+  it('挑战成功：扣体力、发主题材料+金币、记今日次数与历史通过', async () => {
+    vi.setSystemTime(NOW);
+    const game = useGameStore();
+    await game.startNewGame('小樱', 'swordsman');
+    game.save!.player.level = 15;
+
+    const goldBefore = game.save!.player.gold;
+    const staminaBefore = game.save!.player.stamina;
+    const themeId = dailyDungeonThemeIdOfDay(businessDayKey(NOW));
+    const expected = dailyDungeonReward(themeId, 'tier-1');
+    const [materialId, materialCount] = Object.entries(expected.items)[0]!;
+    const materialBefore = game.save!.bag.items[materialId] ?? 0;
+
+    const result = game.challengeDailyDungeon('tier-1');
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.firstClear).toBe(true);
+    expect(game.save!.player.gold).toBe(goldBefore + expected.gold);
+    expect(game.save!.player.stamina).toBe(staminaBefore - 10);
+    expect(game.save!.bag.items[materialId]).toBe(materialBefore + materialCount);
+    expect(game.save!.dailyDungeons.todayRuns['tier-1']).toBe(1);
+    expect(game.save!.dailyDungeons.clearedTierIds).toEqual(['tier-1']);
+  });
+
+  it('次数耗尽：同档第二次被拒（失败也消耗次数，防无限试）', async () => {
+    vi.setSystemTime(NOW);
+    const game = useGameStore();
+    await game.startNewGame('小樱', 'swordsman');
+    game.save!.player.level = 15;
+
+    expect(game.challengeDailyDungeon('tier-1').ok).toBe(true);
+    const second = game.challengeDailyDungeon('tier-1');
+    expect(second).toEqual({ ok: false, reason: 'runs-exhausted' });
+  });
+
+  it('等级不足与前置未通过分别拒绝', async () => {
+    vi.setSystemTime(NOW);
+    const game = useGameStore();
+    await game.startNewGame('小樱', 'swordsman');
+
+    // Lv1 < Lv15：总开放等级未到
+    expect(game.challengeDailyDungeon('tier-1')).toEqual({
+      ok: false,
+      reason: 'level-locked',
+    });
+
+    // Lv20 未通过 tier-1：tier-2 前置锁定
+    game.save!.player.level = 20;
+    expect(game.challengeDailyDungeon('tier-2')).toEqual({
+      ok: false,
+      reason: 'tier-locked',
+    });
+  });
+
+  it('体力不足被拒且零消费', async () => {
+    vi.setSystemTime(NOW);
+    const game = useGameStore();
+    await game.startNewGame('小樱', 'swordsman');
+    game.save!.player.level = 15;
+    game.save!.player.stamina = 5;
+    const goldBefore = game.save!.player.gold;
+
+    const result = game.challengeDailyDungeon('tier-1');
+    expect(result).toEqual({ ok: false, reason: 'stamina-insufficient' });
+    expect(game.save!.player.gold).toBe(goldBefore);
+    expect(game.save!.player.stamina).toBe(5);
+    expect(game.save!.dailyDungeons.todayRuns['tier-1']).toBeUndefined();
+  });
+
+  it('跨日对齐：次日次数清零，历史通过难度保留可挑战更高档', async () => {
+    vi.setSystemTime(NOW);
+    const game = useGameStore();
+    await game.startNewGame('小樱', 'swordsman');
+    game.save!.player.level = 30;
+
+    game.challengeDailyDungeon('tier-1');
+    game.challengeDailyDungeon('tier-2');
+    game.challengeDailyDungeon('tier-3');
+    expect(game.save!.dailyDungeons.clearedTierIds).toEqual(['tier-1', 'tier-2', 'tier-3']);
+
+    vi.setSystemTime(NOW + 24 * 3_600_000);
+    const nextDay = game.challengeDailyDungeon('tier-1');
+    expect(nextDay.ok).toBe(true);
+    expect(game.save!.dailyDungeons.day).toBe(businessDayKey(NOW + 24 * 3_600_000));
+    expect(game.save!.dailyDungeons.clearedTierIds).toEqual(['tier-1', 'tier-2', 'tier-3']);
   });
 });
