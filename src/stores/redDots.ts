@@ -2,6 +2,7 @@ import { computed } from 'vue';
 import { defineStore } from 'pinia';
 import { businessDayKey } from '@/core/dayKey';
 import { nextClaimableTier } from '@/core/dailyTasks';
+import { hasClaimableMail } from '@/core/mail';
 import {
   countPendingAffix,
   evaluateRedDots,
@@ -63,6 +64,7 @@ export const useRedDotStore = defineStore('redDots', () => {
       hasUnsyncedProgress: progressBoard.hasUnsyncedProgress,
       pendingMilestoneCount: save.milestones.filter((entry) => !entry.submitted).length,
       guildClaimableCount: 0,
+      hasClaimableMail: hasClaimableMail(save.mail),
       dailyTierClaimable: save.dailyTasks
         ? nextClaimableTier(save.dailyTasks, Date.now()) !== null
         : false,

@@ -38,6 +38,8 @@ export interface RedDotSnapshot {
   pendingMilestoneCount: number;
   /** 公会可领取的委托 / 据点奖励数（联机快照；首版由公会线接入时提供）。 */
   guildClaimableCount: number;
+  /** 邮箱存在可领取附件（M4-5，信息型布尔；无未读计数）。 */
+  hasClaimableMail: boolean;
   /** M4-1 日常任务：存在可领取的活跃度档位（信息型布尔，不计数）。 */
   dailyTierClaimable: boolean;
 }
@@ -115,6 +117,6 @@ export function evaluateRedDots(snapshot: RedDotSnapshot): RedDotState {
       snapshot.hasUnsyncedProgress ||
       snapshot.affectionInteractionsRemaining > 0 ||
       snapshot.pendingMilestoneCount > 0,
-    more: snapshot.guildClaimableCount > 0,
+    more: snapshot.guildClaimableCount > 0 || snapshot.hasClaimableMail,
   };
 }

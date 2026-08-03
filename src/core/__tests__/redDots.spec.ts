@@ -62,6 +62,7 @@ function snapshot(overrides: Partial<RedDotSnapshot> = {}): RedDotSnapshot {
     hasUnsyncedProgress: false,
     pendingMilestoneCount: 0,
     guildClaimableCount: 0,
+    hasClaimableMail: false,
     dailyTierClaimable: false,
     ...overrides,
   };
@@ -183,6 +184,10 @@ describe('evaluateRedDots', () => {
 
   it('公会可领取数 > 0 → more 亮', () => {
     expect(evaluateRedDots(snapshot({ guildClaimableCount: 1 })).more).toBe(true);
+  });
+
+  it('邮箱有可领取附件 → more 亮（M4-5 信息型布尔）', () => {
+    expect(evaluateRedDots(snapshot({ hasClaimableMail: true })).more).toBe(true);
   });
 
   it('多个来源同时成立 → 多个 tab 同时亮', () => {
