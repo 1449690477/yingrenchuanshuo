@@ -1,10 +1,15 @@
 /**
  * 「冰雪华年」精品套可复现资产构建器。
  *
- * 穿戴层沿用已实穿校准的任务内母版；五职业攻击特效则从独立绿幕原画抠图，
- * 禁止从任何旧套装调色复用。帽层把顶部 180px 纵向收至 100px，让帽檐离开眼睛。
+ * v2（2026-08-03，复核：小Q）：母版是全新生成的最终稿
+ * （docs/art/ice-snow-v2/SOURCE-MAPPING.csv 逐件可溯源），构建=忠实落位，
+ * 不再换色、不再叠加模板时代的装饰 SVG——那套管线属于 v1「绯夜模板改造」
+ * 工作流，已随母版换代整体退役（见 git 历史）。仍保留的确定性加工：
+ * 帽层顶部 180px 纵向收至 100px（实穿校准）、樱酱 body 鞋区回填 base-noshoes
+ * （无内置鞋合同）、图标可读性描边、超预算时的出口降级压缩。
+ * 五职业攻击特效仍从独立绿幕原画抠图，禁止从任何旧套装调色复用。
  */
-import { mkdir } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
@@ -39,53 +44,6 @@ const kenshiBodyIconOutput = resolve(
   ROOT,
   'public/assets/equipment/bodies/boutique-ice-snow-body/kenshi.png',
 );
-
-function isProtectedKenshiPixel(r, g, b) {
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  const paleHair = min > 178 && max - min < 55;
-  const skin = r > 150 && g > 92 && b > 82 && r > g * 1.035 && g >= b * 0.82;
-  return paleHair || skin;
-}
-
-function icePixel(r, g, b) {
-  const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
-  const shade = 0.72 + 0.28 * Math.sqrt(luminance);
-  const originalBlue = Math.max(0, b - (r + g) / 2) / 255;
-  const originalRed = Math.max(0, r - (g + b) / 2) / 255;
-  return [
-    Math.round(Math.min(255, 246 * shade + originalRed * 18)),
-    Math.round(Math.min(255, 250 * shade + originalBlue * 5)),
-    Math.round(Math.min(255, 255 * shade + originalBlue * 13 + originalRed * 5)),
-  ];
-}
-
-async function recolor(input, { protectKenshi = false } = {}) {
-  const { data, info } = await sharp(input)
-    .ensureAlpha()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-
-  for (let offset = 0; offset < data.length; offset += 4) {
-    const alpha = data[offset + 3];
-    if (alpha <= 4) {
-      data[offset] = 0;
-      data[offset + 1] = 0;
-      data[offset + 2] = 0;
-      // 半透明抗锯齿本身也是校准轮廓的一部分；只清 RGB 噪声，不吞 Alpha。
-      continue;
-    }
-    const r = data[offset];
-    const g = data[offset + 1];
-    const b = data[offset + 2];
-    if (protectKenshi && isProtectedKenshiPixel(r, g, b)) continue;
-    const [nextR, nextG, nextB] = icePixel(r, g, b);
-    data[offset] = nextR;
-    data[offset + 1] = nextG;
-    data[offset + 2] = nextB;
-  }
-  return sharp(data, { raw: info }).png().toBuffer();
-}
 
 /**
  * 将 ImageGen 的纯绿背景还原为软 Alpha，同时清除半透明边缘的绿色溢色。
@@ -134,175 +92,6 @@ async function removeGreenChroma(input) {
   }
 
   return sharp(data, { raw: info }).png().toBuffer();
-}
-
-function ornamentSvg(slot, classId, width, height) {
-  const bodyY = { swordsman: 440, witch: 452, shaman: 446, catkin: 452, kenshi: 500 }[classId];
-  const waistY = { swordsman: 306, witch: 304, shaman: 318, catkin: 304, kenshi: 402 }[classId];
-  const slotY = slot === 'body' ? bodyY : slot === 'head' ? 118 : slot === 'shoes' ? 790 : 430;
-  const size = slot === 'body' ? 20 : slot === 'weapon' ? 17 : 14;
-  const redKnot = slot === 'body'
-    ? `<g transform="translate(320 ${waistY})" fill="none" stroke="#cc5970" stroke-width="2.4" stroke-linecap="round" opacity=".72">
-         <path d="M0 0c-12-10-18 7-6 9C-18 18-2 23 0 10c2 13 18 8 6-1C18 7 12-10 0 0Z"/>
-         <path d="M-4 14l-5 18M4 14l5 18"/>
-       </g>`
-    : '';
-  return Buffer.from(`
-    <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
-      <g transform="translate(320 ${slotY})" stroke="#77ccec" stroke-width="2.2" stroke-linecap="round" opacity=".68">
-        <path d="M-${size} 0H${size}M0 -${size}V${size}M-${Math.round(size * 0.72)} -${Math.round(size * 0.72)}L${Math.round(size * 0.72)} ${Math.round(size * 0.72)}M${Math.round(size * 0.72)} -${Math.round(size * 0.72)}L-${Math.round(size * 0.72)} ${Math.round(size * 0.72)}"/>
-      </g>
-      <circle cx="320" cy="${slotY}" r="4" fill="#fff" stroke="#b99ed6" stroke-width="1.5" opacity=".78"/>
-      ${redKnot}
-    </svg>
-  `);
-}
-
-async function addClippedOrnament(base, slot, classId) {
-  const metadata = await sharp(base).metadata();
-  const width = metadata.width ?? 640;
-  const height = metadata.height ?? 960;
-  const [{ data: alpha }, { data: ornament, info }] = await Promise.all([
-    sharp(base).ensureAlpha().extractChannel('alpha').raw().toBuffer({ resolveWithObject: true }),
-    sharp(ornamentSvg(slot, classId, width, height)).ensureAlpha().raw().toBuffer({ resolveWithObject: true }),
-  ]);
-  for (let offset = 0, pixel = 0; offset < ornament.length; offset += 4, pixel += 1) {
-    ornament[offset + 3] = Math.min(ornament[offset + 3], alpha[pixel]);
-  }
-  const clipped = await sharp(ornament, { raw: info }).png().toBuffer();
-  const composed = await sharp(base)
-    .composite([{ input: clipped, blend: 'over' }])
-    .ensureAlpha()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-  // over 合成会对半透明边缘重新取整；颜色可以变，几何 Alpha 必须强制还原母版。
-  for (let offset = 3, pixel = 0; offset < composed.data.length; offset += 4, pixel += 1) {
-    composed.data[offset] = alpha[pixel];
-  }
-  return sharp(composed.data, { raw: composed.info }).png().toBuffer();
-}
-
-function silhouetteDefs() {
-  return `
-    <defs>
-      <linearGradient id="iceTulle" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0" stop-color="#ffffff" stop-opacity=".92"/>
-        <stop offset=".48" stop-color="#d9f4ff" stop-opacity=".66"/>
-        <stop offset="1" stop-color="#efcfef" stop-opacity=".48"/>
-      </linearGradient>
-      <linearGradient id="iceEdge" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="#fdfcff"/>
-        <stop offset="1" stop-color="#9edcf2"/>
-      </linearGradient>
-      <filter id="softGlow" x="-40%" y="-40%" width="180%" height="180%">
-        <feGaussianBlur stdDeviation="2.2" result="blur"/>
-        <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-      </filter>
-    </defs>`;
-}
-
-function bodySilhouetteSvg(classId, width, height) {
-  const config = {
-    swordsman: { cx: 320, shoulder: 184, waist: 326, hem: 548, left: 150, right: 489 },
-    witch: { cx: 335, shoulder: 182, waist: 330, hem: 558, left: 165, right: 504 },
-    shaman: { cx: 325, shoulder: 205, waist: 338, hem: 536, left: 165, right: 484 },
-    catkin: { cx: 335, shoulder: 182, waist: 330, hem: 558, left: 165, right: 504 },
-    kenshi: { cx: 322, shoulder: 245, waist: 390, hem: 610, left: 120, right: 533 },
-  }[classId];
-  const { cx, shoulder, waist, hem, left, right } = config;
-  return Buffer.from(`
-    <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
-      ${silhouetteDefs()}
-      <g stroke="#a9dced" stroke-width="2.2" stroke-linejoin="round">
-        <path d="M${cx - 88} ${shoulder + 8} Q${cx - 58} ${shoulder - 17} ${cx} ${shoulder - 8} Q${cx + 58} ${shoulder - 17} ${cx + 88} ${shoulder + 8} Q${cx + 74} ${shoulder + 44} ${cx + 34} ${shoulder + 51} L${cx} ${shoulder + 35} L${cx - 34} ${shoulder + 51} Q${cx - 74} ${shoulder + 44} ${cx - 88} ${shoulder + 8}Z" fill="url(#iceTulle)" opacity=".88"/>
-        <path d="M${left + 58} ${waist + 58} C${left + 18} ${waist + 104} ${left - 20} ${hem + 30} ${left - 4} ${hem + 102} C${left + 36} ${hem + 88} ${left + 78} ${hem + 40} ${left + 96} ${waist + 92}Z" fill="url(#iceTulle)" opacity=".62"/>
-        <path d="M${right - 58} ${waist + 58} C${right - 18} ${waist + 104} ${right + 20} ${hem + 30} ${right + 4} ${hem + 102} C${right - 36} ${hem + 88} ${right - 78} ${hem + 40} ${right - 96} ${waist + 92}Z" fill="url(#iceTulle)" opacity=".62"/>
-        <path d="M${cx - 90} ${hem - 4} Q${cx - 56} ${hem + 25} ${cx - 22} ${hem + 1} Q${cx} ${hem + 31} ${cx + 22} ${hem + 1} Q${cx + 56} ${hem + 25} ${cx + 90} ${hem - 4}" fill="none" stroke="#f9fdff" stroke-width="11" opacity=".72"/>
-      </g>
-      <g fill="url(#iceEdge)" stroke="#ffffff" stroke-width="1.5" opacity=".95">
-        <path d="M${left - 28} ${hem + 82}l13-20 13 20-13 20Z"/>
-        <path d="M${right + 28} ${hem + 82}l13-20 13 20-13 20Z"/>
-        <circle cx="${cx - 106}" cy="${waist + 84}" r="10"/>
-        <circle cx="${cx + 106}" cy="${waist + 84}" r="10"/>
-      </g>
-    </svg>`);
-}
-
-function shoesSilhouetteSvg(classId, width, height) {
-  const config = {
-    swordsman: { left: 235, right: 430, y: 774, cuff: 92 },
-    witch: { left: 270, right: 385, y: 774, cuff: 58 },
-    shaman: { left: 275, right: 380, y: 755, cuff: 56 },
-    catkin: { left: 250, right: 390, y: 780, cuff: 62 },
-    kenshi: { left: 300, right: 370, y: 784, cuff: 48 },
-  }[classId];
-  const cuffPath = (x) => `M${x - config.cuff} ${config.y} Q${x} ${config.y - 28} ${x + config.cuff} ${config.y} Q${x + config.cuff - 8} ${config.y + 32} ${x} ${config.y + 20} Q${x - config.cuff + 8} ${config.y + 32} ${x - config.cuff} ${config.y}Z`;
-  return Buffer.from(`
-    <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
-      ${silhouetteDefs()}
-      <g fill="url(#iceTulle)" stroke="#9bd9ed" stroke-width="2" filter="url(#softGlow)">
-        <path d="${cuffPath(config.left)}"/>
-        <path d="${cuffPath(config.right)}"/>
-      </g>
-      <g fill="#fff" stroke="#a9dced" stroke-width="1.5">
-        <circle cx="${config.left - config.cuff + 3}" cy="${config.y + 14}" r="11"/>
-        <circle cx="${config.right + config.cuff - 3}" cy="${config.y + 14}" r="11"/>
-      </g>
-      <g fill="none" stroke="#d8b1d9" stroke-width="4" opacity=".82">
-        <path d="M${config.left - 10} ${config.y + 10}l-18 46m28-46l18 46"/>
-        <path d="M${config.right - 10} ${config.y + 10}l-18 46m28-46l18 46"/>
-      </g>
-    </svg>`);
-}
-
-function weaponSilhouetteSvg(classId, width, height) {
-  const designs = {
-    swordsman: `
-      <g fill="url(#iceEdge)" stroke="#fff" stroke-width="1.6" filter="url(#softGlow)">
-        <path d="M438 115l31-38 17 44-25 26Z"/><path d="M452 202l42-31 7 48-34 21Z"/>
-        <path d="M430 294l39-23 2 43-35 17Z"/><path d="M409 388l29-18 5 34-26 20Z"/>
-      </g><path d="M418 410q-54 54-20 104q32-31 46-82" fill="none" stroke="url(#iceTulle)" stroke-width="16" opacity=".78"/>`,
-    witch: `
-      <g fill="none" stroke="url(#iceEdge)" stroke-width="12" filter="url(#softGlow)">
-        <path d="M436 230q45-76 94-9q-53 8-77 57"/>
-      </g><g fill="url(#iceEdge)" stroke="#fff"><path d="M506 172l15 25-15 25-15-25Z"/><path d="M401 342l19-27 18 27-18 28Z"/></g>
-      <path d="M437 397q42 38 2 91q-18-31-4-68" fill="none" stroke="#ead0ee" stroke-width="12" opacity=".78"/>`,
-    shaman: `
-      <g fill="url(#iceTulle)" stroke="#9bd9ed" stroke-width="2" filter="url(#softGlow)">
-        <path d="M402 230l72-48 76 45-73 27Z"/><path d="M433 370l18 42-20 36-18-36Z"/><path d="M503 372l18 42-20 36-18-36Z"/>
-      </g><g fill="none" stroke="#d8b1d9" stroke-width="4"><path d="M446 386v70"/><path d="M516 386v70"/></g>`,
-    catkin: `
-      <g fill="url(#iceEdge)" stroke="#fff" stroke-width="1.6" filter="url(#softGlow)">
-        <path d="M170 325l-44-58 66 24 22 44Z"/><path d="M194 391l-57-34 68-5 28 30Z"/>
-        <path d="M548 325l48-58-68 24-20 44Z"/><path d="M532 391l59-34-69-5-27 30Z"/>
-      </g><path d="M187 440q-72 43-31 107m383-107q72 43 31 107" fill="none" stroke="#ead0ee" stroke-width="13" opacity=".72"/>`,
-    kenshi: `
-      <g fill="url(#iceEdge)" stroke="#fff" stroke-width="1.5" filter="url(#softGlow)">
-        <path d="M210 664l-48-10 32-34 36 18Z"/><path d="M243 744l-55-5 35-39 38 20Z"/>
-        <path d="M278 827l-54 11 23-48 42 5Z"/>
-      </g><path d="M307 840q74 40 28 105q-37-37-32-76" fill="none" stroke="url(#iceTulle)" stroke-width="16" opacity=".8"/>`,
-  }[classId];
-  return Buffer.from(`
-    <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
-      ${silhouetteDefs()}
-      ${designs}
-    </svg>`);
-}
-
-async function addSilhouetteOrnament(base, slot, classId) {
-  if (slot === 'head') return base;
-  const metadata = await sharp(base).metadata();
-  const width = metadata.width ?? 640;
-  const height = metadata.height ?? 960;
-  const ornament = slot === 'body'
-    ? bodySilhouetteSvg(classId, width, height)
-    : slot === 'shoes'
-      ? shoesSilhouetteSvg(classId, width, height)
-      : weaponSilhouetteSvg(classId, width, height);
-  return sharp(base)
-    .composite([{ input: ornament, blend: 'over' }])
-    .png()
-    .toBuffer();
 }
 
 /**
@@ -367,13 +156,51 @@ async function alignWearable(base, slot) {
     .toBuffer();
 }
 
-async function writePng(buffer, output) {
+// 预算取自最严的消费方并留余量：content.spec 要求商品图标 <82KB、
+// 穿戴层 <305KB（资产门禁的 125KB/340KB 是更宽的上界）。
+const WEARABLE_SIZE_BUDGET = 300_000;
+const ICON_SIZE_BUDGET = 80_000;
+
+async function writePng(buffer, output, budget = WEARABLE_SIZE_BUDGET) {
   await mkdir(dirname(output), { recursive: true });
-  await sharp(buffer)
-    // 穿戴层不能使用索引色：雪绒、薄纱和冰晶轮廓依赖连续的半透明抗锯齿。
-    // 真彩 PNG 守住的是实穿边缘质量，不再以旧套装逐像素同形作为目标。
+  // 真彩优先：雪绒、薄纱和冰晶轮廓依赖连续的半透明抗锯齿。v2 全新母版
+  // 体量远超 v1 换色件（最大 866KB），超预算时逐级降到 RGBA 调色板；
+  // 降级引入的量化噪声由门禁的保真容差指标封顶（validate-ice-snow-assets.mjs）。
+  let encoded = await sharp(buffer)
     .png({ compressionLevel: 9, palette: false, effort: 10 })
-    .toFile(output);
+    .toBuffer();
+  for (const colours of [256, 192, 128]) {
+    if (encoded.length <= budget) break;
+    encoded = await sharp(buffer)
+      .png({ compressionLevel: 9, palette: true, colours, dither: 1.0, effort: 10 })
+      .toBuffer();
+  }
+  await writeFile(output, encoded);
+}
+
+/**
+ * 老四职业的衣裙层在独立鞋层的落点上让位（Alpha 置零）。
+ * 运行时 z 序是 body < shoes（characterAppearance 的 slotOrder），靴子画在
+ * 裙摆之上；v2 长裙如原样落位，靴口会穿透裙面。与 v1 同一契约：
+ * 「长裙可以下垂，但不得与同主题独立鞋层逐像素重叠」（shopAppearanceVisual.spec）。
+ * 樱酱不走这里——她的 body 是整身 replacement，由 removeKenshiEmbeddedShoes
+ * 按无内置鞋合同回填 base-noshoes。
+ */
+async function yieldBodyToShoes(bodyBuffer, classId) {
+  const shoesPath = resolve(sourceWearableRoot, `${classId}-shoes.png`);
+  const [body, shoesAlpha] = await Promise.all([
+    sharp(bodyBuffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true }),
+    sharp(shoesPath).ensureAlpha().extractChannel('alpha').raw().toBuffer(),
+  ]);
+  for (let pixel = 0; pixel < shoesAlpha.length; pixel += 1) {
+    if (shoesAlpha[pixel] <= 20) continue;
+    const offset = pixel * 4;
+    body.data[offset] = 0;
+    body.data[offset + 1] = 0;
+    body.data[offset + 2] = 0;
+    body.data[offset + 3] = 0;
+  }
+  return sharp(body.data, { raw: body.info }).png().toBuffer();
 }
 
 async function removeKenshiEmbeddedShoes() {
@@ -405,10 +232,11 @@ for (const classId of CLASSES) {
   for (const slot of WEARABLE_SLOTS) {
     const input = resolve(sourceWearableRoot, `${classId}-${slot}.png`);
     const output = resolve(targetWearableRoot, `${classId}-${slot}.png`);
-    const recolored = await recolor(input, { protectKenshi: classId === 'kenshi' && slot === 'body' });
-    const ornamented = await addClippedOrnament(recolored, slot, classId);
-    const silhouette = await addSilhouetteOrnament(ornamented, slot, classId);
-    await writePng(await alignWearable(silhouette, slot), output);
+    let base = await sharp(input).ensureAlpha().png().toBuffer();
+    if (slot === 'body' && classId !== 'kenshi') {
+      base = await yieldBodyToShoes(base, classId);
+    }
+    await writePng(await alignWearable(base, slot), output);
   }
 
   const effectChromaInput = resolve(sourceEffectChromaRoot, `${classId}.png`);
@@ -437,14 +265,9 @@ await removeKenshiEmbeddedShoes();
 for (const fileName of ICON_FILES) {
   const input = resolve(sourceIconRoot, fileName);
   const output = resolve(targetIconRoot, fileName);
-  const recolored = await recolor(input);
-  const ornamented = await addClippedOrnament(
-    recolored,
-    fileName.startsWith('weapon-') ? 'weapon' : fileName.replace('.png', ''),
-    'swordsman',
-  );
+  const base = await sharp(input).ensureAlpha().png().toBuffer();
   const strongIceCore = fileName === 'weapon-swordsman.png' || fileName === 'weapon-witch.png';
-  await writePng(await addIconContrast(ornamented, { strongIceCore }), output);
+  await writePng(await addIconContrast(base, { strongIceCore }), output, ICON_SIZE_BUDGET);
 }
 
 // 樱酱的精品 body 是完整人物源，装备槽必须展示同源缩略图，不能退回通用空心裙。
@@ -466,7 +289,7 @@ const kenshiBodyIcon = await sharp(resolve(targetWearableRoot, 'kenshi-body.png'
   })
   .png()
   .toBuffer();
-await writePng(await addIconContrast(kenshiBodyIcon), kenshiBodyIconOutput);
+await writePng(await addIconContrast(kenshiBodyIcon), kenshiBodyIconOutput, ICON_SIZE_BUDGET);
 
 await mkdir(dirname(sceneOutput), { recursive: true });
 await sharp(sceneSource)

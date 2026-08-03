@@ -326,10 +326,14 @@ describe('商城五职业换装视觉合同', () => {
       ]);
       const pixels = maskedPixelDifference(body, baseNoShoes, shoes);
       expect(pixels.checked, theme).toBeGreaterThan(2_000);
+      // 阈值 0.6：冰雪 v2 母版超预算，kenshi-body 出口降级为 RGBA 调色板
+      // （build-ice-snow-assets 的 writePng），量化让回填区偏离 base-noshoes
+      // 实测 premulMAE≈0.33 / alphaMAE≈0.15（2026-08-03）。真实内置鞋违规是
+      // 几十 MAE 量级，0.6 仍留有两个数量级的判别余量。
       expect(pixels.premultipliedMae, `${theme} 的 replacement 仍画着内置鞋`).toBeLessThanOrEqual(
-        0.1,
+        0.6,
       );
-      expect(pixels.alphaMae, `${theme} 的 replacement 鞋区 alpha 未还原`).toBeLessThanOrEqual(0.1);
+      expect(pixels.alphaMae, `${theme} 的 replacement 鞋区 alpha 未还原`).toBeLessThanOrEqual(0.6);
     }
   });
 

@@ -429,7 +429,11 @@ for (const theme of THEMES) {
   if (shoeMaskPixels.checked < 2_000) {
     fail(`${theme}/kenshi/shoes 鞋履遮罩过小，无法证明 replacement 已剔除内置鞋`);
   }
-  if (shoeMaskPixels.premultipliedMae > 0.1 || shoeMaskPixels.alphaMae > 0.1) {
+  // 阈值 0.6：冰雪 v2 起 kenshi-body 出口降级为 RGBA 调色板（见
+  // build-ice-snow-assets 的 writePng），量化让回填区偏离 base-noshoes
+  // 实测 premulMAE≈0.33 / alphaMAE≈0.15（2026-08-03）。真实内置鞋违规是
+  // 几十 MAE 量级，0.6 仍留有两个数量级的判别余量。
+  if (shoeMaskPixels.premultipliedMae > 0.6 || shoeMaskPixels.alphaMae > 0.6) {
     fail(
       `${theme}/kenshi/body 仍含内置鞋：鞋履遮罩 premulMAE=${shoeMaskPixels.premultipliedMae.toFixed(3)} / alphaMAE=${shoeMaskPixels.alphaMae.toFixed(3)}`,
     );

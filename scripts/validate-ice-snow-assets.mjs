@@ -23,6 +23,7 @@ const failures = [];
 const effectShapeEvidence = [];
 const effectShapeCalibration = [];
 const wearableShapeEvidence = [];
+const wearableFidelityEvidence = [];
 const wearableShapeCalibration = [];
 
 function fail(message) {
@@ -126,7 +127,12 @@ async function inspectKenshiNoEmbeddedShoes() {
   if (pixels.checked < 2_000) {
     fail(`樱酱冰雪鞋遮罩仅 ${pixels.checked} 像素，无法证明 replacement 已剔除内置鞋`);
   }
-  if (pixels.premultipliedMae > 0.1 || pixels.alphaMae > 0.1) {
+  // 阈值 0.6：v1 无损出口时代是 0.1（回填字节精确，任何非零即 bug）。
+  // v2 母版体量超预算，kenshi-body 出口降级为 RGBA 调色板（见 build 的
+  // writePng），量化让回填区偏离 base-noshoes 实测 premulMAE≈0.33 /
+  // alphaMAE≈0.15（2026-08-03）。真实内置鞋违规是几十 MAE 量级，
+  // 0.6 仍留有两个数量级的判别余量。
+  if (pixels.premultipliedMae > 0.6 || pixels.alphaMae > 0.6) {
     fail(
       `樱酱冰雪 body 仍含内置鞋：鞋遮罩 premulMAE=${pixels.premultipliedMae.toFixed(3)} / alphaMAE=${pixels.alphaMae.toFixed(3)}`,
     );
@@ -349,6 +355,60 @@ function assertNoChromaSpill(path, raw) {
   if (polluted > 0) fail(`${path}: 仍有 ${polluted}/${visible} 个绿幕污染像素`);
 }
 
+
+/**
+ * 全新母版工作流下的防抄袭承接（2026-08-03，复核：小Q）：
+ * 成品与**每一个旧精品主题**的同槽件比轮廓（含镜像/平移），≥阈值即拒 ——
+ * 「不许把任何旧主题的剪影拿来换色」这层意图原样保留；
+ * 另与绯夜同槽件比可见区色差，MAE < 24 即拒（防对绯夜的贴色复刻）。
+ */
+async function compareAgainstLegacyThemes(target, slot, classId) {
+  const targetShape = await alphaShape(target);
+  for (const theme of LEGACY_EFFECT_THEMES) {
+    const legacyPath = resolve(
+      ROOT,
+      `public/assets/characters/modular/shop/${theme}/${classId}-${slot}.png`,
+    );
+    try {
+      await access(legacyPath);
+    } catch {
+      continue;
+    }
+    const [legacyShape, mirroredLegacyShape] = await Promise.all([
+      alphaShape(legacyPath),
+      sharp(legacyPath).flop().png().toBuffer().then(alphaShape),
+    ]);
+    const score = Math.max(
+      maxShiftedIou(targetShape, legacyShape),
+      maxShiftedIou(targetShape, mirroredLegacyShape),
+    );
+    wearableShapeEvidence.push(`${classId}-${slot}~${theme}=${score.toFixed(3)}`);
+    if (score >= WEARABLE_SHAPE_REUSE_THRESHOLD) {
+      fail(`${target}: 与旧主题 ${theme} 同槽件轮廓过度相似（IoU ${score.toFixed(3)}）`);
+    }
+    if (theme === 'rose-night') {
+      const [a, b] = await Promise.all([
+        sharp(target).ensureAlpha().raw().toBuffer({ resolveWithObject: true }),
+        sharp(legacyPath).ensureAlpha().raw().toBuffer({ resolveWithObject: true }),
+      ]);
+      let visible = 0;
+      let delta = 0;
+      for (let offset = 0; offset < a.data.length; offset += 4) {
+        if (a.data[offset + 3] > 16 && b.data[offset + 3] > 16) {
+          visible += 1;
+          delta += Math.abs(a.data[offset] - b.data[offset]);
+          delta += Math.abs(a.data[offset + 1] - b.data[offset + 1]);
+          delta += Math.abs(a.data[offset + 2] - b.data[offset + 2]);
+        }
+      }
+      const mae = visible ? delta / (visible * 3) : 255;
+      if (visible > 5000 && mae < 24) {
+        fail(`${target}: 与绯夜同槽件色差过小（MAE ${mae.toFixed(2)}，重叠 ${visible}px）`);
+      }
+    }
+  }
+}
+
 async function compareWearableAlpha(source, target, slot, classId) {
   const expected = slot === 'head'
     ? sharp(source)
@@ -360,38 +420,68 @@ async function compareWearableAlpha(source, target, slot, classId) {
     expected.ensureAlpha().raw().toBuffer({ resolveWithObject: true }),
     sharp(target).ensureAlpha().raw().toBuffer({ resolveWithObject: true }),
   ]);
+  // body 成品在独立鞋层落点上**必然**异于母版：老四职业在构建期把衣裙
+  // Alpha 让位给鞋层（build 的 yieldBodyToShoes，防靴口穿透裙面）；樱酱则按
+  // 无内置鞋合同回填 base-noshoes（removeKenshiEmbeddedShoes），该区另由
+  // inspectKenshiNoEmbeddedShoes 单独验收。两类都跳过鞋区不计。
+  let shoeMask = null;
+  if (slot === 'body') {
+    shoeMask = await sharp(source.replace(/-body\.png$/, '-shoes.png'))
+      .ensureAlpha()
+      .extractChannel('alpha')
+      .raw()
+      .toBuffer();
+  }
+  let compared = 0;
   let alphaMismatch = 0;
-  let colorDelta = 0;
+  let alphaDeltaSum = 0;
+  let bigAlphaDelta = 0;
   let visible = 0;
+  let colorDelta = 0;
   for (let offset = 0; offset < a.data.length; offset += 4) {
-    if (a.data[offset + 3] !== b.data[offset + 3]) alphaMismatch += 1;
-    if (a.data[offset + 3] > 16) {
+    if (shoeMask && shoeMask[offset / 4] > 20) continue;
+    compared += 1;
+    const deltaAlpha = Math.abs(a.data[offset + 3] - b.data[offset + 3]);
+    if (deltaAlpha !== 0) alphaMismatch += 1;
+    alphaDeltaSum += deltaAlpha;
+    if (deltaAlpha > 64) bigAlphaDelta += 1;
+    if (a.data[offset + 3] > 16 && b.data[offset + 3] > 16) {
       visible += 1;
       colorDelta += Math.abs(a.data[offset] - b.data[offset]);
       colorDelta += Math.abs(a.data[offset + 1] - b.data[offset + 1]);
       colorDelta += Math.abs(a.data[offset + 2] - b.data[offset + 2]);
     }
   }
+  const alphaMae = compared ? alphaDeltaSum / compared : 0;
+  const colorMae = visible ? colorDelta / (visible * 3) : 0;
   if (slot === 'head') {
+    // 帽层出口始终真彩无损（内容只占顶部 100px，体积远低于预算），
+    // 因此维持逐像素严判。
     if (alphaMismatch !== 0) fail(`${target}: 帽层 Alpha 锚点与校准母版不一致（${alphaMismatch} 像素）`);
-  } else {
-    if (alphaMismatch === 0) fail(`${target}: 与旧精品母版 Alpha 轮廓完全相同，属于换色复用`);
-    const [sourceShape, mirroredSourceShape, targetShape] = await Promise.all([
-      alphaShape(source),
-      sharp(source).flop().png().toBuffer().then(alphaShape),
-      alphaShape(target),
-    ]);
-    const score = Math.max(
-      maxShiftedIou(sourceShape, targetShape),
-      maxShiftedIou(mirroredSourceShape, targetShape),
-    );
-    wearableShapeEvidence.push(`${classId}-${slot}=${score.toFixed(3)}`);
-    if (score >= WEARABLE_SHAPE_REUSE_THRESHOLD) {
-      fail(`${target}: 与旧精品母版 Alpha 轮廓过度相似（IoU ${score.toFixed(3)}）`);
-    }
+    if (colorMae > 8) fail(`${target}: 帽层颜色与母版偏差过大（MAE ${colorMae.toFixed(2)}）`);
+    return;
   }
-  const mae = visible ? colorDelta / (visible * 3) : 0;
-  if (mae < 24) fail(`${target}: 与绯夜母版色差过小（MAE ${mae.toFixed(2)}）`);
+  // ── 2026-08-03 工作流换代（复核：小Q）──
+  // v1 时代 art-source 里放的是**绯夜模板**，成品靠换色改形得来，所以这里
+  // 曾要求「成品必须异于母版」。v2 起母版是**全新生成的最终稿**
+  //（docs/art/ice-snow-v2/SOURCE-MAPPING.csv 逐件可溯源），忠实构建才是
+  // 正确契约 —— 与帽层同一语义。容差只为出口降级压缩（writePng 超预算时的
+  // RGBA 调色板量化）的编码噪声留出：换错图、绕过构建、私改成品这类结构性
+  // 改动在下面三个指标上都会超出一个数量级。
+  // **防抄袭没有放弃，只是换了判定对象**：见 compareAgainstLegacyThemes。
+  if (alphaMae > 1.5) {
+    fail(`${target}: 与全新母版 Alpha 偏差过大（alphaMAE ${alphaMae.toFixed(3)}）—— 构建失真或母版被绕过`);
+  }
+  if (bigAlphaDelta > compared * 0.002) {
+    fail(`${target}: 与全新母版存在结构性 Alpha 差异（|Δα|>64 共 ${bigAlphaDelta} 像素）`);
+  }
+  if (colorMae > 8) {
+    fail(`${target}: 与全新母版可见区色差过大（colorMAE ${colorMae.toFixed(2)}）`);
+  }
+  wearableFidelityEvidence.push(
+    `${classId}-${slot}:aMAE=${alphaMae.toFixed(3)},big=${bigAlphaDelta},cMAE=${colorMae.toFixed(2)}`,
+  );
+  await compareAgainstLegacyThemes(target, slot, classId);
 }
 
 await calibrateEffectShapeGate();
@@ -454,8 +544,9 @@ if (failures.length) {
     `樱酱无内置鞋合同通过：冰雪鞋遮罩 ${kenshiShoeContract.checked} 像素，premulMAE=${kenshiShoeContract.premultipliedMae.toFixed(3)}，alphaMAE=${kenshiShoeContract.alphaMae.toFixed(3)}。`,
   );
   console.log(
-    `冰雪华年资产门禁通过：20 穿戴层锚点一致（帽区 180→100px 实机校正），13 图标、5 原创特效、1 货架规格全绿；旧主题 Alpha 轮廓最大 IoU：${effectShapeEvidence.join('，')}；伪装复制最低锚点：${effectShapeCalibration.join('，')}。`,
+    `冰雪华年资产门禁通过：20 穿戴层与 v2 母版保真（帽区 180→100px 实机校正），13 图标、5 原创特效、1 货架规格全绿；旧主题 Alpha 轮廓最大 IoU：${effectShapeEvidence.join('，')}；伪装复制最低锚点：${effectShapeCalibration.join('，')}。`,
     `冰雪 15 张衣裙/鞋/武器新轮廓 IoU：${wearableShapeEvidence.join('，')}。`,
+    `母版保真读数：${wearableFidelityEvidence.join('，')}。`,
     `穿戴伪装复制最低锚点：${wearableShapeCalibration.join('，')}。`,
   );
 }

@@ -927,308 +927,308 @@
       "key": "ice-snow/swordsman/body",
       "path": "public/assets/characters/modular/shop/ice-snow/swordsman-body.png",
       "bbox": [
-        121,
-        146,
-        543,
-        651
+        10,
+        15,
+        629,
+        686
       ],
-      "alphaPixels": 98891,
-      "opaquePixels": 82032,
+      "alphaPixels": 305911,
+      "opaquePixels": 302060,
       "anchorAlpha": null,
-      "sha256": "a60bcae1eac609b6a712082e69bc9f19a62fce93bce012c8d697138bf78ea460",
-      "alphaSha256": "5b3cfdcf9ff1063e86b27f60541cf6fcbc3b4d5a1fb6a4abec533df68e22fb8d",
+      "sha256": "b9e52845b3282f58d4abce40028d264f5e6a902c7f3fb4a3d1787219fa777409",
+      "alphaSha256": "eb2c8e130d5c058c5829ae718897eb780e599b776120afe7f5f364b1ac66ce1c",
       "sameThemeShoeOverlapPixels": 0
     },
     {
       "key": "ice-snow/swordsman/head",
       "path": "public/assets/characters/modular/shop/ice-snow/swordsman-head.png",
       "bbox": [
-        249,
-        2,
-        395,
-        79
+        247,
+        0,
+        391,
+        99
       ],
-      "alphaPixels": 7257,
-      "opaquePixels": 6651,
+      "alphaPixels": 7189,
+      "opaquePixels": 6195,
       "anchorAlpha": null,
-      "sha256": "a260b5ea569000561562d94dc3944902c5261f39f154da006046bde9e819cb68",
-      "alphaSha256": "8b96ff63b2d1d8fa3e066d82a8ae8c7a0fe7b43a721478adb327a79c5bee5715"
+      "sha256": "bcf6e5e8408d60aac9b937d57de1466c620177dcfbb610ac8269886b367b7a9c",
+      "alphaSha256": "d312a8ee6484a8a6efe0447923a968024528a6884caf246d63d0aadb0227df52"
     },
     {
       "key": "ice-snow/swordsman/shoes",
       "path": "public/assets/characters/modular/shop/ice-snow/swordsman-shoes.png",
       "bbox": [
-        134,
-        746,
-        530,
-        939
+        172,
+        690,
+        467,
+        949
       ],
-      "alphaPixels": 44225,
-      "opaquePixels": 40839,
+      "alphaPixels": 49111,
+      "opaquePixels": 45042,
       "anchorAlpha": null,
-      "sha256": "44dd663c44efdec2ccfbff1b6af19bfc4b6148c19fac9336df475cd161dd3ee0",
-      "alphaSha256": "fa30a614a83991585be3c98fedc9a7e90af8f4d18cef11f60d288e6386ff3d7b"
+      "sha256": "5b8e0ef3fca39d6ef4ec5043c9afc034045e600ac522a19c07e743571c3b9382",
+      "alphaSha256": "0da113505aa541da1a81f7281878c006ba603ea93b8a197d1bc7202a5ef67b7d"
     },
     {
       "key": "ice-snow/swordsman/weapon",
       "path": "public/assets/characters/modular/shop/ice-snow/swordsman-weapon.png",
       "bbox": [
-        376,
-        22,
-        568,
-        526
+        59,
+        50,
+        579,
+        909
       ],
-      "alphaPixels": 21797,
-      "opaquePixels": 15650,
-      "anchorAlpha": 3956,
-      "sha256": "a6c9c148264f2c73c3eadf52878a5851e4a3cc06e41235f0f27c659ebd31facd",
-      "alphaSha256": "cbfa0d612bdc797324433b3d90a405fa280489befadaaa552d6e1bde4196ebef"
+      "alphaPixels": 49921,
+      "opaquePixels": 42466,
+      "anchorAlpha": 8248,
+      "sha256": "5cb0a83154f9391bc01ec1ffbc39fb76c5c4f5454f734a0f8a626808631c3754",
+      "alphaSha256": "2bb539aa07e5d144cca82fe2b3d96bf9001dcaf47e7f895654bc14188757c342"
     },
     {
       "key": "ice-snow/witch/body",
       "path": "public/assets/characters/modular/shop/ice-snow/witch-body.png",
       "bbox": [
-        136,
-        146,
-        558,
-        661
+        10,
+        15,
+        629,
+        771
       ],
-      "alphaPixels": 103389,
-      "opaquePixels": 87293,
+      "alphaPixels": 335375,
+      "opaquePixels": 331133,
       "anchorAlpha": null,
-      "sha256": "55c3dec43debbd2aa41d57d4b5e7dfb6d85ae4003144652a5b58629daf9d7559",
-      "alphaSha256": "08c68aab9a1e8ebd215113470124ae21d70f463429212b16646234fb3fc37f38",
+      "sha256": "931678a0642500b9cabbd59cab1482aaf8057cedb1ab75cfd5ff03550bcc8488",
+      "alphaSha256": "b4f0707e142b595d9f374e854390105d9f10f9cc9d379f1feffeadb0b8ec0094",
       "sameThemeShoeOverlapPixels": 0
     },
     {
       "key": "ice-snow/witch/head",
       "path": "public/assets/characters/modular/shop/ice-snow/witch-head.png",
       "bbox": [
-        245,
+        253,
         0,
-        393,
-        64
+        386,
+        99
       ],
-      "alphaPixels": 6547,
-      "opaquePixels": 5983,
+      "alphaPixels": 6219,
+      "opaquePixels": 5330,
       "anchorAlpha": null,
-      "sha256": "056e455c7ab2d16dcd3613641abffc3c603aa0470d057e890e529e65b3d1157c",
-      "alphaSha256": "72a20a87bae597ed698943c1db2b7ce51c6143c86aef37f2477f7eba4915bbec"
+      "sha256": "830b9b855a04fb3de75733c2448c5fd2f08d759db3ff4fcb65c26c536a865c6a",
+      "alphaSha256": "6f032cd93baee68e5833eb6af176869421d6840399aa7f5e3249239248fa10cd"
     },
     {
       "key": "ice-snow/witch/shoes",
       "path": "public/assets/characters/modular/shop/ice-snow/witch-shoes.png",
       "bbox": [
-        203,
-        748,
-        451,
-        921
+        199,
+        690,
+        440,
+        949
       ],
-      "alphaPixels": 32020,
-      "opaquePixels": 29687,
+      "alphaPixels": 47543,
+      "opaquePixels": 43726,
       "anchorAlpha": null,
-      "sha256": "48a068801bc5fd17df9e9f0bd92abf38ed1789713597a7f8e7579fd6dafee5c1",
-      "alphaSha256": "887a1e40b68c51f216d9c5f3c1e341e5acc7451e5de8f0f2e66cd2984fc78fe2"
+      "sha256": "39f56ca81a5711d98c626c3673d4ef402977739e27d8975785cdda039e45dd00",
+      "alphaSha256": "e93bb627fd6580e120b30ae4de8ca9df3038237e51e32e53899f571be2a04720"
     },
     {
       "key": "ice-snow/witch/weapon",
       "path": "public/assets/characters/modular/shop/ice-snow/witch-weapon.png",
       "bbox": [
-        382,
-        171,
-        559,
-        524
+        75,
+        50,
+        563,
+        909
       ],
-      "alphaPixels": 17759,
-      "opaquePixels": 14225,
-      "anchorAlpha": 1867,
-      "sha256": "ae7eca718ac217fef543fce5161aec43f0db0dea4be5f339c957c4d2911b6b29",
-      "alphaSha256": "4cbe53ec6ddea8086dc64dc48933ff6b733d85feee5e557afa8ff77d4eba3a55"
+      "alphaPixels": 52493,
+      "opaquePixels": 36772,
+      "anchorAlpha": 7541,
+      "sha256": "baf19e4c9bbd1003757f48a845fcff80a16d5a550684a24eafb826336fb6542b",
+      "alphaSha256": "37e9b0e78790bfeeaf404c9c311783a19b2d3436e0d0d612ab6136a466f84041"
     },
     {
       "key": "ice-snow/shaman/body",
       "path": "public/assets/characters/modular/shop/ice-snow/shaman-body.png",
       "bbox": [
-        136,
-        177,
-        538,
-        639
+        10,
+        15,
+        629,
+        804
       ],
-      "alphaPixels": 85905,
-      "opaquePixels": 71129,
+      "alphaPixels": 327061,
+      "opaquePixels": 322495,
       "anchorAlpha": null,
-      "sha256": "a85a3be3c16bca1acb8935a6601093e64256f7cbdd899af11b9e660598d642b9",
-      "alphaSha256": "7ae3f49772632c236d265ffaefa3772cfe8c6459e622039171e2cb031dc9e316",
+      "sha256": "18de94aab995b4567c83b9758e0c6c2da2ff02f1d6ecf70bd6f95dc59c27a843",
+      "alphaSha256": "3842f4d985389d7d0299e6be2d5219d974f8f40b041f397333e27897da3d34d0",
       "sameThemeShoeOverlapPixels": 0
     },
     {
       "key": "ice-snow/shaman/head",
       "path": "public/assets/characters/modular/shop/ice-snow/shaman-head.png",
       "bbox": [
-        243,
+        264,
         0,
-        395,
-        68
+        375,
+        99
       ],
-      "alphaPixels": 7200,
-      "opaquePixels": 6585,
+      "alphaPixels": 5834,
+      "opaquePixels": 4856,
       "anchorAlpha": null,
-      "sha256": "02ce7f8f9be53dcb2b3f2d14fcfbce8c2af0f80274222ab06b7fb7333e6ce63a",
-      "alphaSha256": "a7c8682af52f9d54bdbd071ead5081fdaa441d6a864328fb47766b90750e5320"
+      "sha256": "84896e430d4abe087b5a5b6ea13da8776cd6a06355e7f83ec6bce31084901f2e",
+      "alphaSha256": "44903ff5c3430312c33a20d6993a6a5b2878f8394f99510a8d1a2fc10b8967eb"
     },
     {
       "key": "ice-snow/shaman/shoes",
       "path": "public/assets/characters/modular/shop/ice-snow/shaman-shoes.png",
       "bbox": [
-        210,
-        729,
-        444,
-        914
+        170,
+        690,
+        469,
+        949
       ],
-      "alphaPixels": 31573,
-      "opaquePixels": 29746,
+      "alphaPixels": 52001,
+      "opaquePixels": 49030,
       "anchorAlpha": null,
-      "sha256": "b131b08c2df4363ff8a2804691b5c87477d5fd03a2a3c471358cad0059b1c61e",
-      "alphaSha256": "87d9b547cb18bc7083675e72f40b67139b4b94ff68f49cc134cea440f31b1069"
+      "sha256": "3eb9b0d4d72b70115be657bba29ad38070edc9adb1ca72235b3a5929080c3439",
+      "alphaSha256": "b28cc98fad2f62ccb40e38f5b2361b0593f6acb45bc552686ddd0d521aa0fb02"
     },
     {
       "key": "ice-snow/shaman/weapon",
       "path": "public/assets/characters/modular/shop/ice-snow/shaman-weapon.png",
       "bbox": [
-        365,
-        176,
-        584,
-        455
+        20,
+        50,
+        619,
+        715
       ],
-      "alphaPixels": 28077,
-      "opaquePixels": 23795,
-      "anchorAlpha": 10035,
-      "sha256": "12e89c1e0b62142955a8c874607ee875f0f0818af25273d596277fbdd3816ed3",
-      "alphaSha256": "e13aed7d0902359083a9e017d3767c21da957f66760eab0317b74523949b8901"
+      "alphaPixels": 153980,
+      "opaquePixels": 148109,
+      "anchorAlpha": 5225,
+      "sha256": "6b8b3e09db692c5bdf78675ca44a10ea7558438b1791be716ff10dbcdc581e28",
+      "alphaSha256": "7c90fdcaa26d51046960d7e1612787756fe5eb2c5ef0964743517bf60a63e7a0"
     },
     {
       "key": "ice-snow/catkin/body",
       "path": "public/assets/characters/modular/shop/ice-snow/catkin-body.png",
       "bbox": [
-        136,
-        146,
-        558,
-        661
+        10,
+        15,
+        629,
+        656
       ],
-      "alphaPixels": 102722,
-      "opaquePixels": 87291,
+      "alphaPixels": 300570,
+      "opaquePixels": 296987,
       "anchorAlpha": null,
-      "sha256": "c47e387ec803f06ec5830291b78bf5e5b992ccc4fd70816c7d25192de00898f1",
-      "alphaSha256": "6beabfde2fa8e9afad05fb0cfa1fef416ca208e925ae164e572037430cb6b229",
+      "sha256": "10b8a382d1f1a57ccef7c31aadb4e55d9010eafcb2156619fd1dc14df9218975",
+      "alphaSha256": "0040f5b32fe4831e8f160cbb1c823fb7a0a8e40fb412cf8c193589bae5cb5ec5",
       "sameThemeShoeOverlapPixels": 0
     },
     {
       "key": "ice-snow/catkin/head",
       "path": "public/assets/characters/modular/shop/ice-snow/catkin-head.png",
       "bbox": [
-        245,
+        258,
         0,
-        393,
-        64
+        381,
+        99
       ],
-      "alphaPixels": 6467,
-      "opaquePixels": 5979,
+      "alphaPixels": 7160,
+      "opaquePixels": 6179,
       "anchorAlpha": null,
-      "sha256": "dec2ddfa527f8892305bd6ec97e9ffbdc35db39588f25480c85208ab302c5e6b",
-      "alphaSha256": "a2d2279b116e5ce186d74396a1fe5e91f2eb56af28b803432b0569583f53e785"
+      "sha256": "baca92121ad90cc13fab5f99a4dd6fb887fb035af9d170be5792a0743b2fc769",
+      "alphaSha256": "b43f25c8293af027ea917fe3c67331354b4ff47b4da8fc45a1d50bac19a4d9d6"
     },
     {
       "key": "ice-snow/catkin/shoes",
       "path": "public/assets/characters/modular/shop/ice-snow/catkin-shoes.png",
       "bbox": [
-        179,
-        754,
-        460,
-        927
+        171,
+        690,
+        467,
+        949
       ],
-      "alphaPixels": 32949,
-      "opaquePixels": 30257,
+      "alphaPixels": 64236,
+      "opaquePixels": 59517,
       "anchorAlpha": null,
-      "sha256": "bef539549da0db566fc9576c03f549baebb471e86ce4b3e54800f6758ed2974c",
-      "alphaSha256": "a4fcd76a9cfcc1239b071ec9675239172e62dbc3971b506e3ac5840ffdbfebb4"
+      "sha256": "65315212112999177e00e8c09a40ae504349dccb12a051cbd4f449a27d29503b",
+      "alphaSha256": "926caed5fd089629a0c88f8be32558d0467b7289cca13213c189f1833d00e7ff"
     },
     {
       "key": "ice-snow/catkin/weapon",
       "path": "public/assets/characters/modular/shop/ice-snow/catkin-weapon.png",
       "bbox": [
-        119,
-        261,
-        603,
-        592
+        33,
+        50,
+        604,
+        909
       ],
-      "alphaPixels": 36098,
-      "opaquePixels": 29554,
-      "anchorAlpha": 10059,
-      "sha256": "8427544930610462af504b894eec9469c14773ef39ea94a577651e1d71edfc2e",
-      "alphaSha256": "1dfbf2dd6e805e11da5906c1fec7c9ee4e8c167160a0667f1e441c08f3cfc988"
+      "alphaPixels": 173118,
+      "opaquePixels": 161764,
+      "anchorAlpha": 17477,
+      "sha256": "53e1fb18432a7819f115b778774e4878a15dcdbee0ec7bbf742aa7dfe60c8cbc",
+      "alphaSha256": "8f659ac7c19f52198152d32d124cab01084e55cb24feff7bac36773315507d3e"
     },
     {
       "key": "ice-snow/kenshi/body",
       "path": "public/assets/characters/modular/shop/ice-snow/kenshi-body.png",
       "bbox": [
-        91,
-        4,
-        587,
-        925
+        10,
+        15,
+        629,
+        905
       ],
-      "alphaPixels": 191075,
-      "opaquePixels": 154564,
+      "alphaPixels": 350723,
+      "opaquePixels": 346022,
       "anchorAlpha": null,
-      "sha256": "d540617145317a9c3fddba9f87189af7326a7d7ff64659f0976ab2f213f79ad8",
-      "alphaSha256": "ed1d8e235373f108bd503e2e6616f2a578a9df7d032c55ef6f320b91fef47760",
-      "shoeMaskPixels": 15844,
-      "shoePremultipliedMae": 0,
-      "shoeAlphaMae": 0
+      "sha256": "47619697fadc00db6c8c16e167bf67b4af9c3665120adc898c2da2979e8763e2",
+      "alphaSha256": "cf63b68c68e9b854e5fd6801e5635852326f6488485b4519be1f34474820c8d2",
+      "shoeMaskPixels": 46210,
+      "shoePremultipliedMae": 0.325747,
+      "shoeAlphaMae": 0.147565
     },
     {
       "key": "ice-snow/kenshi/head",
       "path": "public/assets/characters/modular/shop/ice-snow/kenshi-head.png",
       "bbox": [
-        278,
+        270,
         0,
-        361,
-        60
+        368,
+        99
       ],
-      "alphaPixels": 2746,
-      "opaquePixels": 2121,
+      "alphaPixels": 5247,
+      "opaquePixels": 4403,
       "anchorAlpha": null,
-      "sha256": "41e4acedcfa8a8b84f610807835b8e229065b70b73472e368ca30076233fe726",
-      "alphaSha256": "7577fda08e2c6bc93aba2b87bf19d6f8ca90f242475eada8f11c92ff1d9f6a75"
+      "sha256": "ae93515b5adb378897bb59fd3b33ac3c801ed06f8d81d8bef8b919b8b373ce0d",
+      "alphaSha256": "2cbf46fe8bf292687d78cba7a08bc69b6c5fa2f0af19bb2a47592a9275b6eaf9"
     },
     {
       "key": "ice-snow/kenshi/shoes",
       "path": "public/assets/characters/modular/shop/ice-snow/kenshi-shoes.png",
       "bbox": [
-        243,
-        760,
-        426,
-        925
+        175,
+        690,
+        463,
+        949
       ],
-      "alphaPixels": 17043,
-      "opaquePixels": 14863,
+      "alphaPixels": 48815,
+      "opaquePixels": 44051,
       "anchorAlpha": null,
-      "sha256": "75c1d627b4e34dc97c5c179db74cbd447fcaa81d1b211146717384ceaabe025b",
-      "alphaSha256": "acbf5f1660904c975c05dc0600547486df810fa5190eca0768194aeaf22d6c18"
+      "sha256": "d7ebf035ea80f837315b66921ae104a6f7ceefc417e4432445e503afe5b3e726",
+      "alphaSha256": "4be80da4406bd301612dfd50c15008f85155464fcf46acc147bf299b20385d8d"
     },
     {
       "key": "ice-snow/kenshi/weapon",
       "path": "public/assets/characters/modular/shop/ice-snow/kenshi-weapon.png",
       "bbox": [
-        156,
-        582,
-        360,
-        957
+        20,
+        50,
+        619,
+        823
       ],
-      "alphaPixels": 25873,
-      "opaquePixels": 19365,
-      "anchorAlpha": 7743,
-      "sha256": "879a7f08c4e738c1efa68e0f322c345038f5ca5d1fd897247336e18f5f4c3d05",
-      "alphaSha256": "fd8bb70ef08f5658f2e75457509c560a7ec6d43ed06d8e3406e1aad852d89175"
+      "alphaPixels": 76311,
+      "opaquePixels": 66230,
+      "anchorAlpha": 9278,
+      "sha256": "d9293d225bdcad78960857925221fcdeeffd1cfa0bf0de71bbbe7615ab506bba",
+      "alphaSha256": "8743473afc450dd52b0885c5dcfab3e325e83403b3911acdfeb336d720e0a2f0"
     },
     {
       "key": "cardboard-cat/catkin/body",
@@ -2082,193 +2082,193 @@
       "key": "ice-snow/belt.png",
       "path": "public/assets/equipment/shop/ice-snow/belt.png",
       "bbox": [
-        16,
-        42,
-        239,
-        212
+        13,
+        59,
+        242,
+        196
       ],
-      "alphaPixels": 27822,
-      "meanLuminance": 188.14,
-      "meanChroma": 6.99,
-      "nearWhiteRatio": 0.0083,
-      "darkPixelRatio": 0.712,
-      "sha256": "cf19fb7df0d970d2df45ec1c699f460b255a21d46adc90c78466b1c0a2790dee"
+      "alphaPixels": 21536,
+      "meanLuminance": 183.48,
+      "meanChroma": 19.11,
+      "nearWhiteRatio": 0.0059,
+      "darkPixelRatio": 0.6808,
+      "sha256": "79cebae2645c1771ed885de35af0e0f2f35377eb835b2b781be89a1a0fd1a622"
     },
     {
       "key": "ice-snow/body.png",
       "path": "public/assets/equipment/shop/ice-snow/body.png",
       "bbox": [
-        36,
-        16,
-        218,
-        239
+        18,
+        13,
+        236,
+        242
       ],
-      "alphaPixels": 24051,
-      "meanLuminance": 193.7,
-      "meanChroma": 7.18,
-      "nearWhiteRatio": 0.0135,
-      "darkPixelRatio": 0.6186,
-      "sha256": "36c21a88fb0510ba78c8ed57f3a893f28b8d12d806d2f7a0562dbcc156e9d94c"
+      "alphaPixels": 36737,
+      "meanLuminance": 187.26,
+      "meanChroma": 27.3,
+      "nearWhiteRatio": 0.0068,
+      "darkPixelRatio": 0.6305,
+      "sha256": "6158968e1d8dc6e7deaa76ed99782532c0fea117eb3dc4c4fdab06afd7490d93"
     },
     {
       "key": "ice-snow/bracelet.png",
       "path": "public/assets/equipment/shop/ice-snow/bracelet.png",
       "bbox": [
-        16,
-        47,
-        239,
-        208
+        22,
+        13,
+        232,
+        242
       ],
-      "alphaPixels": 23358,
-      "meanLuminance": 193.94,
-      "meanChroma": 7.02,
-      "nearWhiteRatio": 0.0109,
-      "darkPixelRatio": 0.58,
-      "sha256": "5acb4044337f7c6cc50b3a8b6fb45b47ccb395132d2ce13bccfa8628e16832c3"
+      "alphaPixels": 25306,
+      "meanLuminance": 180.57,
+      "meanChroma": 21.06,
+      "nearWhiteRatio": 0.0263,
+      "darkPixelRatio": 0.715,
+      "sha256": "266937bf272a7686decad90000a5d5febac5aede3e92bc962400c2800ba74789"
     },
     {
       "key": "ice-snow/head.png",
       "path": "public/assets/equipment/shop/ice-snow/head.png",
       "bbox": [
-        16,
-        44,
-        239,
-        211
+        13,
+        17,
+        242,
+        237
       ],
-      "alphaPixels": 25558,
-      "meanLuminance": 192.48,
-      "meanChroma": 7.16,
-      "nearWhiteRatio": 0.0227,
-      "darkPixelRatio": 0.6727,
-      "sha256": "4052788610c5998b4fb12a124bdc5953fe3225475e21401440072fe464ce7aba"
+      "alphaPixels": 22672,
+      "meanLuminance": 187.63,
+      "meanChroma": 29.03,
+      "nearWhiteRatio": 0.0185,
+      "darkPixelRatio": 0.6508,
+      "sha256": "b2e4a4ab7f0198c0a6303fab973d75a2184ee5a5e0b0d845b9f9b8665d787b7b"
     },
     {
       "key": "ice-snow/necklace.png",
       "path": "public/assets/equipment/shop/ice-snow/necklace.png",
       "bbox": [
-        50,
-        16,
-        205,
-        239
+        20,
+        13,
+        234,
+        242
       ],
-      "alphaPixels": 12715,
-      "meanLuminance": 201.04,
-      "meanChroma": 6.66,
-      "nearWhiteRatio": 0.0434,
-      "darkPixelRatio": 0.4316,
-      "sha256": "3094d736206cf0acaad031fea01490a44766329d419518e450dd954feb572d86"
+      "alphaPixels": 15692,
+      "meanLuminance": 174.37,
+      "meanChroma": 19.49,
+      "nearWhiteRatio": 0.0395,
+      "darkPixelRatio": 0.7768,
+      "sha256": "85e380c9fb7d916e726f5a4aa8317455a8291b0dc2844364369407ebf9a3ef94"
     },
     {
       "key": "ice-snow/ring.png",
       "path": "public/assets/equipment/shop/ice-snow/ring.png",
       "bbox": [
-        16,
-        16,
-        238,
-        239
+        12,
+        15,
+        242,
+        240
       ],
-      "alphaPixels": 31412,
-      "meanLuminance": 195.11,
-      "meanChroma": 6.89,
-      "nearWhiteRatio": 0.0132,
-      "darkPixelRatio": 0.5892,
-      "sha256": "5c08899cc86daf8c17739055268d3457956bcf1d023bdea476e697388734b62c"
+      "alphaPixels": 32578,
+      "meanLuminance": 167.06,
+      "meanChroma": 46.91,
+      "nearWhiteRatio": 0.0387,
+      "darkPixelRatio": 0.7444,
+      "sha256": "f2860698176d51bfea0715569673648877de4d081e581eaa7cf15fceb0c60a82"
     },
     {
       "key": "ice-snow/shoes.png",
       "path": "public/assets/equipment/shop/ice-snow/shoes.png",
       "bbox": [
-        16,
-        68,
-        239,
-        186
+        13,
+        28,
+        242,
+        226
       ],
-      "alphaPixels": 14547,
-      "meanLuminance": 190.17,
-      "meanChroma": 6.74,
-      "nearWhiteRatio": 0.0147,
-      "darkPixelRatio": 0.7292,
-      "sha256": "cf1a04960013f1f00e4809ec6a6a50ae0d9216eee64a3e39a43a16b292b83f01"
+      "alphaPixels": 30866,
+      "meanLuminance": 188.26,
+      "meanChroma": 20.4,
+      "nearWhiteRatio": 0.0084,
+      "darkPixelRatio": 0.5622,
+      "sha256": "4595afc7380a0b7cd75b21ed371a50cd48f44c9008a4728151723e914f31980c"
     },
     {
       "key": "ice-snow/weapon-swordsman.png",
       "path": "public/assets/equipment/shop/ice-snow/weapon-swordsman.png",
       "bbox": [
-        80,
-        16,
-        175,
-        239
+        48,
+        13,
+        207,
+        242
       ],
-      "alphaPixels": 4022,
-      "meanLuminance": 181.21,
-      "meanChroma": 51.35,
-      "nearWhiteRatio": 0.0569,
-      "darkPixelRatio": 0.831,
-      "sha256": "1503b7644a1bb9bd724a6644830dbb3d4ba7aa8c0cbf98c6b2699224a6c02dab"
+      "alphaPixels": 6028,
+      "meanLuminance": 166.89,
+      "meanChroma": 57.02,
+      "nearWhiteRatio": 0.0242,
+      "darkPixelRatio": 0.9195,
+      "sha256": "e1157d83572c333694f75657c06493c5f13b7309984253dd73bc484a7705952f"
     },
     {
       "key": "ice-snow/weapon-witch.png",
       "path": "public/assets/equipment/shop/ice-snow/weapon-witch.png",
       "bbox": [
-        70,
-        16,
-        184,
-        239
+        62,
+        13,
+        192,
+        242
       ],
-      "alphaPixels": 4768,
-      "meanLuminance": 180.26,
-      "meanChroma": 51.94,
-      "nearWhiteRatio": 0.048,
-      "darkPixelRatio": 0.8413,
-      "sha256": "9d04b50a766513b20aa05ed097269e17200180050b4bc9e8caeaa5ce7fd85bc2"
+      "alphaPixels": 4421,
+      "meanLuminance": 177.93,
+      "meanChroma": 50.06,
+      "nearWhiteRatio": 0.134,
+      "darkPixelRatio": 0.7816,
+      "sha256": "d1902e0fc21d81aaadd0f78cb97b6b505edea18528088decd3ec52cf12633982"
     },
     {
       "key": "ice-snow/weapon-shaman.png",
       "path": "public/assets/equipment/shop/ice-snow/weapon-shaman.png",
       "bbox": [
-        16,
-        37,
-        239,
-        217
+        22,
+        13,
+        233,
+        242
       ],
-      "alphaPixels": 20036,
-      "meanLuminance": 196.16,
-      "meanChroma": 7.38,
-      "nearWhiteRatio": 0.0324,
-      "darkPixelRatio": 0.626,
-      "sha256": "c411b2de1d540eabde87b1ca332f28035c07cbba4b3336b161c73498d5ad061e"
+      "alphaPixels": 21614,
+      "meanLuminance": 195.24,
+      "meanChroma": 15.66,
+      "nearWhiteRatio": 0.0053,
+      "darkPixelRatio": 0.5038,
+      "sha256": "24480ef0fa57fdad09a1133582a1d09d948128eef93a1c31efd39a50e318560d"
     },
     {
       "key": "ice-snow/weapon-catkin.png",
       "path": "public/assets/equipment/shop/ice-snow/weapon-catkin.png",
       "bbox": [
-        51,
-        30,
-        203,
-        227
+        13,
+        15,
+        242,
+        240
       ],
-      "alphaPixels": 13524,
-      "meanLuminance": 195.81,
-      "meanChroma": 6.75,
-      "nearWhiteRatio": 0.0475,
-      "darkPixelRatio": 0.6412,
-      "sha256": "848621f167407fb3250beb51bdbfceba0c0522a2411cfacc6e1c2a34ebfac7ec"
+      "alphaPixels": 37406,
+      "meanLuminance": 178.07,
+      "meanChroma": 35.96,
+      "nearWhiteRatio": 0.0327,
+      "darkPixelRatio": 0.6972,
+      "sha256": "08cfdc0b5252ca5015a88010186e5324e0b53145962211bb87316f1754479087"
     },
     {
       "key": "ice-snow/weapon-kenshi.png",
       "path": "public/assets/equipment/shop/ice-snow/weapon-kenshi.png",
       "bbox": [
-        74,
-        16,
-        180,
-        239
+        18,
+        13,
+        236,
+        242
       ],
-      "alphaPixels": 6043,
-      "meanLuminance": 190.86,
-      "meanChroma": 6.83,
-      "nearWhiteRatio": 0.0341,
-      "darkPixelRatio": 0.7332,
-      "sha256": "da29233ed24180577ce755f5d6db7740e09f7a0a18cbb54901ab218ae39d7e54"
+      "alphaPixels": 14229,
+      "meanLuminance": 190.1,
+      "meanChroma": 37.82,
+      "nearWhiteRatio": 0.1231,
+      "darkPixelRatio": 0.5789,
+      "sha256": "a959d5854e05f868dd9584aeb95b2c5ded9ade78c95f8cb0c546da20f63e8ebc"
     },
     {
       "key": "berry-cream/body-kenshi-presentation.png",
@@ -2322,17 +2322,17 @@
       "key": "ice-snow/body-kenshi-presentation.png",
       "path": "public/assets/equipment/bodies/boutique-ice-snow-body/kenshi.png",
       "bbox": [
-        68,
-        8,
-        196,
-        241
+        48,
+        10,
+        207,
+        236
       ],
-      "alphaPixels": 13384,
-      "meanLuminance": 197.06,
-      "meanChroma": 17.68,
-      "nearWhiteRatio": 0.0595,
-      "darkPixelRatio": 0.5854,
-      "sha256": "9a51e7882652764bfa6e3b2c09774297d8e484c86935f76c3c736fddea52dc15"
+      "alphaPixels": 23081,
+      "meanLuminance": 190.39,
+      "meanChroma": 23.56,
+      "nearWhiteRatio": 0.0113,
+      "darkPixelRatio": 0.5941,
+      "sha256": "620fe0222737a30a604042f5fde972d0db5ead527e30a2218b75939723170753"
     },
     {
       "key": "cardboard-cat/body-catkin.png",
