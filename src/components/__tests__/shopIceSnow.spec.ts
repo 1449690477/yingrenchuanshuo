@@ -42,7 +42,20 @@ function mountShop() {
   return { element: host, game };
 }
 
-describe('冰雪华年独立货架 UI', () => {
+/*
+ * 2026-08-03 冰雪套下架期间**整体停用**。
+ *
+ * 下面每条用例都要先点开冰雪货架页签，而该页签已从 BOUTIQUE_SHELF_LIST 摘掉
+ * （20 件穿戴层 + 12 张装备图标均为绯樱星愿夜宴的描图，等重画后再上架），
+ * 所以 querySelector 拿不到页签、用例必然失败。**这是下架的正确结果，不是缺陷。**
+ *
+ * ★ **重新上架时必须解除本文件的 skip。** 否则货架 UI 将完全没有覆盖 ——
+ * 下面三条测的都是真东西：每职业八件商品、移动端触控尺寸、
+ * 无独立纸娃娃层的饰品要诚实说明系列演出而不冒充逐件外观。
+ * 下架期间由 src/views/__tests__/shopIceSnowDelisted.spec.ts 反向守住
+ * 「买不到、打不到、但定义一件不少」。
+ */
+describe.skip('冰雪华年独立货架 UI（下架期间停用）', () => {
   it('用数据驱动货架切换，并只展示当前职业八件冰雪装备', async () => {
     const { element } = mountShop();
     const iceButton = element.querySelector<HTMLButtonElement>('.shelf-switcher button.ice')!;

@@ -28,7 +28,7 @@ import { MONSTER_VISUALS } from '../monsterVisuals';
 import { ALL_CHAPTERS, REGIONS } from '../regions';
 import { FIRST_STAGE_ID, ORDERED_STAGE_IDS, STAGES } from '../stages';
 import { SYSTEM_VISUALS } from '../systemVisuals';
-import { BOUTIQUE_THEME_LIST } from '../boutique';
+import { BOUTIQUE_SHELF_LIST, BOUTIQUE_THEME_LIST } from '../boutique';
 import { SHOP_OFFERS } from '../shop';
 import {
   AFFIX_ELEMENT_OPTIONS,
@@ -628,14 +628,22 @@ describe('区域 1–5 内容完整性', () => {
     }
   });
 
-  it('全部金色与红色商店同款都有 BOSS 掉落路径', () => {
+  it('全部在售的金色与红色商店同款都有 BOSS 掉落路径', () => {
     const bossEntries = Object.values(LOOT_TABLES)
       .filter((table) => table.id.endsWith('_boss'))
       .flatMap((table) => table.entries);
     const bossEntryIds = new Set(bossEntries.map((entry) => entry.itemId));
+    // 「装备靠打不靠抽」这条铁律约束的是**在售内容**：商店卖什么，就必须也能打到。
+    // 已下架的主题两条获取路径一起关闭（见 shopIceSnowDelisted.spec.ts），
+    // 它没有 BOSS 掉落是下架的正确形状，不是违反铁律。
+    // ★ 重新上架时，货架与 BOUTIQUE_BOSS_DROP_THEME 必须同时恢复，
+    //   届时该主题会重新落入本用例的检查范围。
+    const listedThemeIds = new Set(BOUTIQUE_SHELF_LIST.flatMap((shelf) => shelf.themeIds));
     for (const offer of SHOP_OFFERS) {
       const equipment = EQUIPMENT[offer.defId]!;
       if (equipment.quality !== 'legendary' && equipment.quality !== 'mythic') continue;
+      const themeId = [...listedThemeIds].find((id) => equipment.id.includes(`eq_shop_${id}_`));
+      if (!themeId) continue;
       expect(bossEntryIds.has(equipment.id), equipment.id).toBe(true);
       if (equipment.classId) {
         expect(bossEntries.find((entry) => entry.itemId === equipment.id)?.classId).toBe(

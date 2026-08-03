@@ -73,7 +73,16 @@ describe('冰雪华年五职业 T0 珍品套', () => {
     }
   });
 
-  it('最终 BOSS 同款直掉 12 件，职业武器带过滤且每件权重为 0.001', () => {
+  /*
+   * 原用例「最终 BOSS 同款直掉 12 件，职业武器带过滤且每件权重为 0.001」
+   * 在 2026-08-03 冰雪套下架期间**不成立**：两条获取路径（商店购买、7-5 BOSS 直掉）
+   * 已一并关闭，`boutiqueBossDropIds('7-5')` 现在返回空数组。
+   *
+   * ★ 重新上架时，恢复 BOUTIQUE_BOSS_DROP_THEME 的 '7-5': 'ice-snow' 之后，
+   *   **必须把下面这条一并解除 skip**，否则掉落权重与职业过滤将失去覆盖。
+   *   下架期间由 shopIceSnowDelisted.spec.ts 反向断言「7-5 不再掉冰雪」。
+   */
+  it.skip('最终 BOSS 同款直掉 12 件，职业武器带过滤且每件权重为 0.001（下架期间停用）', () => {
     const ids = boutiqueBossDropIds('7-5');
     expect(ids).toHaveLength(12);
     const table = LOOT_TABLES['loot_7-5_boss'];

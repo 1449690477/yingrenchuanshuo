@@ -49,6 +49,19 @@ export interface BoutiqueShelf {
   keeperName: string;
   headline: string;
   themeIds: readonly BoutiqueThemeId[];
+  /**
+   * 是否在商店里上架售卖。`false` = 下架：玩家买不到新的。
+   *
+   * ★ **下架撤销的是「售卖」，不是「存在」。** 货架条目、主题、以及由
+   * `BOUTIQUE_THEME_LIST` 派生的**全部装备定义与外观都必须原样保留**。
+   *
+   * 原因：服务端不存玩家背包（购买与持有都在本地 IndexedDB），而
+   * `core/trial.ts` 的 `getEquipment(defId)` 查不到定义就返回
+   * `unknown-equipment`，调用方回 400。**一旦删掉定义，已经买过的玩家
+   * 会在 sync-profile / submit-trial / arena / guild 全线被拒，且自己无法自救**
+   * —— 等于把付过钱的玩家变成外挂嫌疑人。所以下架只能在这里摘牌。
+   */
+  listed?: boolean;
 }
 
 const weapons = (
@@ -541,10 +554,18 @@ export const BOUTIQUE_SHELVES: Readonly<Record<BoutiqueShelfId, BoutiqueShelf>> 
     keeperName: '新春礼装 · 瑞雪',
     headline: '瑞雪迎春，五职业礼装都能完整试穿～',
     themeIds: ['ice-snow'],
+    // 2026-08-03 下架：20 件穿戴层里 19 件与绯樱星愿夜宴逐像素同形
+    // （18 件内容完全相同、kenshi-body 形状 IoU 0.9604），实为描图改色。
+    // 老板决定先下架，等 codex 有额度后按美术施工文档重做再上架。
+    // ★ 只摘牌不删定义，理由见 BoutiqueShelf.listed 的注释。
+    listed: false,
   },
 };
 
-export const BOUTIQUE_SHELF_LIST = Object.values(BOUTIQUE_SHELVES);
+/** 商店实际展示的货架：已下架的不出现，但其装备定义与外观仍然存在。 */
+export const BOUTIQUE_SHELF_LIST = Object.values(BOUTIQUE_SHELVES).filter(
+  (shelf) => shelf.listed !== false,
+);
 
 export function boutiqueEquipmentId(
   themeId: BoutiqueThemeId,
