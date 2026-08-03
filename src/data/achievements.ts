@@ -97,21 +97,21 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
   { id: 'stage_150', category: 'explore', label: '百五险途', description: '通关 150 个关卡', stat: 'clearedStageCount', target: 150 },
   { id: 'stage_180', category: 'explore', label: '百八征途', description: '通关 180 个关卡', stat: 'clearedStageCount', target: 180 },
 
-  // ── 养成（16，计数类依赖 v27 stats 字段）──────────────────
+  // ── 养成（16，计数类依赖 v27 stats 六个累计字段）──────────
   { id: 'enhance_10', category: 'cultivate', label: '锻造学徒', description: '累计强化装备 10 次', stat: 'enhanceCount', target: 10 },
   { id: 'enhance_50', category: 'cultivate', label: '锻造工匠', description: '累计强化装备 50 次', stat: 'enhanceCount', target: 50 },
   { id: 'enhance_200', category: 'cultivate', label: '锻造大师', description: '累计强化装备 200 次', stat: 'enhanceCount', target: 200 },
   { id: 'enhance_500', category: 'cultivate', label: '神匠', description: '累计强化装备 500 次', stat: 'enhanceCount', target: 500 },
-  { id: 'enhance_1000', category: 'cultivate', label: '锻神', description: '累计强化装备 1,000 次', stat: 'enhanceCount', target: 1000 },
   { id: 'reforge_10', category: 'cultivate', label: '洗练学徒', description: '累计洗练词条 10 次', stat: 'reforgeCount', target: 10 },
   { id: 'reforge_50', category: 'cultivate', label: '洗练工匠', description: '累计洗练词条 50 次', stat: 'reforgeCount', target: 50 },
   { id: 'reforge_200', category: 'cultivate', label: '洗练大师', description: '累计洗练词条 200 次', stat: 'reforgeCount', target: 200 },
-  { id: 'reforge_500', category: 'cultivate', label: '词条之神', description: '累计洗练词条 500 次', stat: 'reforgeCount', target: 500 },
   { id: 'sweep_50', category: 'cultivate', label: '扫荡达人', description: '累计扫荡 50 次', stat: 'sweepCount', target: 50 },
   { id: 'sweep_200', category: 'cultivate', label: '扫荡狂人', description: '累计扫荡 200 次', stat: 'sweepCount', target: 200 },
-  { id: 'sweep_1000', category: 'cultivate', label: '扫荡之神', description: '累计扫荡 1,000 次', stat: 'sweepCount', target: 1000 },
   { id: 'affection_10', category: 'cultivate', label: '初见倾心', description: '累计好感互动 10 次', stat: 'affectionCount', target: 10 },
   { id: 'affection_50', category: 'cultivate', label: '日久生情', description: '累计好感互动 50 次', stat: 'affectionCount', target: 50 },
   { id: 'affection_200', category: 'cultivate', label: '心有灵犀', description: '累计好感互动 200 次', stat: 'affectionCount', target: 200 },
   { id: 'arena_10', category: 'cultivate', label: '竞技初战', description: '累计竞技场挑战 10 次', stat: 'arenaCount', target: 10 },
+  { id: 'arena_100', category: 'cultivate', label: '竞技常客', description: '累计竞技场挑战 100 次', stat: 'arenaCount', target: 100 },
+  { id: 'dungeon_50', category: 'cultivate', label: '副本达人', description: '累计挑战装备副本 50 次', stat: 'dungeonCount', target: 50 },
+  { id: 'dungeon_200', category: 'cultivate', label: '副本狂人', description: '累计挑战装备副本 200 次', stat: 'dungeonCount', target: 200 },
 ];

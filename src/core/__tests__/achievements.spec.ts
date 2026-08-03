@@ -26,6 +26,7 @@ const VALID_STATS = new Set<AchievementStat>([
   'sweepCount',
   'affectionCount',
   'arenaCount',
+  'dungeonCount',
 ]);
 
 function input(overrides: Partial<AchievementInput> = {}): AchievementInput {
@@ -48,6 +49,7 @@ function input(overrides: Partial<AchievementInput> = {}): AchievementInput {
     sweepCount: 0,
     affectionCount: 0,
     arenaCount: 0,
+    dungeonCount: 0,
     ...overrides,
   };
 }
@@ -133,17 +135,19 @@ describe('evaluateAchievements', () => {
       input({
         enhanceCount: 200,
         reforgeCount: 50,
-        sweepCount: 1000,
+        sweepCount: 200,
         affectionCount: 200,
         arenaCount: 10,
+        dungeonCount: 200,
       }),
     );
     expect(evaluation.results.find((r) => r.id === 'enhance_200')!.achieved).toBe(true);
     expect(evaluation.results.find((r) => r.id === 'enhance_500')!.achieved).toBe(false);
     expect(evaluation.results.find((r) => r.id === 'reforge_50')!.achieved).toBe(true);
-    expect(evaluation.results.find((r) => r.id === 'sweep_1000')!.achieved).toBe(true);
+    expect(evaluation.results.find((r) => r.id === 'sweep_200')!.achieved).toBe(true);
     expect(evaluation.results.find((r) => r.id === 'affection_200')!.achieved).toBe(true);
     expect(evaluation.results.find((r) => r.id === 'arena_10')!.achieved).toBe(true);
+    expect(evaluation.results.find((r) => r.id === 'dungeon_200')!.achieved).toBe(true);
   });
 
   it('档位奖励：24 条达成 → +0.5%，44 条 → +1.0%，80 条 → +2.0% 封顶', () => {
@@ -192,7 +196,8 @@ describe('evaluateAchievements', () => {
         reforgeCount: 500,
         sweepCount: 1000,
         affectionCount: 200,
-        arenaCount: 10,
+        arenaCount: 100,
+        dungeonCount: 200,
       }),
     );
     expect(full.achievedCount).toBe(80);

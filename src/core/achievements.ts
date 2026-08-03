@@ -31,7 +31,8 @@ export type AchievementStat =
   | 'reforgeCount'
   | 'sweepCount'
   | 'affectionCount'
-  | 'arenaCount';
+  | 'arenaCount'
+  | 'dungeonCount';
 
 /** 评估输入：各统计口径的当前值，全部由上层从存档状态纯计算。 */
 export interface AchievementInput {
@@ -54,6 +55,7 @@ export interface AchievementInput {
   sweepCount: number;
   affectionCount: number;
   arenaCount: number;
+  dungeonCount: number;
 }
 
 export interface AchievementResult {
