@@ -1,39 +1,25 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { computed, type Component } from 'vue';
 import { Backpack, Castle, Menu, Sparkles, Swords, Trophy } from '@lucide/vue';
+import { RED_DOT_LABELS } from '@/core/redDots';
+import { useRedDotStore } from '@/stores/redDots';
 import { useUiStore, type TabKey } from '@/stores/ui';
-import { useGameStore } from '@/stores/game';
-import { redDotState, type RedDotKey } from '@/core/redDots';
 import RedDot from './RedDot.vue';
 
 const ui = useUiStore();
-const game = useGameStore();
+const redDots = useRedDotStore();
 
-const tabs: { key: TabKey; redDotKey: RedDotKey; label: string; icon: Component }[] = [
-  { key: 'idle', redDotKey: 'idle', label: '挂机', icon: Swords },
-  { key: 'bag', redDotKey: 'bag', label: '背包', icon: Backpack },
-  { key: 'growth', redDotKey: 'growth', label: '养成', icon: Sparkles },
-  { key: 'dungeon', redDotKey: 'dungeon', label: '副本', icon: Castle },
-  { key: 'rank', redDotKey: 'rank', label: '排行', icon: Trophy },
-  { key: 'more', redDotKey: 'more', label: '更多', icon: Menu },
+const tabs: { key: TabKey; label: string; icon: Component }[] = [
+  { key: 'idle', label: '挂机', icon: Swords },
+  { key: 'bag', label: '背包', icon: Backpack },
+  { key: 'growth', label: '养成', icon: Sparkles },
+  { key: 'dungeon', label: '副本', icon: Castle },
+  { key: 'rank', label: '排行', icon: Trophy },
+  { key: 'more', label: '更多', icon: Menu },
 ];
 
-/** M3-11 红点：从存档/商店可读状态推导 6 个 tab 的提示开关。 */
-const redDots = computed(() => {
-  const saveData = game.save;
-  if (!saveData) {
-    return { idle: false, bag: false, growth: false, dungeon: false, rank: false, more: false };
-  }
-  return redDotState({
-    pendingEncounters: saveData.encounters.pending.length,
-    pendingAffixCount: saveData.bag.equipment.filter((inst) => inst.pendingAffixChange).length,
-    dungeonAttemptsRemaining: game.equipmentDungeonRemaining,
-    pendingMilestones: saveData.milestones.filter((entry) => !entry.submitted).length,
-    affectionRemaining: game.affectionRemaining,
-  });
-});
-
 const activeIndex = computed(() => tabs.findIndex((t) => t.key === ui.activeTab));
+const dots = computed(() => redDots.dots);
 </script>
 
 <template>
@@ -49,10 +35,9 @@ const activeIndex = computed(() => tabs.findIndex((t) => t.key === ui.activeTab)
     >
       <span class="icon">
         <component :is="tab.icon" :size="19" :stroke-width="2.2" aria-hidden="true" />
-        <RedDot v-if="redDots[tab.redDotKey]" />
+        <RedDot v-if="dots[tab.key]" :label="RED_DOT_LABELS[tab.key]" />
       </span>
       <span class="label">{{ tab.label }}</span>
-      <!-- 红点占位，M3-11 接入红点系统 -->
     </button>
   </nav>
 </template>
@@ -101,7 +86,6 @@ const activeIndex = computed(() => tabs.findIndex((t) => t.key === ui.activeTab)
 }
 
 .tab:active .icon {
-  position: relative;
   transform: scale(0.86);
 }
 
@@ -131,7 +115,6 @@ const activeIndex = computed(() => tabs.findIndex((t) => t.key === ui.activeTab)
 }
 
 .tab.active .icon {
-  position: relative;
   transform: translateY(-2px) scale(1.14);
   animation: icon-pop var(--t-slow) var(--ease-out-back);
 }
@@ -169,7 +152,6 @@ const activeIndex = computed(() => tabs.findIndex((t) => t.key === ui.activeTab)
   }
 
   .tab.active .icon {
-  position: relative;
     animation: none;
   }
 }

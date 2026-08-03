@@ -1,43 +1,115 @@
 /**
- * 红点系统核心（M3-11）。
+ * M3-11 · 信息型红点（可行动提示）核心判定。
  *
- * 红点的本质：对“有可处理事项”的提示状态。
- * 本模块是纯函数：输入各系统的“可做数量”，输出 6 个
- * 底部标签的红点开关（铁律 1：不读存档、不触 UI）。
+ * 设计依据（docs/40 / docs/41）：
+ * - docs/40 红线：不做焦虑型红点、不做「限时不领就没了」的外部触发。
+ * - docs/41 建议：改「信息型提示」——陈述事实（「体力补给可领」「有可强化项」），
+ *   玩家可以无视；不做未读计数、不做数字角标、不闪烁。
+ * - 因此本模块只回答「某类可行动事实是否存在」，不维护任何已读/未读状态；
+ *   事实消失（领完 / 强化完 / 次数用尽）提示自然熄灭。
  *
- * 规则第一版取最小可用集（避免过度设计）：
- * - idle（挂机）：奇遇待处理数 > 0
- * - bag（背包）：待确认洗炼数 > 0
- * - growth（养成）：第一版固定 false，等 M3-5 升级 UI 接入技能可升级
- * - dungeon（副本）：今日剩余次数 > 0
- * - rank（排行）：未上报里程碑数 > 0
- * - more（更多）：好感今日可互动次数 > 0
+ * 铁律 1 / 3 / 4：本模块是纯函数、零 UI 依赖、零副作用，必须配单元测试。
  */
-export type RedDotKey = 'idle' | 'bag' | 'growth' | 'dungeon' | 'rank' | 'more';
+import { ENHANCE_MATERIAL_IDS, ENHANCE_MAX, SLOT_ORDER } from '@/data/constants';
+import { enhanceCost } from './enhance';
+import type { EquipSlot, EquipmentInstance } from './types';
 
-export interface RedDotInput {
-  /** 挂机：奇遇待处理数。 */
-  pendingEncounters: number;
-  /** 背包：带待确认洗炼的装备数。 */
+export type DotTabKey = 'idle' | 'bag' | 'growth' | 'dungeon' | 'rank' | 'more';
+
+/** 评估输入：各可行动来源的原子计数 / 标志，全部可从存档状态纯计算。 */
+export interface RedDotSnapshot {
+  /** 今日体力补给剩余次数（0 ~ DAILY_STAMINA_CLAIM_MAX，M3-6）。 */
+  staminaClaimRemaining: number;
+  /** 挂机中待处理的奇遇事件数。 */
+  pendingEncounterCount: number;
+  /** 待确认洗练结果的装备件数（穿戴 + 背包）。 */
   pendingAffixCount: number;
-  /** 副本：装备副本今日剩余次数。 */
+  /** 已穿戴装备中可强化（未满级且资源足够一次）的件数。 */
+  enhanceableEquipped: number;
+  /** 当前职业可升级技能条数。 */
+  skillUpgradeable: number;
+  /** 装备副本今日剩余次数。 */
   dungeonAttemptsRemaining: number;
-  /** 排行：未上报里程碑数。 */
-  pendingMilestones: number;
-  /** 更多：好感今日可互动次数。 */
-  affectionRemaining: number;
+  /** 可获得好感互动的剩余次数。 */
+  affectionInteractionsRemaining: number;
+  /** 进度榜存在未同步的新进度。 */
+  hasUnsyncedProgress: boolean;
+  /** 已达成但尚未上传服务端复核的里程碑数。 */
+  pendingMilestoneCount: number;
+  /** 公会可领取的委托 / 据点奖励数（联机快照；首版由公会线接入时提供）。 */
+  guildClaimableCount: number;
 }
 
-export type RedDotState = Readonly<Record<RedDotKey, boolean>>;
+export interface RedDotState {
+  idle: boolean;
+  bag: boolean;
+  growth: boolean;
+  dungeon: boolean;
+  rank: boolean;
+  more: boolean;
+}
 
-/** 从可做数量推导红点状态：只有 0 与 >0 两种输出。 */
-export function redDotState(input: RedDotInput): RedDotState {
+/** 各 tab 的事实文案（信息型：陈述事实，不带计数、不带感叹号）。 */
+export const RED_DOT_LABELS: Record<DotTabKey, string> = {
+  idle: '挂机：今日体力补给可领或有奇遇待处理',
+  bag: '背包：有洗练结果待确认',
+  growth: '养成：有可强化或可升级项',
+  dungeon: '副本：装备副本还有挑战次数',
+  rank: '排行：有未同步进度、好感可互动或里程碑待上报',
+  more: '更多：有可领取的奖励',
+};
+
+export interface EnhanceableWallet {
+  gold: number;
+  items: Readonly<Record<string, number>>;
+}
+
+/**
+ * 单件装备在给定资源下是否可强化一次。
+ * 与 core/enhanceBatch 的资源预检同口径；保护符属玩家选择，不算硬前提。
+ */
+export function isEnhanceable(
+  instance: EquipmentInstance,
+  equipmentLevel: number,
+  wallet: EnhanceableWallet,
+): boolean {
+  if (instance.enhance >= ENHANCE_MAX) return false;
+  if (instance.pendingAffixChange) return false;
+  const cost = enhanceCost(instance.enhance + 1, equipmentLevel);
+  return (
+    wallet.gold >= cost.gold &&
+    (wallet.items[ENHANCE_MATERIAL_IDS.stone] ?? 0) >= cost.stone &&
+    (wallet.items[ENHANCE_MATERIAL_IDS.ore] ?? 0) >= cost.ore &&
+    (wallet.items[ENHANCE_MATERIAL_IDS.lucky] ?? 0) >= cost.lucky
+  );
+}
+
+/** 待确认洗练结果的装备件数（已穿戴 + 背包）。 */
+export function countPendingAffix(
+  equipped: Readonly<Partial<Record<EquipSlot, EquipmentInstance | null>>>,
+  bagEquipment: readonly EquipmentInstance[],
+): number {
+  let count = 0;
+  for (const slot of SLOT_ORDER) {
+    if (equipped[slot]?.pendingAffixChange) count += 1;
+  }
+  for (const instance of bagEquipment) {
+    if (instance.pendingAffixChange) count += 1;
+  }
+  return count;
+}
+
+/** 汇总判定：任一来源存在可行动事实 → 对应 tab 亮起。 */
+export function evaluateRedDots(snapshot: RedDotSnapshot): RedDotState {
   return {
-    idle: input.pendingEncounters > 0,
-    bag: input.pendingAffixCount > 0,
-    growth: false,
-    dungeon: input.dungeonAttemptsRemaining > 0,
-    rank: input.pendingMilestones > 0,
-    more: input.affectionRemaining > 0,
+    idle: snapshot.staminaClaimRemaining > 0 || snapshot.pendingEncounterCount > 0,
+    bag: snapshot.pendingAffixCount > 0,
+    growth: snapshot.enhanceableEquipped > 0 || snapshot.skillUpgradeable > 0,
+    dungeon: snapshot.dungeonAttemptsRemaining > 0,
+    rank:
+      snapshot.hasUnsyncedProgress ||
+      snapshot.affectionInteractionsRemaining > 0 ||
+      snapshot.pendingMilestoneCount > 0,
+    more: snapshot.guildClaimableCount > 0,
   };
 }
