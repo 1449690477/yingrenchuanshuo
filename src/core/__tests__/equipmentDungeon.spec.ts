@@ -144,6 +144,29 @@ describe('装备副本业务日期与次数', () => {
 });
 
 describe('装备副本解锁与战斗事务', () => {
+  it('localPveDamageBonusPercent 折算进玩家伤害乘区（ADR-024/025 本地 PvE 收藏奖励）', () => {
+    const weakStats = stats({ atk: 5, hp: 9_999_999_999, def: 1_000_000, eva: 100_000 });
+    const baseResult = resolveEquipmentDungeonChallenge(
+      input({ depth: 1, player: makePlayer('加成对照', 90, weakStats) }),
+    );
+    const boostedResult = resolveEquipmentDungeonChallenge(
+      input({
+        depth: 1,
+        player: makePlayer('加成对照', 90, weakStats),
+        localPveDamageBonusPercent: 100,
+      }),
+    );
+    expect(baseResult.ok).toBe(true);
+    expect(boostedResult.ok).toBe(true);
+    if (!baseResult.ok || !boostedResult.ok) return;
+    const baseWave = baseResult.waves[0]!.result;
+    const boostedWave = boostedResult.waves[0]!.result;
+    expect(baseWave.win).toBe(true);
+    expect(boostedWave.win).toBe(true);
+    // 同 RNG 同配置、只差乘区：+100% 乘区应让战斗用时显著缩短（约一半）
+    expect(boostedWave.duration).toBeLessThan(baseWave.duration * 0.7);
+  });
+
   it('深度链取代等级门槛：跳级被拒，且等级完全不参与判定', () => {
     const violet = requireEquipmentDungeonStage('equipment_body_violet');
     const state = createEquipmentDungeonState(NOW);

@@ -131,6 +131,8 @@ export interface EquipmentDungeonChallengeInput {
   playerOnHitTriggers?: readonly OnHitElementalDamageTrigger[];
   playerOnLethalTriggers?: readonly OnLethalRecoveryTrigger[];
   playerOnCritTriggers?: readonly OnCritPeriodicDamageTrigger[];
+  /** 本地 PvE 收藏奖励乘区（图鉴 + 成就 + 称号，百分数；不进试炼/竞技，ADR-024/025）。 */
+  localPveDamageBonusPercent?: number;
   rngState: number;
   now: number;
 }
@@ -275,6 +277,7 @@ export function resolveEquipmentDungeonChallenge(
       playerOnHitTriggers: input.playerOnHitTriggers,
       playerOnLethalTriggers: input.playerOnLethalTriggers,
       playerOnCritTriggers: input.playerOnCritTriggers,
+      playerDamageMultiplier: 1 + (input.localPveDamageBonusPercent ?? 0) / 100,
       maxSeconds: EQUIPMENT_DUNGEON_RULES.maxFightSeconds,
     });
     waves.push({
