@@ -7,10 +7,12 @@
  * 领取交互待 v27 存档字段落地后接入。
  */
 import { computed } from 'vue';
+import { ChevronLeft } from '@lucide/vue';
 import { ACHIEVEMENTS } from '@/data/achievements';
 import type { AchievementCategory, AchievementEvaluation } from '@/core/achievements';
 
 const props = defineProps<{ evaluation: AchievementEvaluation }>();
+const emit = defineEmits<{ (e: 'close'): void }>();
 
 const CATEGORY_LABELS: Record<AchievementCategory, string> = {
   battle: '击杀',
@@ -63,6 +65,19 @@ const groups = computed(() =>
 
 <template>
   <div class="achievements-view">
+    <header class="ach-top">
+      <button type="button" class="ach-back" aria-label="返回" @click="emit('close')">
+        <ChevronLeft :size="18" />
+      </button>
+      <span class="ach-title">
+        <small>长期目标 · 档位加成预览</small>
+        <strong>成就</strong>
+      </span>
+      <span class="ach-top-count" aria-label="成就总进度">
+        {{ unlockedCount }}/{{ total }}
+      </span>
+    </header>
+
     <header class="ach-summary">
       <div>
         <h2>成就</h2>
@@ -111,7 +126,51 @@ const groups = computed(() =>
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 4px 0 16px;
+  padding: 0 0 16px;
+}
+
+.ach-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 14px 0;
+}
+
+.ach-back {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  color: var(--text-mid, #5a6480);
+  background: rgb(255 255 255 / 64%);
+  border: 1px solid rgb(200 208 235 / 55%);
+  border-radius: 12px;
+}
+
+.ach-title {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.ach-title small {
+  font-size: 10px;
+  color: var(--text-dim, #7b8499);
+}
+
+.ach-title strong {
+  font-size: 17px;
+  color: var(--text-main, #2e3550);
+}
+
+.ach-top-count {
+  margin-left: auto;
+  padding: 4px 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #d65f8f;
+  background: #ffe8f1;
+  border-radius: 999px;
 }
 
 .ach-summary {

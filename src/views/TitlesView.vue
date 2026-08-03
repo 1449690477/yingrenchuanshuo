@@ -6,11 +6,13 @@
  * 只读展示解锁态与进度；装备态字段（equippedTitleId）待版本号安排后接入。
  */
 import { computed } from 'vue';
+import { ChevronLeft } from '@lucide/vue';
 import { TITLES } from '@/data/titles';
 import type { TitleResult } from '@/core/titles';
 import type { AchievementCategory, AchievementStat } from '@/core/achievements';
 
 const props = defineProps<{ unlockedTitles: readonly TitleResult[] }>();
+const emit = defineEmits<{ (e: 'close'): void }>();
 
 const STAT_CATEGORY: Record<AchievementStat, AchievementCategory> = {
   totalKills: 'battle',
@@ -83,6 +85,19 @@ const groups = computed(() =>
 
 <template>
   <div class="titles-view">
+    <header class="title-top">
+      <button type="button" class="title-back" aria-label="返回" @click="emit('close')">
+        <ChevronLeft :size="18" />
+      </button>
+      <span class="title-top-copy">
+        <small>身份标识 · 纯展示</small>
+        <strong>称号</strong>
+      </span>
+      <span class="title-top-count" aria-label="称号总进度">
+        {{ unlockedCount }}/{{ total }}
+      </span>
+    </header>
+
     <header class="title-summary">
       <div>
         <h2>称号</h2>
@@ -126,7 +141,51 @@ const groups = computed(() =>
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 4px 0 16px;
+  padding: 0 0 16px;
+}
+
+.title-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 14px 0;
+}
+
+.title-back {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  color: var(--text-mid, #5a6480);
+  background: rgb(255 255 255 / 64%);
+  border: 1px solid rgb(200 208 235 / 55%);
+  border-radius: 12px;
+}
+
+.title-top-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.title-top-copy small {
+  font-size: 10px;
+  color: var(--text-dim, #7b8499);
+}
+
+.title-top-copy strong {
+  font-size: 17px;
+  color: var(--text-main, #2e3550);
+}
+
+.title-top-count {
+  margin-left: auto;
+  padding: 4px 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #d65f8f;
+  background: #ffe8f1;
+  border-radius: 999px;
 }
 
 .title-summary {

@@ -1,17 +1,22 @@
 <script setup lang="ts">
 import { computed, nextTick, ref } from 'vue';
-import { Castle, Coins, Layers, Mail, ShoppingBag, Sparkles, Users } from '@lucide/vue';
+import { Castle, Coins, Layers, Mail, Medal, ScrollText, ShoppingBag, Sparkles, Trophy, Users } from '@lucide/vue';
 import { abbr, duration } from '@/core/format';
 import { usePlayerStore } from '@/stores/player';
 import { useSettingsStore } from '@/stores/settings';
 import { useShopStore } from '@/stores/shop';
 import { useMailStore } from '@/stores/mail';
+import { useAchievementStore } from '@/stores/achievements';
+import { useTitleStore } from '@/stores/titles';
 import type { SaveData } from '@/save/schema';
 import { downloadSave, importFromJson } from '@/save/storage';
 import ShopView from '@/views/ShopView.vue';
 import GuildView from '@/views/GuildView.vue';
 import SetCodexView from '@/views/SetCodexView.vue';
 import MailView from '@/views/MailView.vue';
+import AchievementsView from '@/views/AchievementsView.vue';
+import TitlesView from '@/views/TitlesView.vue';
+import MonsterCodexView from '@/views/MonsterCodexView.vue';
 import CollapsibleCard from '@/components/CollapsibleCard.vue';
 import SaveIntegrityCard from '@/components/SaveIntegrityCard.vue';
 import { GUILD_HOME_SCENE_ASSET } from '@/data/guildScenes';
@@ -20,6 +25,8 @@ const player = usePlayerStore();
 const settings = useSettingsStore();
 const shop = useShopStore();
 const mailStore = useMailStore();
+const achievements = useAchievementStore();
+const titles = useTitleStore();
 const fileInput = ref<HTMLInputElement | null>(null);
 const msg = ref<{ text: string; ok: boolean } | null>(null);
 const confirmReset = ref(false);
@@ -36,6 +43,15 @@ const codexEntryButton = ref<HTMLButtonElement | null>(null);
 const showMail = ref(false);
 const mailLeaving = ref(false);
 const mailEntryButton = ref<HTMLButtonElement | null>(null);
+const showAchievements = ref(false);
+const achievementsLeaving = ref(false);
+const achievementsEntryButton = ref<HTMLButtonElement | null>(null);
+const showTitles = ref(false);
+const titlesLeaving = ref(false);
+const titlesEntryButton = ref<HTMLButtonElement | null>(null);
+const showMonsterCodex = ref(false);
+const monsterCodexLeaving = ref(false);
+const monsterCodexEntryButton = ref<HTMLButtonElement | null>(null);
 const shopSceneUrl = `${import.meta.env.BASE_URL}assets/shops/sakura-boutique.webp`;
 const guildSceneUrl = `${import.meta.env.BASE_URL}${GUILD_HOME_SCENE_ASSET}`;
 
@@ -92,6 +108,36 @@ function closeMail() {
   showMail.value = false;
 }
 
+function openAchievements() {
+  achievementsLeaving.value = false;
+  showAchievements.value = true;
+}
+
+function closeAchievements() {
+  achievementsLeaving.value = true;
+  showAchievements.value = false;
+}
+
+function openTitles() {
+  titlesLeaving.value = false;
+  showTitles.value = true;
+}
+
+function closeTitles() {
+  titlesLeaving.value = true;
+  showTitles.value = false;
+}
+
+function openMonsterCodex() {
+  monsterCodexLeaving.value = false;
+  showMonsterCodex.value = true;
+}
+
+function closeMonsterCodex() {
+  monsterCodexLeaving.value = true;
+  showMonsterCodex.value = false;
+}
+
 function updateHaptics(event: Event) {
   settings.setHaptics((event.currentTarget as HTMLInputElement).checked);
 }
@@ -146,6 +192,24 @@ async function afterMailLeave() {
   mailEntryButton.value?.focus();
 }
 
+async function afterAchievementsLeave() {
+  achievementsLeaving.value = false;
+  await nextTick();
+  achievementsEntryButton.value?.focus();
+}
+
+async function afterTitlesLeave() {
+  titlesLeaving.value = false;
+  await nextTick();
+  titlesEntryButton.value?.focus();
+}
+
+async function afterMonsterCodexLeave() {
+  monsterCodexLeaving.value = false;
+  await nextTick();
+  monsterCodexEntryButton.value?.focus();
+}
+
 async function onFile(e: Event) {
   const input = e.target as HTMLInputElement;
   const file = input.files?.[0];
@@ -186,11 +250,11 @@ function say(text: string, ok: boolean) {
 <template>
   <div class="more scroll-y">
     <div
-      v-show="!(showShop || shopLeaving || showGuild || guildLeaving || showCodex || codexLeaving || showMail || mailLeaving)"
+      v-show="!(showShop || shopLeaving || showGuild || guildLeaving || showCodex || codexLeaving || showMail || mailLeaving || showAchievements || achievementsLeaving || showTitles || titlesLeaving || showMonsterCodex || monsterCodexLeaving)"
       class="more-content"
-      :inert="showShop || shopLeaving || showGuild || guildLeaving || showCodex || codexLeaving || showMail || mailLeaving"
+      :inert="showShop || shopLeaving || showGuild || guildLeaving || showCodex || codexLeaving || showMail || mailLeaving || showAchievements || achievementsLeaving || showTitles || titlesLeaving || showMonsterCodex || monsterCodexLeaving"
       :aria-hidden="
-        showShop || shopLeaving || showGuild || guildLeaving || showCodex || codexLeaving || showMail || mailLeaving
+        showShop || shopLeaving || showGuild || guildLeaving || showCodex || codexLeaving || showMail || mailLeaving || showAchievements || achievementsLeaving || showTitles || titlesLeaving || showMonsterCodex || monsterCodexLeaving
           ? 'true'
           : undefined
       "
@@ -273,6 +337,60 @@ function say(text: string, ok: boolean) {
         <span class="codex-entry-cta" aria-hidden="true">
           <Mail :size="15" />
           打开邮箱
+        </span>
+      </button>
+      <button
+        ref="achievementsEntryButton"
+        type="button"
+        class="codex-entry"
+        aria-label="进入成就"
+        @click="openAchievements"
+      >
+        <span class="codex-entry-crest"><Trophy :size="24" /></span>
+        <span class="codex-entry-copy">
+          <small>长期目标 · 档位加成预览</small>
+          <strong>成就</strong>
+          <span>击杀、成长、收集、探索与养成共 80 条，按档位获得本地 PvE 加成。</span>
+        </span>
+        <span class="codex-entry-cta" aria-hidden="true">
+          <Trophy :size="15" />
+          打开成就
+        </span>
+      </button>
+      <button
+        ref="titlesEntryButton"
+        type="button"
+        class="codex-entry"
+        aria-label="进入称号"
+        @click="openTitles"
+      >
+        <span class="codex-entry-crest"><Medal :size="24" /></span>
+        <span class="codex-entry-copy">
+          <small>身份标识 · 纯展示</small>
+          <strong>称号</strong>
+          <span>达成成就解锁的身份标识，不提供属性加成。</span>
+        </span>
+        <span class="codex-entry-cta" aria-hidden="true">
+          <Medal :size="15" />
+          打开称号
+        </span>
+      </button>
+      <button
+        ref="monsterCodexEntryButton"
+        type="button"
+        class="codex-entry"
+        aria-label="进入怪物图鉴"
+        @click="openMonsterCodex"
+      >
+        <span class="codex-entry-crest"><ScrollText :size="24" /></span>
+        <span class="codex-entry-copy">
+          <small>击杀即收录 · 集齐加成</small>
+          <strong>怪物图鉴</strong>
+          <span>区域与章节收集进度，集齐每区获得本地 PvE 加成。</span>
+        </span>
+        <span class="codex-entry-cta" aria-hidden="true">
+          <ScrollText :size="15" />
+          打开图鉴
         </span>
       </button>
 
@@ -497,6 +615,22 @@ function say(text: string, ok: boolean) {
 
     <Transition name="page-up" @after-leave="afterMailLeave">
       <MailView v-if="showMail" @close="closeMail" />
+    </Transition>
+
+    <Transition name="page-up" @after-leave="afterAchievementsLeave">
+      <AchievementsView v-if="showAchievements" :evaluation="achievements.evaluation" @close="closeAchievements" />
+    </Transition>
+
+    <Transition name="page-up" @after-leave="afterTitlesLeave">
+      <TitlesView v-if="showTitles" :unlocked-titles="titles.unlockedTitles" @close="closeTitles" />
+    </Transition>
+
+    <Transition name="page-up" @after-leave="afterMonsterCodexLeave">
+      <MonsterCodexView
+        v-if="showMonsterCodex && settings.saveData"
+        :ledger="settings.saveData.monsterCodex"
+        @close="closeMonsterCodex"
+      />
     </Transition>
   </div>
 </template>
