@@ -9,7 +9,9 @@ import { useGameStore, type SweepResult } from '@/stores/game';
 import { businessDayKey } from '@/core/dayKey';
 import { signInStatus } from '@/core/checkin';
 import { SIGN_IN_CYCLE_REWARDS, type SignInReward } from '@/data/checkin';
+import type { DailyTierReward } from '@/data/dailyTasks';
 import SweepResultModal from '@/components/SweepResultModal.vue';
+import DailyTasksView from '@/components/DailyTasksView.vue';
 import { useInventoryStore } from '@/stores/inventory';
 import { usePlayerStore } from '@/stores/player';
 import { useStageStore } from '@/stores/stage';
@@ -187,6 +189,32 @@ function onSignIn(): void {
   }
   clearTimeout(signInToastTimer);
   signInToastTimer = window.setTimeout(() => (signInToast.value = ''), 3200);
+}
+
+// M4-1 日常任务：面板数据与活跃度宝箱领取（存档写入在 store，这里只做展示）。
+const dailyTaskState = computed(() => game.save?.dailyTasks ?? null);
+
+function dailyTierRewardText(reward: DailyTierReward): string {
+  const parts: string[] = [];
+  if (reward.gold) parts.push(`${abbr(reward.gold)} 金币`);
+  if (reward.stamina) parts.push(`体力 +${reward.stamina}`);
+  for (const [itemId, count] of Object.entries(reward.items ?? {})) {
+    parts.push(`${requireItem(itemId).name} ×${count}`);
+  }
+  return parts.join(' · ');
+}
+
+const dailyToast = ref('');
+let dailyToastTimer = 0;
+function onClaimDailyTier(threshold: number): void {
+  const result = game.claimDailyTier(threshold);
+  if (!result) {
+    dailyToast.value = '活跃度还没到，再打打';
+  } else {
+    dailyToast.value = `宝箱领取成功：${dailyTierRewardText(result.reward)}`;
+  }
+  clearTimeout(dailyToastTimer);
+  dailyToastTimer = window.setTimeout(() => (dailyToast.value = ''), 3200);
 }
 
 function doSweep(times: number): void {
@@ -507,6 +535,15 @@ function openLootEntry(entry: { itemId: string; isEquipment: boolean; count: num
       <span v-else class="stamina-claimed">今日已签</span>
       <span v-if="signInToast" class="stamina-toast">{{ signInToast }}</span>
     </div>
+
+    <!-- M4-1 日常任务：8 条任务进度 + 四档活跃度宝箱 -->
+    <DailyTasksView
+      v-if="dailyTaskState"
+      :state="dailyTaskState"
+      :now="staminaNow"
+      :on-claim="onClaimDailyTier"
+    />
+    <span v-if="dailyToast" class="stamina-toast">{{ dailyToast }}</span>
 
     <!-- M3-7 扫荡：仅已通关关卡出现；体力不足时 ×10 自动降级而不是拦人 -->
     <div v-if="canSweep" class="sweep-row">

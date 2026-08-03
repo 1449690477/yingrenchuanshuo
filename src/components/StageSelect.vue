@@ -50,7 +50,10 @@ function materialSourceLabel(tier: ItemDef['tier']): string {
 }
 
 function pick(stageId: string) {
-  if (stage.select(stageId)) emit('close');
+  if (stage.select(stageId)) {
+    game.recordDailyTask('challenge');
+    emit('close');
+  }
 }
 
 // ─────────── K1 · 章节门槛（docs/57）：指路牌不是墙 ───────────

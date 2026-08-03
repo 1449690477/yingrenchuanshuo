@@ -195,6 +195,7 @@ export const useArenaStore = defineStore('arena', () => {
         defenderId: candidate.userId,
         stake: stake.value,
       });
+      game.recordDailyTask('arena');
       lastBattle.value = result;
       if (me.value) {
         me.value = {
@@ -358,6 +359,7 @@ export const useArenaStore = defineStore('arena', () => {
         stake: 0,
         isRevenge: true,
       });
+      game.recordDailyTask('arena');
       lastBattle.value = result;
       if (me.value) {
         me.value = {

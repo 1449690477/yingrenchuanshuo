@@ -2113,3 +2113,69 @@ describe('关卡首通时刻', () => {
     }
   });
 });
+
+describe('M4-1 日常任务接线', () => {
+  const NOW = 1_800_000_000_000;
+
+  it('recordDailyTask 累计进度并随档持久化；跨日自动重置', async () => {
+    vi.setSystemTime(NOW);
+    const game = useGameStore();
+    await game.startNewGame('小樱', 'swordsman');
+
+    game.recordDailyTask('challenge');
+    game.recordDailyTask('challenge');
+    game.recordDailyTask('sweep');
+    expect(game.save!.dailyTasks.progress.challenge).toBe(2);
+    expect(game.save!.dailyTasks.progress.sweep).toBe(1);
+
+    // 封顶：超目标不累计
+    for (let i = 0; i < 5; i += 1) game.recordDailyTask('challenge');
+    expect(game.save!.dailyTasks.progress.challenge).toBe(3);
+
+    // 跨日：进度归零（store 直接改写存档日期模拟次日）
+    const tomorrow = NOW + 24 * 3_600_000;
+    game.save!.dailyTasks.day = '';
+    game.recordDailyTask('sweep', 1, tomorrow);
+    expect(game.save!.dailyTasks.progress.sweep).toBe(1);
+    expect(game.save!.dailyTasks.progress.challenge).toBe(0);
+  });
+
+  it('活跃度宝箱：达成档位发奖（金币/体力/材料）并记录已领，重复领被拒', async () => {
+    vi.setSystemTime(NOW);
+    const game = useGameStore();
+    await game.startNewGame('小樱', 'swordsman');
+    const goldBefore = game.save!.player.gold;
+    const staminaBefore = game.save!.player.stamina;
+    const stoneBefore = game.save!.bag.items.stone_enhance ?? 0;
+
+    // 活跃度不够：拒领
+    expect(game.claimDailyTier(20)).toBeNull();
+
+    // 完成 2 条任务 = 20 活跃度，领第一档（金币 5000 + 体力 20）
+    game.recordDailyTask('challenge', 3);
+    game.recordDailyTask('sweep', 5);
+    const claim = game.claimDailyTier(20);
+    expect(claim).not.toBeNull();
+    expect(claim!.rewardId).toBe('daily_tier_1');
+    expect(game.save!.player.gold).toBe(goldBefore + 5000);
+    expect(game.save!.player.stamina).toBe(
+      Math.min(staminaBefore + 20, game.staminaMax),
+    );
+    expect(game.save!.dailyTasks.claimedTiers).toEqual([20]);
+
+    // 重复领同一档：拒领，且不再重复发奖
+    expect(game.claimDailyTier(20)).toBeNull();
+    expect(game.save!.player.gold).toBe(goldBefore + 5000);
+
+    // 全完成 = 80 活跃度，可领 40/60/80 三档
+    for (const task of ['enhance', 'reforge', 'affection', 'dungeon', 'arena', 'idle-minutes'] as const) {
+      game.recordDailyTask(task, 99);
+    }
+    const last = game.claimDailyTier(80);
+    expect(last).not.toBeNull();
+    expect(last!.rewardId).toBe('daily_tier_4');
+    expect(game.save!.dailyTasks.claimedTiers).toEqual([20, 80]);
+    expect((game.save!.bag.items.stone_enhance ?? 0)).toBe(stoneBefore); // 80 档无强化石
+    expect(game.save!.bag.items.lucky_nine).toBe(2);
+  });
+});

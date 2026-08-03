@@ -168,6 +168,15 @@ import {
   type DailyStaminaClaimResult,
 } from '@/core/idle';
 import { trimBag } from '@/core/bag';
+import {
+  claimActivityTierAt,
+  recordDailyTaskProgress,
+} from '@/core/dailyTasks';
+import {
+  ACTIVITY_TIER_REWARDS,
+  type DailyTaskId,
+  type DailyTierReward,
+} from '@/data/dailyTasks';
 import type { IdleContext } from '@/core/idle';
 import {
   assessSkillUpgrade,
@@ -1152,6 +1161,7 @@ export const useGameStore = defineStore('game', () => {
           },
         };
       }
+      recordDailyTask('idle-minutes', Math.floor(r.seconds / 60));
     }
     save.value.lastActiveAt = now;
 
@@ -1496,6 +1506,7 @@ export const useGameStore = defineStore('game', () => {
     save.value.stats.totalKills += y.kills;
     const settlement = applyStageKills(y.kills, lootCursor, false);
     advanceAfterFirstClear(settlement.firstClearedStageId);
+    recordDailyTask('sweep');
 
     void persist();
     return {
@@ -2241,6 +2252,7 @@ export const useGameStore = defineStore('game', () => {
       }
     }
     enforceBagCapacity();
+    recordDailyTask('dungeon');
     void persist();
 
     return {
@@ -2631,6 +2643,8 @@ export const useGameStore = defineStore('game', () => {
       enforceBagCapacity();
     }
 
+    // 全部可抛错步骤（配置读取/实例构造）完成后再记日常任务，坏配置不会留半笔
+    recordDailyTask('affection');
     noteCpDelta(beforeCp);
     void persist();
     return { ...result, instance };
@@ -2697,6 +2711,7 @@ export const useGameStore = defineStore('game', () => {
       enforceBagCapacity();
     }
 
+    recordDailyTask('affection');
     noteCpDelta(beforeCp);
     void persist();
     return { ...result, instance };
@@ -3024,6 +3039,8 @@ export const useGameStore = defineStore('game', () => {
         }
         throw error;
       }
+      // 事务已提交（材料已扣、候选已写入），此刻记日常任务进度不会随回滚漂移
+      recordDailyTask('reforge');
       return result;
     } finally {
       finishPaidPersistenceTransaction(resumeRealtime);
@@ -3168,6 +3185,7 @@ export const useGameStore = defineStore('game', () => {
       const targetKey = String(result.targetLevel);
 
       if (result.outcome === 'success') {
+        recordDailyTask('enhance');
         const gainIndex = result.targetLevel - 1;
         if (nextInstance.enhanceGainPermille[gainIndex] === 0) {
           gainRoll = rollEnhanceGainPermille(
@@ -3675,6 +3693,42 @@ export const useGameStore = defineStore('game', () => {
     }
   }
 
+  /**
+   * M4-1 日常任务记录：各事件点在成功后调用，进度封顶且跨日自动重置（core 纯函数处理）。
+   */
+  function recordDailyTask(taskId: DailyTaskId, delta = 1, now = Date.now()): void {
+    const s = save.value;
+    if (!s) return;
+    s.dailyTasks = recordDailyTaskProgress(s.dailyTasks, taskId, delta, now);
+  }
+
+  /**
+   * M4-1 活跃度宝箱领取：档位达成且未领才落账（金币/体力按上限截断/材料），
+   * 写回已领档位后持久化；不可领返回 null。
+   */
+  function claimDailyTier(
+    threshold: number,
+  ): { threshold: number; rewardId: string; reward: DailyTierReward } | null {
+    const s = save.value;
+    if (!s) return null;
+    const result = claimActivityTierAt(s.dailyTasks, threshold, Date.now());
+    if (!result) return null;
+    const reward = ACTIVITY_TIER_REWARDS[result.tier.rewardId];
+    if (!reward) return null;
+    if (reward.gold) s.player.gold += reward.gold;
+    if (reward.stamina) {
+      s.player.stamina = Math.min(staminaMax.value, s.player.stamina + reward.stamina);
+    }
+    if (reward.items) {
+      for (const [itemId, count] of Object.entries(reward.items)) {
+        s.bag.items[itemId] = (s.bag.items[itemId] ?? 0) + count;
+      }
+    }
+    s.dailyTasks = result.state;
+    void persist();
+    return { threshold: result.tier.threshold, rewardId: result.tier.rewardId, reward };
+  }
+
   async function persist(): Promise<void> {
     if (storageConflict || resetPersistencePending) return;
     if (paidPersistencePending) {
@@ -3839,6 +3893,8 @@ export const useGameStore = defineStore('game', () => {
     sweepCost,
     sweepStage,
     claimDailyStamina,
+    recordDailyTask,
+    claimDailyTier,
     claimSignIn,
   };
 });

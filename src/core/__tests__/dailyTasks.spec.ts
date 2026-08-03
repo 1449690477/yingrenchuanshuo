@@ -6,6 +6,7 @@ import {
 import {
   alignDailyTaskDay,
   claimActivityTier,
+  claimActivityTierAt,
   createDailyTaskState,
   dailyActivity,
   nextClaimableTier,
@@ -66,6 +67,28 @@ describe('dailyTasks', () => {
     expect(first.tier.threshold).toBe(20);
     expect(second.tier.threshold).toBe(40);
     expect(second.state.claimedTiers).toEqual([20, 40]);
+  });
+
+  it('按档领取：指定档位达成且未领可领，未达成/重复领返回 null', () => {
+    let s = createDailyTaskState(NOW);
+    s = recordDailyTaskProgress(s, 'challenge', 3, NOW);
+    s = recordDailyTaskProgress(s, 'sweep', 5, NOW);
+    // 活跃度 20：领 20 成功，领 40 被拒
+    const ok = claimActivityTierAt(s, 20, NOW);
+    expect(ok).not.toBeNull();
+    expect(ok!.tier.threshold).toBe(20);
+    expect(ok!.state.claimedTiers).toEqual([20]);
+    expect(claimActivityTierAt(s, 40, NOW)).toBeNull();
+    // 重复领 20 被拒
+    expect(claimActivityTierAt(ok!.state, 20, NOW)).toBeNull();
+    // 全 8 条完成 = 80 活跃度，直接领 80 档
+    let full = createDailyTaskState(NOW);
+    for (const task of DAILY_TASKS) {
+      full = recordDailyTaskProgress(full, task.id, task.target, NOW);
+    }
+    const last = claimActivityTierAt(full, 80, NOW);
+    expect(last).not.toBeNull();
+    expect(last!.tier.rewardId).toBe('daily_tier_4');
   });
 
   it('跨日自动重置进度与已领档位', () => {

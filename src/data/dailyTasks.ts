@@ -53,3 +53,24 @@ export const ACTIVITY_TIERS: readonly ActivityTier[] = [
   { threshold: 60, rewardId: 'daily_tier_3' },
   { threshold: 80, rewardId: 'daily_tier_4' },
 ];
+
+/** 一次活跃度宝箱可发放的奖励形状（与签到/体力补给同口径）。 */
+export interface DailyTierReward {
+  /** 金币。 */
+  gold?: number;
+  /** 体力（入账时按体力上限截断，与每日补给同口径）。 */
+  stamina?: number;
+  /** 材料 / 消耗品：itemId → 数量（沿用 bag.items 的既有 id）。 */
+  items?: Readonly<Record<string, number>>;
+}
+
+/**
+ * 四档活跃度宝箱奖励（信息型福利，量级对齐签到：保守补充，不参与产出曲线）。
+ * 20/40/60 为小补给，80 全完成大奖。
+ */
+export const ACTIVITY_TIER_REWARDS: Readonly<Record<string, DailyTierReward>> = {
+  daily_tier_1: { gold: 5000, stamina: 20 },
+  daily_tier_2: { gold: 8000, items: { stone_enhance: 3 } },
+  daily_tier_3: { gold: 12000, items: { ore_black: 30 } },
+  daily_tier_4: { gold: 20000, stamina: 60, items: { lucky_nine: 2 } },
+};

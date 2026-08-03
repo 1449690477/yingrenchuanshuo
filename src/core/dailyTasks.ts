@@ -101,3 +101,25 @@ export function claimActivityTier(
     tier,
   };
 }
+
+/**
+ * 按指定档位领取（UI 点哪个领哪个）；该档未达成或已领过返回 null。
+ */
+export function claimActivityTierAt(
+  state: DailyTaskState,
+  threshold: number,
+  now: number,
+): { state: DailyTaskState; tier: { threshold: number; rewardId: string } } | null {
+  const aligned = alignDailyTaskDay(state, now);
+  if (aligned.claimedTiers.includes(threshold)) return null;
+  if (dailyActivity(aligned, now) < threshold) return null;
+  const tier = ACTIVITY_TIERS.find((t) => t.threshold === threshold);
+  if (!tier) return null;
+  return {
+    state: {
+      ...aligned,
+      claimedTiers: [...aligned.claimedTiers, threshold],
+    },
+    tier,
+  };
+}
