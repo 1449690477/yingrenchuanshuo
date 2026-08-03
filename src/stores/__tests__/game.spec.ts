@@ -973,6 +973,22 @@ describe('设置 setter（M4-12 设置页）', () => {
     expect(game.save?.settings.visualQuality).toBe('standard');
   });
 
+  it('setSfx/setBgm 写入声音开关（M4-11：音效默认开、BGM 默认关）', () => {
+    const game = useGameStore();
+    game.loadFrom(createSave('设置测试', 'swordsman', 1, Date.now()));
+    // 新档默认：sfx 开、bgm 关
+    expect(game.save?.settings.sfx).toBe(true);
+    expect(game.save?.settings.bgm).toBe(false);
+    expect(game.setSfx(false)).toBe(true);
+    expect(game.save?.settings.sfx).toBe(false);
+    expect(game.setSfx(true)).toBe(true);
+    expect(game.save?.settings.sfx).toBe(true);
+    expect(game.setBgm(true)).toBe(true);
+    expect(game.save?.settings.bgm).toBe(true);
+    expect(game.setBgm(false)).toBe(true);
+    expect(game.save?.settings.bgm).toBe(false);
+  });
+
   it('无存档时 setter 返回 false 且不抛错', () => {
     const game = useGameStore();
     expect(game.setReduceMotion(true)).toBe(false);

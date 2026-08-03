@@ -3638,6 +3638,22 @@ export const useGameStore = defineStore('game', () => {
     return true;
   }
 
+  /** 音效总开关（M4-11）：语音与音效同生共死，新档默认开。 */
+  function setSfx(enabled: boolean): boolean {
+    if (!save.value) return false;
+    save.value.settings.sfx = enabled;
+    void persist();
+    return true;
+  }
+
+  /** 背景音乐开关（M4-11）：新档默认关，想听时手动打开。 */
+  function setBgm(enabled: boolean): boolean {
+    if (!save.value) return false;
+    save.value.settings.bgm = enabled;
+    void persist();
+    return true;
+  }
+
   /**
    * 记录一周试炼的个人最好成绩。
    *
@@ -3910,6 +3926,8 @@ export const useGameStore = defineStore('game', () => {
     setReduceMotion,
     setAutoDecomposeBelow,
     setVisualQuality,
+    setSfx,
+    setBgm,
     recordTrialBest,
     markMilestoneSubmitted,
     markTrialBestSubmitted,

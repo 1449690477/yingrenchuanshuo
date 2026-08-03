@@ -25,6 +25,16 @@ export const useSettingsStore = defineStore('settings', () => {
     return game.setReduceMotion(enabled);
   }
 
+  /** 音效总开关（M4-11）：语音与音效同生共死，默认开。 */
+  function setSfx(enabled: boolean): boolean {
+    return game.setSfx(enabled);
+  }
+
+  /** 背景音乐开关（M4-11）：默认关。 */
+  function setBgm(enabled: boolean): boolean {
+    return game.setBgm(enabled);
+  }
+
   function setAutoDecomposeBelow(threshold: Quality | 'none'): boolean {
     return game.setAutoDecomposeBelow(threshold);
   }
@@ -42,6 +52,8 @@ export const useSettingsStore = defineStore('settings', () => {
     importSave,
     setHaptics,
     setReduceMotion,
+    setSfx,
+    setBgm,
     setAutoDecomposeBelow,
     setVisualQuality,
     reset: game.resetGame,
