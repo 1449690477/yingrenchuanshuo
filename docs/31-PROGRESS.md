@@ -214,7 +214,7 @@
 | ✅ 完成 | **M3-6 体力** | 每日 3 次 × 30 点（90 点/日、不限时段、北京 04:00 日切、不超上限）、存档 v23（staminaClaimCount）随 fd6e61e 定稿；smoke-save 5/5、迁移链 v0→v23 无缺口 |
 | ✅ 完成 | **M3-7 扫荡** | 判据（未通关不给扫）、store 事务（先判后扣）、挂机页 ×1 / ×10 入口与结果汇总弹窗随 24a9611 上线；规格对齐 `docs/10` §3.3 四条 |
 | ✅ 完成 | **M3-10 战力飘字** | 2026-08-03 小Q 收口：穿脱装、一键最优、强化、升阶、洗练、印记等装备类来源早已接入；本批补齐升级（levelUpIfPossible 唯一收口，覆盖在线 tick 与离线结算）与好感互动 / 送礼 / 剧情选项三条来源；技能等级不计入战力公式，专项测试钉住升级技能不得虚报飘字；game / skillUpgradeSave / affectionGame 共 4 条专项测试，全量 verify 退出码 0 |
-| ✅ 完成 | **M3-11 / M3-12** | M3-11 红点框架随 52e1ba7 收口；M3-12 区域3 已随 d8ab0fc 打勾（M3-13 联合模拟已随 a096802 收口） |
+| ✅ 完成 | **M3-11 / M3-12** | M3-11 信息型红点框架由小樱定稿、随 d7447c6 落地（52e1ba7 版作废，代码已替换为 df1a1dc+be6e3c5 合体的 10 来源版）；M3-12 区域3 已随 d8ab0fc 打勾（M3-13 联合模拟已随 a096802 收口） |
 
 ## M1 阶段的重要发现（必读）
 
@@ -254,10 +254,11 @@ M1-10 的数值校验**推翻了文档里三处原始设计**，全部记录在 
 
 ## 2026-08-03 · M3-11 红点系统框架（小樱）
 
-- **core/redDots.ts**：纯函数规则——输入 5 个可做计数（奇遇待处理 / 待确认洗练 / 副本剩余次数 / 未上报里程碑 / 好感可互动），输出 6 个底部 tab 的布尔红点；growth 首版固定 false（等 M3-5 升级 UI 接入）。
-- **UI**：BottomTabs.vue 接入 + RedDot.vue 小圆点组件（红色 8px，父容器锚定）。
-- **数据源**：复用 game store 已导出状态（pendingEncounters / equipmentDungeonRemaining / affectionRemaining）+ 存档遍历（pendingAffixChange / milestones.submitted），未改 game.ts。
-- **验收**：redDots.spec 8/8、全量 2269 项 + 完整 verify 退出码 0。
+- **core/redDots.ts**：纯函数判定——10 个可行动来源快照（体力补给 / 奇遇待处理 / 洗练确认 / 可强化 / 技能可升级 / 副本次数 / 未同步进度 / 里程碑待上报 / 好感可互动 / 公会奖励留位），输出 6 个底部 tab 的布尔红点；growth 为真实判定（可强化件数 + 可升级技能条数）。
+- **信息型红线（docs/40 / docs/41）**：不做未读计数、不做数字角标、不闪烁；`RED_DOT_LABELS` 按 tab 陈述事实文案，事实消失提示自然熄灭。
+- **UI**：BottomTabs.vue 六 tab 接入 + RedDot.vue 静态小圆点（role=img + aria-label 无障碍、pointer-events none）；聚合在独立 stores/redDots.ts，读 game store 快照纯计算，未改 game.ts。
+- **收口历史**：52e1ba7 版（5 来源、growth 固定 false、more 页指向错误）经 16:13 裁决作废，代码已由 d7447c6 替换；最终实现 = df1a1dc + be6e3c5 合体版。
+- **验收**：redDots.spec 18/18、roadmapCounters 3/3 绿。
 
 ## 2026-08-03 · M3-10 战力变化飘字（小Q）
 
