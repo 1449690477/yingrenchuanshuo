@@ -29,6 +29,10 @@ export const useSettingsStore = defineStore('settings', () => {
     return game.setAutoDecomposeBelow(threshold);
   }
 
+  function setVisualQuality(quality: 'standard' | 'lite'): boolean {
+    return game.setVisualQuality(quality);
+  }
+
   return {
     settings,
     saveData,
@@ -39,6 +43,7 @@ export const useSettingsStore = defineStore('settings', () => {
     setHaptics,
     setReduceMotion,
     setAutoDecomposeBelow,
+    setVisualQuality,
     reset: game.resetGame,
   };
 });

@@ -64,6 +64,8 @@ const game = useGameStore();
 const reduceMotionEnabled = computed(() =>
   Boolean(props.reduceMotion || game.save?.settings.reduceMotion),
 );
+/** 低画质（M4-12 设置页）：关闭环境粒子与背景漂移，省电优先。 */
+const liteQuality = computed(() => game.save?.settings.visualQuality === 'lite');
 const basicEffectUrl = computed(
   () => `${import.meta.env.BASE_URL}${BASIC_ATTACK_EFFECTS[props.classId]}`,
 );
@@ -494,6 +496,7 @@ onUnmounted(() => {
           'player-low': playerHpPercent <= 25,
           'is-hitstop': hitstop,
           'reduced-motion': reduceMotionEnabled,
+          'quality-lite': liteQuality,
         },
       ]"
       :style="{
@@ -758,6 +761,15 @@ onUnmounted(() => {
 /* 极慢的背景漂移让战场保持活力，同时不会干扰角色和技能演出。 */
 .active .scene-background {
   animation: bg-drift 26s ease-in-out infinite alternate;
+}
+
+/* 低画质（M4-12 设置页）：关闭环境粒子与背景漂移，省电优先。 */
+.quality-lite .ambient-particles {
+  display: none;
+}
+
+.quality-lite .scene-background {
+  animation: none;
 }
 
 /* 玩家濒危时以边缘红晕提醒，避免遮挡战斗主体。 */

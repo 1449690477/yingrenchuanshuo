@@ -963,10 +963,20 @@ describe('设置 setter（M4-12 设置页）', () => {
     expect(game.save?.settings.autoDecomposeBelow).toBe('none');
   });
 
+  it('setVisualQuality 写入画质档位', () => {
+    const game = useGameStore();
+    game.loadFrom(createSave('设置测试', 'swordsman', 1, Date.now()));
+    expect(game.setVisualQuality('lite')).toBe(true);
+    expect(game.save?.settings.visualQuality).toBe('lite');
+    expect(game.setVisualQuality('standard')).toBe(true);
+    expect(game.save?.settings.visualQuality).toBe('standard');
+  });
+
   it('无存档时 setter 返回 false 且不抛错', () => {
     const game = useGameStore();
     expect(game.setReduceMotion(true)).toBe(false);
     expect(game.setAutoDecomposeBelow('rare')).toBe(false);
+    expect(game.setVisualQuality('lite')).toBe(false);
   });
 });
 

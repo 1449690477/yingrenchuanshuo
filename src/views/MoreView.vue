@@ -93,6 +93,11 @@ function updateAutoDecompose(event: Event) {
   settings.setAutoDecomposeBelow(value);
 }
 
+function updateVisualQuality(event: Event) {
+  const value = (event.currentTarget as HTMLSelectElement).value as 'standard' | 'lite';
+  settings.setVisualQuality(value);
+}
+
 async function afterShopLeave() {
   shopLeaving.value = false;
   await nextTick();
@@ -302,6 +307,22 @@ function say(text: string, ok: boolean) {
             <option value="common">白装及以下</option>
             <option value="fine">绿装及以下</option>
             <option value="rare">蓝装及以下</option>
+          </select>
+        </label>
+        <label class="setting-row setting-row-select">
+          <span class="setting-copy">
+            <strong>画质</strong>
+            <small>标准画质保留战斗环境粒子与背景漂移；低画质更省电。</small>
+            <em>低画质不影响任何伤害、掉落与判定。</em>
+          </span>
+          <select
+            class="setting-select"
+            :value="settings.settings?.visualQuality ?? 'standard'"
+            aria-label="画质档位"
+            @change="updateVisualQuality"
+          >
+            <option value="standard">标准</option>
+            <option value="lite">低画质</option>
           </select>
         </label>
       </CollapsibleCard>

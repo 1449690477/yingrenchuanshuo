@@ -3574,6 +3574,14 @@ export const useGameStore = defineStore('game', () => {
     return true;
   }
 
+  /** 画质档位（M4-12 设置页；'lite' = 关闭战斗环境粒子与背景漂移）。 */
+  function setVisualQuality(quality: 'standard' | 'lite'): boolean {
+    if (!save.value) return false;
+    save.value.settings.visualQuality = quality;
+    void persist();
+    return true;
+  }
+
   /**
    * 记录一周试炼的个人最好成绩。
    *
@@ -3809,6 +3817,7 @@ export const useGameStore = defineStore('game', () => {
     setHaptics,
     setReduceMotion,
     setAutoDecomposeBelow,
+    setVisualQuality,
     recordTrialBest,
     markMilestoneSubmitted,
     markTrialBestSubmitted,
