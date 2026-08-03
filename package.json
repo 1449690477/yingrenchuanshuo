@@ -28,7 +28,7 @@
     "assets:kenshi:r2:check": "node scripts/build-kenshi-r2-assets.mjs --check",
     "assets:kenshi:wearables": "node scripts/build-kenshi-wearables.mjs --rebuild",
     "assets:kenshi:story": "node scripts/build-kenshi-story-art.mjs",
-    "assets:appearance-debt": "node scripts/build-appearance-debt-assets.mjs --rebuild && node scripts/build-region6-assets.mjs --rebuild-kenshi-only && node scripts/build-region7-assets.mjs --rebuild-kenshi-only && node scripts/build-kenshi-wearables.mjs --rebuild && node scripts/validate-appearance-debt-assets.mjs",
+    "assets:appearance-debt": "node scripts/build-appearance-debt-assets.mjs --rebuild && node scripts/build-kenshi-wearables.mjs --rebuild && node scripts/validate-appearance-debt-assets.mjs",
     "assets:appearance-debt:check": "node scripts/build-appearance-debt-assets.mjs --check && node scripts/validate-appearance-debt-assets.mjs",
     "assets:ice-snow": "node scripts/build-ice-snow-assets.mjs && node scripts/validate-ice-snow-assets.mjs",
     "assets:ice-snow:check": "node scripts/validate-ice-snow-assets.mjs",
