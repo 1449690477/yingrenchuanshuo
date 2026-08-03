@@ -1,15 +1,17 @@
 <script setup lang="ts">
 import { computed, nextTick, ref } from 'vue';
-import { Castle, Coins, Layers, ShoppingBag, Sparkles, Users } from '@lucide/vue';
+import { Castle, Coins, Layers, Mail, ShoppingBag, Sparkles, Users } from '@lucide/vue';
 import { abbr, duration } from '@/core/format';
 import { usePlayerStore } from '@/stores/player';
 import { useSettingsStore } from '@/stores/settings';
 import { useShopStore } from '@/stores/shop';
+import { useMailStore } from '@/stores/mail';
 import type { SaveData } from '@/save/schema';
 import { downloadSave, importFromJson } from '@/save/storage';
 import ShopView from '@/views/ShopView.vue';
 import GuildView from '@/views/GuildView.vue';
 import SetCodexView from '@/views/SetCodexView.vue';
+import MailView from '@/views/MailView.vue';
 import CollapsibleCard from '@/components/CollapsibleCard.vue';
 import SaveIntegrityCard from '@/components/SaveIntegrityCard.vue';
 import { GUILD_HOME_SCENE_ASSET } from '@/data/guildScenes';
@@ -17,6 +19,7 @@ import { GUILD_HOME_SCENE_ASSET } from '@/data/guildScenes';
 const player = usePlayerStore();
 const settings = useSettingsStore();
 const shop = useShopStore();
+const mailStore = useMailStore();
 const fileInput = ref<HTMLInputElement | null>(null);
 const msg = ref<{ text: string; ok: boolean } | null>(null);
 const confirmReset = ref(false);
@@ -30,6 +33,9 @@ const guildEntryButton = ref<HTMLButtonElement | null>(null);
 const showCodex = ref(false);
 const codexLeaving = ref(false);
 const codexEntryButton = ref<HTMLButtonElement | null>(null);
+const showMail = ref(false);
+const mailLeaving = ref(false);
+const mailEntryButton = ref<HTMLButtonElement | null>(null);
 const shopSceneUrl = `${import.meta.env.BASE_URL}assets/shops/sakura-boutique.webp`;
 const guildSceneUrl = `${import.meta.env.BASE_URL}${GUILD_HOME_SCENE_ASSET}`;
 
@@ -76,6 +82,16 @@ function closeCodex() {
   showCodex.value = false;
 }
 
+function openMail() {
+  mailLeaving.value = false;
+  showMail.value = true;
+}
+
+function closeMail() {
+  mailLeaving.value = true;
+  showMail.value = false;
+}
+
 function updateHaptics(event: Event) {
   settings.setHaptics((event.currentTarget as HTMLInputElement).checked);
 }
@@ -114,6 +130,12 @@ async function afterCodexLeave() {
   codexLeaving.value = false;
   await nextTick();
   codexEntryButton.value?.focus();
+}
+
+async function afterMailLeave() {
+  mailLeaving.value = false;
+  await nextTick();
+  mailEntryButton.value?.focus();
 }
 
 async function onFile(e: Event) {
@@ -156,11 +178,11 @@ function say(text: string, ok: boolean) {
 <template>
   <div class="more scroll-y">
     <div
-      v-show="!(showShop || shopLeaving || showGuild || guildLeaving || showCodex || codexLeaving)"
+      v-show="!(showShop || shopLeaving || showGuild || guildLeaving || showCodex || codexLeaving || showMail || mailLeaving)"
       class="more-content"
-      :inert="showShop || shopLeaving || showGuild || guildLeaving || showCodex || codexLeaving"
+      :inert="showShop || shopLeaving || showGuild || guildLeaving || showCodex || codexLeaving || showMail || mailLeaving"
       :aria-hidden="
-        showShop || shopLeaving || showGuild || guildLeaving || showCodex || codexLeaving
+        showShop || shopLeaving || showGuild || guildLeaving || showCodex || codexLeaving || showMail || mailLeaving
           ? 'true'
           : undefined
       "
@@ -225,6 +247,24 @@ function say(text: string, ok: boolean) {
         <span class="codex-entry-cta" aria-hidden="true">
           <Layers :size="15" />
           打开图鉴
+        </span>
+      </button>
+      <button
+        ref="mailEntryButton"
+        type="button"
+        class="codex-entry mail-entry"
+        aria-label="进入邮箱"
+        @click="openMail"
+      >
+        <span class="codex-entry-crest"><Mail :size="24" /></span>
+        <span class="codex-entry-copy">
+          <small>{{ mailStore.hasClaimable ? '有附件可以领取 · 永不过期' : '系统信件 · 永不过期' }}</small>
+          <strong>邮箱</strong>
+          <span>樱庭投递的欢迎礼与纪念信，什么时候来领都可以。</span>
+        </span>
+        <span class="codex-entry-cta" aria-hidden="true">
+          <Mail :size="15" />
+          打开邮箱
         </span>
       </button>
 
@@ -409,6 +449,10 @@ function say(text: string, ok: boolean) {
 
     <Transition name="page-up" @after-leave="afterCodexLeave">
       <SetCodexView v-if="showCodex" @close="closeCodex" />
+    </Transition>
+
+    <Transition name="page-up" @after-leave="afterMailLeave">
+      <MailView v-if="showMail" @close="closeMail" />
     </Transition>
   </div>
 </template>
@@ -932,6 +976,18 @@ function say(text: string, ok: boolean) {
   border-radius: var(--r);
   box-shadow: 0 0.5rem 1.1rem rgb(122 100 160 / 16%);
   transition: transform var(--t-fast) var(--ease-spring);
+}
+
+/* 邮箱入口：同构卡片，只换配色（粉橙）与信息型提示文案 */
+.mail-entry {
+  background:
+    radial-gradient(circle at 18% 88%, rgb(255 255 255 / 20%), transparent 30%),
+    linear-gradient(135deg, #e88fb0, #f2a98c 52%, #f5c98e);
+  box-shadow: 0 0.5rem 1.1rem rgb(214 120 130 / 18%);
+}
+
+.mail-entry .codex-entry-crest {
+  color: #d46a8f;
 }
 
 .codex-entry:active {
