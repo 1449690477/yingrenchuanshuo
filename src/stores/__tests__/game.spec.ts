@@ -2202,6 +2202,14 @@ describe('M4-1 日常任务接线', () => {
     expect(game.save!.dailyTasks.claimedTiers).toEqual([20, 80]);
     expect((game.save!.bag.items.stone_enhance ?? 0)).toBe(stoneBefore); // 80 档无强化石
     expect(game.save!.bag.items.lucky_nine).toBe(2);
+
+    // M4-7 成就计数（v27）：六来源与日常任务同事件点累计；challenge / idle-minutes 不计
+    expect(game.save!.stats.enhanceCount).toBe(99);
+    expect(game.save!.stats.reforgeCount).toBe(99);
+    expect(game.save!.stats.sweepCount).toBe(5);
+    expect(game.save!.stats.affectionCount).toBe(99);
+    expect(game.save!.stats.dungeonCount).toBe(99);
+    expect(game.save!.stats.arenaCount).toBe(99);
   });
 });
 

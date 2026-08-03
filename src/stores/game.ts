@@ -3764,6 +3764,31 @@ export const useGameStore = defineStore('game', () => {
     const s = save.value;
     if (!s) return;
     s.dailyTasks = recordDailyTaskProgress(s.dailyTasks, taskId, delta, now);
+    // M4-7 成就计数（v27，只增不减）：与日常任务同事件点、同口径累计。
+    // 覆盖六来源：强化 / 洗练 / 扫荡 / 好感 / 副本 / 竞技（竞技由 arena store 调本函数）。
+    switch (taskId) {
+      case 'enhance':
+        s.stats.enhanceCount += delta;
+        break;
+      case 'reforge':
+        s.stats.reforgeCount += delta;
+        break;
+      case 'sweep':
+        s.stats.sweepCount += delta;
+        break;
+      case 'affection':
+        s.stats.affectionCount += delta;
+        break;
+      case 'dungeon':
+        s.stats.dungeonCount += delta;
+        break;
+      case 'arena':
+        s.stats.arenaCount += delta;
+        break;
+      case 'idle-minutes':
+      case 'challenge':
+        break;
+    }
   }
 
   /**
