@@ -16,6 +16,7 @@ import type {
 } from './types';
 import type { Rng } from './rng';
 import { combatPressure } from './combat';
+import { expectedReactionDpsShare } from './elementGauge';
 import { businessDayKey } from './dayKey';
 import type { OnHitElementalDamageTrigger } from './equipmentSets';
 import type { SkillCombatKit } from './skillCombat';
@@ -28,6 +29,7 @@ import {
   DAILY_STAMINA_CLAIM_MAX,
   STAMINA_RECOVER_SECONDS,
   SWEEP_EQUIV_SECONDS,
+  ELEMENT_BEATS,
 } from '@/data/constants';
 
 export interface IdleContext {
@@ -61,10 +63,21 @@ export interface IdleCombatRates {
 
 /** 一次算完输出与承伤，避免同一帧重复跑真实技能轮转。 */
 export function idleCombatRates(ctx: IdleContext): IdleCombatRates {
+  // docs/83 批 3（挂机本地模式）：元素共鸣期望 DPS 加成。
+  // 仅当玩家带元素武器且目标是元素怪时生效；克制（counter）攒层更快。
+  // 试炼/竞技/服务端复算路径不接入（同源后才进，批 3b —— docs/83 红线）。
+  const playerElement = ctx.player.element;
+  const monsterElement = ctx.monster.element;
+  let gaugeReactionShare = 0;
+  if (playerElement !== 'none' && monsterElement !== 'none') {
+    const isCounter = ELEMENT_BEATS[playerElement] === monsterElement;
+    gaugeReactionShare = expectedReactionDpsShare(ctx.player.stats.spd, isCounter);
+  }
   const pressure = combatPressure(ctx.player, ctx.monster, ctx.skillMultiplier ?? 1.0, {
     playerOnHitTriggers: ctx.onHitTriggers,
     playerSkillKit: ctx.skillKit,
     playerTargetType: ctx.monsterType,
+    gaugeReactionShare,
   });
   const raw = ctx.monster.stats.hp > 0 ? pressure.playerDps / ctx.monster.stats.hp : 0;
   const cap = ctx.maxKillsPerSec ?? DEFAULT_MAX_KILLS_PER_SEC;

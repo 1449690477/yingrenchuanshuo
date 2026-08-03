@@ -55,6 +55,28 @@ export const REACTION_ICD_MS = 2_500;
 /** 共鸣追加伤害相对主链单次伤害的上限（Q1：≤15%，批 3 接线后实测校准） */
 export const REACTION_DAMAGE_RATIO_MAX = 0.15;
 
+/**
+ * 稳态共鸣对挂机 DPS 的期望占比（docs/83 批 3 接线用，挂机本地模式）。
+ *
+ * 推导：共鸣频率 = 1 / max(攒满层所需秒数, ICD)；每次共鸣 = 主链单次伤害
+ * 的 ≤REACTION_DAMAGE_RATIO_MAX（Q1 档位）；主 DPS = 命中率 × 单次伤害。
+ * 于是占比 = 0.15 / (周期 × 命中率)。
+ *   - 中性（3 击攒满）：hitRate=1 → 0.15/3 = 5%
+ *   - 克制（2 击攒满）：hitRate=1 → 0.15/2.5 = 6%（ICD 兜底）
+ *   - 高攻速被 ICD 卡频：占比自然回落（喵喵 hitRate=1.25 → ≈4.8%）
+ * 批 3 接线后以 sim 读数校准（Q1 验收：共鸣贡献 ≤5% 目标、TTK 门禁不破）。
+ */
+export function expectedReactionDpsShare(
+  hitRatePerSecond: number,
+  isCounter: boolean,
+): number {
+  if (!Number.isFinite(hitRatePerSecond) || hitRatePerSecond <= 0) return 0;
+  const hitsToTrigger = isCounter ? 2 : 3;
+  const icdSeconds = REACTION_ICD_MS / 1000;
+  const period = Math.max(hitsToTrigger / hitRatePerSecond, icdSeconds);
+  return REACTION_DAMAGE_RATIO_MAX / (period * hitRatePerSecond);
+}
+
 /** 三元素共鸣形态（docs/83 §5.1：炎=灼烧、冰=冻结、雷=麻痹） */
 export const RESONANCE_EFFECTS: Readonly<Record<ReactiveElement, ResonanceEffect>> = {
   fire: { element: 'fire', damageKind: 'elemental-append', applyStatus: 'burn' },

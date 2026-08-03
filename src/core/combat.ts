@@ -215,6 +215,11 @@ export interface CombatEstimateOptions {
   monsterOnHitTriggers?: readonly OnHitElementalDamageTrigger[];
   playerSkillKit?: SkillCombatKit;
   playerTargetType?: MonsterType;
+  /**
+   * 元素共鸣对挂机 DPS 的期望占比（docs/83 批 3，挂机本地模式）。
+   * 默认 0 = 不启用：试炼/竞技/服务端复算路径不接入，直至同源落地（批 3b）。
+   */
+  gaugeReactionShare?: number;
 }
 
 /**
@@ -1699,8 +1704,9 @@ export function combatPressure(
       )
     : undefined;
   const playerDps =
-    skillEstimate?.dps ??
-    estimateDps(player, monster, skillMultiplier, options.playerOnHitTriggers);
+    (skillEstimate?.dps ??
+      estimateDps(player, monster, skillMultiplier, options.playerOnHitTriggers)) *
+    (1 + (options.gaugeReactionShare ?? 0));
   const incomingDps = estimateIncomingDps(player, monster, 1, options.monsterOnHitTriggers);
   const lifestealPerSecond =
     skillEstimate?.lifestealPerSecond ??

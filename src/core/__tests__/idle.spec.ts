@@ -3,6 +3,7 @@ import {
   accumulateIdle,
   dailyStaminaClaim,
   idleCombatEfficiency,
+  idleCombatRates,
   killsPerSecond,
   recoverStamina,
   spendStamina,
@@ -13,6 +14,7 @@ import {
 import type { IdleContext } from '../idle';
 import { makeMonster, makePlayer } from '../progression';
 import { estimateDps } from '../combat';
+import { expectedReactionDpsShare } from '../elementGauge';
 import { Rng } from '../rng';
 import type { LootTable } from '../types';
 import { OFFLINE_CAP_SECONDS, STAMINA_RECOVER_SECONDS } from '@/data/constants';
@@ -86,8 +88,11 @@ describe('killsPerSecond', () => {
       context.monster.element = 'ice';
     }
 
+    // docs/83 批3：火克冰（counter）时共鸣期望占比 6% 进入挂机 DPS。
+    // 期望值必须与 idleCombatRates 同口径（estimateDps × (1+share)）。
+    const burstShare = expectedReactionDpsShare(withBurst.player.stats.spd, true);
     const expectedKps =
-      (estimateDps(withBurst.player, withBurst.monster, 1, [FLAMEBURST]) /
+      ((estimateDps(withBurst.player, withBurst.monster, 1, [FLAMEBURST]) * (1 + burstShare)) /
         withBurst.monster.stats.hp) *
       idleCombatEfficiency(withBurst);
     expect(killsPerSecond(withBurst)).toBeCloseTo(expectedKps, 10);
@@ -117,6 +122,55 @@ describe('killsPerSecond', () => {
     expect(idleCombatEfficiency(pressured)).toBeGreaterThan(0);
     expect(idleCombatEfficiency(pressured)).toBeLessThan(0.3);
     expect(killsPerSecond(pressured)).toBeGreaterThan(0);
+  });
+});
+
+describe('docs/83 批3 元素共鸣期望加成（挂机本地模式）', () => {
+  function elementCtx(
+    playerElement: 'fire' | 'ice' | 'thunder' | 'none',
+    monsterElement: 'fire' | 'ice' | 'thunder' | 'none',
+  ) {
+    const c = ctx({ maxKillsPerSec: 999 });
+    c.player.element = playerElement;
+    c.monster.element = monsterElement;
+    return c;
+  }
+
+  it('无元素一侧不触发共鸣（零加成，默认行为不变）', () => {
+    const nonePlayer = elementCtx('none', 'ice');
+    const noneMonster = elementCtx('fire', 'none');
+    expect(idleCombatRates(nonePlayer).playerDps).toBeCloseTo(
+      idleCombatRates(elementCtx('none', 'none')).playerDps,
+      6,
+    );
+    expect(idleCombatRates(noneMonster).playerDps).toBeCloseTo(
+      idleCombatRates(elementCtx('fire', 'none')).playerDps,
+      6,
+    );
+  });
+
+  it('同系（元素倍率 1.0）DPS 提升恰为期望共鸣占比（中性 5%）', () => {
+    const baseline = idleCombatRates(elementCtx('none', 'fire')).playerDps;
+    const sameElement = idleCombatRates(elementCtx('fire', 'fire')).playerDps;
+    expect(sameElement / baseline).toBeCloseTo(1 + expectedReactionDpsShare(1.0, false), 4);
+  });
+
+  it('克制（炎→冰）DPS = 元素倍率 1.25 × 共鸣加成（克制 6%）', () => {
+    const baseline = idleCombatRates(elementCtx('none', 'ice')).playerDps;
+    const counter = idleCombatRates(elementCtx('fire', 'ice')).playerDps;
+    expect(counter / baseline).toBeCloseTo(1.25 * (1 + expectedReactionDpsShare(1.0, true)), 4);
+  });
+
+  it('共鸣加成有上界：任意攻速下同系加成 ≤6%（ICD 兜底，不会爆 DPS）', () => {
+    for (const spd of [0.8, 1.0, 1.25, 2.0]) {
+      const base = elementCtx('none', 'fire');
+      base.player.stats.spd = spd;
+      const boostedCtx = elementCtx('fire', 'fire');
+      boostedCtx.player.stats.spd = spd;
+      const share = idleCombatRates(boostedCtx).playerDps / idleCombatRates(base).playerDps - 1;
+      expect(share).toBeLessThanOrEqual(0.061);
+      expect(share).toBeGreaterThan(0);
+    }
   });
 });
 
