@@ -1674,4 +1674,46 @@ describe('v21 技能栏存档层 · 老存档零行为变化（M3-5a 验收）',
 
     expect(migrated.settings.autoDecomposeBelow).toBe('epic');
   });
+
+  it('v25 → v26 新增空邮箱，不改写其他资产（老玩家从未收到过邮件，诚实迁移）', () => {
+    const current = createSave('邮箱前旧档', 'catkin', 24, 1_800_000_000_000) as unknown as Record<
+      string,
+      unknown
+    >;
+    const raw = structuredClone(current);
+    delete raw.mail;
+    raw.version = 25;
+
+    const migrated = migrate(raw);
+
+    expect(migrated.version).toBe(SAVE_VERSION);
+    expect(migrated.mail).toEqual({ messages: [] });
+    expect(migrated.player).toEqual(current.player);
+    expect(migrated.bag).toEqual(current.bag);
+    expect(migrated.dailyTasks).toEqual(current.dailyTasks);
+    expect(() => parseSave(migrated as Parameters<typeof parseSave>[0])).not.toThrow();
+  });
+
+  it('v25 → v26 无视导入档伪造的 mail 字段：合法 v25 无邮件，注入内容一律被空邮箱覆盖', () => {
+    const current = createSave('带信旧档', 'catkin', 24, 1_800_000_000_000) as unknown as Record<
+      string,
+      unknown
+    >;
+    const raw = structuredClone(current);
+    raw.mail = {
+      messages: [
+        {
+          id: 'mail_welcome',
+          templateId: 'mail_welcome',
+          deliveredAt: 1_800_000_000_000,
+          claimed: false,
+        },
+      ],
+    };
+    raw.version = 25;
+
+    const migrated = migrate(raw);
+
+    expect(migrated.mail).toEqual({ messages: [] });
+  });
 });

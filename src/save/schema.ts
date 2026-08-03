@@ -16,6 +16,7 @@ import { createEquipmentDungeonState, type EquipmentDungeonState } from '@/core/
 import { createAffectionState, type AffectionState } from '@/core/affection';
 import { createDailyTaskState, type DailyTaskState } from '@/core/dailyTasks';
 import { createMonsterCodexLedger, type MonsterCodexLedger } from '@/core/monsterCodex';
+import { createMailState, type MailState } from '@/core/mail';
 import { skillLevelRecordIssues } from '@/core/skillUpgrade';
 import { DAILY_TASKS, type DailyTaskId } from '@/data/dailyTasks';
 import { isRolledAffixValue } from '@/core/equipment';
@@ -74,7 +75,7 @@ export type { EquipmentCodexLedger } from '@/core/equipmentCodex';
 export type { EquipmentPresetState } from '@/core/equipmentPresets';
 
 /** 当前存档版本。加字段就 +1。 */
-export const SAVE_VERSION = 25;
+export const SAVE_VERSION = 26;
 
 export const SAVE_KEY = 'main';
 
@@ -283,6 +284,8 @@ export interface SaveData {
   dailyTasks: DailyTaskState;
   /** M4-8 怪物永久图鉴：只增不删的发现记录。 */
   monsterCodex: MonsterCodexLedger;
+  /** M4-5 邮箱：系统邮件列表（永不过期，templateId 幂等入箱，上限 50 条）。 */
+  mail: MailState;
 }
 
 export function emptyEquipped(): Record<EquipSlot, EquipmentInstance | null> {
@@ -352,6 +355,7 @@ export function createSave(name: string, classId: ClassId, seed: number, now: nu
     equipmentPresets: createEquipmentPresetState(),
     dailyTasks: createDailyTaskState(now),
     monsterCodex: createMonsterCodexLedger(),
+    mail: createMailState(),
   };
 }
 
@@ -997,6 +1001,22 @@ export const saveDataSchema = z
       .strict(),
     monsterCodex: z
       .object({ discoveredMonsterIds: z.array(z.string().min(1)) })
+      .strict(),
+    // templateId 不校验存在性（与 skillLevels 同口径）：模板改名/删除时
+    // 旧邮件仍可读取，core 按空件降级处理；存档层只拦结构伪造。
+    mail: z
+      .object({
+        messages: z.array(
+          z
+            .object({
+              id: z.string().min(1),
+              templateId: z.string().min(1),
+              deliveredAt: nonNegativeInteger,
+              claimed: z.boolean(),
+            })
+            .strict(),
+        ),
+      })
       .strict(),
   })
   .strict()

@@ -21,7 +21,12 @@ import {
 export interface MailMessage {
   /** 邮件实例 id；系统邮件与 templateId 相同（幂等入箱保证唯一）。 */
   id: string;
-  templateId: MailTemplateId;
+  /**
+   * 模板 id。存档层**不校验它是否存在**（与 skillLevels 同口径）：
+   * 模板将来改名或删除时，旧邮件仍可安全保留 —— 查不到模板的邮件
+   * 不可领取、按空件处理，展示层显示「（未知邮件）」即可。
+   */
+  templateId: string;
   /** 入箱时间（毫秒时间戳）。 */
   deliveredAt: number;
   /** 附件是否已领取。 */

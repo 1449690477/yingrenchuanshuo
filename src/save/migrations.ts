@@ -466,6 +466,18 @@ export const migrations: Record<number, Migration> = {
       monsterCodex: { discoveredMonsterIds: [] },
     };
   },
+  /**
+   * v26：M4-5 邮箱。
+   *
+   * 顶层新增 mail：空邮箱（老玩家从未收到过邮件，诚实迁移）。
+   * 系统邮件由 stores/mail.ts 在首次打开邮箱时幂等补发，
+   * 迁移层不代投 —— 投递规则（触发条件）属于业务层。
+   */
+  25: (save) => ({
+    ...save,
+    version: 26,
+    mail: { messages: [] },
+  }),
 };
 
 function migrateV10Save(
