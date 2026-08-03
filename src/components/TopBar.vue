@@ -115,9 +115,14 @@ onUnmounted(() => {
     </div>
 
     <div class="stats">
-      <div class="stat cp-stat">
+      <div
+        class="stat cp-stat"
+        title="战力不含图鉴 / 成就 / 称号集齐加成（ADR-024/025）"
+        :aria-label="`战力 ${abbr(playerStore.cp)}，不含图鉴与成就集齐加成`"
+      >
         <Swords class="ic cp-icon" :size="12" :stroke-width="2.3" aria-hidden="true" />
         <span class="val num">{{ abbr(playerStore.cp) }}</span>
+        <span class="cp-note" aria-hidden="true">*</span>
         <Transition name="float">
           <span
             v-if="floatCp"
@@ -389,6 +394,15 @@ onUnmounted(() => {
 
 .cp-stat .val {
   color: var(--blue-deep);
+}
+
+/* 战力口径注记：图鉴 / 成就 / 称号集齐加成为战斗乘区、不进战力（ADR-024/025）。 */
+.cp-note {
+  font-size: 9px;
+  color: var(--text-dim);
+  margin-left: 2px;
+  align-self: flex-start;
+  line-height: 1;
 }
 
 /* 战力飘字 */
