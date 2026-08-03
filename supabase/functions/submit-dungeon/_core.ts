@@ -938,10 +938,17 @@ var BOUTIQUE_SHELVES = {
     sceneAlt: "\u51B0\u96EA\u534E\u5E74\u65B0\u6625\u8D27\u67B6\uFF0C\u4E2D\u592E\u5C55\u793A\u767D\u8272\u65B0\u6625\u793C\u88D9\uFF0C\u5468\u56F4\u9648\u5217\u4E94\u804C\u4E1A\u51B0\u6676\u6B66\u5668",
     keeperName: "\u65B0\u6625\u793C\u88C5 \xB7 \u745E\u96EA",
     headline: "\u745E\u96EA\u8FCE\u6625\uFF0C\u4E94\u804C\u4E1A\u793C\u88C5\u90FD\u80FD\u5B8C\u6574\u8BD5\u7A7F\uFF5E",
-    themeIds: ["ice-snow"]
+    themeIds: ["ice-snow"],
+    // 2026-08-03 下架：20 件穿戴层里 19 件与绯樱星愿夜宴逐像素同形
+    // （18 件内容完全相同、kenshi-body 形状 IoU 0.9604），实为描图改色。
+    // 老板决定先下架，等 codex 有额度后按美术施工文档重做再上架。
+    // ★ 只摘牌不删定义，理由见 BoutiqueShelf.listed 的注释。
+    listed: false
   }
 };
-var BOUTIQUE_SHELF_LIST = Object.values(BOUTIQUE_SHELVES);
+var BOUTIQUE_SHELF_LIST = Object.values(BOUTIQUE_SHELVES).filter(
+  (shelf) => shelf.listed !== false
+);
 function boutiqueEquipmentId(themeId, slot, classId) {
   return `eq_shop_${themeId}_${slot}${classId ? `_${classId}` : ""}`;
 }
