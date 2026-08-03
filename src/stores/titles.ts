@@ -1,15 +1,17 @@
 import { computed } from 'vue';
 import { defineStore } from 'pinia';
 import { evaluateUnlockedTitles, isTitleEquippable, type TitleResult } from '@/core/titles';
+import { buildAchievementInput, createAchievementInput } from '@/core/achievementSnapshot';
 import { useGameStore } from './game';
-import { buildAchievementInput } from './achievements';
 
 /** M4-9 称号聚合：与成就共用统计快照 → core 纯函数解锁判定（装备态字段待版本号安排）。 */
 export const useTitleStore = defineStore('titles', () => {
   const game = useGameStore();
 
   const unlockedTitles = computed<readonly TitleResult[]>(() =>
-    evaluateUnlockedTitles(buildAchievementInput(game)),
+    evaluateUnlockedTitles(
+      game.save ? buildAchievementInput(game.save, game.cp) : createAchievementInput(),
+    ),
   );
 
   const unlockedIds = computed<ReadonlySet<string>>(

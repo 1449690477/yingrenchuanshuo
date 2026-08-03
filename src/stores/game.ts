@@ -187,6 +187,9 @@ import {
 import { applySignIn, type SignInApplyResult } from '@/core/checkin';
 import type { SignInReward } from '@/data/checkin';
 import { businessDayKey } from '@/core/dayKey';
+import { combineLocalPveBonuses, galleryDamageBonusPercent } from '@/core/galleryBonuses';
+import { buildAchievementInput } from '@/core/achievementSnapshot';
+import { evaluateAchievements } from '@/core/achievements';
 
 /** 一次扫荡的结果，供 UI 汇总弹窗展示。 */
 export interface SweepResult {
@@ -890,8 +893,24 @@ export const useGameStore = defineStore('game', () => {
       skillKit,
       monsterType: monDef.type,
       onHitTriggers: equipmentSetResolution.value.onHitTriggers,
+      localPveDamageBonusPercent: localPveBonusPercent.value,
     };
   }
+
+  /**
+   * 本地 PvE 收藏奖励总乘区（%）：图鉴 + 成就 + 称号，封顶 5.5%（ADR-024/025）。
+   * 称号幅值待数值线确认前按 0 计入；试炼 / 竞技不读取本值。
+   */
+  const localPveBonusPercent = computed(() => {
+    const s = save.value;
+    if (!s) return 0;
+    const gallery = galleryDamageBonusPercent(s.monsterCodex.discoveredMonsterIds);
+    const achievementBonus = evaluateAchievements(
+      buildAchievementInput(s, cp.value),
+    ).bonusPercent;
+    const titleBonus = 0;
+    return combineLocalPveBonuses([gallery, achievementBonus, titleBonus]);
+  });
 
   const currentIdleRates = computed(() => {
     const ctx = buildIdleContext();
@@ -2162,6 +2181,7 @@ export const useGameStore = defineStore('game', () => {
       playerOnHitTriggers: equipmentSetResolution.value.onHitTriggers,
       playerOnLethalTriggers: equipmentSetResolution.value.onLethalTriggers,
       playerOnCritTriggers: equipmentSetResolution.value.onCritTriggers,
+      localPveDamageBonusPercent: localPveBonusPercent.value,
       rngState: rng.getState(),
       now,
     });
