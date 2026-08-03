@@ -364,7 +364,9 @@ describe('区域 1–5 内容完整性', () => {
       }
       expect(bottomVisibleY, `${asset} 脚底锚点`).toBe(503);
     }
-  });
+    // 168 张图逐张 sharp 解码，全量并行负载下会突破 5s 默认超时（单跑恒绿）；
+    // 显式放宽到 30s，只改时长不改断言。
+  }, 30_000);
 
   it('全部区域和章节都引用真实存在的地图场景', async () => {
     for (const region of REGIONS) {
@@ -597,7 +599,8 @@ describe('区域 1–5 内容完整性', () => {
         `${asset} 四角透明`,
       ).toEqual([0, 0, 0, 0]);
     }
-  });
+    // 383 张换装层逐张解码同上：全量并行负载 flaky，显式放宽到 30s。
+  }, 30_000);
 
   it('珍品商店 50 件定义中，纸箱套与冰雪套均完整注册且价格与词条合法', () => {
     expect(BOUTIQUE_THEME_LIST).toHaveLength(5);
