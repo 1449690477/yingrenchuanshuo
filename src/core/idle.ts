@@ -54,8 +54,12 @@ export interface IdleContext {
   /** 每个直接真实命中独立判定的追加伤害；与前台逐击模拟共用定义。 */
   onHitTriggers?: readonly OnHitElementalDamageTrigger[];
 
-  /** M4-8 P3：图鉴集齐加成（百分点，仅本地 PvE；默认缺省 = 0 不启用）。 */
-  galleryBonusPercent?: number;
+  /**
+   * 本地 PvE 总伤害加成分（百分点）：图鉴集齐 + 成就 + 称号之和，
+   * 由调用方按 ADR-024/025 口径求和并封顶（默认缺省 = 0 不启用）。
+   * 试炼/竞技/服务端复算不传此值。
+   */
+  localPveDamageBonusPercent?: number;
 }
 
 export interface IdleCombatRates {
@@ -81,7 +85,7 @@ export function idleCombatRates(ctx: IdleContext): IdleCombatRates {
     playerSkillKit: ctx.skillKit,
     playerTargetType: ctx.monsterType,
     gaugeReactionShare,
-    playerDamageMultiplier: 1 + (ctx.galleryBonusPercent ?? 0) / 100,
+    playerDamageMultiplier: 1 + (ctx.localPveDamageBonusPercent ?? 0) / 100,
   });
   const raw = ctx.monster.stats.hp > 0 ? pressure.playerDps / ctx.monster.stats.hp : 0;
   const cap = ctx.maxKillsPerSec ?? DEFAULT_MAX_KILLS_PER_SEC;

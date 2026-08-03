@@ -25,6 +25,21 @@ export const GALLERY_REGION_BONUS_PERCENT = 0.5;
 /** 图鉴集齐加成总上限（百分点）。 */
 export const GALLERY_BONUS_CAP_PERCENT = 5;
 
+/**
+ * 本地 PvE 总加成上限（百分点，ADR-025 数值线裁定）：
+ * 图鉴集齐 3.5%（r1~r7）+ 成就 2.0% = 5.5% 封顶。
+ */
+export const LOCAL_PVE_BONUS_CAP_PERCENT = 5.5;
+
+/**
+ * 合并本地 PvE 各来源加成并封顶（图鉴 + 成就 + 称号……）。
+ * 单一合并点，避免各来源各自限幅后总和仍超上限。
+ */
+export function combineLocalPveBonuses(parts: readonly number[]): number {
+  const sum = parts.reduce((acc, part) => acc + Math.max(0, part), 0);
+  return Math.min(sum, LOCAL_PVE_BONUS_CAP_PERCENT);
+}
+
 /** 某个区域是否集齐：该区全部章节的全部怪物都在账本里。 */
 export function isRegionGalleryComplete(
   discoveredMonsterIds: ReadonlySet<string>,

@@ -461,23 +461,23 @@ describe('dailyStaminaClaim', () => {
   });
 });
 
-describe('图鉴集齐加成（M4-8 P3：本地 PvE 伤害乘区）', () => {
+describe('本地 PvE 伤害乘区（M4-8 P3 图鉴 / M4-7 成就 / M4-9 称号共用）', () => {
   it('默认缺省与显式 0 完全一致（零行为变化）', () => {
     const a = idleCombatRates(ctx());
-    const b = idleCombatRates(ctx({ galleryBonusPercent: 0 }));
+    const b = idleCombatRates(ctx({ localPveDamageBonusPercent: 0 }));
     expect(a.playerDps).toBe(b.playerDps);
     expect(a.efficiency).toBe(b.efficiency);
   });
 
-  it('3.5%（r1~r7 全齐）→ playerDps ×1.035', () => {
+  it('3.5%（图鉴 r1~r7 全齐）→ playerDps ×1.035', () => {
     const base = idleCombatRates(ctx());
-    const bonus = idleCombatRates(ctx({ galleryBonusPercent: 3.5 }));
+    const bonus = idleCombatRates(ctx({ localPveDamageBonusPercent: 3.5 }));
     expect(bonus.playerDps / base.playerDps).toBeCloseTo(1.035, 9);
   });
 
   it('100%（测试极限）→ playerDps ×2', () => {
     const base = idleCombatRates(ctx());
-    const bonus = idleCombatRates(ctx({ galleryBonusPercent: 100 }));
+    const bonus = idleCombatRates(ctx({ localPveDamageBonusPercent: 100 }));
     expect(bonus.playerDps / base.playerDps).toBeCloseTo(2, 9);
   });
 });

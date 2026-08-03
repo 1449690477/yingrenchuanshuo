@@ -9,6 +9,8 @@ import { describe, expect, it } from 'vitest';
 import {
   GALLERY_BONUS_CAP_PERCENT,
   GALLERY_REGION_BONUS_PERCENT,
+  LOCAL_PVE_BONUS_CAP_PERCENT,
+  combineLocalPveBonuses,
   galleryDamageBonusPercent,
   isRegionGalleryComplete,
 } from '../galleryBonuses';
@@ -65,5 +67,21 @@ describe('加成幅值（数值线裁定）', () => {
     expect(GALLERY_BONUS_CAP_PERCENT).toBe(5);
     const allIds = Object.keys(MONSTERS);
     expect(galleryDamageBonusPercent(allIds)).toBeLessThanOrEqual(GALLERY_BONUS_CAP_PERCENT);
+  });
+});
+
+describe('本地 PvE 总加成合并（ADR-024/025 口径）', () => {
+  it('图鉴 3.5% + 成就 2.0% = 5.5% 封顶', () => {
+    expect(LOCAL_PVE_BONUS_CAP_PERCENT).toBe(5.5);
+    expect(combineLocalPveBonuses([3.5, 2.0])).toBe(5.5);
+  });
+
+  it('超过封顶时截断到 5.5%，负值按 0 计', () => {
+    expect(combineLocalPveBonuses([3.5, 2.0, 3])).toBe(5.5);
+    expect(combineLocalPveBonuses([3.5, -1, 1])).toBe(4.5);
+  });
+
+  it('空来源 = 0', () => {
+    expect(combineLocalPveBonuses([])).toBe(0);
   });
 });
