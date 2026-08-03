@@ -2283,6 +2283,14 @@ export const useGameStore = defineStore('game', () => {
     }
     enforceBagCapacity();
     recordDailyTask('dungeon');
+    // M4-8 怪物图鉴：装备副本挑战成功后记录本档位全部遭遇怪（只增不删，仅新发现写回）。
+    const dungeonCodex = recordDiscoveredMonsters(
+      s.monsterCodex,
+      planned.waves.map((wave) => wave.monsterId),
+    );
+    if (dungeonCodex.newlyDiscovered.length > 0) {
+      s.monsterCodex = dungeonCodex.ledger;
+    }
     void persist();
 
     return {

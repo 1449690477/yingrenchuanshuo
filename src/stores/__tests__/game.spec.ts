@@ -15,6 +15,7 @@ import {
   STAGE_CHALLENGE_STAMINA_COST,
 } from '@/data/constants';
 import { requireEquipment } from '@/data/equipment';
+import { EQUIPMENT_DUNGEON_STAGES } from '@/data/equipmentDungeons';
 import { requireMonster } from '@/data/monsters';
 import { SHOP_OFFERS } from '@/data/shop';
 import { battleRhythmSkills } from '@/data/skills';
@@ -1700,6 +1701,12 @@ describe('equipment dungeon transaction', () => {
     expect(result.ok).toBe(true);
     // 打赢之后深度进度真的推进了
     expect(game.equipmentDungeonDepth.azure).toBe(1);
+    // M4-8 怪物图鉴：打赢后本档位遭遇怪全部入账（只增不删）
+    const dungeonStage = EQUIPMENT_DUNGEON_STAGES['equipment_weapon_azure'];
+    const discovered = new Set(game.save!.monsterCodex.discoveredMonsterIds);
+    for (const encounter of dungeonStage.encounters) {
+      expect(discovered.has(encounter.monster.id), `副本图鉴缺 ${encounter.monster.id}`).toBe(true);
+    }
   });
 
   it('穿齐八件副本套装后，属性与技能共鸣真实进入 store 结算', () => {
