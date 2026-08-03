@@ -298,11 +298,13 @@ function weekForGuildBossVariant(
 describe('试炼成绩的结构上界 · damage 不可能超过 Boss 初始血量', () => {
   it('★ 配置契约：玩家只锁定 Boss，且 Boss 不得接入技能包或额外血池', () => {
     const { build } = legalBuild('kenshi', 65, 20260802, true);
-    const options = trialFightOptions(build);
+    const boss = weeklyTrialBoss(TRIAL_SEASON_ID, WEEK, trialBracketFor(65).id).combatant;
+    const options = trialFightOptions(build, boss);
 
     expect(options.playerTargetType).toBe('boss');
     expect(Object.hasOwn(options, 'monsterSkillKit')).toBe(false);
     expect(Object.hasOwn(options, 'monsterSkillMultiplier')).toBe(false);
+    expect(Object.hasOwn(options, 'playerDamageMultiplier')).toBe(true);
   });
 
   /**

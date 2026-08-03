@@ -9,9 +9,11 @@
  * 1 = 四职业平均技能倍率模型（2026-08-01 剑士完整技能引擎上线前）
  * 2 = 五职业真实技能轮转、触发/持续伤害，以及固定 60 秒试炼的
  *     独立攻击生存标定（该版本与五职业同批上线，未产生过旧 v2 成绩）
+ * 3 = 元素共鸣期望 DPS 折入（docs/83 批 3b）：玩家武器与 Boss 均带元素时，
+ *     玩家直接伤害乘 1 + 期望占比（克制 6% / 中性 5%），服务端同一份实现复算。
  */
 export const LEGACY_TRIAL_FORMULA_VERSION = 1;
-export const TRIAL_FORMULA_VERSION = 2;
+export const TRIAL_FORMULA_VERSION = 3;
 
 /**
  * 成绩版本戳的唯一构造点。insert、replace 与同分 reverify 都必须展开它，避免某条
