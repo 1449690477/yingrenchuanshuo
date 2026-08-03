@@ -3,6 +3,19 @@ import { access, stat } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
+import {
+  CUT_LINES,
+  HEAD_CLEAR_Y,
+  HEAD_CUT_MODE,
+  KENSHI_PASTE_Y,
+  bboxOf,
+  computeShoeShift,
+  computeSideClip,
+  computeWeaponAlign,
+  inFaceEllipse,
+  rawRgba,
+  translate,
+} from './ice-snow-fix-params.mjs';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(SCRIPT_DIR, '..');
@@ -410,12 +423,34 @@ async function compareAgainstLegacyThemes(target, slot, classId) {
 }
 
 async function compareWearableAlpha(source, target, slot, classId) {
-  const expected = slot === 'head'
+  let expected = slot === 'head'
     ? sharp(source)
         .extract({ left: 0, top: 0, width: 640, height: 180 })
         .resize({ width: 640, height: 100, fit: 'fill', kernel: sharp.kernel.lanczos3 })
         .extend({ bottom: 860, background: { r: 0, g: 0, b: 0, alpha: 0 } })
     : sharp(source);
+  // 鞋层在 build 期按底模锚点平移（确定性校正），忠实比对需对母版施加同一平移。
+  if (slot === 'shoes') {
+    const shift = await computeShoeShift(classId, ROOT);
+    expected = sharp(await translate(source, shift.dx, shift.dy));
+  }
+  // 妖灵武器在 build 期等比缩放并对齐 rose-night 扇带（确定性校正），比对需同一变换。
+  if (slot === 'weapon') {
+    const align = await computeWeaponAlign(classId, ROOT);
+    if (align) {
+      const resized = await sharp(source)
+        .resize({ width: align.newW, height: align.newH, kernel: sharp.kernel.lanczos3 })
+        .png()
+        .toBuffer();
+      const placed = await sharp({
+        create: { width: 640, height: 960, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+      })
+        .composite([{ input: resized, left: align.left, top: align.top }])
+        .png()
+        .toBuffer();
+      expected = sharp(placed);
+    }
+  }
   const [a, b] = await Promise.all([
     expected.ensureAlpha().raw().toBuffer({ resolveWithObject: true }),
     sharp(target).ensureAlpha().raw().toBuffer({ resolveWithObject: true }),
@@ -425,12 +460,37 @@ async function compareWearableAlpha(source, target, slot, classId) {
   // 无内置鞋合同回填 base-noshoes（removeKenshiEmbeddedShoes），该区另由
   // inspectKenshiNoEmbeddedShoes 单独验收。两类都跳过鞋区不计。
   let shoeMask = null;
+  let headZoneMask = null;
   if (slot === 'body') {
-    shoeMask = await sharp(source.replace(/-body\.png$/, '-shoes.png'))
-      .ensureAlpha()
-      .extractChannel('alpha')
-      .raw()
-      .toBuffer();
+    const shift = await computeShoeShift(classId, ROOT);
+    const shoesTranslated = await translate(
+      source.replace(/-body\.png$/, '-shoes.png'),
+      shift.dx,
+      shift.dy,
+    );
+    shoeMask = await sharp(shoesTranslated).ensureAlpha().extractChannel('alpha').raw().toBuffer();
+    const baseRaw = await rawRgba(
+      resolve(ROOT, `public/assets/characters/modular/${classId}/base-noshoes.png`),
+    );
+    const sideClip = await computeSideClip(classId, ROOT);
+    headZoneMask = Buffer.alloc(baseRaw.info.width * baseRaw.info.height);
+    for (let y = 0; y < baseRaw.info.height; y += 1) {
+      for (let x = 0; x < baseRaw.info.width; x += 1) {
+        const offset = (y * baseRaw.info.width + x) * 4;
+        if (classId !== 'kenshi' && (x < sideClip.leftX || x > sideClip.rightX)) {
+          headZoneMask[y * baseRaw.info.width + x] = 255;
+          continue;
+        }
+        const inZone = classId === 'kenshi'
+          ? y < KENSHI_PASTE_Y && baseRaw.data[offset + 3] > 16
+          : HEAD_CUT_MODE === 'C1'
+            ? y < CUT_LINES[classId]
+            : y < CUT_LINES[classId] || (y < HEAD_CLEAR_Y && baseRaw.data[offset + 3] > 16);
+        if (inZone || inFaceEllipse(x, y, classId)) {
+          headZoneMask[y * baseRaw.info.width + x] = 255;
+        }
+      }
+    }
   }
   let compared = 0;
   let alphaMismatch = 0;
@@ -440,6 +500,7 @@ async function compareWearableAlpha(source, target, slot, classId) {
   let colorDelta = 0;
   for (let offset = 0; offset < a.data.length; offset += 4) {
     if (shoeMask && shoeMask[offset / 4] > 20) continue;
+    if (headZoneMask && headZoneMask[offset / 4] > 0) continue;
     compared += 1;
     const deltaAlpha = Math.abs(a.data[offset + 3] - b.data[offset + 3]);
     if (deltaAlpha !== 0) alphaMismatch += 1;
@@ -484,6 +545,117 @@ async function compareWearableAlpha(source, target, slot, classId) {
   await compareAgainstLegacyThemes(target, slot, classId);
 }
 
+/**
+ * 老四职业：body 头区必须切净（2026-08-03 线上事故根因的门禁化）。
+ * 判定 = 脸椭圆内不透明像素 ≤50（边界噪声）且切头线以上不透明像素 ==0。
+ */
+async function assertOldClassHeadClear(target, classId) {
+  const { data, info } = await rawRgba(target);
+  let facePx = 0;
+  let headPx = 0;
+  for (let y = 0; y < info.height; y += 1) {
+    for (let x = 0; x < info.width; x += 1) {
+      const offset = (y * info.width + x) * 4;
+      if (data[offset + 3] <= 16) continue;
+      if (inFaceEllipse(x, y, classId)) facePx += 1;
+      if (y < CUT_LINES[classId]) headPx += 1;
+    }
+  }
+  if (facePx > 50) {
+    fail(`${target}: ${classId} body 脸椭圆内残留 ${facePx}px（要求 ≤50）`);
+  }
+  if (headPx !== 0) {
+    fail(`${target}: ${classId} body 切头线（y<${CUT_LINES[classId]}）以上残留 ${headPx}px（要求 ==0）`);
+  }
+}
+
+/**
+ * 樱酱(kenshi)：v2 母版把头画丢（头区是毛领/兜帽），build 确定性贴回 base 头区。
+ * 反向断言：头区不透明像素 ≥ v1 rose-night kenshi 同区下限 13,132px，防无头陈列图复发。
+ */
+async function assertKenshiHeadPasted(target) {
+  const { data, info } = await rawRgba(target);
+  let headPx = 0;
+  for (let y = 0; y < Math.min(KENSHI_PASTE_Y, info.height); y += 1) {
+    for (let x = 0; x < info.width; x += 1) {
+      if (data[(y * info.width + x) * 4 + 3] > 16) headPx += 1;
+    }
+  }
+  if (headPx < 13_132) {
+    fail(`${target}: 樱酱头区（y<${KENSHI_PASTE_Y}）仅 ${headPx}px，低于 v1 参照下限 13132px——补头失败`);
+  }
+}
+
+/**
+ * 鞋层锚点：底边对齐参照（swordsman=base 脚底档，其余=rose-night 底边档），
+ * 水平中心对齐 rose-night；容差 ±8px。
+ */
+async function assertShoeAnchor(classId) {
+  const shift = await computeShoeShift(classId, ROOT);
+  const targetRaw = await rawRgba(
+    resolve(ROOT, `public/assets/characters/modular/shop/ice-snow/${classId}-shoes.png`),
+  );
+  const roseRaw = await rawRgba(
+    resolve(ROOT, `public/assets/characters/modular/shop/rose-night/${classId}-shoes.png`),
+  );
+  const targetBBox = await bboxOf(targetRaw);
+  const roseBBox = await bboxOf(roseRaw);
+  const targetBottom = classId === 'swordsman' ? shift.baseBottom : shift.roseBottom;
+  const targetCenterX = Math.round((roseBBox.x0 + roseBBox.x1) / 2);
+  const centerX = Math.round((targetBBox.x0 + targetBBox.x1) / 2);
+  const label = `shop/ice-snow/${classId}-shoes.png`;
+  if (Math.abs(targetBBox.y1 - targetBottom) > 8) {
+    fail(`${label}: 鞋底边 y=${targetBBox.y1} 与目标 ${targetBottom} 差 ${targetBBox.y1 - targetBottom}px（要求 ±8px）`);
+  }
+  if (Math.abs(centerX - targetCenterX) > 8) {
+    fail(`${label}: 鞋中心 x=${centerX} 与参照 ${targetCenterX} 差 ${centerX - targetCenterX}px（要求 ±8px）`);
+  }
+}
+
+/**
+ * 第四道断言：五职业武器不得遮脸（v1 现架全部 0，天然合同；防妖灵扇子事故复发）。
+ */
+async function assertWeaponFaceClear(classId) {
+  const target = resolve(
+    ROOT,
+    `public/assets/characters/modular/shop/ice-snow/${classId}-weapon.png`,
+  );
+  const { data, info } = await rawRgba(target);
+  let facePx = 0;
+  for (let y = 0; y < info.height; y += 1) {
+    for (let x = 0; x < info.width; x += 1) {
+      if (data[(y * info.width + x) * 4 + 3] > 16 && inFaceEllipse(x, y, classId)) {
+        facePx += 1;
+      }
+    }
+  }
+  if (facePx > 50) {
+    fail(`${target}: ${classId} 武器脸椭圆内 ${facePx}px（要求 ≤50，防武器遮脸）`);
+  }
+}
+
+/**
+ * 头饰锚点：顶边对齐 v1 rose-night 参照，容差 ±4px（小衡 22:32 容差总表）。
+ */
+async function assertHeadAnchor(classId) {
+  const target = resolve(
+    ROOT,
+    `public/assets/characters/modular/shop/ice-snow/${classId}-head.png`,
+  );
+  const rose = resolve(
+    ROOT,
+    `public/assets/characters/modular/shop/rose-night/${classId}-head.png`,
+  );
+  const [targetBBox, roseBBox] = await Promise.all([
+    bboxOf(await rawRgba(target)),
+    bboxOf(await rawRgba(rose)),
+  ]);
+  const diff = targetBBox.y0 - roseBBox.y0;
+  if (Math.abs(diff) > 4) {
+    fail(`${target}: 头饰顶边 y=${targetBBox.y0} 与参照 ${roseBBox.y0} 差 ${diff}px（要求 ±4px）`);
+  }
+}
+
 await calibrateEffectShapeGate();
 await calibrateWearableShapeGate();
 const acceptedEffectShapes = new Map();
@@ -504,6 +676,21 @@ for (const classId of CLASSES) {
   const currentShape = await alphaShape(effectPath);
   await assertOriginalEffectShape(classId, effectPath, currentShape, acceptedEffectShapes);
   acceptedEffectShapes.set(classId, currentShape);
+}
+
+for (const classId of CLASSES) {
+  const bodyTarget = resolve(
+    ROOT,
+    `public/assets/characters/modular/shop/ice-snow/${classId}-body.png`,
+  );
+  if (classId === 'kenshi') {
+    await assertKenshiHeadPasted(bodyTarget);
+  } else {
+    await assertOldClassHeadClear(bodyTarget, classId);
+  }
+  await assertShoeAnchor(classId);
+  await assertWeaponFaceClear(classId);
+  await assertHeadAnchor(classId);
 }
 
 const kenshiShoeContract = await inspectKenshiNoEmbeddedShoes();

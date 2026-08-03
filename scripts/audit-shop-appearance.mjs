@@ -390,7 +390,10 @@ for (const theme of THEMES) {
         fail(`${key} 可见像素过少：${stats.alphaPixels}`);
       }
       if (slot === 'head' && (minY > 24 || maxY > 210)) fail(`${key} 头饰离开头部安全区`);
-      if (slot === 'shoes' && (minY < 680 || maxY > 950)) fail(`${key} 鞋层离开脚部安全区`);
+      // 680 → 640（2026-08-03 冰雪批裁定，与 shopAppearanceVisual.spec 同口径）：
+      // 冰雪 v2 高筒靴是合法设计（修复对齐鞋底边后靴顶更高，五职业实测最低 655），
+      // 留 15px 缓冲；鞋层硬闸是脚底锚点 ±8px。
+      if (slot === 'shoes' && (minY < 640 || maxY > 950)) fail(`${key} 鞋层离开脚部安全区`);
       if (slot === 'body' && classId === 'kenshi' && (minY > 30 || maxY < 880)) {
         fail(`${key} 樱酱衣裙应为整身替换图`);
       }

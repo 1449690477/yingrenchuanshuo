@@ -249,7 +249,10 @@ describe('商城五职业换装视觉合同', () => {
             expect(maxY, asset).toBeLessThanOrEqual(210);
           }
           if (slot === 'shoes') {
-            expect(minY, asset).toBeGreaterThanOrEqual(680);
+            // 680 → 640（2026-08-03 冰雪批裁定）：冰雪 v2 高筒靴是合法设计
+            // （修复对齐鞋底边后靴顶更高，五职业实测最低 655），
+            // 合同留 15px 缓冲；鞋层真正的硬闸是脚底锚点 ±8px。
+            expect(minY, asset).toBeGreaterThanOrEqual(640);
             expect(maxY, asset).toBeLessThanOrEqual(950);
           }
           if (slot === 'body' && classId === 'kenshi') {

@@ -13,6 +13,18 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
+import {
+  CUT_LINES,
+  HEAD_CLEAR_Y,
+  HEAD_CUT_MODE,
+  KENSHI_PASTE_Y,
+  computeShoeShift,
+  computeSideClip,
+  computeWeaponAlign,
+  inFaceEllipse,
+  rawRgba,
+  translate,
+} from './ice-snow-fix-params.mjs';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(SCRIPT_DIR, '..');
@@ -186,11 +198,10 @@ async function writePng(buffer, output, budget = WEARABLE_SIZE_BUDGET) {
  * 樱酱不走这里——她的 body 是整身 replacement，由 removeKenshiEmbeddedShoes
  * 按无内置鞋合同回填 base-noshoes。
  */
-async function yieldBodyToShoes(bodyBuffer, classId) {
-  const shoesPath = resolve(sourceWearableRoot, `${classId}-shoes.png`);
+async function yieldBodyToShoes(bodyBuffer, classId, shoesBuffer) {
   const [body, shoesAlpha] = await Promise.all([
     sharp(bodyBuffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true }),
-    sharp(shoesPath).ensureAlpha().extractChannel('alpha').raw().toBuffer(),
+    sharp(shoesBuffer).ensureAlpha().extractChannel('alpha').raw().toBuffer(),
   ]);
   for (let pixel = 0; pixel < shoesAlpha.length; pixel += 1) {
     if (shoesAlpha[pixel] <= 20) continue;
@@ -201,6 +212,97 @@ async function yieldBodyToShoes(bodyBuffer, classId) {
     body.data[offset + 3] = 0;
   }
   return sharp(body.data, { raw: body.info }).png().toBuffer();
+}
+
+/**
+ * 老四职业 body 头区确定性切分（2026-08-03 线上事故修复，小灯主刀）：
+ *   C1 = cutB 全宽切头线（y<CUT_LINES）+ 脸椭圆净空
+ *   C2 = 头区净空到颈线（y<HEAD_CLEAR_Y 且 base 剪影有像素处透明）+ 脸椭圆净空
+ * 脸椭圆参数来自 CharacterAppearance.vue（ice-snow-fix-params.mjs 单一事实源）。
+ */
+async function cutBodyHeadOld(bodyBuffer, classId, baseRaw) {
+  const { data, info } = await sharp(bodyBuffer)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  for (let y = 0; y < info.height; y += 1) {
+    for (let x = 0; x < info.width; x += 1) {
+      const offset = (y * info.width + x) * 4;
+      const inHeadZone = HEAD_CUT_MODE === 'C1'
+        ? y < CUT_LINES[classId]
+        : y < CUT_LINES[classId] || (y < HEAD_CLEAR_Y && baseRaw.data[offset + 3] > 16);
+      if (inFaceEllipse(x, y, classId) || inHeadZone) {
+        data[offset] = 0;
+        data[offset + 1] = 0;
+        data[offset + 2] = 0;
+        data[offset + 3] = 0;
+      }
+    }
+  }
+  return sharp(data, { raw: info }).png().toBuffer();
+}
+
+/**
+ * 樱酱(kenshi) 补头：v2 母版把樱酱的头画丢了（头区是毛领/兜帽），
+ * 确定性一步=把 base kenshi 头区（y<KENSHI_PASTE_Y 且 base 剪影有像素）贴回 body，
+ * 同骨架直接复制、零重绘。
+ */
+async function pasteKenshiHead(bodyBuffer, baseRaw, deepY) {
+  const { data, info } = await sharp(bodyBuffer)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  for (let y = 0; y < Math.min(deepY, info.height); y += 1) {
+    for (let x = 0; x < info.width; x += 1) {
+      const offset = (y * info.width + x) * 4;
+      if (baseRaw.data[offset + 3] > 16) {
+        data[offset] = baseRaw.data[offset];
+        data[offset + 1] = baseRaw.data[offset + 1];
+        data[offset + 2] = baseRaw.data[offset + 2];
+        data[offset + 3] = baseRaw.data[offset + 3];
+      }
+    }
+  }
+  return sharp(data, { raw: info }).png().toBuffer();
+}
+
+/**
+ * 老四职业左右立绘边条清除（小Q·音效坐标表三：参照莓霜 body bbox ±24px 之外=画布填充）。
+ */
+async function clipBodySides(bodyBuffer, classId) {
+  const clip = await computeSideClip(classId, ROOT);
+  const { data, info } = await sharp(bodyBuffer)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  for (let y = 0; y < info.height; y += 1) {
+    for (let x = 0; x < info.width; x += 1) {
+      if (x < clip.leftX || x > clip.rightX) {
+        const offset = (y * info.width + x) * 4;
+        data[offset] = 0;
+        data[offset + 1] = 0;
+        data[offset + 2] = 0;
+        data[offset + 3] = 0;
+      }
+    }
+  }
+  return sharp(data, { raw: info }).png().toBuffer();
+}
+
+/**
+ * 妖灵武器确定性对齐：等比缩放到 rose-night 扇带并居中（小Q5 22:29 终审）。
+ */
+async function alignShamanWeapon(buffer, align) {
+  const resized = await sharp(buffer)
+    .resize({ width: align.newW, height: align.newH, kernel: sharp.kernel.lanczos3 })
+    .png()
+    .toBuffer();
+  return sharp({
+    create: { width: 640, height: 960, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+  })
+    .composite([{ input: resized, left: align.left, top: align.top }])
+    .png()
+    .toBuffer();
 }
 
 async function removeKenshiEmbeddedShoes() {
@@ -229,12 +331,36 @@ async function removeKenshiEmbeddedShoes() {
 }
 
 for (const classId of CLASSES) {
+  const baseRaw = await rawRgba(
+    resolve(ROOT, `public/assets/characters/modular/${classId}/base-noshoes.png`),
+  );
+  const shoeShift = await computeShoeShift(classId, ROOT);
+  const shoesTranslated = await translate(
+    resolve(sourceWearableRoot, `${classId}-shoes.png`),
+    shoeShift.dx,
+    shoeShift.dy,
+  );
   for (const slot of WEARABLE_SLOTS) {
     const input = resolve(sourceWearableRoot, `${classId}-${slot}.png`);
     const output = resolve(targetWearableRoot, `${classId}-${slot}.png`);
     let base = await sharp(input).ensureAlpha().png().toBuffer();
-    if (slot === 'body' && classId !== 'kenshi') {
-      base = await yieldBodyToShoes(base, classId);
+    if (slot === 'body') {
+      if (classId !== 'kenshi') {
+        base = await yieldBodyToShoes(base, classId, shoesTranslated);
+        base = await cutBodyHeadOld(base, classId, baseRaw);
+        base = await clipBodySides(base, classId);
+      } else {
+        base = await pasteKenshiHead(base, baseRaw, KENSHI_PASTE_Y);
+      }
+    }
+    if (slot === 'shoes') {
+      base = shoesTranslated;
+    }
+    if (slot === 'weapon') {
+      const align = await computeWeaponAlign(classId, ROOT);
+      if (align) {
+        base = await alignShamanWeapon(base, align);
+      }
     }
     await writePng(await alignWearable(base, slot), output);
   }
