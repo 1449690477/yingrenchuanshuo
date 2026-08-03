@@ -62,6 +62,7 @@ function snapshot(overrides: Partial<RedDotSnapshot> = {}): RedDotSnapshot {
     hasUnsyncedProgress: false,
     pendingMilestoneCount: 0,
     guildClaimableCount: 0,
+    dailyTierClaimable: false,
     ...overrides,
   };
 }
@@ -141,6 +142,17 @@ describe('evaluateRedDots', () => {
 
   it('体力补给可领 → idle 亮', () => {
     expect(evaluateRedDots(snapshot({ staminaClaimRemaining: 1 })).idle).toBe(true);
+  });
+
+  it('日常宝箱可领 → idle 亮（M4-1 信息型布尔）', () => {
+    const r = evaluateRedDots(snapshot({ dailyTierClaimable: true }));
+    expect(r.idle).toBe(true);
+    expect(r.bag).toBe(false);
+    expect(r.growth).toBe(false);
+  });
+
+  it('日常宝箱不可领且其他来源为空 → idle 灭', () => {
+    expect(evaluateRedDots(snapshot({ dailyTierClaimable: false })).idle).toBe(false);
   });
 
   it('奇遇待处理 → idle 亮', () => {

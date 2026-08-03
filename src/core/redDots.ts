@@ -38,6 +38,8 @@ export interface RedDotSnapshot {
   pendingMilestoneCount: number;
   /** 公会可领取的委托 / 据点奖励数（联机快照；首版由公会线接入时提供）。 */
   guildClaimableCount: number;
+  /** M4-1 日常任务：存在可领取的活跃度档位（信息型布尔，不计数）。 */
+  dailyTierClaimable: boolean;
 }
 
 export interface RedDotState {
@@ -51,7 +53,7 @@ export interface RedDotState {
 
 /** 各 tab 的事实文案（信息型：陈述事实，不带计数、不带感叹号）。 */
 export const RED_DOT_LABELS: Record<DotTabKey, string> = {
-  idle: '挂机：今日体力补给可领或有奇遇待处理',
+  idle: '挂机：今日体力补给可领、有奇遇待处理或日常宝箱可领',
   bag: '背包：有洗练结果待确认',
   growth: '养成：有可强化或可升级项',
   dungeon: '副本：装备副本还有挑战次数',
@@ -102,7 +104,10 @@ export function countPendingAffix(
 /** 汇总判定：任一来源存在可行动事实 → 对应 tab 亮起。 */
 export function evaluateRedDots(snapshot: RedDotSnapshot): RedDotState {
   return {
-    idle: snapshot.staminaClaimRemaining > 0 || snapshot.pendingEncounterCount > 0,
+    idle:
+      snapshot.staminaClaimRemaining > 0 ||
+      snapshot.pendingEncounterCount > 0 ||
+      snapshot.dailyTierClaimable,
     bag: snapshot.pendingAffixCount > 0,
     growth: snapshot.enhanceableEquipped > 0 || snapshot.skillUpgradeable > 0,
     dungeon: snapshot.dungeonAttemptsRemaining > 0,
