@@ -89,6 +89,24 @@ describe('affection store transaction', () => {
     expect(game.cp).toBeCloseTo(predicted, 8);
   });
 
+  it('M3-10：互动跨过好感情档位时战力真实上涨，必须留下正向飘字', () => {
+    const game = useGameStore();
+    const save = createSave('好感飘字', 'swordsman', 20260803, NOW);
+    const interaction = requireAffectionCharacter('swordsman').interactions[0]!;
+    // 把点数摆在「熟络」档（80 点）前一次互动的距离：这次互动正好跨档，
+    // combatBonusRatio 0 → 0.01，战力必然上涨。档位加成见 src/data/affectionRules.ts。
+    // 等级抬到 40：低等级时 1% 加成取整后不足 1 战力，会被 noteCpDelta 的取整抹掉。
+    save.player.level = 40;
+    save.affection.characters.swordsman.points = 80 - interaction.points;
+    game.loadFrom(save);
+
+    const result = game.interactWithCharacter('swordsman', interaction.id, NOW);
+
+    expect(result.ok).toBe(true);
+    expect(game.cpDelta).not.toBeNull();
+    expect(game.cpDelta!.value).toBeGreaterThan(0);
+  });
+
   it('每天只有四次有效互动，第五次不增加点数、保底或总次数', async () => {
     const game = useGameStore();
     game.loadFrom(createSave('互动上限', 'swordsman', 20260730, NOW));

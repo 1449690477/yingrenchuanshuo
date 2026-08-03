@@ -1983,6 +1983,42 @@ describe('里程碑记录挂在等级变化的唯一收口上', () => {
   });
 });
 
+// ────────── M3-10 战力变化飘字：全来源覆盖 ──────────
+
+describe('M3-10 战力变化飘字', () => {
+  const NOW = 1_800_000_000_000;
+  const DAY_MS = 86_400_000;
+
+  it('升级是战力变化来源：离线结算连升后必须留下正向飘字', () => {
+    vi.setSystemTime(NOW + 9 * DAY_MS);
+    const game = useGameStore();
+    const save = createSave('飘字升级', 'swordsman', 51, NOW);
+    // 软上限需要足量通关关卡放行连升（docs/56 §2）；挂机关卡留在第一关保证能击杀。
+    save.progress.clearedStageIds = ORDERED_STAGE_IDS.slice(0, 90);
+    save.progress.currentStageId = FIRST_STAGE_ID;
+    save.player.exp = 5_000_000_000;
+    save.lastActiveAt = NOW + 9 * DAY_MS - 60_000;
+
+    game.loadFrom(save);
+
+    expect(game.save!.player.level).toBeGreaterThan(1);
+    expect(game.cpDelta).not.toBeNull();
+    expect(game.cpDelta!.value).toBeGreaterThan(0);
+  });
+
+  it('加载未产生任何战力变化时不得虚报飘字', () => {
+    vi.setSystemTime(NOW);
+    const game = useGameStore();
+    const save = createSave('无飘字', 'swordsman', 52, NOW);
+    save.lastActiveAt = NOW;
+
+    game.loadFrom(save);
+
+    expect(game.save!.player.level).toBe(1);
+    expect(game.cpDelta).toBeNull();
+  });
+});
+
 // ────────── 首通时刻捕获（进度榜「同关按最早达成排」，docs/63 §一） ──────────
 
 describe('关卡首通时刻', () => {

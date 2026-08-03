@@ -72,4 +72,15 @@ describe('技能升级 store 与存档闭环', () => {
     const foreign = skillsFor('witch')[0]!;
     expect(game.upgradeSkill(foreign.id)).toEqual({ ok: false, reason: 'unknown-skill' });
   });
+
+  it('技能等级不计入战力公式（M3-10）：升级成功不得触发战力飘字', async () => {
+    const game = loadedGame();
+    const skillId = game.playerSkillKit!.active[0]!.skill.id;
+
+    const result = game.upgradeSkill(skillId);
+
+    expect(result.ok).toBe(true);
+    expect(game.cpDelta).toBeNull();
+    await game.persist();
+  });
 });

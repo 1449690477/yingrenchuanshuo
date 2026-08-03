@@ -1644,10 +1644,14 @@ export const useGameStore = defineStore('game', () => {
       p.exp = settled.exp;
       return;
     }
+    // M3-10：升级改变基础属性 → 战力变化，必须给飘字（在线 tick 与离线结算都走这里）。
+    // before 取未取整 cpValue，与其他 noteCpDelta 调用点同口径。
+    const beforeCp = cpValue.value;
     recordMilestonesCrossed(p.level, settled.level);
     p.level = settled.level;
     p.exp = settled.exp;
     syncBattleRhythmProjectionAfterLevelUp();
+    noteCpDelta(beforeCp);
   }
 
   /**
@@ -2517,6 +2521,8 @@ export const useGameStore = defineStore('game', () => {
     ) {
       return { ok: false, reason: 'interaction-locked' };
     }
+    // M3-10：好感点数计入战力（applyAffectionCombatBonus），互动加点也是战力变化来源。
+    const beforeCp = cpValue.value;
     const pointsAfterInteraction = Math.min(
       AFFECTION_RULES.maxPoints,
       progress.points + interaction.points,
@@ -2566,6 +2572,7 @@ export const useGameStore = defineStore('game', () => {
       enforceBagCapacity();
     }
 
+    noteCpDelta(beforeCp);
     void persist();
     return { ...result, instance };
   }
@@ -2582,6 +2589,8 @@ export const useGameStore = defineStore('game', () => {
     if (!progress.completedStoryIds.includes(gift.requiredStoryId)) {
       return { ok: false, reason: 'gift-locked' };
     }
+    // M3-10：好感点数计入战力，送礼加点也是战力变化来源。
+    const beforeCp = cpValue.value;
 
     const pointsAfterGift = Math.min(AFFECTION_RULES.maxPoints, progress.points + gift.points);
     const gearPoolIds = eligibleAffectionEquipmentIds(classId, pointsAfterGift, s.player.level);
@@ -2629,6 +2638,7 @@ export const useGameStore = defineStore('game', () => {
       enforceBagCapacity();
     }
 
+    noteCpDelta(beforeCp);
     void persist();
     return { ...result, instance };
   }
@@ -2640,6 +2650,8 @@ export const useGameStore = defineStore('game', () => {
   ): AffectionStoryChoiceActionResult {
     if (!save.value) return { ok: false, reason: 'no-save' };
     const story = requireAffectionStory(classId, storyId);
+    // M3-10：剧情选项可能加好感点数 → 战力变化来源。
+    const beforeCp = cpValue.value;
     const result = completeAffectionStory(
       save.value.affection,
       classId,
@@ -2649,6 +2661,7 @@ export const useGameStore = defineStore('game', () => {
     );
     if (result.ok) {
       save.value.affection = result.state;
+      noteCpDelta(beforeCp);
       void persist();
     }
     return result;
