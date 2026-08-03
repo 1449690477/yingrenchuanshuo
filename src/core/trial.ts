@@ -62,6 +62,7 @@ import {
   typicalQualityAt,
 } from '@/data/expectedPower';
 import {
+  ELEMENT_BEATS,
   CRIT_RATE_CAP,
   MONSTER_ACC_BASE,
   MONSTER_ACC_PER_LEVEL,
@@ -84,6 +85,7 @@ import {
   type TrialBracket,
   type TrialTilt,
 } from '@/data/trialRules';
+import { expectedReactionDpsShare } from './elementGauge';
 import { equipmentAffixGenerationLevels } from '@/data/equipmentAdvancement';
 
 // ─────────────────────────── 哈希 ───────────────────────────
@@ -605,8 +607,22 @@ export interface TrialRunResult {
  * 当前成绩只累计玩家对 Boss 的伤害，因此必须始终锁定 Boss 目标，并且不能给
  * Boss 注入技能包（怪物召唤会引入额外血池）。若以后要给试炼 Boss 加技能，
  * 需要先重审反作弊上界，不能在这里悄悄接入。
+ *
+ * docs/83 批 3b：当玩家武器与 Boss 都带元素时，按稳态期望把元素共鸣 DPS
+ * 折入玩家直接伤害乘区（playerDamageMultiplier = 1 + share）。该乘区仍经
+ * Boss 血量扣减路径计入成绩，不新增计分通道，因此上界不变量保持成立；
+ * 乘区只随「武器元素 × 周 Boss 元素」组合变化，同一周全服同一 Boss，
+ * 客户端与服务端用同一份实现，复算逐点一致。
  */
-export function trialFightOptions(build: TrialBuild): FightOptions {
+export function trialFightOptions(build: TrialBuild, boss: Combatant): FightOptions {
+  const playerElement = build.combatant.element;
+  const monsterElement = boss.element;
+  let playerDamageMultiplier = 1;
+  if (playerElement !== 'none' && monsterElement !== 'none') {
+    const isCounter = ELEMENT_BEATS[playerElement] === monsterElement;
+    const share = expectedReactionDpsShare(build.combatant.stats.spd, isCounter);
+    playerDamageMultiplier = 1 + share;
+  }
   return {
     maxSeconds: TRIAL_DURATION_SEC,
     playerSkillKit: build.skillKit,
@@ -614,6 +630,7 @@ export function trialFightOptions(build: TrialBuild): FightOptions {
     playerOnHitTriggers: build.onHitTriggers,
     playerOnLethalTriggers: build.onLethalTriggers,
     playerOnCritTriggers: build.onCritTriggers,
+    playerDamageMultiplier,
   };
 }
 
@@ -628,7 +645,7 @@ export function runTrial(build: TrialBuild, boss: Combatant, seed: number): Tria
     currentHp: build.combatant.stats.hp,
   };
   const target: Combatant = { ...boss, stats: { ...boss.stats }, currentHp: boss.stats.hp };
-  const result = simulateFight(player, target, new Rng(seed), trialFightOptions(build));
+  const result = simulateFight(player, target, new Rng(seed), trialFightOptions(build, boss));
   return {
     damage: Math.max(0, Math.round(result.damageDealt)),
     damageTaken: Math.max(0, Math.round(result.damageTaken)),

@@ -22,7 +22,7 @@ describe('试炼公式版本端到端接线', () => {
     expect(coreEntrySource).toContain(
       "export { buildTrialFormulaStamp, TRIAL_FORMULA_VERSION } from '@/core/trialFormulaVersion';",
     );
-    expect(TRIAL_FORMULA_VERSION).toBe(2);
+    expect(TRIAL_FORMULA_VERSION).toBe(3);
   });
 
   it('插入、更高分替换、同分复核三条写路径全部盖当前版本戳', () => {

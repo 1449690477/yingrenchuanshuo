@@ -17,6 +17,7 @@ import {
   trialBracketById,
   trialBracketFor,
   trialEquipmentSnapshotIssue,
+  trialFightOptions,
   trialScoreSeed,
   trialWeekIndex,
   trialWeekRemainingMs,
@@ -383,6 +384,96 @@ describe('runTrial / 试炼模拟', () => {
     const weakScore = runTrial(weak, boss, comparisonSeed);
     const strongScore = runTrial(strong, boss, comparisonSeed);
     expect(strongScore.damage).toBeGreaterThan(weakScore.damage);
+  });
+});
+
+describe('docs/83 批 3b / 试炼元素共鸣期望 DPS', () => {
+  /** 元素靶：属性完全相同、只有元素不同，隔离「元素」这一个变量。 */
+  function elementBossFixture(element: 'fire' | 'ice' | 'thunder' | 'none') {
+    return {
+      name: `元素靶-${element}`,
+      level: 65,
+      element,
+      stats: { atk: 0, def: 500, hp: 5_000_000, acc: 0, eva: 0, critRate: 0, critDmg: 0, spd: 0 },
+      currentHp: 5_000_000,
+    };
+  }
+
+  function weaponDefWith(element: 'fire' | 'ice' | 'thunder'): EquipmentDef {
+    const def = Object.values(EQUIPMENT).find((d) => d.slot === 'weapon' && d.element === element);
+    if (!def) throw new Error(`装备表里没有 ${element} 武器`);
+    return def;
+  }
+
+  it('乘区：克制 1.06 / 中性 1.05 / 任一侧无元素 = 1（默认路径零变化）', () => {
+    const fireBuild = buildTrialCombatant({
+      name: '元素乘区',
+      classId: 'swordsman',
+      level: 65,
+      equipped: [
+        createInstance(weaponDefWith('fire'), new Rng(1), 'uid-elem', 'swordsman'),
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+      ],
+    });
+    expect(fireBuild.combatant.element).toBe('fire');
+    // 炎 → 冰：克制（2 击攒满，ICD 兜底 6%）
+    expect(
+      trialFightOptions(fireBuild, elementBossFixture('ice')).playerDamageMultiplier,
+    ).toBeCloseTo(1.06, 4);
+    // 炎 vs 炎：同元素中性（3 击攒满 5%）
+    expect(
+      trialFightOptions(fireBuild, elementBossFixture('fire')).playerDamageMultiplier,
+    ).toBeCloseTo(1.05, 4);
+    // Boss 无元素 → 不启用
+    expect(
+      trialFightOptions(fireBuild, elementBossFixture('none')).playerDamageMultiplier,
+    ).toBe(1);
+    // 玩家无武器（元素 none）→ 不启用
+    const emptyBuild = buildTrialCombatant({
+      name: '无元素',
+      classId: 'swordsman',
+      level: 65,
+      equipped: EMPTY_EQUIPPED,
+    });
+    expect(
+      trialFightOptions(emptyBuild, elementBossFixture('ice')).playerDamageMultiplier,
+    ).toBe(1);
+  });
+
+  it('成绩排序：克制 > 中性 > 无元素，同一武器同一周同一种子', () => {
+    const build = buildTrialCombatant({
+      name: '元素成绩',
+      classId: 'kenshi',
+      level: 65,
+      equipped: [
+        createInstance(weaponDefWith('fire'), new Rng(3), 'uid-score', 'kenshi'),
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+      ],
+    });
+    const seed = trialScoreSeed(SEASON, 30, MID_BRACKET, build.buildHash);
+    const counter = runTrial(build, elementBossFixture('ice'), seed);
+    const neutral = runTrial(build, elementBossFixture('fire'), seed);
+    const none = runTrial(build, elementBossFixture('none'), seed);
+
+    expect(counter.damage).toBeGreaterThan(neutral.damage);
+    expect(neutral.damage).toBeGreaterThan(none.damage);
+    // 乘区只影响伤害，不改变生存与回放完整性：逐击总和仍等于成绩
+    const counterHits = counter.timeline
+      .filter((event) => event.source === 'player')
+      .reduce((sum, event) => sum + event.event.damage, 0);
+    expect(Math.round(counterHits)).toBe(counter.damage);
   });
 });
 

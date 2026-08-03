@@ -7,6 +7,10 @@
  *
  * 白名单变化时不要直接迎合测试：应先确认新参数会不会让计入成绩的伤害绕过
  * Boss 血量扣减；若会，必须连 `trialBracketDamageCeiling` 一起重审。
+ *
+ * 2026-08-03 批 3b 新增 `playerDamageMultiplier`：它是玩家侧直接伤害乘区，
+ * 仍然全部经由 Boss 血量扣减路径（`Math.min(剩余血量, 伤害)`）计入成绩，
+ * 不新增计分通道 —— 结构上界不变量保持成立，故纳入白名单。
  */
 
 import { describe, expect, it } from 'vitest';
@@ -20,6 +24,7 @@ const ALLOWED_KEYS = [
   'playerOnHitTriggers',
   'playerOnLethalTriggers',
   'playerOnCritTriggers',
+  'playerDamageMultiplier',
 ] as const;
 
 function optionsForTest(): Record<string, unknown> {
@@ -29,7 +34,13 @@ function optionsForTest(): Record<string, unknown> {
     level: 65,
     equipped: SLOT_ORDER.map(() => null),
   });
-  return trialFightOptions(build) as Record<string, unknown>;
+  return trialFightOptions(build, {
+    name: '契约靶',
+    level: 65,
+    element: 'fire',
+    stats: { atk: 1, def: 0, hp: 10_000, acc: 0, eva: 0, critRate: 0, critDmg: 0, spd: 1 },
+    currentHp: 10_000,
+  }) as Record<string, unknown>;
 }
 
 function unexpectedKeys(options: Record<string, unknown>): string[] {

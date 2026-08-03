@@ -109,6 +109,15 @@ interface FightOptionsCommon {
   maxSeconds?: number;
   /** 挂机轮转估算专用：目标死亡后以同一满血模板继续，技能冷却不重置。 */
   repeatTargetOnDefeat?: boolean;
+  /**
+   * 玩家方直接伤害乘数（docs/83 批 3b：试炼元素共鸣期望 DPS 专用）。
+   *
+   * 只放大玩家侧「直接伤害段」（主链命中 + 其上的 on-hit 元素追加段），
+   * 经同一血量截断路径计入成绩 —— 不新增任何绕过 Boss 血量扣减的计分通道，
+   * 试炼结构上界不变量保持成立。默认 undefined = 不启用：
+   * 竞技/PvP、副本、挂机估算路径全部零行为变化。
+   */
+  playerDamageMultiplier?: number;
 }
 
 type PlayerSkillSource =
@@ -317,6 +326,7 @@ export function simulateFight(
   const pMul = opts.playerSkillMultiplier ?? 1.0;
   const mMul = opts.monsterSkillMultiplier ?? 1.0;
   const maxSeconds = opts.maxSeconds ?? MAX_FIGHT_SECONDS;
+  const playerDamageMultiplier = opts.playerDamageMultiplier ?? 1;
 
   // 用整数计步再乘 TICK，而不是累加浮点数。
   // 累加 0.1 会有浮点漂移：加 50 次得到 4.999999999999998，
@@ -454,6 +464,21 @@ export function simulateFight(
     source === 'player' ? opts.playerSkillKit : opts.monsterSkillKit;
   const opposite = (source: 'player' | 'monster'): 'player' | 'monster' =>
     source === 'player' ? 'monster' : 'player';
+
+  /** docs/83 批 3b：玩家侧直接伤害段乘区（试炼元素共鸣期望 DPS）。 */
+  const scalePlayerResolution = (
+    resolution: DamageSegmentResolution,
+    source: 'player' | 'monster',
+  ): DamageSegmentResolution => {
+    if (source !== 'player' || playerDamageMultiplier === 1) return resolution;
+    return {
+      direct: { ...resolution.direct, damage: resolution.direct.damage * playerDamageMultiplier },
+      events: resolution.events.map((event) => ({
+        ...event,
+        damage: event.damage * playerDamageMultiplier,
+      })),
+    };
+  };
 
   interface CastProgress {
     hitTarget: boolean;
@@ -699,7 +724,7 @@ export function simulateFight(
           : event,
       ),
     };
-    const resolution = absorbResolution(target, decorated);
+    const resolution = absorbResolution(target, scalePlayerResolution(decorated, source));
     const sourceView = viewsFor(source).attacker.combatant;
     sourceView.currentHp = combatantOf(source).currentHp;
     const applied = applyDamageSegment(
@@ -811,7 +836,7 @@ export function simulateFight(
             summonFormulaOptions,
             onHitFormulaOptions,
           );
-      const shieldedEvents = raw.events.map((event) => {
+      const shieldedEvents = scalePlayerResolution(raw, source).events.map((event) => {
         const shielded = absorbDamageWithSkillShields(summonState, event.damage);
         summonState = shielded.state;
         return { ...event, damage: shielded.hpDamage };
