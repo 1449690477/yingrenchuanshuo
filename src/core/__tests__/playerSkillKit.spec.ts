@@ -26,17 +26,19 @@ describe('玩家默认技能栏生产入口', () => {
   });
 
   it('灵巫低段有直伤循环，高等级不携带双治疗；喵喵和樱酱保留招牌循环', () => {
+    // 2026-08-04 平衡修正（docs/85 P1）：灵巫默认栏改为召唤/输出优先，
+    // 低段（Lv10）仍保 heal 兜底；高等级 = 骷髅/神兽/群毒/魂火，无治疗。
     expect(buildDefaultPlayerSkillKit('shaman', 10).active.map((entry) => entry.skill.id)).toEqual([
-      'skill_shaman_heal',
       'skill_shaman_soul_fire',
       'skill_shaman_poison',
+      'skill_shaman_heal',
     ]);
     expect(buildDefaultPlayerSkillKit('shaman', 120).active.map((entry) => entry.skill.id)).toEqual(
       [
-        'skill_shaman_heal',
+        'skill_shaman_skeleton',
         'skill_shaman_divine_beast',
-        'skill_shaman_all_spirits',
         'skill_shaman_group_poison',
+        'skill_shaman_soul_fire',
       ],
     );
     expect(buildDefaultPlayerSkillKit('catkin', 120).active.map((entry) => entry.skill.id)).toEqual(
