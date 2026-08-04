@@ -513,6 +513,17 @@ export const migrations: Record<number, Migration> = {
     version: 28,
     dailyDungeons: { day: '', clearedTierIds: [], todayRuns: {} },
   }),
+  /**
+   * v29：M4-9 称号装备位。
+   *
+   * 顶层新增 equippedTitleId（null=未装备）。老玩家诚实迁移：从未装备过称号。
+   * 装备校验（必须已解锁）在 core/stores 层，存档层只保证结构。
+   */
+  28: (save) => ({
+    ...save,
+    version: 29,
+    equippedTitleId: null,
+  }),
 };
 
 function migrateV10Save(

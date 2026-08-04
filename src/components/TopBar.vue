@@ -5,12 +5,14 @@ import { abbr, signed } from '@/core/format';
 import { useGameStore } from '@/stores/game';
 import { useInventoryStore } from '@/stores/inventory';
 import { usePlayerStore } from '@/stores/player';
+import { useTitleStore } from '@/stores/titles';
 import { CLASS_INFO } from '@/data/constants';
 import CharacterAppearance from '@/components/CharacterAppearance.vue';
 
 const playerStore = usePlayerStore();
 const inventoryStore = useInventoryStore();
 const gameStore = useGameStore();
+const titleStore = useTitleStore();
 
 // ─────────── K4 · 经验条冻结态（docs/57）：到达区域顶点时「停住」，攒的经验解锁后释放 ───────────
 const capInfo = computed(() => gameStore.levelCapInfo);
@@ -89,6 +91,9 @@ onUnmounted(() => {
         <span class="name">{{ playerStore.player.name }}</span>
         <span class="lv num">Lv.{{ playerStore.player.level }}</span>
         <span v-if="cls" class="cls">{{ cls.name }}</span>
+        <span v-if="titleStore.equippedTitle" class="title-suffix">
+          {{ titleStore.equippedTitle.name }}
+        </span>
       </div>
       <div
         class="expbar"
@@ -227,6 +232,20 @@ onUnmounted(() => {
   color: var(--pink-deep);
   background: var(--pink-soft);
   border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.title-suffix {
+  flex: none;
+  max-width: 104px;
+  overflow: hidden;
+  padding: 0 6px;
+  font-size: 9px;
+  color: #8d5fc0;
+  background: #f1eaff;
+  border-radius: 999px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   flex-shrink: 0;
 }
 

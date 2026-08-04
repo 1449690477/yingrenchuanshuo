@@ -80,7 +80,7 @@ export type { EquipmentCodexLedger } from '@/core/equipmentCodex';
 export type { EquipmentPresetState } from '@/core/equipmentPresets';
 
 /** 当前存档版本。加字段就 +1。 */
-export const SAVE_VERSION = 28;
+export const SAVE_VERSION = 29;
 
 export const SAVE_KEY = 'main';
 
@@ -305,6 +305,8 @@ export interface SaveData {
   mail: MailState;
   /** M4-4 日常材料副本：日切 key + 历史通过难度 + 今日各档挑战次数。 */
   dailyDungeons: DailyDungeonState;
+  /** M4-9 称号装备位：当前装备的称号 id，null=未装备（ADR-026 纯展示，不进战斗）。 */
+  equippedTitleId: string | null;
 }
 
 export function emptyEquipped(): Record<EquipSlot, EquipmentInstance | null> {
@@ -386,6 +388,7 @@ export function createSave(name: string, classId: ClassId, seed: number, now: nu
     monsterCodex: createMonsterCodexLedger(),
     mail: createMailState(),
     dailyDungeons: createDailyDungeonState(),
+    equippedTitleId: null,
   };
 }
 
@@ -1065,6 +1068,9 @@ export const saveDataSchema = z
         ),
       })
       .strict(),
+    // M4-9 称号装备位：只校验结构（非空字符串或 null），id 是否存在交给 core 的
+    // isTitleEquippable 判定，避免存档层与称号表耦合（与 activeSkillIds 同口径）。
+    equippedTitleId: z.string().min(1).nullable(),
   })
   .strict()
   .superRefine((save, ctx) => {

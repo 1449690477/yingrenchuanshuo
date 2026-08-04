@@ -41,9 +41,15 @@ function input(overrides: Partial<AchievementInput> = {}): AchievementInput {
   };
 }
 
-async function render(inputValue: AchievementInput): Promise<string> {
+async function render(
+  inputValue: AchievementInput,
+  equippedTitleId: string | null = null,
+): Promise<string> {
   return renderToString(
-    createSSRApp(TitlesView, { unlockedTitles: evaluateUnlockedTitles(inputValue) }),
+    createSSRApp(TitlesView, {
+      unlockedTitles: evaluateUnlockedTitles(inputValue),
+      equippedTitleId,
+    }),
   );
 }
 
@@ -88,5 +94,23 @@ describe('TitlesView 展示面板', () => {
   it('视图不复制数值：target 一律来自 data 权威表', () => {
     expect(viewSource).toMatch(/from ['"]@\/data\/titles['"]/);
     expect(viewSource).not.toMatch(/target\s*:\s*\d/);
+  });
+
+  it('装备位：已装备称号显示「已装备 + 卸下」，其余已解锁称号显示「装备」，未解锁无按钮', async () => {
+    const html = await render(input({ totalKills: 20000 }), 'slayer_10k');
+    expect(html).toContain('已装备');
+    expect(html).toContain('卸下');
+    expect(html).toContain('装备');
+    // slayer_100k 未解锁（2 万击杀 < 10 万）：其条目内不得出现装备按钮
+    const slayer100kName = TITLES.find((title) => title.id === 'slayer_100k')!.name;
+    const from100k = html.slice(html.indexOf(slayer100kName));
+    expect(from100k.slice(0, from100k.indexOf('</li>'))).not.toContain('装备');
+  });
+
+  it('未装备时：已解锁称号只有「装备」，不出现「已装备 / 卸下」', async () => {
+    const html = await render(input({ totalKills: 20000 }));
+    expect(html).not.toContain('已装备');
+    expect(html).not.toContain('卸下');
+    expect(html).toContain('装备');
   });
 });

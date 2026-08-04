@@ -1745,6 +1745,41 @@ describe('v21 技能栏存档层 · 老存档零行为变化（M3-5a 验收）',
     expect(() => parseSave(migrated as Parameters<typeof parseSave>[0])).not.toThrow();
   });
 
+  it('v28 → v29 新增称号装备位 null，不改写其他资产（从未装备过，诚实迁移）', () => {
+    const current = createSave('称号前旧档', 'catkin', 24, 1_800_000_000_000) as unknown as Record<
+      string,
+      unknown
+    >;
+    const raw = structuredClone(current);
+    delete raw.equippedTitleId;
+    raw.version = 28;
+
+    const migrated = migrate(raw);
+
+    expect(migrated.version).toBe(SAVE_VERSION);
+    expect(migrated.equippedTitleId).toBeNull();
+    expect(migrated.player).toEqual(current.player);
+    expect(migrated.mail).toEqual(current.mail);
+    expect(migrated.dailyDungeons).toEqual(current.dailyDungeons);
+    expect(() => parseSave(migrated as Parameters<typeof parseSave>[0])).not.toThrow();
+  });
+
+  it('v28 → v29 无视导入档伪造的 equippedTitleId：合法 v28 无装备态，注入内容一律被 null 覆盖', () => {
+    const current = createSave('带称号旧档', 'catkin', 24, 1_800_000_000_000) as unknown as Record<
+      string,
+      unknown
+    >;
+    const raw = structuredClone(current);
+    delete raw.equippedTitleId;
+    raw.version = 28;
+    raw.equippedTitleId = 'legend_80';
+
+    const migrated = migrate(raw);
+
+    expect(migrated.version).toBe(SAVE_VERSION);
+    expect(migrated.equippedTitleId).toBeNull();
+  });
+
   it('v25 → v26 无视导入档伪造的 mail 字段：合法 v25 无邮件，注入内容一律被空邮箱覆盖', () => {
     const current = createSave('带信旧档', 'catkin', 24, 1_800_000_000_000) as unknown as Record<
       string,

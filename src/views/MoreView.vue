@@ -622,7 +622,14 @@ function say(text: string, ok: boolean) {
     </Transition>
 
     <Transition name="page-up" @after-leave="afterTitlesLeave">
-      <TitlesView v-if="showTitles" :unlocked-titles="titles.unlockedTitles" @close="closeTitles" />
+      <TitlesView
+        v-if="showTitles"
+        :unlocked-titles="titles.unlockedTitles"
+        :equipped-title-id="titles.equippedTitleId"
+        @close="closeTitles"
+        @equip="titles.equip"
+        @unequip="titles.unequip"
+      />
     </Transition>
 
     <Transition name="page-up" @after-leave="afterMonsterCodexLeave">

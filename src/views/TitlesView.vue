@@ -11,8 +11,18 @@ import { TITLES } from '@/data/titles';
 import type { TitleResult } from '@/core/titles';
 import type { AchievementCategory, AchievementStat } from '@/core/achievements';
 
-const props = defineProps<{ unlockedTitles: readonly TitleResult[] }>();
-const emit = defineEmits<{ (e: 'close'): void }>();
+const props = withDefaults(
+  defineProps<{
+    unlockedTitles: readonly TitleResult[];
+    equippedTitleId?: string | null;
+  }>(),
+  { equippedTitleId: null },
+);
+const emit = defineEmits<{
+  (e: 'close'): void;
+  (e: 'equip', titleId: string): void;
+  (e: 'unequip'): void;
+}>();
 
 const STAT_CATEGORY: Record<AchievementStat, AchievementCategory> = {
   totalKills: 'battle',
@@ -119,7 +129,7 @@ const groups = computed(() =>
           v-for="{ def, unlocked, progress } in group.items"
           :key="def.id"
           class="title-item"
-          :class="{ unlocked }"
+          :class="{ unlocked, equipped: equippedTitleId === def.id }"
         >
           <div class="item-head">
             <strong>{{ def.name }}</strong>
@@ -130,6 +140,25 @@ const groups = computed(() =>
             <i :style="{ width: `${Math.min(100, (progress / def.target) * 100)}%` }" />
           </div>
           <span class="progress-num">{{ progress }} / {{ def.target }}</span>
+          <div class="item-actions">
+            <button
+              v-if="unlocked && equippedTitleId !== def.id"
+              type="button"
+              class="equip-btn"
+              @click="emit('equip', def.id)"
+            >
+              装备
+            </button>
+            <span v-if="equippedTitleId === def.id" class="equipped-badge">已装备</span>
+            <button
+              v-if="equippedTitleId === def.id"
+              type="button"
+              class="equip-btn ghost"
+              @click="emit('unequip')"
+            >
+              卸下
+            </button>
+          </div>
         </li>
       </ul>
     </section>
@@ -326,6 +355,44 @@ const groups = computed(() =>
 .progress-num {
   font-size: 10px;
   color: var(--text-dim, #7b8499);
+}
+
+.title-item.equipped {
+  outline: 1.5px solid rgb(255 156 189 / 72%);
+  outline-offset: 1px;
+}
+
+.item-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.equip-btn {
+  min-height: 34px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, #ff8fb3, #a994ea);
+  border: 0;
+  border-radius: 999px;
+}
+
+.equip-btn.ghost {
+  color: #d65f8f;
+  background: #ffe8f1;
+}
+
+.equipped-badge {
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #b75f86;
+  background: #fff0f6;
+  border: 1px solid #ffd3e4;
+  border-radius: 999px;
 }
 
 @media (max-width: 360px) {
