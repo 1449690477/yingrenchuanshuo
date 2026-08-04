@@ -1174,16 +1174,15 @@
         10,
         15,
         629,
-        905
+        927
       ],
-      "alphaPixels": 346852,
-      "opaquePixels": 340860,
+      "alphaPixels": 363327,
+      "opaquePixels": 357013,
       "anchorAlpha": null,
-      "sha256": "4b0b994ebe48a1e8c8180d9085862c4274888ed1b126df382a87db08444a3494",
-      "alphaSha256": "bcaf4df060c5e8b4b52f99f34528d1d690b14f03410d1476b50f502754227835",
-      "shoeMaskPixels": 46210,
-      "shoePremultipliedMae": 0.262018,
-      "shoeAlphaMae": 0.165375
+      "sha256": "de41c7da00405289e34c0f739a5866261db15ca082bfa6a7dcd4ad6a307f7d95",
+      "alphaSha256": "22c449d1db9e834786dd5c441f4772232058c4ebb848118bd0589e6cf0a87f6f",
+      "dressSkirtRowWidth": 523,
+      "dressFeetRowWidth": 65
     },
     {
       "key": "ice-snow/kenshi/head",
@@ -2325,14 +2324,14 @@
         48,
         10,
         207,
-        236
+        241
       ],
-      "alphaPixels": 22780,
-      "meanLuminance": 190.62,
-      "meanChroma": 23.77,
-      "nearWhiteRatio": 0.0107,
-      "darkPixelRatio": 0.5924,
-      "sha256": "e278777ede1bb4e9d161147d99b246b964d6a99fd9654f8c8498957a96471a31"
+      "alphaPixels": 23640,
+      "meanLuminance": 189.99,
+      "meanChroma": 24.02,
+      "nearWhiteRatio": 0.0094,
+      "darkPixelRatio": 0.6057,
+      "sha256": "76a49b9abaacc5613320d5eb4f771dcb6a3cfb75587aa23053fd8bf3e745cdbc"
     },
     {
       "key": "cardboard-cat/body-catkin.png",

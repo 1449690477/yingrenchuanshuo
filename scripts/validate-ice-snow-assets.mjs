@@ -105,52 +105,39 @@ async function inspectWhiteBackgroundContrast(path) {
   if (info.width !== 256 || info.height !== 256) fail(`${path}: 白底门禁只接受 256×256 图标`);
 }
 
-function maskedPixelDifference(actual, expected, mask) {
-  let checked = 0;
-  let premultipliedError = 0;
-  let alphaError = 0;
-  for (let offset = 0; offset < mask.data.length; offset += mask.info.channels) {
-    if (mask.data[offset + 3] <= 20) continue;
-    checked += 1;
-    const actualAlpha = actual.data[offset + 3] / 255;
-    const expectedAlpha = expected.data[offset + 3] / 255;
-    alphaError += Math.abs(actual.data[offset + 3] - expected.data[offset + 3]);
-    for (let channel = 0; channel < 3; channel += 1) {
-      premultipliedError += Math.abs(
-        actual.data[offset + channel] * actualAlpha -
-          expected.data[offset + channel] * expectedAlpha,
-      );
+/**
+ * 2026-08-04 合同换代：旧「无内置鞋合同」把鞋遮罩区回填 base-noshoes——
+ * 对 v1 母版是对的（v1 把靴子画进身体）；v2 母版是及地长裙、无内置鞋，
+ * 鞋遮罩（高筒靴）与裙面重叠，回填等于把裙布当靴子挖穿（y740 行不透明宽
+ * 521→355px，老板线上单件试穿实测露腿）。现行构型=底模垫层
+ * （build 的 underlayKenshiBase）：裙面保真由 compareWearableAlpha 承担，
+ * 这里验两条实测锚定的完整性探针，两侧都有背书：
+ * ① 裙宽完整：y=740 行不透明宽度 ≥480（母版实测 521；挖洞事故时 355）；
+ * ② 单穿有脚：y=860 行不透明宽度 ≥30（垫层后实测约 63；漏垫层则 0 悬空）。
+ */
+async function inspectKenshiDressIntegrity() {
+  const { data, info } = await sharp(
+    resolve(ROOT, 'public/assets/characters/modular/shop/ice-snow/kenshi-body.png'),
+  )
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const rowWidth = (y) => {
+    let n = 0;
+    for (let x = 0; x < info.width; x += 1) {
+      if (data[(y * info.width + x) * 4 + 3] > 128) n += 1;
     }
-  }
-  return {
-    checked,
-    premultipliedMae: premultipliedError / (checked * 3),
-    alphaMae: alphaError / checked,
+    return n;
   };
-}
-
-async function inspectKenshiNoEmbeddedShoes() {
-  const load = (path) => sharp(path).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-  const [body, baseNoShoes, shoes] = await Promise.all([
-    load(resolve(ROOT, 'public/assets/characters/modular/shop/ice-snow/kenshi-body.png')),
-    load(resolve(ROOT, 'public/assets/characters/modular/kenshi/base-noshoes.png')),
-    load(resolve(ROOT, 'public/assets/characters/modular/shop/ice-snow/kenshi-shoes.png')),
-  ]);
-  const pixels = maskedPixelDifference(body, baseNoShoes, shoes);
-  if (pixels.checked < 2_000) {
-    fail(`樱酱冰雪鞋遮罩仅 ${pixels.checked} 像素，无法证明 replacement 已剔除内置鞋`);
+  const skirt = rowWidth(740);
+  const feet = rowWidth(860);
+  if (skirt < 480) {
+    fail(`樱酱冰雪长裙 y740 行不透明宽度仅 ${skirt}px（应 ≥480）——裙面疑似被鞋区处理挖穿`);
   }
-  // 阈值 0.6：v1 无损出口时代是 0.1（回填字节精确，任何非零即 bug）。
-  // v2 母版体量超预算，kenshi-body 出口降级为 RGBA 调色板（见 build 的
-  // writePng），量化让回填区偏离 base-noshoes 实测 premulMAE≈0.33 /
-  // alphaMAE≈0.15（2026-08-03）。真实内置鞋违规是几十 MAE 量级，
-  // 0.6 仍留有两个数量级的判别余量。
-  if (pixels.premultipliedMae > 0.6 || pixels.alphaMae > 0.6) {
-    fail(
-      `樱酱冰雪 body 仍含内置鞋：鞋遮罩 premulMAE=${pixels.premultipliedMae.toFixed(3)} / alphaMAE=${pixels.alphaMae.toFixed(3)}`,
-    );
+  if (feet < 30) {
+    fail(`樱酱冰雪单穿 y860 行不透明宽度仅 ${feet}px（应 ≥30）——底模垫层缺失，单穿会悬空无脚`);
   }
-  return pixels;
+  return { skirt, feet };
 }
 
 async function alphaShape(input) {
@@ -456,10 +443,11 @@ async function compareWearableAlpha(source, target, slot, classId) {
     sharp(target).ensureAlpha().raw().toBuffer({ resolveWithObject: true }),
   ]);
   // body 成品在独立鞋层落点上**必然**异于母版：老四职业在构建期把衣裙
-  // Alpha 让位给鞋层（build 的 yieldBodyToShoes，防靴口穿透裙面）；樱酱则按
-  // 无内置鞋合同回填 base-noshoes（removeKenshiEmbeddedShoes），该区另由
-  // inspectKenshiNoEmbeddedShoes 单独验收。两类都跳过鞋区不计。
+  // Alpha 让位给鞋层（build 的 yieldBodyToShoes，防靴口穿透裙面）；樱酱是
+  // 底模垫层构型（underlayKenshiBase），底模在母版透明/半透明处合法出现，
+  // 由下方 underlayMask 豁免；完整性另由 inspectKenshiDressIntegrity 验收。
   let shoeMask = null;
+  let underlayMask = null;
   let headZoneMask = null;
   if (slot === 'body') {
     const shift = await computeShoeShift(classId, ROOT);
@@ -491,6 +479,13 @@ async function compareWearableAlpha(source, target, slot, classId) {
         }
       }
     }
+    if (classId === 'kenshi') {
+      // 底模垫层构型：底模剪影内、母版非全不透明处，成品像素合法混入底模。
+      underlayMask = Buffer.alloc(baseRaw.info.width * baseRaw.info.height);
+      for (let pixel = 0; pixel < underlayMask.length; pixel += 1) {
+        if (baseRaw.data[pixel * 4 + 3] > 16) underlayMask[pixel] = 255;
+      }
+    }
   }
   let compared = 0;
   let alphaMismatch = 0;
@@ -501,6 +496,7 @@ async function compareWearableAlpha(source, target, slot, classId) {
   for (let offset = 0; offset < a.data.length; offset += 4) {
     if (shoeMask && shoeMask[offset / 4] > 20) continue;
     if (headZoneMask && headZoneMask[offset / 4] > 0) continue;
+    if (underlayMask && underlayMask[offset / 4] > 0 && a.data[offset + 3] < 250) continue;
     compared += 1;
     const deltaAlpha = Math.abs(a.data[offset + 3] - b.data[offset + 3]);
     if (deltaAlpha !== 0) alphaMismatch += 1;
@@ -693,7 +689,7 @@ for (const classId of CLASSES) {
   await assertHeadAnchor(classId);
 }
 
-const kenshiShoeContract = await inspectKenshiNoEmbeddedShoes();
+const kenshiDressIntegrity = await inspectKenshiDressIntegrity();
 
 for (const fileName of ICON_FILES) {
   const iconPath = resolve(ROOT, `public/assets/equipment/shop/ice-snow/${fileName}`);
@@ -728,7 +724,7 @@ if (failures.length) {
   process.exitCode = 1;
 } else {
   console.log(
-    `樱酱无内置鞋合同通过：冰雪鞋遮罩 ${kenshiShoeContract.checked} 像素，premulMAE=${kenshiShoeContract.premultipliedMae.toFixed(3)}，alphaMAE=${kenshiShoeContract.alphaMae.toFixed(3)}。`,
+    `樱酱长裙完整性通过：y740 裙宽 ${kenshiDressIntegrity.skirt}px，y860 底模脚 ${kenshiDressIntegrity.feet}px（底模垫层构型）。`,
   );
   console.log(
     `冰雪华年资产门禁通过：20 穿戴层与 v2 母版保真（帽区 180→100px 实机校正），13 图标、5 原创特效、1 货架规格全绿；旧主题 Alpha 轮廓最大 IoU：${effectShapeEvidence.join('，')}；伪装复制最低锚点：${effectShapeCalibration.join('，')}。`,

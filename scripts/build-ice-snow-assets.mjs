@@ -195,8 +195,8 @@ async function writePng(buffer, output, budget = WEARABLE_SIZE_BUDGET) {
  * 运行时 z 序是 body < shoes（characterAppearance 的 slotOrder），靴子画在
  * 裙摆之上；v2 长裙如原样落位，靴口会穿透裙面。与 v1 同一契约：
  * 「长裙可以下垂，但不得与同主题独立鞋层逐像素重叠」（shopAppearanceVisual.spec）。
- * 樱酱不走这里——她的 body 是整身 replacement，由 removeKenshiEmbeddedShoes
- * 按无内置鞋合同回填 base-noshoes。
+ * 樱酱不走这里——她的 body 是整身 replacement，走底模垫层构型
+ * （underlayKenshiBase），独立鞋层画在长裙之上，无需让位。
  */
 async function yieldBodyToShoes(bodyBuffer, classId, shoesBuffer) {
   const [body, shoesAlpha] = await Promise.all([
@@ -305,28 +305,31 @@ async function alignShamanWeapon(buffer, align) {
     .toBuffer();
 }
 
-async function removeKenshiEmbeddedShoes() {
+/**
+ * 2026-08-04 换代：旧 removeKenshiEmbeddedShoes 按鞋遮罩把 body 像素**回填**
+ * 成 base-noshoes——那是 v1 合同（v1 母版把靴子画进身体）。v2 母版是及地
+ * 长裙、无内置鞋，鞋遮罩（高筒靴）与裙面重叠，回填等于在裙摆上挖洞：
+ * y740 行裙宽 521→355px，老板线上单件试穿实测露腿（见 git 历史与频道
+ * 2026-08-04 晨记录）。正确构型是**把底模垫在长裙之下**：裙面逐像素保真，
+ * 裙摆之下（母版透明处）自然露出底模的腿脚，单穿不悬空；防双鞋由
+ * base-noshoes 本身无鞋保证，跨主题鞋层照常画在裙上。
+ */
+async function underlayKenshiBase() {
   const bodyPath = resolve(targetWearableRoot, 'kenshi-body.png');
-  const shoesPath = resolve(targetWearableRoot, 'kenshi-shoes.png');
   const baseNoShoesPath = resolve(ROOT, 'public/assets/characters/modular/kenshi/base-noshoes.png');
-  const [body, shoes, baseNoShoes] = await Promise.all([
-    sharp(bodyPath).ensureAlpha().raw().toBuffer({ resolveWithObject: true }),
-    sharp(shoesPath).ensureAlpha().raw().toBuffer({ resolveWithObject: true }),
-    sharp(baseNoShoesPath).ensureAlpha().raw().toBuffer({ resolveWithObject: true }),
+  const [bodyMeta, baseMeta] = await Promise.all([
+    sharp(bodyPath).metadata(),
+    sharp(baseNoShoesPath).metadata(),
   ]);
-  const dimensions = [body, shoes, baseNoShoes].map(({ info }) =>
-    `${info.width}x${info.height}x${info.channels}`,
-  );
-  if (new Set(dimensions).size !== 1) {
-    throw new Error(`樱酱无鞋合同尺寸不一致：${dimensions.join(' / ')}`);
+  if (bodyMeta.width !== baseMeta.width || bodyMeta.height !== baseMeta.height) {
+    throw new Error(
+      `樱酱底模垫层尺寸不一致：${bodyMeta.width}x${bodyMeta.height} / ${baseMeta.width}x${baseMeta.height}`,
+    );
   }
-  for (let offset = 0; offset < shoes.data.length; offset += shoes.info.channels) {
-    if (shoes.data[offset + 3] <= 20) continue;
-    for (let channel = 0; channel < 4; channel += 1) {
-      body.data[offset + channel] = baseNoShoes.data[offset + channel];
-    }
-  }
-  const composited = await sharp(body.data, { raw: body.info }).png().toBuffer();
+  const composited = await sharp(baseNoShoesPath)
+    .composite([{ input: bodyPath, blend: 'over' }])
+    .png()
+    .toBuffer();
   await writePng(composited, bodyPath);
 }
 
@@ -384,9 +387,9 @@ for (const classId of CLASSES) {
     .toFile(effectOutput);
 }
 
-// 樱酱 body 是整身 replacement，而冰雪鞋是独立可穿层。鞋层实际覆盖的每个像素都必须
-// 回到 base-noshoes，不能靠吞掉 shoes 图层掩盖旧鞋；否则商品买到后会形成双鞋。
-await removeKenshiEmbeddedShoes();
+// 樱酱 body 是整身 replacement：长裙压在底模之上合成完整人物，
+// 单穿有头有脚、裙面不缺一像素（合同细节见 underlayKenshiBase 注释）。
+await underlayKenshiBase();
 
 for (const fileName of ICON_FILES) {
   const input = resolve(sourceIconRoot, fileName);

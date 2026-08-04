@@ -320,24 +320,31 @@ describe('商城五职业换装视觉合同', () => {
     }
   });
 
-  it('樱酱四套 replacement 已剔除内置鞋，跨主题鞋履不会形成双鞋', async () => {
+  it('樱酱 replacement：v1 三套已剔除内置鞋，冰雪 v2 长裙完整且单穿有脚', async () => {
+    // 2026-08-04 合同换代：v1 母版把靴子画进身体，「鞋区==裸腿」回填合同只
+    // 适用于 v1 三套。冰雪 v2 是及地长裙+底模垫层构型（underlayKenshiBase），
+    // 旧合同会把裙布当内置鞋挖穿（y740 行宽 521→355，老板线上实测露腿），
+    // 改验裙宽完整与单穿有脚两条实测锚定探针。
     const baseNoShoes = await layerStats('assets/characters/modular/kenshi/base-noshoes.png');
-    for (const theme of THEMES) {
+    const legacyThemes = THEMES.filter((theme) => theme !== 'ice-snow');
+    expect(legacyThemes).toHaveLength(3);
+    for (const theme of legacyThemes) {
       const [body, shoes] = await Promise.all([
         layerStats(`assets/characters/modular/shop/${theme}/kenshi-body.png`),
         layerStats(`assets/characters/modular/shop/${theme}/kenshi-shoes.png`),
       ]);
       const pixels = maskedPixelDifference(body, baseNoShoes, shoes);
       expect(pixels.checked, theme).toBeGreaterThan(2_000);
-      // 阈值 0.6：冰雪 v2 母版超预算，kenshi-body 出口降级为 RGBA 调色板
-      // （build-ice-snow-assets 的 writePng），量化让回填区偏离 base-noshoes
-      // 实测 premulMAE≈0.33 / alphaMAE≈0.15（2026-08-03）。真实内置鞋违规是
-      // 几十 MAE 量级，0.6 仍留有两个数量级的判别余量。
       expect(pixels.premultipliedMae, `${theme} 的 replacement 仍画着内置鞋`).toBeLessThanOrEqual(
         0.6,
       );
       expect(pixels.alphaMae, `${theme} 的 replacement 鞋区 alpha 未还原`).toBeLessThanOrEqual(0.6);
     }
+    const iceSnowBody = await layerStats('assets/characters/modular/shop/ice-snow/kenshi-body.png');
+    const skirtRow = alphaInRect(iceSnowBody, [0, 740, 640, 1]);
+    const feetRow = alphaInRect(iceSnowBody, [0, 860, 640, 1]);
+    expect(skirtRow, '冰雪长裙 y740 行宽（母版 521，挖穿事故时 355）').toBeGreaterThanOrEqual(480);
+    expect(feetRow, '冰雪单穿 y860 底模脚（漏垫层则 0 悬空）').toBeGreaterThanOrEqual(30);
   });
 
   it('四套主题任意混穿时，五职业仍保持正确底模、图层顺序和素材来源', () => {

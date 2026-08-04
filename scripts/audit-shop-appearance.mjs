@@ -428,24 +428,37 @@ for (const theme of THEMES) {
 
   const kenshiBody = await inspect(assetPath(theme, 'kenshi', 'body'));
   const kenshiShoes = await inspect(assetPath(theme, 'kenshi', 'shoes'));
-  const shoeMaskPixels = maskedPixelDifference(kenshiBody, kenshiBaseNoShoes, kenshiShoes);
-  if (shoeMaskPixels.checked < 2_000) {
-    fail(`${theme}/kenshi/shoes 鞋履遮罩过小，无法证明 replacement 已剔除内置鞋`);
-  }
-  // 阈值 0.6：冰雪 v2 起 kenshi-body 出口降级为 RGBA 调色板（见
-  // build-ice-snow-assets 的 writePng），量化让回填区偏离 base-noshoes
-  // 实测 premulMAE≈0.33 / alphaMAE≈0.15（2026-08-03）。真实内置鞋违规是
-  // 几十 MAE 量级，0.6 仍留有两个数量级的判别余量。
-  if (shoeMaskPixels.premultipliedMae > 0.6 || shoeMaskPixels.alphaMae > 0.6) {
-    fail(
-      `${theme}/kenshi/body 仍含内置鞋：鞋履遮罩 premulMAE=${shoeMaskPixels.premultipliedMae.toFixed(3)} / alphaMAE=${shoeMaskPixels.alphaMae.toFixed(3)}`,
-    );
-  }
-  const kenshiBodyReport = report.find((entry) => entry.key === `${theme}/kenshi/body`);
-  if (kenshiBodyReport) {
-    kenshiBodyReport.shoeMaskPixels = shoeMaskPixels.checked;
-    kenshiBodyReport.shoePremultipliedMae = Number(shoeMaskPixels.premultipliedMae.toFixed(6));
-    kenshiBodyReport.shoeAlphaMae = Number(shoeMaskPixels.alphaMae.toFixed(6));
+  if (theme === 'ice-snow') {
+    // 2026-08-04 合同换代：冰雪 v2 樱酱是底模垫层构型（长裙压底模，见
+    // build-ice-snow-assets 的 underlayKenshiBase）——旧「鞋区==裸腿」合同
+    // 会把及地长裙的裙布当内置鞋挖穿（老板线上实测露腿）。这里改验
+    // 裙宽完整（y740 ≥480，母版 521/事故 355）与单穿有脚（y860 ≥30）。
+    const skirtRow = alphaInRect(kenshiBody, [0, 740, WIDTH, 1]);
+    const feetRow = alphaInRect(kenshiBody, [0, 860, WIDTH, 1]);
+    if (skirtRow < 480) fail(`ice-snow/kenshi/body y740 裙宽仅 ${skirtRow}px（应 ≥480）——裙面被挖穿`);
+    if (feetRow < 30) fail(`ice-snow/kenshi/body y860 仅 ${feetRow}px（应 ≥30）——底模垫层缺失`);
+    const kenshiBodyReport = report.find((entry) => entry.key === `${theme}/kenshi/body`);
+    if (kenshiBodyReport) {
+      kenshiBodyReport.dressSkirtRowWidth = skirtRow;
+      kenshiBodyReport.dressFeetRowWidth = feetRow;
+    }
+  } else {
+    const shoeMaskPixels = maskedPixelDifference(kenshiBody, kenshiBaseNoShoes, kenshiShoes);
+    if (shoeMaskPixels.checked < 2_000) {
+      fail(`${theme}/kenshi/shoes 鞋履遮罩过小，无法证明 replacement 已剔除内置鞋`);
+    }
+    // v1 主题维持原合同：v1 母版把靴子画进身体，回填后鞋区必须等于裸腿。
+    if (shoeMaskPixels.premultipliedMae > 0.6 || shoeMaskPixels.alphaMae > 0.6) {
+      fail(
+        `${theme}/kenshi/body 仍含内置鞋：鞋履遮罩 premulMAE=${shoeMaskPixels.premultipliedMae.toFixed(3)} / alphaMAE=${shoeMaskPixels.alphaMae.toFixed(3)}`,
+      );
+    }
+    const kenshiBodyReport = report.find((entry) => entry.key === `${theme}/kenshi/body`);
+    if (kenshiBodyReport) {
+      kenshiBodyReport.shoeMaskPixels = shoeMaskPixels.checked;
+      kenshiBodyReport.shoePremultipliedMae = Number(shoeMaskPixels.premultipliedMae.toFixed(6));
+      kenshiBodyReport.shoeAlphaMae = Number(shoeMaskPixels.alphaMae.toFixed(6));
+    }
   }
 
   for (const fileName of ICON_FILES) {
