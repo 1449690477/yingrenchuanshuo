@@ -917,7 +917,7 @@ export const useGameStore = defineStore('game', () => {
   }
 
   /**
-   * 本地 PvE 收藏奖励总乘区（%）：图鉴 + 成就 + 称号，封顶 5.5%（ADR-024/025）。
+   * 本地 PvE 收藏奖励总乘区（%）：图鉴 + 成就 + 称号，封顶 7.0%（ADR-024/025）。
    * 称号幅值待数值线确认前按 0 计入；试炼 / 竞技不读取本值。
    */
   const localPveBonusPercent = computed(() => {

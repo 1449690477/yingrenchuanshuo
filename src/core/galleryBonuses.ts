@@ -18,6 +18,7 @@
 
 import { monstersOfChapter } from '@/data/monsters';
 import { REGIONS } from '@/data/regions';
+import { ACHIEVEMENT_BONUS_MAX_PERCENT } from '@/core/achievements';
 
 /** 每集齐一个区域的伤害加成（百分点）。 */
 export const GALLERY_REGION_BONUS_PERCENT = 0.5;
@@ -26,10 +27,13 @@ export const GALLERY_REGION_BONUS_PERCENT = 0.5;
 export const GALLERY_BONUS_CAP_PERCENT = 5;
 
 /**
- * 本地 PvE 总加成上限（百分点，ADR-025 数值线裁定）：
- * 图鉴集齐 3.5%（r1~r7）+ 成就 2.0% = 5.5% 封顶。
+ * 本地 PvE 总加成上限（百分点点数，ADR-025 数值线裁定 + 2026-08-04 求和推导定稿）：
+ * = 图鉴集齐上限（GALLERY_BONUS_CAP_PERCENT）+ 成就档位上限（ACHIEVEMENT_BONUS_MAX_PERCENT）
+ * = 5.0 + 2.0 = 7.0。各来源上限之和即为总上限，结构上不可能再静默截断；
+ * r8 上线后图鉴 4.0% + 成就 2.0% = 6.0% 仍在预算内（余量 1.0%）。
  */
-export const LOCAL_PVE_BONUS_CAP_PERCENT = 5.5;
+export const LOCAL_PVE_BONUS_CAP_PERCENT =
+  GALLERY_BONUS_CAP_PERCENT + ACHIEVEMENT_BONUS_MAX_PERCENT;
 
 /**
  * 合并本地 PvE 各来源加成并封顶（图鉴 + 成就 + 称号……）。

@@ -1,11 +1,13 @@
 /**
  * 图鉴集齐加成（M4-8 P3）契约测试。
  *
- * 口径来自数值线裁定（小衡 2026-08-03）：战斗乘区、不进 CP、
- * 每区域集齐 +0.5%、总上限 5%、仅本地 PvE 生效。
+ * 口径来自数值线裁定（小衡 ADR-024/025，2026-08-04 求和推导定稿）：
+ * 战斗乘区、不进 CP、每区域集齐 +0.5%、图鉴总上限 5%、仅本地 PvE 生效；
+ * 本地 PvE 总上限 = 图鉴上限 + 成就上限 = 7.0%，由各来源上限求和推导。
  */
 
 import { describe, expect, it } from 'vitest';
+import { ACHIEVEMENT_BONUS_MAX_PERCENT } from '../achievements';
 import {
   GALLERY_BONUS_CAP_PERCENT,
   GALLERY_REGION_BONUS_PERCENT,
@@ -58,7 +60,7 @@ describe('加成幅值（数值线裁定）', () => {
     expect(bonus).toBeLessThanOrEqual(GALLERY_BONUS_CAP_PERCENT);
   });
 
-  it('部分区域集齐只加对应档位（两区=1%）', () => {
+  it('部分区域集齐只加对应档位（两区 = 1%）', () => {
     const twoRegions = REGIONS.slice(0, 2).flatMap((r) => allMonsterIdsOfRegion(r.id));
     expect(galleryDamageBonusPercent(twoRegions)).toBe(1);
   });
@@ -70,14 +72,25 @@ describe('加成幅值（数值线裁定）', () => {
   });
 });
 
-describe('本地 PvE 总加成合并（ADR-024/025 口径）', () => {
-  it('图鉴 3.5% + 成就 2.0% = 5.5% 封顶', () => {
-    expect(LOCAL_PVE_BONUS_CAP_PERCENT).toBe(5.5);
+describe('本地 PvE 总加成合并（ADR-024/025 + 2026-08-04 求和推导）', () => {
+  it('总上限由各来源上限求和推导：图鉴 5% + 成就 2% = 7%', () => {
+    expect(LOCAL_PVE_BONUS_CAP_PERCENT).toBe(
+      GALLERY_BONUS_CAP_PERCENT + ACHIEVEMENT_BONUS_MAX_PERCENT,
+    );
+    expect(LOCAL_PVE_BONUS_CAP_PERCENT).toBe(7);
+  });
+
+  it('图鉴 3.5% + 成就 2.0% = 5.5%（r1~r7 现状，未触顶）', () => {
     expect(combineLocalPveBonuses([3.5, 2.0])).toBe(5.5);
   });
 
-  it('超过封顶时截断到 5.5%，负值按 0 计', () => {
-    expect(combineLocalPveBonuses([3.5, 2.0, 3])).toBe(5.5);
+  it('r8 图鉴 4.0% + 成就 2.0% = 6.0% 仍在求和预算内（余量 1.0%）', () => {
+    expect(combineLocalPveBonuses([4.0, 2.0])).toBe(6.0);
+    expect(6.0).toBeLessThanOrEqual(LOCAL_PVE_BONUS_CAP_PERCENT);
+  });
+
+  it('超过封顶时截断到 7.0%，负值按 0 计', () => {
+    expect(combineLocalPveBonuses([5, 2, 3])).toBe(7);
     expect(combineLocalPveBonuses([3.5, -1, 1])).toBe(4.5);
   });
 
