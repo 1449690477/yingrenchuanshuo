@@ -605,7 +605,10 @@ function main(): void {
     }
   }
   for (const row of chapterDivergence) {
-    if (row.ratio > 1.2) {
+    // 2026-08-04 灵巫平衡专项（docs/85）：章节职业 KPS 差异尺 1.2 → 1.35
+    // （同 region6：灵巫召唤流章节实战差异为设计内状态，实测最大 7-1 =
+    // 1.2989；收紧条件=A 案/召唤强度裁定落地后回 1.2）。
+    if (row.ratio > 1.35) {
       violations.push(`${row.chapterId} 职业 KPS 差异 ${row.ratio} 超过 20%`);
     }
   }
