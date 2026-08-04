@@ -37,7 +37,10 @@ export const SUMMON_DEFINITIONS = [
     id: 'summon_shaman_skeleton',
     name: '灵铃骷髅',
     ownerClass: 'shaman',
-    attackMultiplier: 0.45,
+    // 2026-08-04 灵巫平衡专项（docs/85）：召唤骷髅 0.45→0.40——
+    // 默认栏回归召唤流后，词条极值下灵巫偏离 N5 带，降 11% 压回 16.94%
+    // （再降非线性反弹，0.40 为实测最优；收紧条件=N5 回 15% 后恢复）。
+    attackMultiplier: 0.40,
     attackIntervalSec: 2,
     element: 'none',
     targeting: 'primary-enemy',
@@ -53,7 +56,9 @@ export const SUMMON_DEFINITIONS = [
     id: 'summon_shaman_divine_beast',
     name: '雷纹神兽',
     ownerClass: 'shaman',
-    attackMultiplier: 0.62,
+    // 2026-08-04 灵巫平衡专项（docs/85）：雷纹神兽 0.62→0.56（同骷髅批次，
+    // 降 10%，实测与骷髅同组最优）。
+    attackMultiplier: 0.56,
     attackIntervalSec: 1.8,
     element: 'thunder',
     targeting: 'lowest-hp-enemy',

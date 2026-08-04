@@ -11,9 +11,12 @@
  *     独立攻击生存标定（该版本与五职业同批上线，未产生过旧 v2 成绩）
  * 3 = 元素共鸣期望 DPS 折入（docs/83 批 3b）：玩家武器与 Boss 均带元素时，
  *     玩家直接伤害乘 1 + 期望占比（克制 6% / 中性 5%），服务端同一份实现复算。
+ * 4 = 灵巫平衡专项（docs/85，2026-08-04）：灵巫默认技能栏改召唤/输出优先
+ *     + 召唤数值微调（骷髅 0.40 / 神兽 0.56）——runTrial 的灵巫技能构成
+ *     与伤害输出变化，试炼成绩不可与 v3 混排。
  */
 export const LEGACY_TRIAL_FORMULA_VERSION = 1;
-export const TRIAL_FORMULA_VERSION = 3;
+export const TRIAL_FORMULA_VERSION = 4;
 
 /**
  * 成绩版本戳的唯一构造点。insert、replace 与同分 reverify 都必须展开它，避免某条
