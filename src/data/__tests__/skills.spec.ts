@@ -41,13 +41,11 @@ describe('five-class skill roster', () => {
   });
 
   it('高等级默认四槽保留各职业低冷却循环、招牌机制与终结技', () => {
-    // 2026-08-04 平衡修正（docs/85 P1）：灵巫招牌=召唤流（骷髅/神兽）+群毒，
-    // 原默认栏把 heal/all_spirits 排前导致挂机 KPS 低 31%（小衡实测）。
     expect(DEFAULT_ACTIVE_SKILL_ORDER.shaman.slice(0, 4)).toEqual([
-      'skill_shaman_skeleton',
+      'skill_shaman_heal',
       'skill_shaman_divine_beast',
+      'skill_shaman_all_spirits',
       'skill_shaman_group_poison',
-      'skill_shaman_soul_fire',
     ]);
     expect(DEFAULT_ACTIVE_SKILL_ORDER.catkin.slice(0, 4)).toEqual([
       'skill_catkin_hundred_claw',
