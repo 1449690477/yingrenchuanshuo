@@ -48,15 +48,17 @@ describe('summon data contract', () => {
   });
 
   it('召唤物只偶尔挡刀，且攻击与承伤数值锁定长战平衡基线', () => {
+    // 2026-08-04 灵巫平衡专项（docs/85）：骷髅 0.45→0.40、神兽 0.62→0.56
+    // （默认栏回归召唤流后词条极值压带，实测矩阵见 docs/85 §七）。
     expect(summonDefinition('summon_shaman_skeleton')).toMatchObject({
-      attackMultiplier: 0.45,
+      attackMultiplier: 0.4,
       attackIntervalSec: 2,
       targetWeight: 0.05,
       maxHpRatio: 0.35,
       defenseRatio: 0.55,
     });
     expect(summonDefinition('summon_shaman_divine_beast')).toMatchObject({
-      attackMultiplier: 0.62,
+      attackMultiplier: 0.56,
       attackIntervalSec: 1.8,
       targetWeight: 0.05,
       maxHpRatio: 0.55,
