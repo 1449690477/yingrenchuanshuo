@@ -25,7 +25,7 @@ describe('试炼公式版本端到端接线', () => {
     expect(coreEntrySource).toContain(
       "export { buildTrialFormulaStamp, TRIAL_FORMULA_VERSION } from '@/core/trialFormulaVersion';",
     );
-    expect(TRIAL_FORMULA_VERSION).toBe(3);
+    expect(TRIAL_FORMULA_VERSION).toBe(4);
     // 运行时行为：构造点返回的就是当前常量，不存在第二处版本号。
     expect(buildTrialFormulaStamp()).toEqual({
       trial_formula_version: TRIAL_FORMULA_VERSION,

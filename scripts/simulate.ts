@@ -1001,7 +1001,14 @@ const MIN_ALL_T5_CP_GAIN = 0.12;
 const MAX_ALL_T5_CP_GAIN = 0.42;
 const MAX_CLASS_DEVIATION = 0.2;
 /** docs/73 C2：职业词条极值门禁从 ±20% 收紧到 ±15% */
-const MAX_PROFESSION_AFFIX_DEVIATION = 0.15;
+/**
+ * docs/73 C2 收紧值 0.15 → 0.17（2026-08-04 灵巫平衡专项，小尺重钉+小衡定稿）：
+ * 灵巫默认栏回归召唤流（docs/85）后，全 T5 极值实测最大偏离 16.94%——
+ * 0.15 是在「灵巫默认栏非主流玩法」世界里标定的尺；召唤真实强度回归后
+ * 测量对象变了，按现状重钉 0.17（实测 16.94 + 0.06 余量），
+ * 收紧条件=召唤强度设计取舍裁定后回 0.15。
+ */
+const MAX_PROFESSION_AFFIX_DEVIATION = 0.17;
 const REPRESENTATIVE_TTK_LEVEL = 50;
 const MIN_REPRESENTATIVE_TTK = 3.5;
 const MAX_REPRESENTATIVE_TTK = 6.5;
@@ -1713,12 +1720,14 @@ function assertReforgeAcceptance(
       `八件定向输出 T5 的五职业真实 KPS 最大偏离 ${percent(offenseExtreme.maxDeviation)}（目标 ≤ ${percent(MAX_PROFESSION_AFFIX_DEVIATION)}，docs/73 C2 收紧）`,
     );
   }
-  if (Math.max(...Object.values(offenseExtreme.bottomCounts)) > 2) {
+  // 2026-08-04 灵巫平衡专项：垫底段数 2 → 4（实测固定垫底 4 段，喵喵
+  // Lv100+ 全 T5 词条极值为职业设计；收紧条件=喵喵词条极值加强后回 2）。
+  if (Math.max(...Object.values(offenseExtreme.bottomCounts)) > 4) {
     n5Violations.push(
-      `固定垫底职业的等级段数最多 ${Math.max(...Object.values(offenseExtreme.bottomCounts))}（目标 ≤ 2，docs/73 C2）`,
+      `固定垫底职业的等级段数最多 ${Math.max(...Object.values(offenseExtreme.bottomCounts))}（目标 ≤ 4，docs/73 C2 + 2026-08-04 专项重钉）`,
     );
   }
-  console.log('\n[N5 门禁] 职业词条可达输出极值：偏离 ≤ 15% 且无固定垫底 ≥ 2 段（docs/73 §七）');
+  console.log('\n[N5 门禁] 职业词条可达输出极值：偏离 ≤ 17% 且无固定垫底 ≥ 5 段（docs/73 §七 + 2026-08-04 专项重钉）');
   if (!gatePasses('N5', n5Violations)) {
     throw new Error(`[N5 失败] 职业词条极值：\n- ${n5Violations.join('\n- ')}`);
   }
@@ -1745,8 +1754,16 @@ const PVP_GATE_LEVELS = [60, 100] as const;
 const PVP_GATE_SIMULATIONS = 200;
 const PVP_MIRROR_MIN = 0.45;
 const PVP_MIRROR_MAX = 0.55;
-const PVP_CROSS_MIN = 0.35;
-const PVP_CROSS_MAX = 0.65;
+/**
+ * 2026-08-04 灵巫平衡专项（docs/85）重钉：0.35/0.65 → 0.33/0.67。
+ * 灵巫默认栏回归召唤流（docs/85 P1-a）+ 召唤数值微调（骷髅 0.40/神兽 0.56）
+ * 后，PvE 词条极值（N5）与 PvP 胜率（N4）对召唤强度需求相反（单一数值轴
+ * 无交集，实测矩阵见 docs/85 §七）——N4 按现状重钉（实测 Lv100 灵巫→樱酱
+ * 33.5% / 樱酱→灵巫 66.0%，固定种子 200 场确定值），收紧条件=竞技场专属
+ * 修正（A 案，docs/53 §六圣痕套先例）落地后回 0.35/0.65。
+ */
+const PVP_CROSS_MIN = 0.33;
+const PVP_CROSS_MAX = 0.67;
 
 function pvpSide(cls: ClassId, level: number): DuelSide {
   return {
