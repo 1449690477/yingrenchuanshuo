@@ -5,12 +5,10 @@ import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
 import {
   CUT_LINES,
-  HEAD_CLEAR_Y,
-  HEAD_CUT_MODE,
   KENSHI_PASTE_Y,
   bboxOf,
+  computeBodyRemovalMask,
   computeShoeShift,
-  computeSideClip,
   computeWeaponAlign,
   inFaceEllipse,
   rawRgba,
@@ -460,24 +458,19 @@ async function compareWearableAlpha(source, target, slot, classId) {
     const baseRaw = await rawRgba(
       resolve(ROOT, `public/assets/characters/modular/${classId}/base-noshoes.png`),
     );
-    const sideClip = await computeSideClip(classId, ROOT);
-    headZoneMask = Buffer.alloc(baseRaw.info.width * baseRaw.info.height);
-    for (let y = 0; y < baseRaw.info.height; y += 1) {
-      for (let x = 0; x < baseRaw.info.width; x += 1) {
-        const offset = (y * baseRaw.info.width + x) * 4;
-        if (classId !== 'kenshi' && (x < sideClip.leftX || x > sideClip.rightX)) {
-          headZoneMask[y * baseRaw.info.width + x] = 255;
-          continue;
-        }
-        const inZone = classId === 'kenshi'
-          ? y < KENSHI_PASTE_Y && baseRaw.data[offset + 3] > 16
-          : HEAD_CUT_MODE === 'C1'
-            ? y < CUT_LINES[classId]
-            : y < CUT_LINES[classId] || (y < HEAD_CLEAR_Y && baseRaw.data[offset + 3] > 16);
-        if (inZone || inFaceEllipse(x, y, classId)) {
-          headZoneMask[y * baseRaw.info.width + x] = 255;
+    if (classId === 'kenshi') {
+      headZoneMask = Buffer.alloc(baseRaw.info.width * baseRaw.info.height);
+      for (let y = 0; y < baseRaw.info.height; y += 1) {
+        for (let x = 0; x < baseRaw.info.width; x += 1) {
+          const pixel = y * baseRaw.info.width + x;
+          const inZone = y < KENSHI_PASTE_Y && baseRaw.data[pixel * 4 + 3] > 16;
+          if (inZone || inFaceEllipse(x, y, classId)) headZoneMask[pixel] = 255;
         }
       }
+    } else {
+      // 老四职业：豁免掩码=build 同一份羽化切除掩码（computeBodyRemovalMask），
+      // 含头区/脸椭圆/侧边条与羽化坡。分开各写一份形状=两侧读数迟早对不上。
+      headZoneMask = (await computeBodyRemovalMask(classId, ROOT, baseRaw)).feathered;
     }
     if (classId === 'kenshi') {
       // 底模垫层构型：底模剪影内、母版非全不透明处，成品像素合法混入底模。

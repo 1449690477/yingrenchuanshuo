@@ -39,6 +39,140 @@ export function inFaceEllipse(x, y, classId, pad = 2) {
   return ((x + 0.5 - f.cx) ** 2) / (rx * rx) + ((y + 0.5 - f.cy) ** 2) / (ry * ry) <= 1;
 }
 
+/**
+ * 老四职业 body 切除掩码的羽化参数（2026-08-04 打磨，老板登记：剑士/萨满
+ * 肩侧方角切边）。二值置零在切割线与衣形轮廓交点处留 90° 方角与生硬直线；
+ * 羽化做法=掩码先膨胀 FEATHER_DILATE 再高斯 FEATHER_SIGMA：
+ *   - 膨胀让原掩码内部维持全切（切头线以上==0、脸区≤50 两断言按 alpha>16
+ *     计数，羽化在原边界的残值 ≤~5，不撞线）；
+ *   - 坡道只向保留侧伸展 ~8px，方角与直线切边变为柔和过渡。
+ * 约束：外扩半径 ≥ 模糊总触达（两遍 box blur 触达 2×radius），否则坡道
+ * 渗回掩码内部、脸区/切头线断言变红（有下方保险钳兜底，但语义上应满足）。
+ */
+export const FEATHER_DILATE_RADIUS = 6;
+export const FEATHER_BLUR_RADIUS = 3;
+
+/**
+ * 老四职业 body 的确定性切除掩码（头区 C1/C2 + 脸椭圆 + 侧边条）＋羽化坡。
+ *
+ * **单一事实源**：build 用 feathered 按 (1 - mask/255) 乘 alpha；validate 的
+ * 母版保真豁免必须用同一份 feathered（>0 即豁免），两侧永远锁步——
+ * 分开各写一份掩码的形状，就是当初「切头线两侧读数对不上」一类事故的温床。
+ */
+export async function computeBodyRemovalMask(classId, root, baseRaw) {
+  const clip = await computeSideClip(classId, root);
+  const width = baseRaw.info.width;
+  const height = baseRaw.info.height;
+  const binary = Buffer.alloc(width * height);
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const pixel = y * width + x;
+      const offset = pixel * 4;
+      const inHeadZone = HEAD_CUT_MODE === 'C1'
+        ? y < CUT_LINES[classId]
+        : y < CUT_LINES[classId] || (y < HEAD_CLEAR_Y && baseRaw.data[offset + 3] > 16);
+      if (inHeadZone || inFaceEllipse(x, y, classId) || x < clip.leftX || x > clip.rightX) {
+        binary[pixel] = 255;
+      }
+    }
+  }
+  // 膨胀与模糊全部用纯 JS 可分离滤波实现，不走 sharp——踩坑记录（2026-08-04）：
+  // ①同链 dilate+blur 书写顺序≠执行顺序；②blur 把单通道悄悄升成 3 通道、
+  // 索引全错位；③toColourspace('b-w') 会把模糊结果二值化、坡道整个消失，
+  // 且掩码退化成原二值时 build/validate 锁步共用，门禁完美失明、构建输出
+  // 与修前逐字节相同——三次都是「坏了和正常长得一样」。纯 JS 数学透明，
+  // 配下方 assertFeatherRamp 探针：没有坡道当场炸。
+  const dilated = maxFilter(binary, width, height, FEATHER_DILATE_RADIUS);
+  let feathered = dilated;
+  for (let pass = 0; pass < 2; pass += 1) {
+    feathered = boxBlur(feathered, width, height, FEATHER_BLUR_RADIUS);
+  }
+  // 保险钳：原始掩码内部永远全切——脸区≤50 / 切头线==0 两断言不依赖
+  // 膨胀半径与模糊半径的换算是否精确。
+  for (let pixel = 0; pixel < binary.length; pixel += 1) {
+    if (binary[pixel] === 255) feathered[pixel] = 255;
+  }
+  assertFeatherRamp(binary, feathered);
+  return { binary, feathered, width, height };
+}
+
+/** 可分离方形结构元 max 滤波（=膨胀），radius 为外扩像素数。 */
+function maxFilter(src, width, height, radius) {
+  const tmp = Buffer.alloc(src.length);
+  const out = Buffer.alloc(src.length);
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      let best = 0;
+      for (let dx = -radius; dx <= radius; dx += 1) {
+        const nx = x + dx;
+        if (nx < 0 || nx >= width) continue;
+        const v = src[y * width + nx];
+        if (v > best) best = v;
+      }
+      tmp[y * width + x] = best;
+    }
+  }
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      let best = 0;
+      for (let dy = -radius; dy <= radius; dy += 1) {
+        const ny = y + dy;
+        if (ny < 0 || ny >= height) continue;
+        const v = tmp[ny * width + x];
+        if (v > best) best = v;
+      }
+      out[y * width + x] = best;
+    }
+  }
+  return out;
+}
+
+/** 可分离 box 模糊（跑两遍≈三角核），radius 为半径像素数。 */
+function boxBlur(src, width, height, radius) {
+  const window = radius * 2 + 1;
+  const tmp = Buffer.alloc(src.length);
+  const out = Buffer.alloc(src.length);
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      let sum = 0;
+      for (let dx = -radius; dx <= radius; dx += 1) {
+        const nx = Math.min(width - 1, Math.max(0, x + dx));
+        sum += src[y * width + nx];
+      }
+      tmp[y * width + x] = Math.round(sum / window);
+    }
+  }
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      let sum = 0;
+      for (let dy = -radius; dy <= radius; dy += 1) {
+        const ny = Math.min(height - 1, Math.max(0, y + dy));
+        sum += tmp[ny * width + x];
+      }
+      out[y * width + x] = Math.round(sum / window);
+    }
+  }
+  return out;
+}
+
+/**
+ * 羽化探针：掩码必须真的有坡道（中间值占比 >0.1%），且原掩码内部全为 255。
+ * 「掩码退化成二值」在门禁与肉眼两侧都伪装成正常，只有这条探针看得见。
+ */
+function assertFeatherRamp(binary, feathered) {
+  let mid = 0;
+  for (let pixel = 0; pixel < feathered.length; pixel += 1) {
+    if (binary[pixel] === 255 && feathered[pixel] !== 255) {
+      throw new Error('[切除掩码] 原掩码内部出现非全切值——保险钳失效');
+    }
+    const v = feathered[pixel];
+    if (v > 0 && v < 255) mid += 1;
+  }
+  if (mid < feathered.length * 0.001) {
+    throw new Error(`[切除掩码] 羽化坡道缺失（中间值仅 ${mid} 像素）——掩码退化成二值`);
+  }
+}
+
 export async function rawRgba(path) {
   return sharp(path).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
 }

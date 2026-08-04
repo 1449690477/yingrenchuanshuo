@@ -14,14 +14,10 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
 import {
-  CUT_LINES,
-  HEAD_CLEAR_Y,
-  HEAD_CUT_MODE,
   KENSHI_PASTE_Y,
+  computeBodyRemovalMask,
   computeShoeShift,
-  computeSideClip,
   computeWeaponAlign,
-  inFaceEllipse,
   rawRgba,
   translate,
 } from './ice-snow-fix-params.mjs';
@@ -215,28 +211,27 @@ async function yieldBodyToShoes(bodyBuffer, classId, shoesBuffer) {
 }
 
 /**
- * 老四职业 body 头区确定性切分（2026-08-03 线上事故修复，小灯主刀）：
- *   C1 = cutB 全宽切头线（y<CUT_LINES）+ 脸椭圆净空
- *   C2 = 头区净空到颈线（y<HEAD_CLEAR_Y 且 base 剪影有像素处透明）+ 脸椭圆净空
- * 脸椭圆参数来自 CharacterAppearance.vue（ice-snow-fix-params.mjs 单一事实源）。
+ * 老四职业 body 确定性切除（头区 C1/C2 + 脸椭圆 + 侧边条，小灯 2026-08-03
+ * 事故修主刀）＋羽化坡（小尺 2026-08-04 打磨：剑士/萨满肩侧方角切边）。
+ * 掩码与羽化实现在 ice-snow-fix-params.mjs 的 computeBodyRemovalMask ——
+ * validate 的母版保真豁免用同一份掩码，两侧锁步。
  */
-async function cutBodyHeadOld(bodyBuffer, classId, baseRaw) {
+async function applyBodyRemoval(bodyBuffer, classId, baseRaw) {
+  const mask = await computeBodyRemovalMask(classId, ROOT, baseRaw);
   const { data, info } = await sharp(bodyBuffer)
     .ensureAlpha()
     .raw()
     .toBuffer({ resolveWithObject: true });
-  for (let y = 0; y < info.height; y += 1) {
-    for (let x = 0; x < info.width; x += 1) {
-      const offset = (y * info.width + x) * 4;
-      const inHeadZone = HEAD_CUT_MODE === 'C1'
-        ? y < CUT_LINES[classId]
-        : y < CUT_LINES[classId] || (y < HEAD_CLEAR_Y && baseRaw.data[offset + 3] > 16);
-      if (inFaceEllipse(x, y, classId) || inHeadZone) {
-        data[offset] = 0;
-        data[offset + 1] = 0;
-        data[offset + 2] = 0;
-        data[offset + 3] = 0;
-      }
+  for (let pixel = 0; pixel < mask.feathered.length; pixel += 1) {
+    const strength = mask.feathered[pixel];
+    if (strength === 0) continue;
+    const offset = pixel * 4;
+    const alpha = Math.round((data[offset + 3] * (255 - strength)) / 255);
+    data[offset + 3] = alpha;
+    if (alpha === 0) {
+      data[offset] = 0;
+      data[offset + 1] = 0;
+      data[offset + 2] = 0;
     }
   }
   return sharp(data, { raw: info }).png().toBuffer();
@@ -260,29 +255,6 @@ async function pasteKenshiHead(bodyBuffer, baseRaw, deepY) {
         data[offset + 1] = baseRaw.data[offset + 1];
         data[offset + 2] = baseRaw.data[offset + 2];
         data[offset + 3] = baseRaw.data[offset + 3];
-      }
-    }
-  }
-  return sharp(data, { raw: info }).png().toBuffer();
-}
-
-/**
- * 老四职业左右立绘边条清除（小Q·音效坐标表三：参照莓霜 body bbox ±24px 之外=画布填充）。
- */
-async function clipBodySides(bodyBuffer, classId) {
-  const clip = await computeSideClip(classId, ROOT);
-  const { data, info } = await sharp(bodyBuffer)
-    .ensureAlpha()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-  for (let y = 0; y < info.height; y += 1) {
-    for (let x = 0; x < info.width; x += 1) {
-      if (x < clip.leftX || x > clip.rightX) {
-        const offset = (y * info.width + x) * 4;
-        data[offset] = 0;
-        data[offset + 1] = 0;
-        data[offset + 2] = 0;
-        data[offset + 3] = 0;
       }
     }
   }
@@ -350,8 +322,7 @@ for (const classId of CLASSES) {
     if (slot === 'body') {
       if (classId !== 'kenshi') {
         base = await yieldBodyToShoes(base, classId, shoesTranslated);
-        base = await cutBodyHeadOld(base, classId, baseRaw);
-        base = await clipBodySides(base, classId);
+        base = await applyBodyRemoval(base, classId, baseRaw);
       } else {
         base = await pasteKenshiHead(base, baseRaw, KENSHI_PASTE_Y);
       }

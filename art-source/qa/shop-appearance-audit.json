@@ -932,11 +932,11 @@
         508,
         681
       ],
-      "alphaPixels": 182253,
-      "opaquePixels": 181631,
+      "alphaPixels": 181804,
+      "opaquePixels": 170522,
       "anchorAlpha": null,
-      "sha256": "186e0c7471db01a0c45c051c0d40aa10ae0d3843dac82502a0d30db6deb73066",
-      "alphaSha256": "e412789f8b5e701f4e9708fc17e9193cd0e077d41395a048326212a3e12f3c8c",
+      "sha256": "a2d3555344125086c45dbb89fd0998a002792b006fc5a532857363047bbe1492",
+      "alphaSha256": "be556782536172e7907c13cd492c7bb07f459bc77e9e6ad19c176ea9d06637ba",
       "sameThemeShoeOverlapPixels": 0
     },
     {
@@ -993,11 +993,11 @@
         524,
         771
       ],
-      "alphaPixels": 225062,
-      "opaquePixels": 224214,
+      "alphaPixels": 224505,
+      "opaquePixels": 215046,
       "anchorAlpha": null,
-      "sha256": "c9cb7814c95c4002585d3c475fe79b3a6db33ad139aa87ec7e1f539c7362e337",
-      "alphaSha256": "9038f13e7129cb3a4f33dd902c00ce135301f05907595cec59e07906757a5c2b",
+      "sha256": "99a5b7b3c065500e5a5bd6ca305e523541abec7571dccc090b44811477394d9a",
+      "alphaSha256": "a521b7e4ed591e73b1952fa81b6487ab8824dac6712d285a4dd943074ee78d52",
       "sameThemeShoeOverlapPixels": 0
     },
     {
@@ -1054,11 +1054,11 @@
         490,
         804
       ],
-      "alphaPixels": 186736,
-      "opaquePixels": 186187,
+      "alphaPixels": 186018,
+      "opaquePixels": 176010,
       "anchorAlpha": null,
-      "sha256": "ea041e68aabbb8c4df09b7373a0a3a6e0336b280e54712cb7f35812e94fd4577",
-      "alphaSha256": "2033324a57483490c33a1e7ceb5f07267b40eb0e4f20abc6e15a01bd5cff2f3f",
+      "sha256": "977c09f3863013b7118486c2ff3c70af4e5cdcfcece6061abb311a642d43dc67",
+      "alphaSha256": "6e371f938d914782e3f3b54c771d6c8011acee2daeea85a3699fcb8132bb2f2e",
       "sameThemeShoeOverlapPixels": 0
     },
     {
@@ -1115,11 +1115,11 @@
         524,
         656
       ],
-      "alphaPixels": 201416,
-      "opaquePixels": 200773,
+      "alphaPixels": 200727,
+      "opaquePixels": 191974,
       "anchorAlpha": null,
-      "sha256": "1e53dcea22becc618a21fa5e61681d478b0e0b7f46d3cdcc815636f608bb0dba",
-      "alphaSha256": "589c7417bce28f7dc05c6291cb2861d6d71472b8e3816d7463d6e0232caf39e8",
+      "sha256": "c6c802f236817415cd5fd44d3a14709bc656d9520d0018950b984a65b64c7d62",
+      "alphaSha256": "3182b6120c432c58365cb44eb812cd27ef44478777f4bb01c6be47c5d0315b73",
       "sameThemeShoeOverlapPixels": 0
     },
     {
