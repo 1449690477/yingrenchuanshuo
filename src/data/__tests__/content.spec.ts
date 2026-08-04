@@ -786,6 +786,17 @@ describe('区域 1–5 内容完整性', () => {
         'skill_catkin_scratch_frenzy',
       ]),
     );
+    // ★ 玩家原始报障是「治愈术**和召唤骷髅**挂机从不释放」，而召唤骷髅
+    //   unlockLevel=20 —— 上面 shaman@1 与 @10 都够不到它，下面的
+    //   rhythmSkillEffect 又只测分类函数、不测它是否真在轮转里。
+    //   ⇒ 若日后有人恢复任何一条「排除召唤/非伤害技」的过滤，报障的那一半
+    //   会静默回归而全部现有断言仍然全绿。这里用精确集合钉死 20 级轮转：
+    //   三种拍语义（damage/heal/summon）恰好在此等级同时出现。
+    expect(battleRhythmSkills('shaman', 20).map((skill) => skill.id)).toEqual([
+      'skill_shaman_heal',
+      'skill_shaman_poison',
+      'skill_shaman_skeleton',
+    ]);
     // 语义提取：治疗与召唤不再冒充攻击 —— 由 effect 字段承载差异
     expect(rhythmSkillEffect(requireSkill('skill_shaman_heal'))).toBe('heal');
     expect(rhythmSkillEffect(requireSkill('skill_shaman_skeleton'))).toBe('summon');
