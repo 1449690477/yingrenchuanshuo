@@ -134,7 +134,7 @@ describe('白名单随数据自动开合', () => {
       DUNGEON_BOARD_ENTRIES.filter((entry) => !entry.sealed).map((entry) => entry.id),
     );
     // 8 门户 ×（azure 5 + violet 5 + auric 5 + crimson 1）层
-    expect(DUNGEON_BOARD_ENTRIES).toHaveLength(8 * (5 + 5 + 5 + 5));
+    expect(DUNGEON_BOARD_ENTRIES).toHaveLength(8 * (5 + 5 + 5 + 1));
   });
 
   it('每一层未封存的副本都收成绩，每一层封存的都拒收', () => {

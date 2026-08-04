@@ -46,7 +46,7 @@ export const EQUIPMENT_DUNGEON_DEPTH_ANCHORS: Readonly<
   azure: { baseLevel: 16, step: 3, openDepths: DEPTH_PER_TIER },
   violet: { baseLevel: 31, step: 5, openDepths: DEPTH_PER_TIER },
   auric: { baseLevel: 56, step: 5, openDepths: DEPTH_PER_TIER },
-  crimson: { baseLevel: 81, step: 5, openDepths: 5 },
+  crimson: { baseLevel: 81, step: 5, openDepths: 1 },
 };
 
 /**
@@ -171,5 +171,4 @@ export const REGION_BLANK_QUALITY_RANGE: Readonly<Record<string, RegionQualityRa
   r5: { lowest: 'rare', highest: 'legendary' },
   r6: { lowest: 'rare', highest: 'legendary' },
   r7: { lowest: 'epic', highest: 'legendary' },
-  r8: { lowest: 'epic', highest: 'mythic' },
 };

@@ -1,12 +1,10 @@
 import type { EquipmentSetDefinition } from '@/core/equipmentSets';
-import { REGION_8_SET_ID } from './region8';
 
 export const REGION_CRIMSON_SET_ID = 'set_region_crimson';
 export const REGION_CRIMSON_FLAMEBURST_TRIGGER_ID = `${REGION_CRIMSON_SET_ID}:flameburst`;
 export const REGION_SHADOW_SET_ID = 'set_region_shadow';
 export const REGION_SHADOW_SURVIVAL_TRIGGER_ID = `${REGION_SHADOW_SET_ID}:survival`;
 export const REGION_BLOODMOON_SET_ID = 'set_region_bloodmoon';
-export const REGION_DRAGONABYSS_SET_ID = REGION_8_SET_ID;
 
 /**
  * 区域 5「绯焰套」的权威战斗定义。
@@ -136,49 +134,8 @@ export const REGION_EQUIPMENT_SETS: Readonly<Record<string, EquipmentSetDefiniti
       },
     ],
   },
-  [REGION_DRAGONABYSS_SET_ID]: {
-    id: REGION_DRAGONABYSS_SET_ID,
-    name: '龙渊套',
-    pieceSlots: [
-      'weapon',
-      'head',
-      'body',
-      'necklace',
-      'bracelet',
-      'ring',
-      'belt',
-      'shoes',
-    ],
-    bonuses: [
-      {
-        pieces: 2,
-        label: '龙威',
-        description: '攻击 +10%',
-        statPercent: { atk: 0.1 },
-      },
-      {
-        pieces: 4,
-        label: '渊火契约',
-        description: '暴击率 +8%，炎属性伤害 +12%',
-        statFlat: { critRate: 8 },
-        combatBonuses: { elementDamage: { fire: 12 } },
-      },
-      {
-        pieces: 6,
-        label: '魔城眷顾',
-        description: '技能伤害 +20%',
-        skillMultiplierBonus: 0.2,
-      },
-      {
-        pieces: 8,
-        label: '龙渊的征服者',
-        description: '解锁同名称号与龙渊徽记外观（无战斗属性）',
-      },
-    ],
-  },
 } as const;
 
 export const REGION_CRIMSON_SET = REGION_EQUIPMENT_SETS[REGION_CRIMSON_SET_ID]!;
 export const REGION_SHADOW_SET = REGION_EQUIPMENT_SETS[REGION_SHADOW_SET_ID]!;
 export const REGION_BLOODMOON_SET = REGION_EQUIPMENT_SETS[REGION_BLOODMOON_SET_ID]!;
-export const REGION_DRAGONABYSS_SET = REGION_EQUIPMENT_SETS[REGION_DRAGONABYSS_SET_ID]!;

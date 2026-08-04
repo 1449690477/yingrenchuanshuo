@@ -1711,8 +1711,8 @@ describe('equipment dungeon transaction', () => {
 
     // 跳级要被拒，且原因可读
     expect(game.evaluateDungeonDepth('azure', 2).reason).toBe('previous-depth');
-    // crimson 随区域 8 全开放，d2 由进度解锁
-    expect(game.evaluateDungeonDepth('crimson', 2).reason).toBe('previous-depth');
+    // crimson 只开 d1
+    expect(game.evaluateDungeonDepth('crimson', 2).reason).toBe('not-opened');
 
     // ③ 按部位挑战：UI 不用拼关卡 id
     const result = game.runEquipmentDungeonDepth('weapon', 'azure', 1, now);

@@ -364,41 +364,6 @@ export const REGION_6_EQUIPMENT_APPEARANCES: Readonly<
   ...buildRegion6SetAppearances(),
 };
 
-
-export const REGION_8_EQUIPMENT_APPEARANCES: Readonly<
-  Record<string, EquipmentAppearance>
-> = {
-  ...buildRegionAppearances(['r8']),
-  ...buildRegion8SetAppearances(),
-};
-
-function buildRegion8SetAppearances(): Record<string, EquipmentAppearance> {
-  const out: Record<string, EquipmentAppearance> = {};
-  for (const slot of ['body', 'head', 'weapon'] as const) {
-    const id = `r8-set-${slot}`;
-    out[id] = {
-      id,
-      slot,
-      renderMode: 'layer',
-      assets: Object.fromEntries(
-        CLASS_IDS.map((classId) => [
-          classId,
-          `assets/characters/modular/${classId}/r8-dragonabyss-${slot}.png`,
-        ]),
-      ) as Record<ClassId, string>,
-      transforms: alignedTransforms,
-      ...(slot === 'body'
-        ? { replacementClasses: KENSHI_REGION_BODY_REPLACEMENT, replacementIncludes: ['head'] as const }
-        : {}),
-    };
-  }
-  for (const slot of ['necklace', 'bracelet', 'ring', 'belt', 'shoes'] as const) {
-    const id = `r8-set-${slot}`;
-    out[id] = { id, slot, renderMode: 'slot-only' };
-  }
-  return out;
-}
-
 export const REGION_7_EQUIPMENT_APPEARANCES: Readonly<
   Record<string, EquipmentAppearance>
 > = {
@@ -589,7 +554,6 @@ export const EQUIPMENT_APPEARANCES: Readonly<Record<string, EquipmentAppearance>
   ...REGION_5_EQUIPMENT_APPEARANCES,
   ...REGION_6_EQUIPMENT_APPEARANCES,
   ...REGION_7_EQUIPMENT_APPEARANCES,
-  ...REGION_8_EQUIPMENT_APPEARANCES,
 
   ...buildBoutiqueAppearances(),
   ...buildEquipmentDungeonAppearances(),

@@ -23,8 +23,6 @@ import { REGION_6_EQUIPMENT_THEME } from './region6';
 import { REGION_6_SET_LEVEL, REGION_6_SET_QUALITY } from './region6';
 import { REGION_7_EQUIPMENT_THEME } from './region7';
 import { REGION_7_SET_LEVEL, REGION_7_SET_QUALITY } from './region7';
-import { REGION_8_EQUIPMENT_THEME } from './region8';
-import { REGION_8_SET_LEVEL, REGION_8_SET_QUALITY } from './region8';
 
 export interface RegionQualityScheduleEntry {
   regionId: string;
@@ -52,11 +50,6 @@ export const REGION_QUALITY_SCHEDULE: readonly RegionQualityScheduleEntry[] = [
     regionId: REGION_7_EQUIPMENT_THEME.regionId,
     level: REGION_7_EQUIPMENT_THEME.level,
     qualities: REGION_7_EQUIPMENT_THEME.qualities,
-  },
-  {
-    regionId: REGION_8_EQUIPMENT_THEME.regionId,
-    level: REGION_8_EQUIPMENT_THEME.level,
-    qualities: REGION_8_EQUIPMENT_THEME.qualities,
   },
 ];
 
@@ -123,7 +116,6 @@ export const QUALITY_FIRST_AVAILABLE_LEVEL: Readonly<Partial<Record<Quality, num
   note(REGION_5_SET_QUALITY, REGION_5_SET_LEVEL);
   note(REGION_6_SET_QUALITY, REGION_6_SET_LEVEL);
   note(REGION_7_SET_QUALITY, REGION_7_SET_LEVEL);
-  note(REGION_8_SET_QUALITY, REGION_8_SET_LEVEL);
   for (const tier of EQUIPMENT_DUNGEON_TIERS) note(tier.quality, tier.level);
   return Object.fromEntries(first) as Partial<Record<Quality, number>>;
 })();

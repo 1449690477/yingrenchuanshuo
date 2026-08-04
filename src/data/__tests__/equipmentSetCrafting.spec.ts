@@ -242,7 +242,6 @@ describe('套装通用碎片配方注册器', () => {
       'craft_set_crimson',
       'craft_set_shadow',
       'craft_set_bloodmoon',
-      'craft_set_dragonabyss',
     ]);
     expect(getEquipmentSetCraftingRecipe('craft_set_shadow')).toEqual({
       id: 'craft_set_shadow',

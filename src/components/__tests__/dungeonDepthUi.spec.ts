@@ -179,13 +179,14 @@ describe('DungeonDepthPanel 挂载冒烟', () => {
     expect(picked).toEqual([2]);
   });
 
-  it('crimson 全开放：d1 可打，d2~d5 按进度提示先突破上一层', () => {
+  it('crimson：d1 可打，d2~d5 显示「区域 8 开放后解锁」且没有任何门槛数字', () => {
     const el = mountPanel({ tierId: 'crimson', cleared: 0, selectedDepth: 1 });
     const nodes = [...el.querySelectorAll<HTMLElement>('.depth-node')];
     expect(nodes[0]!.dataset.state).toBe('next');
     for (const node of nodes.slice(1)) {
-      expect(node.dataset.state).toBe('previous-depth');
-      expect(node.textContent).toContain('先突破上一层');
+      expect(node.dataset.state).toBe('not-opened');
+      expect(node.textContent).toContain('区域 8 开放后解锁');
+      expect(node.textContent).not.toMatch(/Lv\d|推荐|等级/);
     }
   });
 

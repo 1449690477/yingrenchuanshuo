@@ -194,16 +194,16 @@ describe('装备副本解锁与战斗事务', () => {
     expect(isEquipmentDungeonDepthUnlocked(violet, state, 2)).toBe(true);
   });
 
-  it('crimson 随区域 8 内容顶抬高全开放：d2 按进度解锁并可挑战', () => {
+  it('crimson 当前只开 d1，d2 被拒且与深度进度无关', () => {
     const crimson = requireEquipmentDungeonStage('equipment_body_crimson');
     const state = createEquipmentDungeonState(NOW);
     state.depth = { crimson: 1 };
-    expect(isEquipmentDungeonDepthUnlocked(crimson, state, 2)).toBe(true);
+    expect(isEquipmentDungeonDepthUnlocked(crimson, state, 2)).toBe(false);
     expect(
       resolveEquipmentDungeonChallenge(
         input({ stage: crimson, depth: 2, state, player: makePlayer('测试少女', 99, stats()) }),
       ),
-    ).toMatchObject({ ok: true });
+    ).toMatchObject({ ok: false, reason: 'depth-not-opened' });
   });
 
   it('失败不扣次数、不推进主 RNG、也不增长保底', () => {

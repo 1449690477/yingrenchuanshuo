@@ -13,7 +13,6 @@ import { REGION_34 } from './region34';
 import { REGION_5 } from './region5';
 import { REGION_6 } from './region6';
 import { REGION_7 } from './region7';
-import { REGION_8 } from './region8';
 
 export interface ChapterSpec {
   /** 章节号，如 '1-3' */
@@ -220,7 +219,6 @@ export const REGIONS: RegionSpec[] = [
   REGION_5,
   REGION_6,
   REGION_7,
-  REGION_8,
 ];
 
 /** 每章的关卡数 */

@@ -5,14 +5,13 @@ import { ITEMS } from '../items';
 import { LOOT_TABLES } from '../lootTables';
 import { MONSTERS } from '../monsters';
 import { REGION_7, REGION_7_FRAGMENT_ID, REGION_7_SET_SLOTS } from '../region7';
-import { REGION_8 } from '../region8';
 import { REGION_7_FRAGMENT_LOOT_SOURCES } from '../region7Loot';
 import { REGIONS } from '../regions';
 import { STAGES } from '../stages';
 
 describe('R7 原子激活', () => {
   it('区域、五章、三十关与二十四只怪物同时进入运行时', () => {
-    expect(REGIONS.at(-1)).toBe(REGION_8);
+    expect(REGIONS.at(-1)).toBe(REGION_7);
     expect(Object.values(STAGES).filter((stage) => stage.chapterId.startsWith('7-'))).toHaveLength(
       30,
     );

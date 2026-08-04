@@ -111,7 +111,7 @@ describe('装备职业表现与手部对位', () => {
     }
   });
 
-  it('樱酱二十一套整身装备使用不撞 id 的同源正式服装图标', async () => {
+  it('樱酱十九套整身装备使用不撞 id 的同源正式服装图标', async () => {
     const definitions = Object.values(EQUIPMENT).filter(
       (definition) => definition.slot === 'body' && definition.classPresentations?.kenshi,
     );

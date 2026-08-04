@@ -6,7 +6,6 @@ import {
   REGION_6_STATUE_MONSTER_IDS,
 } from './region6';
 import { REGION_7_MONSTER_MOTIONS } from './region7';
-import { REGION_8_MONSTER_MOTIONS } from './region8';
 
 export interface MonsterVisual {
   asset: string;
@@ -67,14 +66,6 @@ export const REGION_6_MONSTER_VISUALS: Readonly<Record<string, MonsterVisual>> =
     ]),
   );
 
-export const REGION_8_MONSTER_VISUALS: Readonly<Record<string, MonsterVisual>> =
-  Object.fromEntries(
-    Object.entries(REGION_8_MONSTER_MOTIONS).map(([id, motion]) => [
-      id,
-      { asset: `assets/monsters/r8/${id}.webp`, motion },
-    ]),
-  );
-
 export const REGION_7_MONSTER_VISUALS: Readonly<Record<string, MonsterVisual>> =
   Object.fromEntries(
     Object.entries(REGION_7_MONSTER_MOTIONS).map(([id, motion]) => [
@@ -97,7 +88,6 @@ export const MONSTER_VISUALS: Readonly<Record<string, MonsterVisual>> = {
   ...REGION_5_MONSTER_VISUALS,
   ...REGION_6_MONSTER_VISUALS,
   ...REGION_7_MONSTER_VISUALS,
-  ...REGION_8_MONSTER_VISUALS,
   'mon_1-1_0': { asset: 'assets/monsters/r1/mon_1-1_0.webp', motion: 'flutter' },
   'mon_1-1_1': { asset: 'assets/monsters/r1/mon_1-1_1.webp', motion: 'hopper' },
   'mon_1-1_2': { asset: 'assets/monsters/r1/mon_1-1_2.webp', motion: 'flutter' },

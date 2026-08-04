@@ -22,7 +22,6 @@ import { EQUIPMENT_DUNGEON_SETS } from '@/data/equipmentDungeonSets';
 import { ARENA_SET_ID } from '@/data/arenaEquipment';
 import { requireItem } from '@/data/items';
 import { REGION_7_COMPLETION_BADGE, REGION_7_COMPLETION_TITLE } from '@/data/region7';
-import { REGION_8_COMPLETION_BADGE, REGION_8_COMPLETION_TITLE } from '@/data/region8';
 import { IMPRINT_BATCH_ACTIVE } from '@/ui/imprintActivation';
 import {
   buildSetCodex,
@@ -58,7 +57,6 @@ describe('套装图鉴装配（buildSetCodex）', () => {
         'region',
         'region',
         'region',
-        'region',
         'dungeon',
         'dungeon',
         'dungeon',
@@ -85,7 +83,7 @@ describe('套装图鉴装配（buildSetCodex）', () => {
 
   it('区域套的碎片与成本直接来自合成配方表（零手填）', () => {
     const entries = buildSetCodex('swordsman').filter((entry) => entry.group === 'region');
-    expect(entries.length).toBe(4);
+    expect(entries.length).toBe(3);
     const recipes = Object.values(EQUIPMENT_SET_CRAFTING_RECIPES);
     for (const entry of entries) {
       const recipe = recipes.find((candidate) => candidate.setId === entry.setId);
@@ -143,19 +141,13 @@ describe('套装图鉴装配（buildSetCodex）', () => {
     }
   });
 
-  it('血月套与龙渊套带称号和徽记，其余套装不带', () => {
+  it('血月套带称号与徽记，其余套装不带', () => {
     const entries = buildSetCodex('catkin');
     const bloodmoon = entryOf(entries, 'set_region_bloodmoon');
     expect(bloodmoon.completionTitle).toBe(REGION_7_COMPLETION_TITLE);
     expect(bloodmoon.completionBadge).toBe(REGION_7_COMPLETION_BADGE);
-    const dragonabyss = entryOf(entries, 'set_region_dragonabyss');
-    expect(dragonabyss.completionTitle).toBe(REGION_8_COMPLETION_TITLE);
-    expect(dragonabyss.completionBadge).toBe(REGION_8_COMPLETION_BADGE);
     for (const entry of entries) {
-      if (
-        entry.setId !== 'set_region_bloodmoon' &&
-        entry.setId !== 'set_region_dragonabyss'
-      ) {
+      if (entry.setId !== 'set_region_bloodmoon') {
         expect(entry.completionTitle).toBeNull();
         expect(entry.completionBadge).toBeNull();
       }

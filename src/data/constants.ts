@@ -1060,8 +1060,6 @@ export const STAGE_PACING_FACTORS: Readonly<Record<number, number>> = {
   5: 200,
   6: 340,
   7: 440,
-  // docs/84：区域 8 节奏系数起点 560（>440 单调，以 sim 门禁定稿）。
-  8: 560,
 };
 
 /**

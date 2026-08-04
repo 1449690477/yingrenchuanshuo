@@ -24,12 +24,6 @@ import {
   REGION_7_COMPLETION_TITLE,
   REGION_7_SET_ID,
 } from '@/data/region7';
-import {
-  REGION_8,
-  REGION_8_COMPLETION_BADGE,
-  REGION_8_COMPLETION_TITLE,
-  REGION_8_SET_ID,
-} from '@/data/region8';
 import { REGION_EQUIPMENT_SETS } from '@/data/regionEquipmentSets';
 import { IMPRINT_BATCH_ACTIVE } from '@/ui/imprintActivation';
 
@@ -94,13 +88,6 @@ const REGION_SET_META = [
     regionName: REGION_6.name,
     completionTitle: null,
     completionBadge: null,
-  },
-  {
-    setId: REGION_8_SET_ID,
-    regionIndex: REGION_8.index,
-    regionName: REGION_8.name,
-    completionTitle: REGION_8_COMPLETION_TITLE,
-    completionBadge: REGION_8_COMPLETION_BADGE,
   },
   {
     setId: REGION_7_SET_ID,
