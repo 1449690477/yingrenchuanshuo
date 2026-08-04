@@ -19,7 +19,9 @@ const r6CacheName = 'region-content-r6-v1';
 const r6SetCacheName = 'region-set-r6-v1';
 const r7CacheName = 'region-content-r7-v1';
 const r7SetCacheName = 'region-set-r7-v1';
-const genericAppearanceCacheName = 'character-appearance-v1';
+// 2026-08-04：冰雪热修事故后 v1→v2（CacheFirst 会把修复前旧图钉死 30 天，
+// 改 SWR 并升名让 SW 更新后首屏即拉新图），见 vite.config.ts 同日注释。
+const genericAppearanceCacheName = 'character-appearance-v2';
 const r5Index = serviceWorker.indexOf(r5CacheName);
 const r5SetIndex = serviceWorker.indexOf(r5SetCacheName);
 const r6Index = serviceWorker.indexOf(r6CacheName);
@@ -90,6 +92,14 @@ if (
   )
 ) {
   fail('R7 套装缓存必须使用 StaleWhileRevalidate 且 maxEntries=24');
+}
+
+if (
+  !/StaleWhileRevalidate\(\{cacheName:"character-appearance-v2",.{0,600}?maxEntries:160/.test(
+    serviceWorker,
+  )
+) {
+  fail('通用换装层缓存必须使用 StaleWhileRevalidate 且 maxEntries=160——CacheFirst 会让资产热修到不了老客户端');
 }
 
 const precacheStart = serviceWorker.indexOf('precacheAndRoute([');
