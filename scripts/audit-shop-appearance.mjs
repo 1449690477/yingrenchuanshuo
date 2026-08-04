@@ -448,7 +448,7 @@ for (const theme of THEMES) {
       fail(`${theme}/kenshi/shoes 鞋履遮罩过小，无法证明 replacement 已剔除内置鞋`);
     }
     // v1 主题维持原合同：v1 母版把靴子画进身体，回填后鞋区必须等于裸腿。
-    if (shoeMaskPixels.premultipliedMae > 0.6 || shoeMaskPixels.alphaMae > 0.6) {
+    if (shoeMaskPixels.premultipliedMae > 0.1 || shoeMaskPixels.alphaMae > 0.1) {
       fail(
         `${theme}/kenshi/body 仍含内置鞋：鞋履遮罩 premulMAE=${shoeMaskPixels.premultipliedMae.toFixed(3)} / alphaMAE=${shoeMaskPixels.alphaMae.toFixed(3)}`,
       );

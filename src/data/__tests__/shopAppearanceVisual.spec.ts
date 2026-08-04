@@ -336,9 +336,9 @@ describe('商城五职业换装视觉合同', () => {
       const pixels = maskedPixelDifference(body, baseNoShoes, shoes);
       expect(pixels.checked, theme).toBeGreaterThan(2_000);
       expect(pixels.premultipliedMae, `${theme} 的 replacement 仍画着内置鞋`).toBeLessThanOrEqual(
-        0.6,
+        0.1,
       );
-      expect(pixels.alphaMae, `${theme} 的 replacement 鞋区 alpha 未还原`).toBeLessThanOrEqual(0.6);
+      expect(pixels.alphaMae, `${theme} 的 replacement 鞋区 alpha 未还原`).toBeLessThanOrEqual(0.1);
     }
     const iceSnowBody = await layerStats('assets/characters/modular/shop/ice-snow/kenshi-body.png');
     const skirtRow = alphaInRect(iceSnowBody, [0, 740, 640, 1]);

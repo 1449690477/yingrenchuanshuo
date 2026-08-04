@@ -169,22 +169,82 @@ async function alignWearable(base, slot) {
 const WEARABLE_SIZE_BUDGET = 300_000;
 const ICON_SIZE_BUDGET = 80_000;
 
-async function writePng(buffer, output, budget = WEARABLE_SIZE_BUDGET) {
-  await mkdir(dirname(output), { recursive: true });
-  // 真彩优先：雪绒、薄纱和冰晶轮廓依赖连续的半透明抗锯齿。v2 全新母版
-  // 体量远超 v1 换色件（最大 866KB），超预算时逐级降到 RGBA 调色板；
-  // 降级引入的量化噪声由门禁的保真容差指标封顶（validate-ice-snow-assets.mjs）。
-  let encoded = await sharp(buffer)
+
+// 2026-08-04 收紧项（小刃）：超预算时不再降 RGBA 调色板，改走 RGB-only 量化 + RGB 中值阶梯，
+// alpha 通道逐字节保留——雪纺/薄纱/冰晶的半透明轮廓零失真，量化噪声只落在颜色上，
+// 由 validate 的保真容差（alphaMAE 收紧回 0.1）封顶。
+function quantizeRgb(data, info, bits) {
+  const step = 256 >> bits;
+  const half = step >> 1;
+  const out = Buffer.from(data);
+  for (let offset = 0; offset < out.length; offset += 4) {
+    for (let channel = 0; channel < 3; channel += 1) {
+      out[offset + channel] = Math.min(
+        255,
+        Math.max(0, Math.round((out[offset + channel] - half) / step) * step + half),
+      );
+    }
+  }
+  return out;
+}
+
+async function medianRgbOnly(data, info, size, bits, clampFactor = 1) {
+  const rgb = Buffer.alloc(info.width * info.height * 3);
+  const alpha = Buffer.alloc(info.width * info.height);
+  for (let pixel = 0; pixel < info.width * info.height; pixel += 1) {
+    const s = pixel * 4;
+    const d = pixel * 3;
+    rgb[d] = data[s];
+    rgb[d + 1] = data[s + 1];
+    rgb[d + 2] = data[s + 2];
+    alpha[pixel] = data[s + 3];
+  }
+  const med = await sharp(rgb, { raw: { width: info.width, height: info.height, channels: 3 } })
+    .median(size)
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const half = bits > 0 ? 256 >> (bits + 1) : 0;
+  const out = Buffer.alloc(info.width * info.height * 4);
+  for (let pixel = 0; pixel < info.width * info.height; pixel += 1) {
+    const s = pixel * 4;
+    const d = pixel * 3;
+    for (let channel = 0; channel < 3; channel += 1) {
+      const origin = data[s + channel];
+      const value = med.data[d + channel];
+      out[s + channel] = Math.min(255, Math.max(0, half > 0 ? Math.min(origin + Math.round(half * clampFactor), Math.max(origin - Math.round(half * clampFactor), value)) : value));
+    }
+    out[s + 3] = alpha[pixel];
+  }
+  return { data: out, info };
+}
+
+async function encodeTruecolor(buffer, info) {
+  return sharp(buffer, { raw: info })
     .png({ compressionLevel: 9, palette: false, effort: 10 })
     .toBuffer();
-  for (const colours of [256, 192, 128]) {
+}
+
+async function writePng(buffer, output, budget = WEARABLE_SIZE_BUDGET) {
+  await mkdir(dirname(output), { recursive: true });
+  const raw = await sharp(buffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  let encoded = await encodeTruecolor(raw.data, raw.info);
+  const ladder = [
+    { bits: 6, median: 0 },
+    { bits: 6, median: 3 },
+    { bits: 5, median: 0 },
+    { bits: 5, median: 5 },
+    { bits: 5, median: 7 },
+    { bits: 4, median: 5, clampFactor: 2.0 },
+  ];
+  for (const step of ladder) {
     if (encoded.length <= budget) break;
-    encoded = await sharp(buffer)
-      .png({ compressionLevel: 9, palette: true, colours, dither: 1.0, effort: 10 })
-      .toBuffer();
+    let data = quantizeRgb(raw.data, raw.info, step.bits);
+    if (step.median > 0) data = (await medianRgbOnly(data, raw.info, step.median, step.bits, step.clampFactor ?? 1)).data;
+    encoded = await encodeTruecolor(data, raw.info);
   }
   await writeFile(output, encoded);
 }
+
 
 /**
  * 老四职业的衣裙层在独立鞋层的落点上让位（Alpha 置零）。

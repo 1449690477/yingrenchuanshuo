@@ -932,11 +932,11 @@
         508,
         681
       ],
-      "alphaPixels": 181804,
-      "opaquePixels": 170522,
+      "alphaPixels": 181828,
+      "opaquePixels": 170521,
       "anchorAlpha": null,
-      "sha256": "a2d3555344125086c45dbb89fd0998a002792b006fc5a532857363047bbe1492",
-      "alphaSha256": "be556782536172e7907c13cd492c7bb07f459bc77e9e6ad19c176ea9d06637ba",
+      "sha256": "7ee542f8daa5ac4f72e46dd33300e80f6278846a0eecbed00449d3d2ba49cf28",
+      "alphaSha256": "9ea08f51ef63b74e23ffda2eaeee720926b0e15fc7559186f4b84cbdb3374072",
       "sameThemeShoeOverlapPixels": 0
     },
     {
@@ -951,7 +951,7 @@
       "alphaPixels": 7189,
       "opaquePixels": 6195,
       "anchorAlpha": null,
-      "sha256": "bcf6e5e8408d60aac9b937d57de1466c620177dcfbb610ac8269886b367b7a9c",
+      "sha256": "212bdaba4dcd578d84dc60d266327f3142e54180394dd825f25fa941711f7580",
       "alphaSha256": "d312a8ee6484a8a6efe0447923a968024528a6884caf246d63d0aadb0227df52"
     },
     {
@@ -981,7 +981,7 @@
       "alphaPixels": 49921,
       "opaquePixels": 42466,
       "anchorAlpha": 8248,
-      "sha256": "5cb0a83154f9391bc01ec1ffbc39fb76c5c4f5454f734a0f8a626808631c3754",
+      "sha256": "b0b4056a3e000f874c6e9ffb1a33240f67ed0dd2d774396e9419300f54806dd6",
       "alphaSha256": "2bb539aa07e5d144cca82fe2b3d96bf9001dcaf47e7f895654bc14188757c342"
     },
     {
@@ -993,11 +993,11 @@
         524,
         771
       ],
-      "alphaPixels": 224505,
-      "opaquePixels": 215046,
+      "alphaPixels": 225386,
+      "opaquePixels": 215010,
       "anchorAlpha": null,
-      "sha256": "99a5b7b3c065500e5a5bd6ca305e523541abec7571dccc090b44811477394d9a",
-      "alphaSha256": "a521b7e4ed591e73b1952fa81b6487ab8824dac6712d285a4dd943074ee78d52",
+      "sha256": "6a74d69570ace602d5fbaeba6c2ef5bbcc150f14720e20a14fa79a6644cd5d9a",
+      "alphaSha256": "742cf329ea444a465a8b409728cb32cc64259d2c0aa181f684fd929d1e415f43",
       "sameThemeShoeOverlapPixels": 0
     },
     {
@@ -1012,7 +1012,7 @@
       "alphaPixels": 6219,
       "opaquePixels": 5330,
       "anchorAlpha": null,
-      "sha256": "830b9b855a04fb3de75733c2448c5fd2f08d759db3ff4fcb65c26c536a865c6a",
+      "sha256": "b2bb445be3def673b16db01ab19f152bc2d62736a49036ea3ce8ff706acb070f",
       "alphaSha256": "6f032cd93baee68e5833eb6af176869421d6840399aa7f5e3249239248fa10cd"
     },
     {
@@ -1042,7 +1042,7 @@
       "alphaPixels": 52493,
       "opaquePixels": 36772,
       "anchorAlpha": 7541,
-      "sha256": "baf19e4c9bbd1003757f48a845fcff80a16d5a550684a24eafb826336fb6542b",
+      "sha256": "2de1cbe402f75803ef73d3e6321ccb3a4c18a7b06b986198467c9a3458bdddc8",
       "alphaSha256": "37e9b0e78790bfeeaf404c9c311783a19b2d3436e0d0d612ab6136a466f84041"
     },
     {
@@ -1054,11 +1054,11 @@
         490,
         804
       ],
-      "alphaPixels": 186018,
-      "opaquePixels": 176010,
+      "alphaPixels": 186668,
+      "opaquePixels": 176007,
       "anchorAlpha": null,
-      "sha256": "977c09f3863013b7118486c2ff3c70af4e5cdcfcece6061abb311a642d43dc67",
-      "alphaSha256": "6e371f938d914782e3f3b54c771d6c8011acee2daeea85a3699fcb8132bb2f2e",
+      "sha256": "925f3b34b3083476c73033f1d5d1b059629e76cb61cddd50e0552aee3e404015",
+      "alphaSha256": "15764c841781239649c6e6ec983c428b42eb7bc36636a21ff6f79f1682bc350f",
       "sameThemeShoeOverlapPixels": 0
     },
     {
@@ -1073,7 +1073,7 @@
       "alphaPixels": 5834,
       "opaquePixels": 4856,
       "anchorAlpha": null,
-      "sha256": "84896e430d4abe087b5a5b6ea13da8776cd6a06355e7f83ec6bce31084901f2e",
+      "sha256": "a70e90f815844ad76b5e73c2be287610107a7aee971d386cb6312be7851222dc",
       "alphaSha256": "44903ff5c3430312c33a20d6993a6a5b2878f8394f99510a8d1a2fc10b8967eb"
     },
     {
@@ -1115,11 +1115,11 @@
         524,
         656
       ],
-      "alphaPixels": 200727,
-      "opaquePixels": 191974,
+      "alphaPixels": 201528,
+      "opaquePixels": 191999,
       "anchorAlpha": null,
-      "sha256": "c6c802f236817415cd5fd44d3a14709bc656d9520d0018950b984a65b64c7d62",
-      "alphaSha256": "3182b6120c432c58365cb44eb812cd27ef44478777f4bb01c6be47c5d0315b73",
+      "sha256": "3eb02f2689abbea7f13b3b944615e818686df7375ceeac7128f4876dc7199176",
+      "alphaSha256": "ba888e765c0ccbe832f8c6942f6c23a45c872183c88228e794ed0e29622fe388",
       "sameThemeShoeOverlapPixels": 0
     },
     {
@@ -1134,7 +1134,7 @@
       "alphaPixels": 7160,
       "opaquePixels": 6179,
       "anchorAlpha": null,
-      "sha256": "baca92121ad90cc13fab5f99a4dd6fb887fb035af9d170be5792a0743b2fc769",
+      "sha256": "a88d0804c91e06d76b99415312f58265b9e383e7fbc786bbd30e982442ca6d2e",
       "alphaSha256": "b43f25c8293af027ea917fe3c67331354b4ff47b4da8fc45a1d50bac19a4d9d6"
     },
     {
@@ -1156,16 +1156,16 @@
       "key": "ice-snow/catkin/weapon",
       "path": "public/assets/characters/modular/shop/ice-snow/catkin-weapon.png",
       "bbox": [
-        33,
+        34,
         50,
         604,
         909
       ],
-      "alphaPixels": 173118,
-      "opaquePixels": 161764,
-      "anchorAlpha": 17477,
-      "sha256": "53e1fb18432a7819f115b778774e4878a15dcdbee0ec7bbf742aa7dfe60c8cbc",
-      "alphaSha256": "8f659ac7c19f52198152d32d124cab01084e55cb24feff7bac36773315507d3e"
+      "alphaPixels": 173509,
+      "opaquePixels": 161629,
+      "anchorAlpha": 17466,
+      "sha256": "675a2d6cea322870bde2035dacd26a7344bd6d8f8d30c552111f229828d76324",
+      "alphaSha256": "78e23879cfd85b03863490f53bfdb1dd50a84a2e8b4731bab9cbd992bebf6b7f"
     },
     {
       "key": "ice-snow/kenshi/body",
@@ -1174,15 +1174,15 @@
         10,
         15,
         629,
-        927
+        928
       ],
-      "alphaPixels": 363327,
-      "opaquePixels": 357013,
+      "alphaPixels": 364157,
+      "opaquePixels": 356920,
       "anchorAlpha": null,
-      "sha256": "de41c7da00405289e34c0f739a5866261db15ca082bfa6a7dcd4ad6a307f7d95",
-      "alphaSha256": "22c449d1db9e834786dd5c441f4772232058c4ebb848118bd0589e6cf0a87f6f",
+      "sha256": "cc3207c60fe99b32659557c94059254954e589ca683cd759592e32c59d1142d5",
+      "alphaSha256": "73c19834c0623740edd7236091cc6e3908725c7d478a6eca7872dc4c232b9e41",
       "dressSkirtRowWidth": 523,
-      "dressFeetRowWidth": 65
+      "dressFeetRowWidth": 63
     },
     {
       "key": "ice-snow/kenshi/head",
@@ -1196,7 +1196,7 @@
       "alphaPixels": 5247,
       "opaquePixels": 4403,
       "anchorAlpha": null,
-      "sha256": "ae93515b5adb378897bb59fd3b33ac3c801ed06f8d81d8bef8b919b8b373ce0d",
+      "sha256": "24a7b4bb75f8871a2ac6c6bb4800b9d415931237c89089ef1d87792cba9017c9",
       "alphaSha256": "2cbf46fe8bf292687d78cba7a08bc69b6c5fa2f0af19bb2a47592a9275b6eaf9"
     },
     {
@@ -1226,7 +1226,7 @@
       "alphaPixels": 76311,
       "opaquePixels": 66230,
       "anchorAlpha": 9278,
-      "sha256": "d9293d225bdcad78960857925221fcdeeffd1cfa0bf0de71bbbe7615ab506bba",
+      "sha256": "ddc3122ea0436f077c2f2557e8c3a69cf7080a1bfb414bfbf41af84c435983ab",
       "alphaSha256": "8743473afc450dd52b0885c5dcfab3e325e83403b3911acdfeb336d720e0a2f0"
     },
     {
@@ -2097,17 +2097,17 @@
       "key": "ice-snow/body.png",
       "path": "public/assets/equipment/shop/ice-snow/body.png",
       "bbox": [
-        18,
+        19,
         13,
         236,
         242
       ],
-      "alphaPixels": 36737,
-      "meanLuminance": 187.26,
-      "meanChroma": 27.3,
-      "nearWhiteRatio": 0.0068,
-      "darkPixelRatio": 0.6305,
-      "sha256": "6158968e1d8dc6e7deaa76ed99782532c0fea117eb3dc4c4fdab06afd7490d93"
+      "alphaPixels": 36776,
+      "meanLuminance": 187.78,
+      "meanChroma": 27.41,
+      "nearWhiteRatio": 0.0062,
+      "darkPixelRatio": 0.6205,
+      "sha256": "ac079b5fb0e0fb3760dd5e25623e62fb72a671357ffd1b4d1760b76c6ec41bf6"
     },
     {
       "key": "ice-snow/bracelet.png",
@@ -2161,17 +2161,17 @@
       "key": "ice-snow/ring.png",
       "path": "public/assets/equipment/shop/ice-snow/ring.png",
       "bbox": [
-        12,
+        13,
         15,
         242,
         240
       ],
-      "alphaPixels": 32578,
-      "meanLuminance": 167.06,
-      "meanChroma": 46.91,
-      "nearWhiteRatio": 0.0387,
-      "darkPixelRatio": 0.7444,
-      "sha256": "f2860698176d51bfea0715569673648877de4d081e581eaa7cf15fceb0c60a82"
+      "alphaPixels": 32577,
+      "meanLuminance": 167.76,
+      "meanChroma": 46.73,
+      "nearWhiteRatio": 0.0356,
+      "darkPixelRatio": 0.7382,
+      "sha256": "9be0a1c60de0535fd7bd5983a8f118c6994f1a776a700df3f555246d71b777a7"
     },
     {
       "key": "ice-snow/shoes.png",
@@ -2183,11 +2183,11 @@
         226
       ],
       "alphaPixels": 30866,
-      "meanLuminance": 188.26,
-      "meanChroma": 20.4,
-      "nearWhiteRatio": 0.0084,
-      "darkPixelRatio": 0.5622,
-      "sha256": "4595afc7380a0b7cd75b21ed371a50cd48f44c9008a4728151723e914f31980c"
+      "meanLuminance": 189.01,
+      "meanChroma": 20.5,
+      "nearWhiteRatio": 0.0081,
+      "darkPixelRatio": 0.5566,
+      "sha256": "defe095388fd0bcfa0103132bcd430add04d5fd9ada53c45f1acde9b6862eaac"
     },
     {
       "key": "ice-snow/weapon-swordsman.png",
@@ -2246,12 +2246,12 @@
         242,
         240
       ],
-      "alphaPixels": 37406,
-      "meanLuminance": 178.07,
-      "meanChroma": 35.96,
-      "nearWhiteRatio": 0.0327,
-      "darkPixelRatio": 0.6972,
-      "sha256": "08cfdc0b5252ca5015a88010186e5324e0b53145962211bb87316f1754479087"
+      "alphaPixels": 37404,
+      "meanLuminance": 178.86,
+      "meanChroma": 35.91,
+      "nearWhiteRatio": 0.031,
+      "darkPixelRatio": 0.6819,
+      "sha256": "41aa9fa4510fcd721793626a01c79684b3b18ffd15306293f1e9ff2d6ac66f94"
     },
     {
       "key": "ice-snow/weapon-kenshi.png",
@@ -2326,12 +2326,12 @@
         207,
         241
       ],
-      "alphaPixels": 23640,
-      "meanLuminance": 189.99,
-      "meanChroma": 24.02,
-      "nearWhiteRatio": 0.0094,
-      "darkPixelRatio": 0.6057,
-      "sha256": "76a49b9abaacc5613320d5eb4f771dcb6a3cfb75587aa23053fd8bf3e745cdbc"
+      "alphaPixels": 23637,
+      "meanLuminance": 190.19,
+      "meanChroma": 24.06,
+      "nearWhiteRatio": 0.0098,
+      "darkPixelRatio": 0.5983,
+      "sha256": "59892df1ab1d2021bc4be50bc3d6b772a0ef04f7fb4289dfd16356b998ceadab"
     },
     {
       "key": "cardboard-cat/body-catkin.png",
