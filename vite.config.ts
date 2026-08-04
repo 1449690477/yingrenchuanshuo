@@ -92,9 +92,14 @@ export default defineConfig({
           },
           {
             urlPattern: ({ url }) => url.pathname.includes('/assets/characters/modular/'),
-            handler: 'CacheFirst',
+            // 2026-08-04 事故教训：换装层是会被热修的资产（冰雪 7f7ad25 重画了
+            // 13 张图但 URL 不变），CacheFirst+30 天会把修复前的旧图在老玩家
+            // 客户端钉死一个月——老板亲测樱酱裙无头正是这条路。与奇遇美术
+            // 同一口径改为先回缓存、后台刷新；缓存名升 v2 让 SW 更新后的
+            // 首屏直接拉新图（v1 旧缓存成为孤儿等浏览器逐出，可接受）。
+            handler: 'StaleWhileRevalidate',
             options: {
-              cacheName: 'character-appearance-v1',
+              cacheName: 'character-appearance-v2',
               cacheableResponse: { statuses: [0, 200] },
               expiration: {
                 maxEntries: 160,
