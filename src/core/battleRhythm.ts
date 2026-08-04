@@ -25,13 +25,16 @@ import type { Rng } from './rng';
 
 export type BeatKind = 'player-attack' | 'player-skill' | 'monster-attack';
 
+/** 拍子的演出语义：伤害飘红字、治疗飘绿字、召唤走登场演出。 */
+export type BeatEffect = 'damage' | 'heal' | 'summon';
+
 export interface BattleBeat {
   /** 自增序号。UI 拿它当动画 key，保证每拍都能重新触发。 */
   seq: number;
   kind: BeatKind;
-  /** 是否暴击。仅玩家出手的拍子可能为 true。 */
+  /** 是否暴击。仅玩家伤害拍可能为 true。 */
   crit: boolean;
-  /** 展示用伤害数字（非真实结算值） */
+  /** 展示用数字（非真实结算值）：伤害拍是伤害、治疗拍是回复量、召唤拍恒为 0 */
   damage: number;
   /**
    * `player-skill` 专有：稳定技能 ID。
@@ -40,6 +43,8 @@ export interface BattleBeat {
    * 进而让表现层把旧冷却和拍子错认成另一张技能卡。
    */
   skillId: string | null;
+  /** 演出语义；缺省按 'damage' 处理（兼容旧拍子消费方）。 */
+  effect?: BeatEffect;
 }
 
 /** 视觉节奏生产器需要的最小技能配置。 */
@@ -51,6 +56,18 @@ export interface RhythmSkillSpec {
    * 它不是 M3-4 的真实战斗技能调度，也不参与挂机收益。
    */
   priority: number;
+  /** 演出语义，缺省 'damage'。 */
+  effect?: BeatEffect;
+  /**
+   * 释放门槛：剧场血量比例（battleVitalsAtProgress 的投影）不高于该值才演。
+   * 与真实结算的 castWhen(self-hp-at-most) 同语义 —— 条件不满足时保持就绪、
+   * 短暂重试，不空耗冷却。2026-08-04 起治疗/召唤进入挂机演出（此前被整类排除）。
+   */
+  castWhenSelfHpAtMost?: number;
+  /** 释放门槛：目标（怪物）血量比例不高于该值才演。 */
+  castWhenTargetHpAtMost?: number;
+  /** 治疗拍展示回复量 = 该比例 × params.playerMaxHp。 */
+  healMaxHpRatio?: number;
 }
 
 export interface RhythmState {
@@ -190,6 +207,12 @@ export interface RhythmParams {
   playerHit: number;
   /** 怪物一次攻击的展示伤害基准 */
   monsterHit: number;
+  /** 剧场玩家血量比例（0~1），供 castWhenSelfHpAtMost 门控；缺省视为满血。 */
+  selfHpRatio?: number;
+  /** 剧场目标血量比例（0~1），供 castWhenTargetHpAtMost 门控；缺省视为满血。 */
+  targetHpRatio?: number;
+  /** 玩家展示生命上限，治疗拍用它换算回复量。 */
+  playerMaxHp?: number;
 }
 
 /**
@@ -203,6 +226,19 @@ const MAX_BEATS_PER_ADVANCE = 12;
 
 /** 时间步进的下限，避免 0 或负的间隔造成死循环 */
 const MIN_INTERVAL = 0.05;
+
+/** 释放门槛未满足时的重试间隔（秒）：技能保持就绪，不烧冷却。 */
+const GATE_RETRY_SEC = 1;
+
+function skillGateOpen(skill: RhythmSkillSpec, params: RhythmParams): boolean {
+  if (skill.castWhenSelfHpAtMost !== undefined) {
+    if ((params.selfHpRatio ?? 1) > skill.castWhenSelfHpAtMost) return false;
+  }
+  if (skill.castWhenTargetHpAtMost !== undefined) {
+    if ((params.targetHpRatio ?? 1) > skill.castWhenTargetHpAtMost) return false;
+  }
+  return true;
+}
 
 export function createRhythmState(skills: readonly RhythmSkillSpec[] = []): RhythmState {
   validateSkillSpecs(skills);
@@ -364,14 +400,36 @@ export function advanceRhythm(
     const cooldown = skill.cooldownSec;
     let g = 0;
     while (skillCds[skill.skillId]! <= 0 && g++ < 50) {
-      const crit = rng.chance(params.critRate);
-      push({
-        kind: 'player-skill',
-        crit,
-        // 技能伤害比普攻高，视觉上要能区分出来
-        damage: rollDamage(params.playerHit * 2.4, crit, rng),
-        skillId: skill.skillId,
-      });
+      if (!skillGateOpen(skill, params)) {
+        // 条件未满足：保持就绪、稍后重试，不空耗冷却 —— 与真实结算的
+        // 「主动条件不满足时必须跳过」同语义（core/skills.ts canCastSkill）。
+        skillCds[skill.skillId] = GATE_RETRY_SEC;
+        break;
+      }
+      const effect = skill.effect ?? 'damage';
+      if (effect === 'heal') {
+        const maxHp = params.playerMaxHp ?? 0;
+        const base = maxHp > 0 ? maxHp * (skill.healMaxHpRatio ?? 0.1) : params.playerHit * 2.4;
+        push({
+          kind: 'player-skill',
+          crit: false,
+          damage: Math.max(1, Math.round(base)),
+          skillId: skill.skillId,
+          effect,
+        });
+      } else if (effect === 'summon') {
+        push({ kind: 'player-skill', crit: false, damage: 0, skillId: skill.skillId, effect });
+      } else {
+        const crit = rng.chance(params.critRate);
+        push({
+          kind: 'player-skill',
+          crit,
+          // 技能伤害比普攻高，视觉上要能区分出来
+          damage: rollDamage(params.playerHit * 2.4, crit, rng),
+          skillId: skill.skillId,
+          effect,
+        });
+      }
       skillCds[skill.skillId] = skillCds[skill.skillId]! + cooldown;
     }
   }
@@ -455,6 +513,15 @@ function validateSkillSpecs(skills: readonly RhythmSkillSpec[]): void {
     }
     if (!Number.isFinite(skill.priority)) {
       throw new Error(`[战斗节奏] 技能演出优先级必须是有限数：${skill.skillId}`);
+    }
+    for (const [label, ratio] of [
+      ['释放门槛(自身血量)', skill.castWhenSelfHpAtMost],
+      ['释放门槛(目标血量)', skill.castWhenTargetHpAtMost],
+      ['治疗回复比例', skill.healMaxHpRatio],
+    ] as const) {
+      if (ratio !== undefined && (!Number.isFinite(ratio) || ratio <= 0 || ratio > 1)) {
+        throw new Error(`[战斗节奏] ${label}必须在 (0,1] 区间：${skill.skillId}`);
+      }
     }
   }
 }

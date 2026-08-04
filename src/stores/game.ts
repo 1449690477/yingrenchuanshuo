@@ -146,7 +146,11 @@ import {
   type SweepCost,
 } from '@/core/stageProgress';
 import { countStageMonsterKills, mergeLootResults } from '@/core/stageLoot';
-import { advanceBattleVisualCursor, battleMonsterIdAt } from '@/core/battleVisual';
+import {
+  advanceBattleVisualCursor,
+  battleMonsterIdAt,
+  battleVitalsAtProgress,
+} from '@/core/battleVisual';
 import {
   advanceRhythm,
   createBattleRhythmSnapshot,
@@ -248,7 +252,12 @@ import {
 } from '@/data/stages';
 import { requireChapter, requireRegionOfChapter } from '@/data/regions';
 import { requireShopOffer } from '@/data/shop';
-import { battleRhythmSkills, skillsFor } from '@/data/skills';
+import {
+  battleRhythmSkills,
+  rhythmHealMaxHpRatio,
+  rhythmSkillEffect,
+  skillsFor,
+} from '@/data/skills';
 import { requireAffectionCharacter, requireAffectionStory } from '@/data/affection';
 import { AFFECTION_RULES } from '@/data/affectionRules';
 import {
@@ -965,11 +974,22 @@ export const useGameStore = defineStore('game', () => {
   function rhythmSkillSpecs(
     skills: ReturnType<typeof battleRhythmSkills>,
   ): readonly RhythmSkillSpec[] {
-    return skills.map((skill) => ({
-      skillId: skill.id,
-      cooldownSec: skill.cooldownSec,
-      priority: skill.priority,
-    }));
+    return skills.map((skill) => {
+      const healRatio = rhythmHealMaxHpRatio(skill);
+      return {
+        skillId: skill.id,
+        cooldownSec: skill.cooldownSec,
+        priority: skill.priority,
+        effect: rhythmSkillEffect(skill),
+        ...(skill.castWhen?.kind === 'self-hp-at-most'
+          ? { castWhenSelfHpAtMost: skill.castWhen.ratio }
+          : {}),
+        ...(skill.castWhen?.kind === 'target-hp-at-most'
+          ? { castWhenTargetHpAtMost: skill.castWhen.ratio }
+          : {}),
+        ...(healRatio !== null ? { healMaxHpRatio: healRatio } : {}),
+      };
+    });
   }
 
   function publishRhythmRunning(running: boolean): void {
@@ -1354,6 +1374,15 @@ export const useGameStore = defineStore('game', () => {
     // 展示伤害取「一次普攻的期望值」量级，让飘字和血条掉速看起来自洽
     const perHit = Math.max(1, playerStats.atk * playerSkillMultiplier.value * 0.6);
 
+    // 剧场血量投影：与 IdleView 的血条同源（battleVitalsAtProgress），
+    // 治疗/处决类门槛技能据此判断释放时机，不引入第二套血量口径。
+    const vitals = battleVitalsAtProgress(
+      ctx.player,
+      ctx.monster,
+      battleProgress.value,
+      playerSkillMultiplier.value,
+      equipmentSetResolution.value.onHitTriggers,
+    );
     const advance = advanceRhythm(
       rhythmState,
       dt,
@@ -1364,6 +1393,9 @@ export const useGameStore = defineStore('game', () => {
         critRate: playerStats.critRate / 100,
         playerHit: perHit,
         monsterHit: Math.max(1, monsterStats.atk * 0.35),
+        selfHpRatio: vitals.player.maxHp > 0 ? vitals.player.currentHp / vitals.player.maxHp : 1,
+        targetHpRatio: vitals.monster.maxHp > 0 ? vitals.monster.currentHp / vitals.monster.maxHp : 1,
+        playerMaxHp: vitals.player.maxHp,
       },
       rhythmRng,
     );

@@ -110,6 +110,8 @@ interface LiveBeat {
   tier: ImpactTier;
   /** 元素克制短标签（批 1 感知层；怪物攻击不显示） */
   tag: string;
+  /** 演出语义：伤害飘红、治疗飘绿向玩家、召唤走登场标签（2026-08-04） */
+  effect: NonNullable<BattleBeat['effect']>;
 }
 
 const liveBeats = ref<LiveBeat[]>([]);
@@ -222,13 +224,19 @@ function addLiveBeat(beat: BattleBeat): void {
   } else {
     highestPlayerSourceSeq.value = Math.max(highestPlayerSourceSeq.value, beat.seq);
   }
+  // 治疗/召唤是单事件演出，不按多段命中拆分数字
   const offsets: readonly number[] =
     beat.kind === 'monster-attack'
       ? [monsterImpactDelay.value]
-      : beatSkill && beatSkill.hitOffsetsMs.length > 0
-        ? beatSkill.hitOffsetsMs
-        : [0];
-  const damagePerHit = Math.max(1, Math.round(beat.damage / offsets.length));
+      : (beat.effect ?? 'damage') !== 'damage'
+        ? [0]
+        : beatSkill && beatSkill.hitOffsetsMs.length > 0
+          ? beatSkill.hitOffsetsMs
+          : [0];
+  const damagePerHit =
+    (beat.effect ?? 'damage') !== 'damage'
+      ? beat.damage
+      : Math.max(1, Math.round(beat.damage / offsets.length));
 
   offsets.forEach((delayMs, hitIndex) => {
     const visualSeq = beat.seq * 100 + hitIndex;
@@ -246,10 +254,14 @@ function addLiveBeat(beat: BattleBeat): void {
 }
 
 function appendLiveBeat(beat: BattleBeat, visualSeq: number, damage: number): void {
-  if (beat.kind !== 'monster-attack') triggerMonsterHit(visualSeq);
-  else triggerHeroReact();
-  // 这里是所有命中的唯一汇合点 —— 打击反馈挂在这，多段技能的每一段都能各自震一下
-  triggerImpact(beat.kind, beat.crit);
+  const effect = beat.effect ?? 'damage';
+  // 治疗/召唤不是命中：怪物不受击、不顿帧不震屏，只有伤害拍走打击反馈。
+  if (effect === 'damage') {
+    if (beat.kind !== 'monster-attack') triggerMonsterHit(visualSeq);
+    else triggerHeroReact();
+    // 这里是所有命中的唯一汇合点 —— 打击反馈挂在这，多段技能的每一段都能各自震一下
+    triggerImpact(beat.kind, beat.crit);
+  }
   liveBeats.value.push({
     seq: visualSeq,
     sourceSeq: beat.seq,
@@ -260,7 +272,8 @@ function appendLiveBeat(beat: BattleBeat, visualSeq: number, damage: number): vo
     // 用序号做伪随机偏移，无需引入随机源，且同一拍每次渲染位置稳定
     offset: ((visualSeq * 37) % 46) - 23,
     tier: impactTierFor({ kind: beat.kind, crit: beat.crit }),
-    tag: beat.kind === 'monster-attack' ? '' : matchupTag.value,
+    tag: beat.kind === 'monster-attack' || effect !== 'damage' ? '' : matchupTag.value,
+    effect,
   });
   if (liveBeats.value.length > MAX_LIVE_BEATS) {
     const dropped = liveBeats.value.shift();
@@ -350,6 +363,11 @@ const rhythmSkillsById = computed(
 function skillForBeat(beat: LiveBeat): ActiveVisualSkill | null {
   if (beat.kind !== 'player-skill') return null;
   return requireRhythmSkill(beat.skillId);
+}
+
+function summonLabelForBeat(beat: LiveBeat): string {
+  const skill = beat.skillId ? rhythmSkillsById.value.get(beat.skillId) : undefined;
+  return skill ? skill.name : '召唤';
 }
 
 function requireRhythmSkill(skillId: string | null): ActiveVisualSkill {
@@ -644,13 +662,15 @@ onUnmounted(() => {
           :key="b.seq"
           class="beat-damage num"
           :class="[
-            b.kind === 'monster-attack' ? 'to-hero' : 'to-enemy',
+            b.kind === 'monster-attack' || b.effect === 'heal' ? 'to-hero' : 'to-enemy',
             `tier-${b.tier}`,
-            { crit: b.crit },
+            { crit: b.crit, 'is-heal': b.effect === 'heal', 'is-summon': b.effect === 'summon' },
           ]"
           :style="{ '--beat-offset': b.offset + 'px' }"
         >
-          <template v-if="b.kind === 'monster-attack'">-{{ abbr(b.damage) }}</template>
+          <template v-if="b.effect === 'heal'">+{{ abbr(b.damage) }}</template>
+          <template v-else-if="b.effect === 'summon'">{{ summonLabelForBeat(b) }}</template>
+          <template v-else-if="b.kind === 'monster-attack'">-{{ abbr(b.damage) }}</template>
           <template v-else>{{ b.crit ? '暴击 ' : '' }}-{{ abbr(b.damage) }}</template>
           <small v-if="b.tag" class="beat-tag">{{ b.tag }}</small>
         </span>
@@ -2153,6 +2173,24 @@ onUnmounted(() => {
 }
 
 /* 打怪：数字出现在右侧怪物身上 */
+/* 治疗：绿字，飘在玩家侧（to-hero 定位） */
+.beat-damage.is-heal {
+  color: #2f9e5f;
+  text-shadow:
+    0 1px 0 rgb(255 255 255 / 85%),
+    0 2px 8px rgb(47 158 95 / 40%);
+}
+
+/* 召唤：紫蓝登场标签，字号略小于伤害数字 */
+.beat-damage.is-summon {
+  color: #6b5bd2;
+  font-size: 13px;
+  letter-spacing: 1px;
+  text-shadow:
+    0 1px 0 rgb(255 255 255 / 85%),
+    0 2px 8px rgb(107 91 210 / 40%);
+}
+
 .beat-damage.to-enemy {
   right: 22%;
   top: 34%;

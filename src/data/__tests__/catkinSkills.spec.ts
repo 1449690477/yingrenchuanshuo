@@ -71,15 +71,21 @@ describe('catkin skill content', () => {
     expect(JSON.stringify(mark.effects)).toContain('damageTakenFromSource');
   });
 
-  it('挂机视觉节奏不把治疗、召唤或条件技伪装成无条件伤害', () => {
-    expect(battleRhythmSkills('shaman', 1)).toEqual([]);
-    expect(battleRhythmSkills('shaman', 20).map((skill) => skill.id)).toEqual([
-      'skill_shaman_poison',
+  it('挂机视觉节奏收录治疗、召唤与条件技（2026-08-04 起，语义由 effect/门槛承载）', () => {
+    // 旧契约整类排除治疗/召唤/条件技，导致一级灵巫的挂机画面零技能、
+    // 治愈术与召唤骷髅永不释放（玩家实测反馈）。节奏机现支持非伤害拍
+    // 与血量门槛（core/battleRhythm），排除令退役。
+    expect(battleRhythmSkills('shaman', 1).map((skill) => skill.id)).toEqual([
+      'skill_shaman_heal',
     ]);
+    const shaman20 = battleRhythmSkills('shaman', 20).map((skill) => skill.id);
+    expect(shaman20).toContain('skill_shaman_heal');
+    expect(shaman20).toContain('skill_shaman_poison');
+    expect(shaman20).toContain('skill_shaman_skeleton');
 
     const catkinRhythmIds = battleRhythmSkills('catkin', 42).map((skill) => skill.id);
     expect(catkinRhythmIds).toContain('skill_catkin_scratch_frenzy');
-    expect(catkinRhythmIds).not.toContain('skill_catkin_bristle_counter');
-    expect(catkinRhythmIds).not.toContain('skill_catkin_box_ambush');
+    expect(catkinRhythmIds).toContain('skill_catkin_bristle_counter');
+    expect(catkinRhythmIds).toContain('skill_catkin_box_ambush');
   });
 });

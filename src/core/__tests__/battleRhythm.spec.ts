@@ -386,3 +386,74 @@ describe('createBattleRhythmSnapshot', () => {
     ).toThrow(/缺少技能冷却/);
   });
 });
+
+describe('advanceRhythm 治疗与召唤拍（2026-08-04 起进入挂机演出）', () => {
+  const kitSkills: readonly RhythmSkillSpec[] = [
+    {
+      skillId: 'heal',
+      cooldownSec: 10,
+      priority: 95,
+      effect: 'heal',
+      castWhenSelfHpAtMost: 0.75,
+      healMaxHpRatio: 0.1,
+    },
+    { skillId: 'pet', cooldownSec: 12, priority: 30, effect: 'summon' },
+  ];
+  const kitParams: RhythmParams = {
+    ...params,
+    skills: kitSkills,
+    playerMaxHp: 1000,
+  };
+
+  it('血量高于门槛时治疗保持就绪不释放、不烧冷却；低于门槛后 1 秒内补上', () => {
+    let state = createRhythmState(kitSkills);
+    const first = advanceRhythm(state, 0.1, { ...kitParams, selfHpRatio: 0.9 }, new Rng(1));
+    expect(first.beats.filter((b) => b.skillId === 'heal')).toHaveLength(0);
+    state = first.state;
+
+    const second = advanceRhythm(state, 1.0, { ...kitParams, selfHpRatio: 0.5 }, new Rng(2));
+    const heals = second.beats.filter((b) => b.skillId === 'heal');
+    expect(heals).toHaveLength(1);
+    expect(heals[0]).toMatchObject({ kind: 'player-skill', effect: 'heal', crit: false });
+    // 回复量 = healMaxHpRatio × playerMaxHp
+    expect(heals[0]!.damage).toBe(100);
+  });
+
+  it('缺省 selfHpRatio 视为满血：门槛技能不释放（不误演）', () => {
+    const state = createRhythmState(kitSkills);
+    const advance = advanceRhythm(state, 0.1, kitParams, new Rng(3));
+    expect(advance.beats.filter((b) => b.skillId === 'heal')).toHaveLength(0);
+  });
+
+  it('召唤拍 effect=summon、damage=0、不吃暴击', () => {
+    const state = createRhythmState(kitSkills);
+    const advance = advanceRhythm(state, 1.0, { ...kitParams, selfHpRatio: 1 }, new Rng(4));
+    const pets = advance.beats.filter((b) => b.skillId === 'pet');
+    expect(pets).toHaveLength(1);
+    expect(pets[0]).toMatchObject({ kind: 'player-skill', effect: 'summon', damage: 0, crit: false });
+  });
+
+  it('门槛重试不烧冷却：开门后仍能立刻释放，随后按满冷却轮转', () => {
+    let state = createRhythmState([kitSkills[0]!]);
+    const closed = { ...kitParams, skills: [kitSkills[0]!], selfHpRatio: 1 };
+    for (let i = 0; i < 5; i += 1) {
+      const advance = advanceRhythm(state, 1.0, closed, new Rng(10 + i));
+      expect(advance.beats).toEqual(advance.beats.filter((b) => b.skillId !== 'heal'));
+      state = advance.state;
+    }
+    const open = advanceRhythm(state, 1.0, { ...closed, selfHpRatio: 0.3 }, new Rng(20));
+    expect(open.beats.filter((b) => b.skillId === 'heal')).toHaveLength(1);
+    // 释放后进入满冷却，紧接着的一秒不会再放
+    const after = advanceRhythm(open.state, 1.0, { ...closed, selfHpRatio: 0.3 }, new Rng(21));
+    expect(after.beats.filter((b) => b.skillId === 'heal')).toHaveLength(0);
+  });
+
+  it('非法门槛与回复比例被拒绝', () => {
+    expect(() =>
+      createRhythmState([{ skillId: 'x', cooldownSec: 5, priority: 1, castWhenSelfHpAtMost: 0 }]),
+    ).toThrow();
+    expect(() =>
+      createRhythmState([{ skillId: 'x', cooldownSec: 5, priority: 1, healMaxHpRatio: 1.5 }]),
+    ).toThrow();
+  });
+});

@@ -13,13 +13,21 @@ import {
   growthTierFor,
 } from '../characterAppearance';
 import {
+  ALL_SKILLS,
   CATKIN_VISUAL_SKILLS,
   KENSHI_VISUAL_SKILLS,
   SHAMAN_VISUAL_SKILLS,
   SWORDSMAN_VISUAL_SKILLS,
   WITCH_VISUAL_SKILLS,
   battleRhythmSkills,
+  rhythmSkillEffect,
 } from '../skills';
+
+function requireSkill(skillId: string) {
+  const skill = ALL_SKILLS.find((entry) => entry.id === skillId);
+  if (!skill) throw new Error(`测试引用了不存在的技能：${skillId}`);
+  return skill;
+}
 import { EQUIPMENT } from '../equipment';
 import { ITEMS } from '../items';
 import { LOOT_TABLES } from '../lootTables';
@@ -749,24 +757,39 @@ describe('区域 1–5 内容完整性', () => {
     }
   });
 
-  it('冷却视觉节奏只收录无条件主动伤害技能，治疗和召唤不冒充攻击', () => {
+  it('冷却视觉节奏收录全部已解锁主动技，治疗/召唤以专属拍语义参演（2026-08-04）', () => {
+    // 旧契约整类排除治疗、召唤与条件技（一级灵巫挂机画面因此零技能、
+    // 治愈术永不释放）。节奏机现支持 heal/summon 拍与血量门槛，收录口径
+    // 改为「已登记视觉的全部已解锁主动技」，语义由 rhythmSkillEffect 区分。
     expect(battleRhythmSkills('witch', 1).map((skill) => skill.id)).toEqual([
       'skill_witch_fireball',
     ]);
-    expect(battleRhythmSkills('shaman', 1)).toEqual([]);
-    expect(battleRhythmSkills('shaman', 10).map((skill) => skill.id)).toEqual([
-      'skill_shaman_poison',
+    expect(battleRhythmSkills('shaman', 1).map((skill) => skill.id)).toEqual([
+      'skill_shaman_heal',
     ]);
-    expect(battleRhythmSkills('swordsman', 35).map((skill) => skill.id)).toEqual([
-      'skill_swordsman_attack',
-      'skill_swordsman_halfmoon',
-      'skill_swordsman_flame',
-    ]);
-    expect(battleRhythmSkills('catkin', 20).map((skill) => skill.id)).toEqual([
-      'skill_catkin_paw_combo',
-      'skill_catkin_light_pounce',
-      'skill_catkin_scratch_frenzy',
-    ]);
+    const shaman10 = battleRhythmSkills('shaman', 10).map((skill) => skill.id);
+    expect(shaman10).toContain('skill_shaman_heal');
+    expect(shaman10).toContain('skill_shaman_poison');
+    const swordsman35 = battleRhythmSkills('swordsman', 35).map((skill) => skill.id);
+    expect(swordsman35).toEqual(
+      expect.arrayContaining([
+        'skill_swordsman_attack',
+        'skill_swordsman_halfmoon',
+        'skill_swordsman_flame',
+      ]),
+    );
+    const catkin20 = battleRhythmSkills('catkin', 20).map((skill) => skill.id);
+    expect(catkin20).toEqual(
+      expect.arrayContaining([
+        'skill_catkin_paw_combo',
+        'skill_catkin_light_pounce',
+        'skill_catkin_scratch_frenzy',
+      ]),
+    );
+    // 语义提取：治疗与召唤不再冒充攻击 —— 由 effect 字段承载差异
+    expect(rhythmSkillEffect(requireSkill('skill_shaman_heal'))).toBe('heal');
+    expect(rhythmSkillEffect(requireSkill('skill_shaman_skeleton'))).toBe('summon');
+    expect(rhythmSkillEffect(requireSkill('skill_shaman_poison'))).toBe('damage');
   });
 
   it('全部物品都引用真实存在的正式图标', () => {

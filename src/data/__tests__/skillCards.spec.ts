@@ -29,21 +29,26 @@ describe('自动技能演出卡组', () => {
     expect(autoIds).toEqual(battleRhythmSkills(classId, 99).map((skill) => skill.id));
   });
 
-  it('治疗、召唤和带条件技能只显示条件待机，不伪装成伤害轮转', () => {
+  it('治疗、召唤和带条件技能进入自动轮转，条件文案保留（2026-08-04 起不再整类待机）', () => {
+    // 旧契约是「条件待机、不伪装成伤害」——那是 M3-4 前节奏机不支持非伤害拍
+    // 的临时约束，导致治愈术/召唤骷髅挂机永不释放（玩家实测反馈）。节奏机
+    // 现已支持 heal/summon 拍与血量门槛（core/battleRhythm），卡片按自动轮转
+    // 展示，释放时机仍由门槛控制，条件文案继续保留在详情里。
     const shamanCards = autoBattleSkillCards('shaman', 25);
     expect(shamanCards.find((card) => card.skillId === 'skill_shaman_heal')).toMatchObject({
-      mode: 'conditional',
+      mode: 'auto',
       kind: '回复',
+      conditionText: '生命低于 75%',
     });
     expect(shamanCards.find((card) => card.skillId === 'skill_shaman_skeleton')).toMatchObject({
-      mode: 'conditional',
+      mode: 'auto',
       kind: '召唤',
     });
     expect(shamanCards.find((card) => card.skillId === 'skill_shaman_poison')?.mode).toBe('auto');
 
     const catCards = autoBattleSkillCards('catkin', 25);
     expect(catCards.find((card) => card.skillId === 'skill_catkin_bristle_counter')).toMatchObject({
-      mode: 'conditional',
+      mode: 'auto',
       conditionText: '生命低于 65%',
     });
   });

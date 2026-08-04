@@ -1565,17 +1565,34 @@ export function unlockedVisualSkills(classId: ClassId, level: number): readonly 
 }
 
 /**
- * 当前挂机节奏只负责“可信的攻击演出”。
+ * 挂机节奏可演出的技能集 = 已登记视觉的全部已解锁主动技。
  *
- * 治疗、召唤以及带释放条件的技能不能在缺少正式战斗状态时伪装成伤害；
- * 它们仍可在角色页逐项预览，等 M3-4 的真实技能调度统一接管。
+ * 2026-08-04 起治疗、召唤与带释放条件的技能**不再被整类排除**：节奏机
+ * 已支持非伤害拍（BeatEffect: heal/summon）与释放门槛（castWhenSelfHpAtMost，
+ * 吃 battleVitalsAtProgress 的剧场血量投影），玩家点名的「治愈术/召唤骷髅
+ * 挂机从不释放」正是旧过滤所致 —— 那是 M3-4 真实调度落地前的临时约束，
+ * M3 清账后没人回头拆。真实结算依旧只在 core/idle.ts，本函数只管演出。
  */
 export function battleRhythmSkills(
   classId: ClassId,
   level: number,
 ): readonly ActiveVisualSkill[] {
   return unlockedVisualSkills(classId, level).filter(
-    (skill): skill is ActiveVisualSkill =>
-      skill.type === 'active' && skill.castWhen === undefined && skillDealsDamage(skill),
+    (skill): skill is ActiveVisualSkill => skill.type === 'active',
   );
+}
+
+/** 拍子演出语义：与 core/battleRhythm 的 BeatEffect 对齐。 */
+export function rhythmSkillEffect(skill: Skill): 'damage' | 'heal' | 'summon' {
+  if (skill.effects.some((effect) => effect.kind === 'summon')) return 'summon';
+  if (skill.effects.some((effect) => effect.kind === 'heal')) return 'heal';
+  return 'damage';
+}
+
+/** 治疗技的基础回复比例（展示换算用）；非治疗技返回 null。 */
+export function rhythmHealMaxHpRatio(skill: Skill): number | null {
+  const heal = skill.effects.find(
+    (effect): effect is Extract<SkillEffect, { kind: 'heal' }> => effect.kind === 'heal',
+  );
+  return heal ? heal.maxHpRatio.base : null;
 }
