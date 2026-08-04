@@ -57,6 +57,16 @@ import {
   REGION_7_SET_WEAPON_NAMES,
   region7SetEquipmentId,
 } from './region7';
+import {
+  REGION_8_EQUIPMENT_THEME,
+  REGION_8_SET_ID,
+  REGION_8_SET_LEVEL,
+  REGION_8_SET_NAMES,
+  REGION_8_SET_QUALITY,
+  REGION_8_SET_SLOTS,
+  REGION_8_SET_WEAPON_NAMES,
+  region8SetEquipmentId,
+} from './region8';
 import { BOUTIQUE_WEAPON_ELEMENTS, REGION_WEAPON_ELEMENTS } from './weaponElements';
 
 /** 每个区域一套命名主题：8 个槽位各一个词根 */
@@ -191,6 +201,17 @@ const THEMES: NamingTheme[] = [
     names: REGION_7_EQUIPMENT_THEME.names,
     weaponNames: REGION_7_EQUIPMENT_THEME.weaponNames,
   },
+  {
+    regionId: REGION_8_EQUIPMENT_THEME.regionId,
+    level: REGION_8_EQUIPMENT_THEME.level,
+    weaponElement: REGION_WEAPON_ELEMENTS.r8,
+    qualities: [...REGION_8_EQUIPMENT_THEME.qualities],
+    icons: Object.fromEntries(
+      SLOT_ORDER.map((slot) => [slot, `assets/equipment/r8/${slot}.png`]),
+    ) as Record<EquipSlot, string>,
+    names: REGION_8_EQUIPMENT_THEME.names,
+    weaponNames: REGION_8_EQUIPMENT_THEME.weaponNames,
+  },
 ];
 
 /** 品质前缀，让同名装备在背包里能区分开 */
@@ -226,6 +247,8 @@ const KENSHI_BODY_APPEARANCE_IDS = new Set([
   'r5-set-body',
   'r6-set-body',
   'r7-set-body',
+  'r8-body',
+  'r8-set-body',
   'dungeon-azure-body',
   'dungeon-violet-body',
   'dungeon-auric-body',
@@ -380,6 +403,32 @@ function buildEquipment(): Record<string, EquipmentDef> {
             classPresentations: weaponClassPresentations(
               'r7-set-weapon',
               REGION_7_SET_WEAPON_NAMES,
+            ),
+          }
+        : { ...common, slot },
+    );
+  }
+
+  for (const slot of REGION_8_SET_SLOTS) {
+    const id = region8SetEquipmentId(slot);
+    const common = {
+      id,
+      name: REGION_8_SET_NAMES[slot],
+      quality: REGION_8_SET_QUALITY,
+      level: REGION_8_SET_LEVEL,
+      setId: REGION_8_SET_ID,
+            icon: `assets/equipment/sets/r8-dragonabyss/${slot}.png`,
+      appearanceId: `r8-set-${slot}`,
+    } as const;
+    out[id] = withKenshiBodyPresentation(
+      slot === 'weapon'
+        ? {
+            ...common,
+            slot,
+            element: REGION_WEAPON_ELEMENTS.r8,
+            classPresentations: weaponClassPresentations(
+              'r8-set-weapon',
+              REGION_8_SET_WEAPON_NAMES,
             ),
           }
         : { ...common, slot },

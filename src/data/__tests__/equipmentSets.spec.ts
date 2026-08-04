@@ -9,6 +9,8 @@ import {
   REGION_CRIMSON_SET_ID,
   REGION_SHADOW_SET,
   REGION_SHADOW_SET_ID,
+  REGION_DRAGONABYSS_SET,
+  REGION_DRAGONABYSS_SET_ID,
 } from '../regionEquipmentSets';
 import { ARENA_EQUIPMENT_SET, ARENA_SET_ID } from '../arenaEquipment';
 
@@ -22,6 +24,7 @@ describe('通用装备套装注册表', () => {
       REGION_CRIMSON_SET_ID,
       REGION_SHADOW_SET_ID,
       REGION_BLOODMOON_SET_ID,
+      REGION_DRAGONABYSS_SET_ID,
       ARENA_SET_ID,
     ]);
     for (const [id, definition] of Object.entries(EQUIPMENT_DUNGEON_SETS)) {
@@ -30,6 +33,7 @@ describe('通用装备套装注册表', () => {
     expect(getEquipmentSet(REGION_CRIMSON_SET_ID)).toBe(REGION_CRIMSON_SET);
     expect(getEquipmentSet(REGION_SHADOW_SET_ID)).toBe(REGION_SHADOW_SET);
     expect(getEquipmentSet(REGION_BLOODMOON_SET_ID)).toBe(REGION_BLOODMOON_SET);
+    expect(getEquipmentSet(REGION_DRAGONABYSS_SET_ID)).toBe(REGION_DRAGONABYSS_SET);
     expect(getEquipmentSet(ARENA_SET_ID)).toBe(ARENA_EQUIPMENT_SET);
   });
 

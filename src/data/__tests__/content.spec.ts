@@ -220,15 +220,15 @@ describe('区域 1–5 内容完整性', () => {
     ).toEqual([0, 75, 150, 225, 300]);
   });
 
-  it('数量达到区域 1–7 的内容目标', () => {
-    expect(REGIONS).toHaveLength(7);
-    expect(ALL_CHAPTERS).toHaveLength(35);
-    expect(Object.keys(STAGES)).toHaveLength(210);
-    expect(Object.keys(MONSTERS)).toHaveLength(168);
+  it('数量达到区域 1–8 的内容目标', () => {
+    expect(REGIONS).toHaveLength(8);
+    expect(ALL_CHAPTERS).toHaveLength(40);
+    expect(Object.keys(STAGES)).toHaveLength(240);
+    expect(Object.keys(MONSTERS)).toHaveLength(192);
     // 原有 364 件 + 樱酱心虹好感装备 10 件 + 瞬樱竞技场装备 4 件，
     // 冰雪华年再增加五职业武器 5 件与七个通用槽 7 件。
-    expect(Object.keys(EQUIPMENT)).toHaveLength(390);
-    expect(Object.keys(LOOT_TABLES)).toHaveLength(105);
+    expect(Object.keys(EQUIPMENT)).toHaveLength(422);
+    expect(Object.keys(LOOT_TABLES)).toHaveLength(120);
   });
 
   it('区域 3/4 各有八部位 × 精良/稀有/史诗 24 件装备', () => {
@@ -328,7 +328,7 @@ describe('区域 1–5 内容完整性', () => {
     );
     expect(region2Monsters).toHaveLength(25);
     expect(Object.keys(MONSTER_VISUALS).filter((id) => id.startsWith('mon_2-'))).toHaveLength(25);
-    expect(Object.keys(MONSTER_VISUALS)).toHaveLength(168);
+    expect(Object.keys(MONSTER_VISUALS)).toHaveLength(192);
     for (const monster of region2Monsters) {
       expect(monster.sprite, monster.id).toBe(MONSTER_VISUALS[monster.id]?.asset);
       expect(
@@ -806,7 +806,7 @@ describe('区域 1–5 内容完整性', () => {
   it('全部物品都引用真实存在的正式图标', () => {
     // 数量断言的作用是「加物品时逼人来看一眼图标」，不是锁死内容规模。
     // 2026-08-01 加入樱酱专属印记后 55 → 56；五职业均使用独立正式图标。
-    expect(Object.keys(ITEMS)).toHaveLength(57);
+    expect(Object.keys(ITEMS)).toHaveLength(62);
     for (const [id, item] of Object.entries(ITEMS)) {
       expect(item.icon).toBe(`assets/items/${id}.png`);
       expect(existsSync(resolve('public', item.icon)), `${id} → ${item.icon}`).toBe(true);

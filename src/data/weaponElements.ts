@@ -17,6 +17,8 @@ export const REGION_WEAPON_ELEMENTS = {
   r6: 'ice',
   // 血月峡谷以炎属性怪为主，R7 雷武器闭合炎 → 冰 → 雷 → 炎教学环。
   r7: 'thunder',
+  // 龙渊魔城以冰属性怪为主，R8 炎武器闭合教学环并承接 r7 的雷武器过渡。
+  r8: 'fire',
 } as const satisfies Readonly<Record<string, Element>>;
 
 /**

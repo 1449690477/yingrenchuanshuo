@@ -32,6 +32,13 @@ import {
   REGION_7_SET_SLOTS,
   region7SetEquipmentId,
 } from './region7';
+import {
+  REGION_8_FRAGMENT_COST,
+  REGION_8_FRAGMENT_ID,
+  REGION_8_SET_ID,
+  REGION_8_SET_SLOTS,
+  region8SetEquipmentId,
+} from './region8';
 
 const EQUIP_SLOTS = new Set<string>([
   'weapon',
@@ -197,6 +204,15 @@ const EQUIPMENT_SET_CRAFTING_RECIPE_LIST: readonly EquipmentSetCraftingRecipe[] 
     fragmentCount: REGION_7_FRAGMENT_COST,
     targetDefIds: Object.fromEntries(
       REGION_7_SET_SLOTS.map((slot) => [slot, region7SetEquipmentId(slot)]),
+    ),
+  },
+  {
+    id: 'craft_set_dragonabyss',
+    setId: REGION_8_SET_ID,
+    fragmentItemId: REGION_8_FRAGMENT_ID,
+    fragmentCount: REGION_8_FRAGMENT_COST,
+    targetDefIds: Object.fromEntries(
+      REGION_8_SET_SLOTS.map((slot) => [slot, region8SetEquipmentId(slot)]),
     ),
   },
 ];

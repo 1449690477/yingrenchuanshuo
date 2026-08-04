@@ -7,6 +7,7 @@ import { REGION_34_MATERIALS } from './region34';
 import { REGION_5_MATERIALS, type Region5MaterialSpec } from './region5';
 import { REGION_6_MATERIALS, type Region6MaterialSpec } from './region6';
 import { REGION_7_MATERIALS, type Region7MaterialSpec } from './region7';
+import { REGION_8_MATERIALS } from './region8';
 import { EQUIPMENT_DUNGEON_TIERS } from './equipmentDungeonGear';
 import { IMPRINT_CORE_ID, IMPRINT_CRYSTAL_IDS } from './imprintRules';
 
@@ -148,6 +149,9 @@ export const ITEMS: Record<string, ItemDef> = {
 
   // ── 区域 7：血月峡谷 ──
   ...Object.fromEntries(REGION_7_MATERIALS.map((spec) => [spec.id, regionSetItem(spec)])),
+
+  // ── 区域 8：龙渊魔城 ──
+  ...Object.fromEntries(REGION_8_MATERIALS.map((spec) => [spec.id, regionSetItem(spec)])),
 
   // ── 竞技场（docs/53 §二/§四）──
   honor_sigil: {

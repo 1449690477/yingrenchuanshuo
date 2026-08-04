@@ -134,6 +134,7 @@ describe('章节区域材料掉落表', () => {
       { chapterId: '5-5', materialId: 'core_moltenheart' },
       { chapterId: '6-5', materialId: 'stone_void' },
       { chapterId: '7-5', materialId: 'eye_bloodmoon' },
+      { chapterId: '8-5', materialId: 'blood_dragon' },
     ]);
 
     for (const { chapterId, materialId } of rareSources) {

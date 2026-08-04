@@ -101,18 +101,19 @@ describe('G-1 · 三元 min 的每个约束都有反例证明它在起作用', (
   });
 
   it('内容顶取胜：软上限那 3 级不许漏出超模', () => {
-    // 软上限 = 内容顶 + LEVEL_SOFT_CAP_MARGIN(3)，玩家能到 81 而主线装备只到 78
-    expect(depthAnchorLevel('crimson', 1, CONTENT_TOP + 3, CONTENT_TOP)).toBe(CONTENT_TOP);
+    // 软上限 = 内容顶 + LEVEL_SOFT_CAP_MARGIN(3)，玩家能到 95 而主线装备只到 92
+    expect(depthAnchorLevel('crimson', 5, CONTENT_TOP + 3, CONTENT_TOP)).toBe(CONTENT_TOP);
   });
 
-  it('删掉内容顶那一项就会重现 1.05× 超模（守卫有效性的反证）', () => {
+  it('删掉内容顶那一项就会重现超模（守卫有效性的反证）', () => {
     const player = CONTENT_TOP + 3;
-    const twoWayMin = Math.min(depthNominalLevel('crimson', 1), player);
+    const twoWayMin = Math.min(depthNominalLevel('crimson', 5), player);
     const leaked = baseValue(twoWayMin, typicalQualityAt(twoWayMin)) / mainlineBest(player);
-    expect(leaked).toBeGreaterThan(1.05);
+    // 区域 8 后软上限 95 高于内容顶 92：漏出的是 95 级 mythic 对 92 级 mythic 的差值
+    expect(leaked).toBeGreaterThan(1.03);
 
     // 三元 min 之后回到 1.00
-    const anchor = depthAnchorLevel('crimson', 1, player, CONTENT_TOP);
+    const anchor = depthAnchorLevel('crimson', 5, player, CONTENT_TOP);
     expect(baseValue(anchor, typicalQualityAt(anchor)) / mainlineBest(player)).toBeCloseTo(1, 10);
   });
 });
@@ -205,11 +206,12 @@ describe('区域品质集合守卫（r2 缺口）', () => {
 
 describe('胚子品质取「典型」而不是「最好的可能」', () => {
   it('品质由锚点等级推导，不由档位的 quality 字段决定', () => {
-    // crimson 档标着 mythic，但当前内容顶只到 78 → typicalQualityAt(78) = legendary
+    // crimson 档标着 mythic；区域 8 后内容顶 92，d1 锚点 81 → legendary，d5 锚点 92 → mythic
     expect(depthBlankQuality('crimson', 1, CONTENT_TOP + 3, CONTENT_TOP)).toBe(
-      typicalQualityAt(CONTENT_TOP),
+      typicalQualityAt(depthAnchorLevel('crimson', 1, CONTENT_TOP + 3, CONTENT_TOP)),
     );
-    expect(depthBlankQuality('crimson', 1, CONTENT_TOP + 3, CONTENT_TOP)).not.toBe('mythic');
+    expect(depthBlankQuality('crimson', 1, CONTENT_TOP + 3, CONTENT_TOP)).toBe('legendary');
+    expect(depthBlankQuality('crimson', 5, CONTENT_TOP + 3, CONTENT_TOP)).toBe('mythic');
   });
 });
 
@@ -346,12 +348,12 @@ describe('深度只升不降（docs/40 红线：进度条不许倒退）', () =>
 });
 
 describe('crimson 当前只开 d1（docs/66 §七）', () => {
-  it('d2~d5 未开放，且不因玩家等级或进度而开放', () => {
-    expect(isDepthOpen('crimson', 1)).toBe(true);
-    for (let d = 2; d <= DEPTH_PER_TIER; d++) {
-      expect(isDepthOpen('crimson', d)).toBe(false);
-      expect(isDepthUnlocked(advanceDepth({}, 'crimson', 1), 'crimson', d)).toBe(false);
+  it('d1~d5 全部开放，深度进度逐层解锁', () => {
+    for (let d = 1; d <= DEPTH_PER_TIER; d++) {
+      expect(isDepthOpen('crimson', d)).toBe(true);
     }
+    expect(isDepthUnlocked(advanceDepth({}, 'crimson', 1), 'crimson', 2)).toBe(true);
+    expect(isDepthUnlocked({}, 'crimson', 3)).toBe(false);
   });
 
   it('配置刻意保留：区域 8 抬高内容顶那天它们自动生效，不需要改代码', () => {
@@ -359,12 +361,11 @@ describe('crimson 当前只开 d1（docs/66 §七）', () => {
     expect(depthNominalLevel('crimson', 5)).toBe(101);
   });
 
-  it('全五层锚点都被内容顶压到同一个值，所以开了也是重复劳动', () => {
+  it('d1~d4 呈现真实梯度，d5 与 d4 收敛于内容顶', () => {
     const anchors = Array.from({ length: DEPTH_PER_TIER }, (_, i) =>
       depthAnchorLevel('crimson', i + 1, CONTENT_TOP + 3, CONTENT_TOP),
     );
-    expect(new Set(anchors).size).toBe(1);
-    expect(anchors[0]).toBe(CONTENT_TOP);
+    expect(anchors).toEqual([81, 86, 91, CONTENT_TOP, CONTENT_TOP]);
   });
 });
 
@@ -394,9 +395,9 @@ describe('推荐战力与实际难度同源', () => {
 describe('evaluateDungeonDepth 的阻挡原因', () => {
   const base = { playerLevel: 40, contentTopLevel: CONTENT_TOP, attemptsRemaining: 3 };
 
-  it('未开放优先于其它原因', () => {
+  it('前置深度未通优先于其它原因（crimson 全开放后由进度接管）', () => {
     const result = evaluateDungeonDepth({ ...base, progress: {}, tierId: 'crimson', depth: 3 });
-    expect(result.reason).toBe('not-opened');
+    expect(result.reason).toBe('previous-depth');
     expect(result.unlocked).toBe(false);
   });
 
