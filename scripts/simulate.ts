@@ -1727,7 +1727,7 @@ function assertReforgeAcceptance(
       `固定垫底职业的等级段数最多 ${Math.max(...Object.values(offenseExtreme.bottomCounts))}（目标 ≤ 4，docs/73 C2 + 2026-08-04 专项重钉）`,
     );
   }
-  console.log('\n[N5 门禁] 职业词条可达输出极值：偏离 ≤ 17% 且无固定垫底 ≥ 5 段（docs/73 §七 + 2026-08-04 专项重钉）');
+  console.log('\n[N5 门禁] 职业词条可达输出极值：偏离 ≤ 17% 且无固定垫底 > 4 段（docs/73 §七 + 2026-08-04 专项重钉）');
   if (!gatePasses('N5', n5Violations)) {
     throw new Error(`[N5 失败] 职业词条极值：\n- ${n5Violations.join('\n- ')}`);
   }
@@ -1839,7 +1839,7 @@ function assertPvpBalance(result: ReturnType<typeof pvpBalance>): void {
       }
     }
   }
-  console.log('\n[N4 门禁] 跨职业 PvP 交叉胜率 ∈ [35%, 65%]（docs/73 §七，镜像门禁保留）');
+  console.log('\n[N4 门禁] 跨职业 PvP 交叉胜率 ∈ [33%, 67%]（docs/73 §七 + 2026-08-04 专项重钉，镜像门禁保留）');
   const crossOk = gatePasses('N4', crossViolations);
   if (violations.length > 0 || !crossOk) {
     throw new Error(
