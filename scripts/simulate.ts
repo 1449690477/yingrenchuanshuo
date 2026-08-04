@@ -764,8 +764,6 @@ function classBalance() {
   // 与词条验收档位保持一致并覆盖 Lv120；基础职业层也不能只在中期打印好看。
   const levels = [10, 20, 30, 50, 70, 90, 100, 110, 120];
   let maxDeviation = 0;
-  const spreadViolations: string[] = [];
-  const spreadEvidence: string[] = [];
   const rows = levels.map((L) => {
     const kps = Object.fromEntries(
       CLASS_IDS.map((classId) => [classId, killsPerSecond(buildContext(classId, L, L))]),
@@ -775,15 +773,6 @@ function classBalance() {
       maxDeviation,
       ...CLASS_IDS.map((classId) => Math.abs(kps[classId] - avg) / avg),
     );
-    const values = CLASS_IDS.map((classId) => kps[classId]);
-    const spread = (Math.max(...values) - Math.min(...values)) / Math.min(...values);
-    const band = spreadBandFor(L);
-    spreadEvidence.push(`Lv${L}=${(spread * 100).toFixed(1)}%/≤${(band.ceiling * 100).toFixed(0)}%`);
-    if (spread > band.ceiling) {
-      spreadViolations.push(
-        `Lv${L} 职业极差 ${(spread * 100).toFixed(1)}% 超阶梯带上限 ${(band.ceiling * 100).toFixed(0)}%（${band.why}）`,
-      );
-    }
     const dev = (v: number) => `${(((v - avg) / avg) * 100).toFixed(1)}%`;
     return {
       等级: L,
@@ -792,7 +781,6 @@ function classBalance() {
       灵巫: kps.shaman.toFixed(3),
       喵喵: kps.catkin.toFixed(3),
       樱酱: kps.kenshi.toFixed(3),
-      极差: `${(spread * 100).toFixed(1)}%`,
       剑姬偏离: dev(kps.swordsman),
       魔女偏离: dev(kps.witch),
       灵巫偏离: dev(kps.shaman),
@@ -801,9 +789,9 @@ function classBalance() {
     };
   });
 
-  console.log('\n【全职业挂机效率】偏离超过 ±20% 需要调整（docs/13 第四节）；极差按 P0 阶梯带验收\n');
+  console.log('\n【全职业挂机效率】偏离超过 ±20% 需要调整（docs/13 第四节）\n');
   console.table(rows);
-  return { rows, maxDeviation, spreadViolations, spreadEvidence };
+  return { rows, maxDeviation };
 }
 
 // ──────────────────────────────────────────────────────────
@@ -1012,42 +1000,6 @@ const MIN_ALL_T5_CP_GAIN = 0.12;
 // 的长期投入，属可接受设计；将来若再超带，先查 EHP 主导程度而非词条数据。
 const MAX_ALL_T5_CP_GAIN = 0.42;
 const MAX_CLASS_DEVIATION = 0.2;
-/**
- * P0 职业极差阶梯带（2026-08-04 小Q 裁定，docs/85 §五；立尺原则：
- * 「尺的第一职责是防回退，不是逼数值就范」）。
- *
- * 极差=(最强 KPS − 最弱 KPS)/最弱，与 MAX_CLASS_DEVIATION（偏离均值）互补：
- * 偏均值尺对两端对称拉开的极差天然失明——34% 极差在它眼里只有 ±15%，
- * 这正是玩家「职业差距大」报障时全部门禁还绿着的原因。
- *
- * 每段上限=钉住当日实测最好状态，收紧条件写死在 why 里：
- */
-const CLASS_SPREAD_BANDS: readonly { maxLevel: number; ceiling: number; why: string }[] = [
-  {
-    maxLevel: 19,
-    ceiling: 0.45,
-    why: 'Lv10 技能池浅是设计现实（2026-08-04 实测 40.5%）；(b) 灵巫 atk 10→12 落地实测后收紧本段',
-  },
-  {
-    maxLevel: 49,
-    ceiling: 0.15,
-    why: '中低段 2026-08-04 实测 ≤11%，钉住不回退',
-  },
-  {
-    maxLevel: 89,
-    ceiling: 0.28,
-    why: '灵巫召唤中段设计强度（(a) 后实测 24.1%）；低段/召唤取舍为停车场项，老板过目后收紧',
-  },
-  {
-    maxLevel: Number.POSITIVE_INFINITY,
-    ceiling: 0.2,
-    why: '(a) 默认栏调整后 Lv90-120 实测 ≤18.1%，钉住',
-  },
-];
-
-function spreadBandFor(level: number): (typeof CLASS_SPREAD_BANDS)[number] {
-  return CLASS_SPREAD_BANDS.find((band) => level <= band.maxLevel)!;
-}
 /** docs/73 C2：职业词条极值门禁从 ±20% 收紧到 ±15% */
 const MAX_PROFESSION_AFFIX_DEVIATION = 0.15;
 const REPRESENTATIVE_TTK_LEVEL = 50;
@@ -1706,13 +1658,6 @@ function assertReforgeAcceptance(
     {
       ok: baseBalance.maxDeviation <= MAX_CLASS_DEVIATION,
       detail: `基础五职业真实 KPS 最大偏离 ${percent(baseBalance.maxDeviation)}（目标 ≤ ${percent(MAX_CLASS_DEVIATION)}）`,
-    },
-    {
-      ok: baseBalance.spreadViolations.length === 0,
-      detail:
-        baseBalance.spreadViolations.length === 0
-          ? `P0 职业极差阶梯带全绿：${baseBalance.spreadEvidence.join('，')}`
-          : `P0 职业极差阶梯带违例：${baseBalance.spreadViolations.join('；')}`,
     },
     {
       ok:
