@@ -1455,14 +1455,18 @@ export const DEFAULT_ACTIVE_SKILL_ORDER: Readonly<Record<ClassId, readonly strin
     'skill_witch_fireball',
   ],
   shaman: [
-    'skill_shaman_heal',
+    // 2026-08-04 平衡修正（docs/85 P1，小衡实测+小尺附议）：
+    // 原默认栏把 heal/all_spirits（治疗/增益）排前，挤掉召唤/输出技能——
+    // 灵巫挂机 KPS 因此比换召唤栏低 31%（Lv90 0.1419 vs 0.1857）。
+    // 改为输出/召唤优先；heal 保留在中间作低段保底。
+    'skill_shaman_skeleton',
     'skill_shaman_divine_beast',
-    'skill_shaman_all_spirits',
     'skill_shaman_group_poison',
     'skill_shaman_soul_fire',
     'skill_shaman_poison',
-    'skill_shaman_skeleton',
+    'skill_shaman_heal',
     'skill_shaman_group_heal',
+    'skill_shaman_all_spirits',
   ],
   catkin: [
     'skill_catkin_hundred_claw',
