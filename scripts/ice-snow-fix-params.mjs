@@ -31,6 +31,21 @@ export const HEAD_CUT_MODE = 'C2';
 /** kenshi 贴头深度（视觉位定标：190 或 280） */
 export const KENSHI_PASTE_Y = 190;
 
+/**
+ * 冰雪 v2 武器层竖向半透明伪影线（小Q5 12:59 定位，小Q6 13:xx 互证）：
+ *   witch x77-78（maxAlpha≈63）、catkin x34（maxAlpha≈62，量化后 71）、
+ *   swordsman x59（弱线，alpha≈45）
+ * 修复=量化落盘后把这些列的半透明像素（alpha≤90）清成透明；武器本体高 alpha 像素保留。
+ */
+export const ARTIFACT_LINE_COLUMNS = {
+  witch: [77, 78],
+  catkin: [34],
+  swordsman: [59],
+};
+
+/** 伪影线 alpha 上界：低于/等于该值视为伪影（本体边缘 alpha 远高于此）。 */
+export const ARTIFACT_ALPHA_CLEAR = 90;
+
 /** 脸椭圆内像素判定（含 2px 边距容差） */
 export function inFaceEllipse(x, y, classId, pad = 2) {
   const f = FACE_ELLIPSE[classId];

@@ -14,6 +14,8 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
 import {
+  ARTIFACT_ALPHA_CLEAR,
+  ARTIFACT_LINE_COLUMNS,
   KENSHI_PASTE_Y,
   computeBodyRemovalMask,
   computeShoeShift,
@@ -338,6 +340,38 @@ async function alignShamanWeapon(buffer, align) {
 }
 
 /**
+ * 清线（小Q5 12:59 定位）：v2 武器层竖向半透明伪影线在量化落盘后再清一次，
+ * 避免编码器把低 alpha 线再描一遍。只清指定列的 alpha≤90 像素，本体高 alpha 边缘保留。
+ */
+async function clearArtifactLines(outputPath, classId) {
+  const columns = ARTIFACT_LINE_COLUMNS[classId];
+  if (!columns) return;
+  const { data, info } = await sharp(outputPath)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  let changed = false;
+  for (const x of columns) {
+    for (let y = 0; y < info.height; y += 1) {
+      const offset = (y * info.width + x) * 4;
+      if (data[offset + 3] > 0 && data[offset + 3] <= ARTIFACT_ALPHA_CLEAR) {
+        data[offset] = 0;
+        data[offset + 1] = 0;
+        data[offset + 2] = 0;
+        data[offset + 3] = 0;
+        changed = true;
+      }
+    }
+  }
+  if (changed) {
+    const cleaned = await sharp(data, { raw: info })
+      .png({ compressionLevel: 9, palette: false, effort: 10 })
+      .toBuffer();
+    await writeFile(outputPath, cleaned);
+  }
+}
+
+/**
  * 2026-08-04 换代：旧 removeKenshiEmbeddedShoes 按鞋遮罩把 body 像素**回填**
  * 成 base-noshoes——那是 v1 合同（v1 母版把靴子画进身体）。v2 母版是及地
  * 长裙、无内置鞋，鞋遮罩（高筒靴）与裙面重叠，回填等于在裙摆上挖洞：
@@ -397,6 +431,9 @@ for (const classId of CLASSES) {
       }
     }
     await writePng(await alignWearable(base, slot), output);
+    if (slot === 'weapon') {
+      await clearArtifactLines(output, classId);
+    }
   }
 
   const effectChromaInput = resolve(sourceEffectChromaRoot, `${classId}.png`);

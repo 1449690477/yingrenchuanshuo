@@ -4,6 +4,8 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
 import {
+  ARTIFACT_ALPHA_CLEAR,
+  ARTIFACT_LINE_COLUMNS,
   CUT_LINES,
   KENSHI_PASTE_Y,
   bboxOf,
@@ -447,6 +449,17 @@ async function compareWearableAlpha(source, target, slot, classId) {
   let shoeMask = null;
   let underlayMask = null;
   let headZoneMask = null;
+  let artifactLineMask = null;
+  if (slot === 'weapon' && ARTIFACT_LINE_COLUMNS[classId]) {
+    // 清线是合法结构变更：伪影列（witch x77-78 / catkin x34 / swordsman x59）
+    // 从母版保真比对中豁免，由 assertArtifactLinesCleared 独立验收。
+    artifactLineMask = Buffer.alloc(640 * 960);
+    for (const x of ARTIFACT_LINE_COLUMNS[classId]) {
+      for (let y = 0; y < 960; y += 1) {
+        artifactLineMask[y * 640 + x] = 255;
+      }
+    }
+  }
   if (slot === 'body') {
     const shift = await computeShoeShift(classId, ROOT);
     const shoesTranslated = await translate(
@@ -490,6 +503,7 @@ async function compareWearableAlpha(source, target, slot, classId) {
     if (shoeMask && shoeMask[offset / 4] > 20) continue;
     if (headZoneMask && headZoneMask[offset / 4] > 0) continue;
     if (underlayMask && underlayMask[offset / 4] > 0 && a.data[offset + 3] < 250) continue;
+    if (artifactLineMask && artifactLineMask[offset / 4] > 0) continue;
     compared += 1;
     const deltaAlpha = Math.abs(a.data[offset + 3] - b.data[offset + 3]);
     if (deltaAlpha !== 0) alphaMismatch += 1;
@@ -626,6 +640,34 @@ async function assertWeaponFaceClear(classId) {
 /**
  * 头饰锚点：顶边对齐 v1 rose-night 参照，容差 ±4px（小衡 22:32 容差总表）。
  */
+/**
+ * 清线探针（小Q5 判据）：伪影列（alpha≤90 的半透明细长线）必须清零。
+ * 修后同列只允许 alpha>90 的武器本体像素（伪影线 maxAlpha≤71，量化后不超 90）。
+ */
+async function assertArtifactLinesCleared(classId) {
+  const columns = ARTIFACT_LINE_COLUMNS[classId];
+  if (!columns) return;
+  const target = resolve(
+    ROOT,
+    `public/assets/characters/modular/shop/ice-snow/${classId}-weapon.png`,
+  );
+  const { data, info } = await rawRgba(target);
+  let residual = 0;
+  let maxAlpha = 0;
+  for (const x of columns) {
+    for (let y = 0; y < info.height; y += 1) {
+      const alpha = data[(y * info.width + x) * 4 + 3];
+      if (alpha > 16 && alpha <= ARTIFACT_ALPHA_CLEAR) residual += 1;
+      if (alpha > maxAlpha) maxAlpha = alpha;
+    }
+  }
+  if (residual > 0) {
+    fail(
+      `${target}: ${classId} 伪影列（x=${columns.join('/')}）残留 alpha 17~${ARTIFACT_ALPHA_CLEAR} 像素 ${residual}px（要求 ==0，maxAlpha=${maxAlpha}）`,
+    );
+  }
+}
+
 async function assertHeadAnchor(classId) {
   const target = resolve(
     ROOT,
@@ -679,6 +721,7 @@ for (const classId of CLASSES) {
   }
   await assertShoeAnchor(classId);
   await assertWeaponFaceClear(classId);
+  await assertArtifactLinesCleared(classId);
   await assertHeadAnchor(classId);
 }
 

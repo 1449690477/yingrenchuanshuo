@@ -973,16 +973,16 @@
       "key": "ice-snow/swordsman/weapon",
       "path": "public/assets/characters/modular/shop/ice-snow/swordsman-weapon.png",
       "bbox": [
-        59,
+        60,
         50,
         579,
         909
       ],
-      "alphaPixels": 49921,
+      "alphaPixels": 49061,
       "opaquePixels": 42466,
       "anchorAlpha": 8248,
-      "sha256": "b0b4056a3e000f874c6e9ffb1a33240f67ed0dd2d774396e9419300f54806dd6",
-      "alphaSha256": "2bb539aa07e5d144cca82fe2b3d96bf9001dcaf47e7f895654bc14188757c342"
+      "sha256": "576861c4d0d4c96daaf5a9a18cb82b9d4bc497f8847b54bf972a0877a107d43a",
+      "alphaSha256": "728ce0638c39af51e56b2090a43e1f0608cab625d1a87966c5d79953ded729c5"
     },
     {
       "key": "ice-snow/witch/body",
@@ -1039,11 +1039,11 @@
         563,
         909
       ],
-      "alphaPixels": 52493,
+      "alphaPixels": 50773,
       "opaquePixels": 36772,
       "anchorAlpha": 7541,
-      "sha256": "2de1cbe402f75803ef73d3e6321ccb3a4c18a7b06b986198467c9a3458bdddc8",
-      "alphaSha256": "37e9b0e78790bfeeaf404c9c311783a19b2d3436e0d0d612ab6136a466f84041"
+      "sha256": "50edcdf8cf09a7cced0eb125499e608b365e0f41206216976857310d6165b1f5",
+      "alphaSha256": "b095c6205305e4e53002807653832833377e1f6b6ae2bea4c23782fdb838d2b6"
     },
     {
       "key": "ice-snow/shaman/body",
@@ -1156,16 +1156,16 @@
       "key": "ice-snow/catkin/weapon",
       "path": "public/assets/characters/modular/shop/ice-snow/catkin-weapon.png",
       "bbox": [
-        34,
+        35,
         50,
         604,
         909
       ],
-      "alphaPixels": 173509,
+      "alphaPixels": 172649,
       "opaquePixels": 161629,
       "anchorAlpha": 17466,
-      "sha256": "675a2d6cea322870bde2035dacd26a7344bd6d8f8d30c552111f229828d76324",
-      "alphaSha256": "78e23879cfd85b03863490f53bfdb1dd50a84a2e8b4731bab9cbd992bebf6b7f"
+      "sha256": "29de859d861fa032f0e85c7f97b14a500f8d02fcdbf2d12b5eaddbc17ad94c79",
+      "alphaSha256": "174480eeeb3e6888ee5193ce05fbec407421888b714bb1f53eb453afadb3b0e0"
     },
     {
       "key": "ice-snow/kenshi/body",
