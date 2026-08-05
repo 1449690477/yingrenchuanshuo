@@ -41,11 +41,14 @@ describe('summon data contract', () => {
     }
   });
 
-  it('神兽的单次伤害、攻速和生存均严格高于骷髅', () => {
+  it('神兽的攻速和生存严格高于骷髅；攻击倍率按 08-05 平衡口径低于骷髅', () => {
     const skeleton = summonDefinition('summon_shaman_skeleton')!;
     const beast = summonDefinition('summon_shaman_divine_beast')!;
 
-    expect(beast.attackMultiplier).toBeGreaterThan(skeleton.attackMultiplier);
+    // 2026-08-05 老板拍板路线①：神兽 0.56→0.30，单次伤害让位于骷髅；
+    // 神兽保持攻速（1.8s vs 2s）与生存（血量/防御比例）优势（竞技场补偿表
+    // 重标后竞技场内神兽仍高于骷髅，见 A 案断言）。
+    expect(beast.attackMultiplier).toBeLessThan(skeleton.attackMultiplier);
     expect(beast.attackIntervalSec).toBeLessThan(skeleton.attackIntervalSec);
     expect(beast.maxHpRatio).toBeGreaterThan(skeleton.maxHpRatio);
     expect(beast.defenseRatio).toBeGreaterThan(skeleton.defenseRatio);
@@ -68,8 +71,8 @@ describe('summon data contract', () => {
   });
 
   it('召唤物只偶尔挡刀，且攻击与承伤数值锁定长战平衡基线', () => {
-    // 2026-08-04 灵巫平衡专项（docs/85）：骷髅 0.45→0.40、神兽 0.62→0.56
-    // （默认栏回归召唤流后词条极值压带，实测矩阵见 docs/85 §七）。
+    // 2026-08-04 灵巫平衡专项（docs/85）：骷髅 0.45→0.40、神兽 0.62→0.56。
+    // 2026-08-05 老板拍板路线①：神兽 0.56→0.30（竞技场由 A 案分叉承接）。
     expect(summonDefinition('summon_shaman_skeleton')).toMatchObject({
       attackMultiplier: 0.4,
       attackIntervalSec: 2,
@@ -78,7 +81,7 @@ describe('summon data contract', () => {
       defenseRatio: 0.55,
     });
     expect(summonDefinition('summon_shaman_divine_beast')).toMatchObject({
-      attackMultiplier: 0.56,
+      attackMultiplier: 0.3,
       attackIntervalSec: 1.8,
       targetWeight: 0.05,
       maxHpRatio: 0.55,

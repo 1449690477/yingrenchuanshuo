@@ -14,9 +14,12 @@
  * 4 = 灵巫平衡专项（docs/85，2026-08-04）：灵巫默认技能栏改召唤/输出优先
  *     + 召唤数值微调（骷髅 0.40 / 神兽 0.56）——runTrial 的灵巫技能构成
  *     与伤害输出变化，试炼成绩不可与 v3 混排。
+ * 5 = 灵巫平衡收口（docs/85，2026-08-05 老板拍板路线①）：神兽 0.56→0.30
+ *     （竞技场强度由 A 案场景分叉承接）——runTrial 的灵巫输出再次变化，
+ *     试炼成绩不可与 v4 混排。
  */
 export const LEGACY_TRIAL_FORMULA_VERSION = 1;
-export const TRIAL_FORMULA_VERSION = 4;
+export const TRIAL_FORMULA_VERSION = 5;
 
 /**
  * 成绩版本戳的唯一构造点。insert、replace 与同分 reverify 都必须展开它，避免某条

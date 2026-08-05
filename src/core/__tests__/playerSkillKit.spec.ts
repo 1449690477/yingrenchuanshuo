@@ -80,7 +80,7 @@ describe('玩家默认技能栏生产入口', () => {
     const arena = buildPlayerSkillKit('shaman', 120, { arena: true }).kit.summons ?? [];
     expect(pve.map((entry) => [entry.id, entry.attackMultiplier])).toEqual([
       ['summon_shaman_skeleton', 0.4],
-      ['summon_shaman_divine_beast', 0.56],
+      ['summon_shaman_divine_beast', 0.3],
     ]);
     expect(arena.map((entry) => [entry.id, entry.attackMultiplier])).toEqual([
       ['summon_shaman_skeleton', 0.46],

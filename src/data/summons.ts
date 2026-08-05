@@ -56,9 +56,11 @@ export const SUMMON_DEFINITIONS = [
     id: 'summon_shaman_divine_beast',
     name: '雷纹神兽',
     ownerClass: 'shaman',
-    // 2026-08-04 灵巫平衡专项（docs/85）：雷纹神兽 0.62→0.56（同骷髅批次，
-    // 降 10%，实测与骷髅同组最优）。
-    attackMultiplier: 0.56,
+    // 2026-08-04 灵巫平衡专项（docs/85）：雷纹神兽 0.62→0.56（同骷髅批次）。
+    // 2026-08-05 老板拍板路线①：0.56→0.30——R6/R7 实战章节极差收口
+    // （实测五脚本四绿一红，唯一红 N4/PvP 由 A 案竞技场分叉承接）；
+    // 显示战力零下降（召唤倍率不进 combatPower）。
+    attackMultiplier: 0.30,
     attackIntervalSec: 1.8,
     element: 'thunder',
     targeting: 'lowest-hp-enemy',
@@ -74,7 +76,7 @@ export const SUMMON_DEFINITIONS = [
 
 /**
  * 竞技场场景补偿表（A 案，docs/85 §八）：同一只召唤在竞技场使用补偿倍率，
- * PvE / 试炼 / 挂机 / 副本保持上方数据表原值（0.40 / 0.56）。
+ * PvE / 试炼 / 挂机 / 副本保持上方数据表原值（0.40 / 0.30）。
  *
  * 2026-08-05 小衡定稿：skeleton 0.46 / divine_beast 0.62 —— Lv100
  * shaman→kenshi 35.5%、kenshi→shaman 65.0%，全配对越界量 0.0pp；
