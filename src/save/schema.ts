@@ -24,6 +24,7 @@ import {
 import { skillLevelRecordIssues } from '@/core/skillUpgrade';
 import { DAILY_TASKS, type DailyTaskId } from '@/data/dailyTasks';
 import { DAILY_DUNGEON_TIERS } from '@/data/dailyDungeons';
+import { BAG_BASE_CAPACITY, BAG_MAX_CAPACITY } from '@/data/bagExpansion';
 import { isRolledAffixValue } from '@/core/equipment';
 import { isProfessionAffixSlot, promoteAffix } from '@/core/reforge';
 import {
@@ -80,7 +81,7 @@ export type { EquipmentCodexLedger } from '@/core/equipmentCodex';
 export type { EquipmentPresetState } from '@/core/equipmentPresets';
 
 /** 当前存档版本。加字段就 +1。 */
-export const SAVE_VERSION = 29;
+export const SAVE_VERSION = 30;
 
 export const SAVE_KEY = 'main';
 
@@ -307,6 +308,8 @@ export interface SaveData {
   dailyDungeons: DailyDungeonState;
   /** M4-9 称号装备位：当前装备的称号 id，null=未装备（ADR-026 纯展示，不进战斗）。 */
   equippedTitleId: string | null;
+  /** M6-7 背包容量：初始 300，可扩容至 800（enforceBagCapacity 读此值，防扩容后被误裁）。 */
+  bagCapacity: number;
 }
 
 export function emptyEquipped(): Record<EquipSlot, EquipmentInstance | null> {
@@ -389,6 +392,7 @@ export function createSave(name: string, classId: ClassId, seed: number, now: nu
     mail: createMailState(),
     dailyDungeons: createDailyDungeonState(),
     equippedTitleId: null,
+    bagCapacity: BAG_BASE_CAPACITY,
   };
 }
 
@@ -1071,6 +1075,7 @@ export const saveDataSchema = z
     // M4-9 称号装备位：只校验结构（非空字符串或 null），id 是否存在交给 core 的
     // isTitleEquippable 判定，避免存档层与称号表耦合（与 activeSkillIds 同口径）。
     equippedTitleId: z.string().min(1).nullable(),
+    bagCapacity: nonNegativeInteger.min(BAG_BASE_CAPACITY).max(BAG_MAX_CAPACITY),
   })
   .strict()
   .superRefine((save, ctx) => {

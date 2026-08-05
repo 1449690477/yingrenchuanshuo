@@ -10,8 +10,10 @@
  *   不参与 docs/10 产出曲线建模（信息型福利，不做焦虑运营）。
  */
 
+import { BAG_CAPACITY } from './constants';
+
 /** 初始背包容量（与 constants.ts 的 BAG_CAPACITY 保持一致，单一事实源在 core）。 */
-export const BAG_BASE_CAPACITY = 300;
+export const BAG_BASE_CAPACITY = BAG_CAPACITY;
 
 /** 每次扩容增加的容量。 */
 export const BAG_CAPACITY_STEP = 50;

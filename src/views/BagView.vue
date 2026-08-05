@@ -7,6 +7,7 @@ import { abbr } from '@/core/format';
 import type { EquipmentInstance, Quality } from '@/core/types';
 import { useInventoryStore } from '@/stores/inventory';
 import { usePlayerStore } from '@/stores/player';
+import { useGameStore } from '@/stores/game';
 import { requireEquipment } from '@/data/equipment';
 import { equipmentDisplayPresentation } from '@/data/equipmentPresentation';
 import { equipmentAdvancementOption as resolveEquipmentAdvancementOption } from '@/data/equipmentAdvancement';
@@ -21,9 +22,11 @@ import ReforgeStudio from '@/components/reforge/ReforgeStudio.vue';
 import SystemArtwork from '@/components/SystemArtwork.vue';
 import SetCodexView from '@/views/SetCodexView.vue';
 import { buildSetCodex } from '@/components/setCodex/setCodexData';
+import BagCapacityBar from '@/components/BagCapacityBar.vue';
 
 const inventory = useInventoryStore();
 const player = usePlayerStore();
+const game = useGameStore();
 const activeClassId = computed(() => {
   const classId = player.player?.classId;
   if (!classId) throw new Error('[背包错误] 存档未载入，无法解析装备职业外观');
@@ -35,6 +38,12 @@ const detail = ref<EquipmentInstance | null>(null);
 const advancement = ref<EquipmentInstance | null>(null);
 const reforgeUid = ref<string | null>(null);
 const toast = ref('');
+function onExpandBag(): void {
+  const result = game.buyBagCapacity();
+  toast.value = result
+    ? `背包扩容至 ${result} 格`
+    : '扩容失败：金币不足或已满档';
+}
 const salvageBurst = ref(false);
 const showCodex = ref(false);
 /** 全套数（区域 + 副本 + 竞技场）由装配层实算，不写死。 */
@@ -472,6 +481,14 @@ onUnmounted(() => {
         材料 <span class="n num">{{ bagItems.length }}</span>
       </button>
     </div>
+
+    <BagCapacityBar
+      v-if="tab === 'equip' && game.save"
+      :capacity="game.save.bagCapacity"
+      :equip-count="equipCount"
+      :gold="game.save.player.gold"
+      :on-expand="onExpandBag"
+    />
 
     <div v-if="tab === 'equip'" class="actions">
       <button class="btn btn-pink sm" @click="equipBest">一键穿戴最优</button>

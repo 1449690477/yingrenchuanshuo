@@ -2303,3 +2303,63 @@ describe('M4-4 日常材料副本接线', () => {
     expect(game.save!.dailyDungeons.clearedTierIds).toEqual(['tier-1', 'tier-2', 'tier-3']);
   });
 });
+
+describe('M6-7 背包扩容接线', () => {
+  const NOW = 1_800_000_000_000;
+
+  it('buyBagCapacity：扣金币升容量 +50，金币不足/满档返回 null', async () => {
+    vi.setSystemTime(NOW);
+    const game = useGameStore();
+    await game.startNewGame('小樱', 'swordsman');
+    const s = game.save!;
+    s.player.gold = 200_000;
+
+    // 第一档：300 → 350，价格 100_000
+    const next = game.buyBagCapacity();
+    expect(next).toBe(350);
+    expect(s.bagCapacity).toBe(350);
+    expect(s.player.gold).toBe(100_000);
+
+    // 第二档：350 → 400，价格 120_000——金币不足
+    expect(game.buyBagCapacity()).toBeNull();
+    expect(s.bagCapacity).toBe(350);
+    expect(s.player.gold).toBe(100_000);
+
+    // 补足金币后成功
+    s.player.gold = 120_000;
+    expect(game.buyBagCapacity()).toBe(400);
+    expect(s.bagCapacity).toBe(400);
+  });
+
+  it('满档 800 后不可再扩容', async () => {
+    vi.setSystemTime(NOW);
+    const game = useGameStore();
+    await game.startNewGame('小樱', 'swordsman');
+    const s = game.save!;
+    s.bagCapacity = 800;
+    s.player.gold = 999_999_999;
+    expect(game.buyBagCapacity()).toBeNull();
+  });
+
+  it('扩容后 enforceBagCapacity 读存档容量：350 容量下 320 件不被自动分解', async () => {
+    vi.setSystemTime(NOW);
+    const game = useGameStore();
+    await game.startNewGame('小樱', 'swordsman');
+    const s = game.save!;
+    s.bagCapacity = 350;
+    // 320 件在 350 容量内：不裁剪（小督前瞻警告的守卫：扩容后第 301 件起不得被常量 300 误裁）
+    s.bag.equipment = Array.from({ length: 320 }, (_, index) =>
+      createInstance(
+        requireEquipment('eq_r1_weapon_common'),
+        new Rng(index + 1),
+        `e${index + 1}`,
+        'swordsman',
+      ),
+    );
+    // 直接调用内部裁剪逻辑：用 loadFrom 触发载入裁剪路径
+    game.loadFrom(s);
+    expect(game.save!.bag.equipment.length).toBe(320);
+    // 若误读常量 300 会被裁到 300——断言 320 保持即证明读的是存档容量
+    expect(game.save!.bag.equipment.length).toBeGreaterThan(300);
+  });
+});

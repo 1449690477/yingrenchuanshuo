@@ -1745,6 +1745,25 @@ describe('v21 技能栏存档层 · 老存档零行为变化（M3-5a 验收）',
     expect(() => parseSave(migrated as Parameters<typeof parseSave>[0])).not.toThrow();
   });
 
+  it('v29 → v30 新增 bagCapacity=300，不改写其他资产（从未扩容，诚实迁移）', () => {
+    const current = createSave('扩容旧档', 'catkin', 24, 1_800_000_000_000) as unknown as Record<
+      string,
+      unknown
+    >;
+    const raw = structuredClone(current);
+    delete raw.bagCapacity;
+    raw.version = 29;
+
+    const migrated = migrate(raw);
+
+    expect(migrated.version).toBe(SAVE_VERSION);
+    expect(migrated.bagCapacity).toBe(300);
+    expect(migrated.player).toEqual(current.player);
+    expect(migrated.equippedTitleId).toBeNull();
+    expect(migrated.dailyDungeons).toEqual(current.dailyDungeons);
+    expect(() => parseSave(migrated as Parameters<typeof parseSave>[0])).not.toThrow();
+  });
+
   it('v28 → v29 新增称号装备位 null，不改写其他资产（从未装备过，诚实迁移）', () => {
     const current = createSave('称号前旧档', 'catkin', 24, 1_800_000_000_000) as unknown as Record<
       string,

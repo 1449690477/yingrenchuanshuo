@@ -524,6 +524,17 @@ export const migrations: Record<number, Migration> = {
     version: 29,
     equippedTitleId: null,
   }),
+  /**
+   * v30：M6-7 背包容量。
+   *
+   * 顶层新增 bagCapacity（默认 300）。老玩家诚实迁移：从未扩容过。
+   * enforceBagCapacity 将改读此值（见 game.ts），扩容后的玩家不再被常量 300 误裁。
+   */
+  29: (save) => ({
+    ...save,
+    version: 30,
+    bagCapacity: 300,
+  }),
 };
 
 function migrateV10Save(

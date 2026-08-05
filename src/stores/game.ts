@@ -172,6 +172,8 @@ import {
   type DailyStaminaClaimResult,
 } from '@/core/idle';
 import { trimBag } from '@/core/bag';
+import { nextBagExpansion } from '@/core/bagExpansion';
+import { BAG_BASE_CAPACITY } from '@/data/bagExpansion';
 import {
   claimActivityTierAt,
   recordDailyTaskProgress,
@@ -225,7 +227,6 @@ import {
   ENHANCE_MAX,
   ENHANCE_MATERIAL_IDS,
   LUCK_FULL,
-  BAG_CAPACITY,
   SLOT_ORDER,
 } from '@/data/constants';
 import { DEFEAT_EFFICIENCY_FLOOR, DEFEAT_LOW_EFFICIENCY_SECONDS } from '@/data/constants';
@@ -1693,11 +1694,13 @@ export const useGameStore = defineStore('game', () => {
   function enforceBagCapacity(): number {
     if (!save.value) return 0;
     const s = save.value;
-    if (s.bag.equipment.length <= BAG_CAPACITY) return 0;
+    // 容量读玩家存档（M6-7 扩容后生效），老档缺失时回退初始 300
+    const capacity = s.bagCapacity ?? BAG_BASE_CAPACITY;
+    if (s.bag.equipment.length <= capacity) return 0;
 
     const { kept, removed } = trimBag(
       s.bag.equipment,
-      BAG_CAPACITY,
+      capacity,
       {
         // 用装备自身战力，而不是 equipmentContributionCp。
         // 后者要跟当前穿戴做换装差值，每次都遍历 8 个槽位重算全身属性；
@@ -1722,6 +1725,23 @@ export const useGameStore = defineStore('game', () => {
     s.player.gold += gold;
     autoDecomposed.value = { count: removed.length, gold, at: Date.now() };
     return removed.length;
+  }
+
+  /**
+   * M6-7 背包扩容：校验金币 → 扣金币 → 容量 +50 → 持久化。
+   * 已封顶或金币不足返回 null（UI 展示原因由容量条组件从 core 推导）。
+   */
+  function buyBagCapacity(): number | null {
+    const s = save.value;
+    if (!s) return null;
+    const current = s.bagCapacity ?? BAG_BASE_CAPACITY;
+    const next = nextBagExpansion(current);
+    if (!next) return null;
+    if (s.player.gold < next.goldCost) return null;
+    s.player.gold -= next.goldCost;
+    s.bagCapacity = next.capacity;
+    void persist();
+    return next.capacity;
   }
 
   function addLoot(drop: LootResult, log: boolean): void {
@@ -4061,6 +4081,7 @@ export const useGameStore = defineStore('game', () => {
     sweepCost,
     sweepStage,
     claimDailyStamina,
+    buyBagCapacity,
     recordDailyTask,
     claimDailyTier,
     challengeDailyDungeon,
