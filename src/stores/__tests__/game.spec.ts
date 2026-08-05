@@ -2343,23 +2343,38 @@ describe('M6-7 背包扩容接线', () => {
 
   it('扩容后 enforceBagCapacity 读存档容量：350 容量下 320 件不被自动分解', async () => {
     vi.setSystemTime(NOW);
-    const game = useGameStore();
-    await game.startNewGame('小樱', 'swordsman');
-    const s = game.save!;
-    s.bagCapacity = 350;
-    // 320 件在 350 容量内：不裁剪（小督前瞻警告的守卫：扩容后第 301 件起不得被常量 300 误裁）
-    s.bag.equipment = Array.from({ length: 320 }, (_, index) =>
-      createInstance(
-        requireEquipment('eq_r1_weapon_common'),
-        new Rng(index + 1),
-        `e${index + 1}`,
-        'swordsman',
-      ),
-    );
-    // 直接调用内部裁剪逻辑：用 loadFrom 触发载入裁剪路径
-    game.loadFrom(s);
-    expect(game.save!.bag.equipment.length).toBe(320);
-    // 若误读常量 300 会被裁到 300——断言 320 保持即证明读的是存档容量
-    expect(game.save!.bag.equipment.length).toBeGreaterThan(300);
+    const definition = requireEquipment('eq_r1_weapon_common');
+    const makeBag = (count: number): EquipmentInstance[] =>
+      Array.from({ length: count }, (_, index) => {
+        const inst = createInstance(definition, new Rng(index + 1), `e${index + 1}`, 'swordsman');
+        inst.locked = false;
+        inst.affixes = [{ key: 'atk', value: 1, tier: 1 }];
+        return inst;
+      });
+
+    // 阳性对照：容量 300 时 320 件必须被裁到 300——
+    // 证明裁剪路径在本用例真的会跑（小督两路证实：loadFrom 不触发裁剪）
+    const save300 = createSave('容量300对照', 'swordsman', 0x5a4b3c2d, Date.now());
+    save300.bagCapacity = 300;
+    save300.bag.equipment = makeBag(320);
+    save300.nextUid = 400;
+    save300.lastActiveAt = Date.now() + 60_000;
+    await saveSave(save300);
+    vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1));
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+    const game300 = useGameStore();
+    await game300.init();
+    expect(game300.save!.bag.equipment.length).toBe(300);
+
+    // 主断言：容量 350 时 320 件保持（扩容后第 301 件起不得被常量 300 误裁）
+    const save350 = createSave('容量350主断言', 'swordsman', 0x5a4b3c2e, Date.now());
+    save350.bagCapacity = 350;
+    save350.bag.equipment = makeBag(320);
+    save350.nextUid = 400;
+    save350.lastActiveAt = Date.now() + 60_000;
+    await saveSave(save350);
+    const game350 = useGameStore();
+    await game350.init();
+    expect(game350.save!.bag.equipment.length).toBe(320);
   });
 });
