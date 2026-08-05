@@ -72,6 +72,20 @@ export const SUMMON_DEFINITIONS = [
   },
 ] as const satisfies readonly SummonDefinition[];
 
+/**
+ * 竞技场场景补偿表（A 案，docs/85 §八）：同一只召唤在竞技场使用补偿倍率，
+ * PvE / 试炼 / 挂机 / 副本保持上方数据表原值（0.40 / 0.56）。
+ *
+ * 2026-08-05 小衡定稿：skeleton 0.46 / divine_beast 0.62 —— Lv100
+ * shaman→kenshi 35.5%、kenshi→shaman 65.0%，全配对越界量 0.0pp；
+ * 0.44/0.60 实测 34.5% 不够，0.46→0.48 不再改善。
+ * 技能倍率不进 combatPower（formula.ts 只吃 stats），本表不改变战力口径。
+ */
+export const ARENA_SUMMON_ATTACK_MULTIPLIERS: Readonly<Record<string, number>> = {
+  summon_shaman_skeleton: 0.46,
+  summon_shaman_divine_beast: 0.62,
+};
+
 const SUMMON_DEFINITION_BY_ID = new Map<string, SummonDefinition>(
   SUMMON_DEFINITIONS.map((definition): [string, SummonDefinition] => [
     definition.id,

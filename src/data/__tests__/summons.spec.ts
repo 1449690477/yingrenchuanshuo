@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { SHAMAN_SKILLS } from '../skills';
-import { SUMMON_DEFINITIONS, summonDefinition } from '../summons';
+import {
+  ARENA_SUMMON_ATTACK_MULTIPLIERS,
+  SUMMON_DEFINITIONS,
+  summonDefinition,
+} from '../summons';
 
 describe('summon data contract', () => {
   it('召唤技能都引用真实配置，且持续时间逐项一致', () => {
@@ -45,6 +49,22 @@ describe('summon data contract', () => {
     expect(beast.attackIntervalSec).toBeLessThan(skeleton.attackIntervalSec);
     expect(beast.maxHpRatio).toBeGreaterThan(skeleton.maxHpRatio);
     expect(beast.defenseRatio).toBeGreaterThan(skeleton.defenseRatio);
+  });
+
+  it('A 案：竞技场补偿表只登记已知召唤，灵巫两只补偿严格高于 PvE 原值', () => {
+    for (const summonId of Object.keys(ARENA_SUMMON_ATTACK_MULTIPLIERS)) {
+      expect(summonDefinition(summonId), summonId).toBeDefined();
+    }
+    expect(ARENA_SUMMON_ATTACK_MULTIPLIERS).toMatchObject({
+      summon_shaman_skeleton: 0.46,
+      summon_shaman_divine_beast: 0.62,
+    });
+    const skeleton = summonDefinition('summon_shaman_skeleton')!;
+    const beast = summonDefinition('summon_shaman_divine_beast')!;
+    expect(ARENA_SUMMON_ATTACK_MULTIPLIERS[skeleton.id]).toBeGreaterThan(
+      skeleton.attackMultiplier,
+    );
+    expect(ARENA_SUMMON_ATTACK_MULTIPLIERS[beast.id]).toBeGreaterThan(beast.attackMultiplier);
   });
 
   it('召唤物只偶尔挡刀，且攻击与承伤数值锁定长战平衡基线', () => {

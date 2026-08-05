@@ -363,8 +363,10 @@ export interface TrialBuildInput {
   /** 8 槽位穿戴实例，顺序必须与 SLOT_ORDER 一致；未穿戴为 null */
   equipped: readonly (EquipmentInstance | null)[];
   /**
-   * 竞技场对决构建置 true：圣痕套效果只在竞技场内生效（docs/53 §六），
-   * 此时用全量套装查询；缺省 false 走 PvE 空效果查询（试炼/挂机一致）。
+   * 竞技场场景标志：圣痕套效果只在竞技场内生效（docs/53 §六），召唤倍率
+   * 使用竞技场补偿表（A 案，docs/85 §八）；此时用全量套装查询并传
+   * `arena` 给技能包。缺省 false 走 PvE 空效果查询与数据表召唤倍率
+   * （试炼/挂机一致）。唯一置 true 的来源是 `buildArenaDuelSide`。
    */
   arena?: boolean;
   /**
@@ -540,6 +542,7 @@ export function buildTrialCombatant(input: TrialBuildInput): TrialBuild {
       skillDamageBonusRatio: setResolution.skillMultiplierBonus,
       selectedActiveSkillIds: input.selectedActiveSkillIds,
       skillLevels: input.skillLevels,
+      arena: input.arena,
     },
   );
 

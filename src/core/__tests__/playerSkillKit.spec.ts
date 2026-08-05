@@ -75,6 +75,21 @@ describe('玩家默认技能栏生产入口', () => {
     }
   });
 
+  it('A 案：竞技场标志切换召唤倍率为补偿值，PvE 默认保持数据表原值', () => {
+    const pve = buildDefaultPlayerSkillKit('shaman', 120).summons ?? [];
+    const arena = buildPlayerSkillKit('shaman', 120, { arena: true }).kit.summons ?? [];
+    expect(pve.map((entry) => [entry.id, entry.attackMultiplier])).toEqual([
+      ['summon_shaman_skeleton', 0.4],
+      ['summon_shaman_divine_beast', 0.56],
+    ]);
+    expect(arena.map((entry) => [entry.id, entry.attackMultiplier])).toEqual([
+      ['summon_shaman_skeleton', 0.46],
+      ['summon_shaman_divine_beast', 0.62],
+    ]);
+    // 分叉只改倍率，不改技能栏结构与装载项
+    expect(arena.map((entry) => entry.id)).toEqual(pve.map((entry) => entry.id));
+  });
+
   it('套装技能增伤以小数口径原样进入同一技能栏', () => {
     expect(buildDefaultPlayerSkillKit('kenshi', 120, 0.18).skillDamageBonusRatio).toBe(0.18);
   });

@@ -9,7 +9,7 @@ import type { ClassId } from './types';
 import { createSkillCombatKit, type SkillCombatKit } from './skillCombat';
 import { resolveActiveSkillSlots, type DroppedSkillSlot } from './skillSlots';
 import { skillsFor } from '@/data/skills';
-import { SUMMON_DEFINITIONS } from '@/data/summons';
+import { ARENA_SUMMON_ATTACK_MULTIPLIERS, SUMMON_DEFINITIONS } from '@/data/summons';
 
 export interface BuildPlayerSkillKitOptions {
   /** 套装等旧字段的技能伤害加成：0.18 表示 +18%。 */
@@ -22,6 +22,13 @@ export interface BuildPlayerSkillKitOptions {
   selectedActiveSkillIds?: readonly string[] | null;
   /** 技能 id → 当前等级；缺失项按 1 级。 */
   skillLevels?: Readonly<Record<string, number>>;
+  /**
+   * 竞技场场景标志（A 案，docs/85 §八）：`true` 时召唤物改用
+   * `ARENA_SUMMON_ATTACK_MULTIPLIERS` 的补偿倍率；PvE / 试炼 / 挂机 / 副本
+   * 保持数据表原值。仅 `buildTrialCombatant` 的 `arena: true`（唯一来源为
+   * `buildArenaDuelSide`）会传 `true`，不新增第二个场景传入点。
+   */
+  arena?: boolean;
 }
 
 export interface BuiltPlayerSkillKit {
@@ -51,8 +58,17 @@ export function buildPlayerSkillKit(
     throw new Error(`buildPlayerSkillKit: 技能伤害加成必须是有限数，收到 ${skillDamageBonusRatio}`);
   }
   const resolved = resolveActiveSkillSlots(classId, level, options.selectedActiveSkillIds);
+  const classSummons = SUMMON_DEFINITIONS.filter((summon) => summon.ownerClass === classId);
+  const summons = options.arena
+    ? classSummons.map((summon) => {
+        const arenaMultiplier = ARENA_SUMMON_ATTACK_MULTIPLIERS[summon.id];
+        return arenaMultiplier === undefined
+          ? summon
+          : { ...summon, attackMultiplier: arenaMultiplier };
+      })
+    : classSummons;
   const kit = createSkillCombatKit(skillsFor(classId), level, {
-    summons: SUMMON_DEFINITIONS.filter((summon) => summon.ownerClass === classId),
+    summons,
     skillDamageBonusRatio,
     selectedActiveSkillIds: resolved.selected,
     skillLevels: options.skillLevels,
