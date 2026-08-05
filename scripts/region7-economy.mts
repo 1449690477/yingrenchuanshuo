@@ -539,11 +539,15 @@ function main(): void {
   const chapterDivergence = CHAPTER_BUILDS.map((build) => {
     const rows = metrics.filter((metric) => metric.chapterId === build.chapterId);
     const kps = rows.map((row) => row.kps);
+    const minKps = Math.min(...kps);
+    const maxKps = Math.max(...kps);
     return {
       chapterId: build.chapterId,
-      minKps: round(Math.min(...kps), 4),
-      maxKps: round(Math.max(...kps), 4),
-      ratio: round(Math.max(...kps) / Math.min(...kps), 4),
+      minKps: round(minKps, 4),
+      maxKps: round(maxKps, 4),
+      minClass: rows.find((row) => row.kps === minKps)!.classId,
+      maxClass: rows.find((row) => row.kps === maxKps)!.classId,
+      ratio: round(maxKps / minKps, 4),
     };
   });
   const summary = {
@@ -606,7 +610,9 @@ function main(): void {
   }
   for (const row of chapterDivergence) {
     if (row.ratio > 1.2) {
-      violations.push(`${row.chapterId} 职业 KPS 差异 ${row.ratio} 超过 20%`);
+      violations.push(
+        `${row.chapterId} 职业 KPS 差异 ${row.ratio} 超过 20%（max=${row.maxClass} ${row.maxKps} / min=${row.minClass} ${row.minKps}）`,
+      );
     }
   }
   if (fragmentDays.p50 < 6 || fragmentDays.p50 > 11) {
