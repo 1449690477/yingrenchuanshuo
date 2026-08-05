@@ -93,7 +93,7 @@ import { expectedGearStatsFromDefinitions, typicalQualityAt, TYPICAL_ENHANCE_MUL
 import { estimateDuelWinChance, type DuelSide } from '../src/core/duel';
 import type { IdleContext } from '../src/core/idle';
 import { Rng } from '../src/core/rng';
-import { buildDefaultPlayerSkillKit } from '../src/core/playerSkillKit';
+import { buildDefaultPlayerSkillKit, buildPlayerSkillKit } from '../src/core/playerSkillKit';
 import { stratifiedSampleIndices } from '../src/core/sampling';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -1814,8 +1814,10 @@ const PVP_MIRROR_MAX = 0.55;
  * 灵巫默认栏回归召唤流（docs/85 P1-a）+ 召唤数值微调（骷髅 0.40/神兽 0.56）
  * 后，PvE 词条极值（N5）与 PvP 胜率（N4）对召唤强度需求相反（单一数值轴
  * 无交集，实测矩阵见 docs/85 §七）——N4 按现状重钉（实测 Lv100 灵巫→樱酱
- * 33.5% / 樱酱→灵巫 66.0%，固定种子 200 场确定值），收紧条件=竞技场专属
- * 修正（A 案，docs/53 §六圣痕套先例）落地后回 0.35/0.65。
+ * 33.5% / 樱酱→灵巫 66.0%，固定种子 200 场确定值）。2026-08-05 A 案
+ * 竞技场分叉落地（pvpSide 走 arena:true 口径）后，带队裁定维持 33/67
+ * 不回钉 35/65：Lv60 猫猫→魔女 35.0% 贴线（0 余量），回钉即脆钉；
+ * 收紧条件=召唤强度设计取舍落地后再评估回钉。
  */
 const PVP_CROSS_MIN = 0.33;
 const PVP_CROSS_MAX = 0.67;
@@ -1825,7 +1827,10 @@ function pvpSide(cls: ClassId, level: number): DuelSide {
     classId: cls,
     combatant: makePlayer(`pvp-${cls}-${level}`, level, withGear(cls, level)),
     skillMultiplier: averageSkillMultiplier(level),
-    skillKit: buildDefaultPlayerSkillKit(cls, level),
+    // A 案落地（docs/85 §八）：N4 门禁测真实竞技场口径——技能包走
+    // arena:true 场景分叉（召唤倍率 0.46/0.62），与 buildArenaDuelSide
+    // 同口径；PvE 0.30 下若仍用 PvE 包，灵巫交叉胜率必红三对。
+    skillKit: buildPlayerSkillKit(cls, level, { arena: true }).kit,
   };
 }
 
