@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref } from 'vue';
-import { BookOpen, ChevronDown, Gift, RefreshCw, Sparkles, Zap } from '@lucide/vue';
+import { BookOpen, ChevronDown, Coffee, Gift, ListChecks, RefreshCw, Sparkles, Swords, Zap } from '@lucide/vue';
 import { abbr } from '@/core/format';
 import { battleVitalsAtProgress } from '@/core/battleVisual';
 import { aggregateLootEntries, type LootDisplayCategory } from '@/core/lootGrouping';
@@ -9,7 +9,8 @@ import { useGameStore, type SweepResult } from '@/stores/game';
 import { businessDayKey } from '@/core/dayKey';
 import { signInStatus } from '@/core/checkin';
 import { SIGN_IN_CYCLE_REWARDS, type SignInReward } from '@/data/checkin';
-import type { DailyTierReward } from '@/data/dailyTasks';
+import { dailyActivity } from '@/core/dailyTasks';
+import { ACTIVITY_TIERS, DAILY_TASKS, type DailyTierReward } from '@/data/dailyTasks';
 import SweepResultModal from '@/components/SweepResultModal.vue';
 import DailyTasksView from '@/components/DailyTasksView.vue';
 import { useInventoryStore } from '@/stores/inventory';
@@ -194,6 +195,51 @@ function onSignIn(): void {
 // M4-1 日常任务：面板数据与活跃度宝箱领取（存档写入在 store，这里只做展示）。
 const dailyTaskState = computed(() => game.save?.dailyTasks ?? null);
 
+// ─────────── 主界面分组抽屉：三张折叠卡的一行摘要（收起态也要有信息量） ───────────
+
+/** 日常任务一行摘要：活跃度 / 完成数 / 可领宝箱数，供折叠卡标题与速览使用。 */
+const dailyTaskSummary = computed(() => {
+  const s = dailyTaskState.value;
+  if (!s) return null;
+  const act = dailyActivity(s, staminaNow.value);
+  const doneCount = DAILY_TASKS.filter((t) => (s.progress[t.id] ?? 0) >= t.target).length;
+  const claimableTiers = ACTIVITY_TIERS.filter(
+    (tier) => act >= tier.threshold && !s.claimedTiers.includes(tier.threshold),
+  ).length;
+  return { act, doneCount, claimableTiers };
+});
+
+const dailyTaskSubtitle = computed(() => {
+  const s = dailyTaskSummary.value;
+  if (!s) return '';
+  return `活跃度 ${s.act}/80 · ${s.doneCount} 项完成`;
+});
+
+const dailyTaskPeek = computed(() => {
+  const s = dailyTaskSummary.value;
+  if (!s) return '';
+  return s.claimableTiers > 0 ? `${s.claimableTiers} 个宝箱可领` : '宝箱暂不可领';
+});
+
+/** 每日福利一行摘要：体力现值常驻标题，速览行报补给/签到/扫荡状态。 */
+const perksSubtitle = computed(
+  () => `体力 ${dailyClaimState.value.stamina}/${dailyClaimState.value.max}`,
+);
+
+const perksPeek = computed(() => {
+  const parts = [
+    dailyClaimState.value.claimable
+      ? `补给 ${dailyClaimState.value.remaining}/3 可领`
+      : '补给已领完',
+  ];
+  if (signInState.value) parts.push(signInState.value.claimable ? '可签到' : '已签到');
+  if (canSweep.value) parts.push('可扫荡');
+  return parts.join(' · ');
+});
+
+/** 战斗情报字幕：战斗效率百分比。 */
+const intelSubtitle = computed(() => `战斗效率 ${efficiencyStatus.value.percent}%`);
+
 function dailyTierRewardText(reward: DailyTierReward): string {
   const parts: string[] = [];
   if (reward.gold) parts.push(`${abbr(reward.gold)} 金币`);
@@ -243,6 +289,12 @@ const staminaMinutes = computed(() => {
  * 高屏（平板/桌面信箱）默认展开。玩家手动切换后由 CollapsibleCard 记忆。
  */
 const lootDefaultOpen =
+  typeof window !== 'undefined' &&
+  !window.matchMedia?.('(max-height: 740px)').matches &&
+  !window.matchMedia?.('(max-width: 350px)').matches;
+
+/** 舒适屏（高屏/平板）默认展开折叠卡，紧凑屏（手机矮屏）默认收起减滑动；玩家手动切换后由 localStorage 记忆。 */
+const comfyDefaultOpen =
   typeof window !== 'undefined' &&
   !window.matchMedia?.('(max-height: 740px)').matches &&
   !window.matchMedia?.('(max-width: 350px)').matches;
@@ -502,92 +554,136 @@ function openLootEntry(entry: { itemId: string; isEquipment: boolean; count: num
       </span>
     </button>
 
-    <!-- M3-6 每日免费领取体力：全场景可见，不占据挑战/扫荡状态 -->
-    <div class="stamina-row">
-      <span class="stamina-label">
-        体力
-        <small>每 5 分钟恢复 1 点</small>
-      </span>
-      <span class="stamina-num num">{{ dailyClaimState.stamina }}/{{ dailyClaimState.max }}</span>
-      <button
-        v-if="dailyClaimState.claimable"
-        class="stamina-claim-btn"
-        :disabled="dailyClaimState.stamina >= dailyClaimState.max"
-        @click="onDailyClaim"
-      >
-        每日补给 +30（{{ dailyClaimState.remaining }}/3）
-      </button>
-      <span v-else class="stamina-claimed">今日已领 {{ dailyClaimState.remaining }}/3</span>
-      <span v-if="dailyClaimToast" class="stamina-toast">{{ dailyClaimToast }}</span>
-    </div>
-
-    <!-- M4-2 每日签到：七日循环 + 月度累计，断签不重置（信息型福利） -->
-    <div v-if="signInState" class="stamina-row signin-row">
-      <span class="stamina-label">
-        签到
-        <small v-if="signInState.nextMilestoneDays !== null"
-          >本月 {{ signInState.monthCount }} 天 · {{ signInState.nextMilestoneDays }} 天领里程碑</small
-        >
-        <small v-else>本月 {{ signInState.monthCount }} 天 · 里程碑全达成</small>
-      </span>
-      <span class="stamina-num">{{ signInNextReward }}</span>
-      <button v-if="signInState.claimable" class="stamina-claim-btn" @click="onSignIn">签到</button>
-      <span v-else class="stamina-claimed">今日已签</span>
-      <span v-if="signInToast" class="stamina-toast">{{ signInToast }}</span>
-    </div>
-
-    <!-- M4-1 日常任务：8 条任务进度 + 四档活跃度宝箱 -->
-    <DailyTasksView
-      v-if="dailyTaskState"
-      :state="dailyTaskState"
-      :now="staminaNow"
-      :on-claim="onClaimDailyTier"
-    />
-    <span v-if="dailyToast" class="stamina-toast">{{ dailyToast }}</span>
-
-    <!-- M3-7 扫荡：仅已通关关卡出现；体力不足时 ×10 自动降级而不是拦人 -->
-    <div v-if="canSweep" class="sweep-row">
-      <span class="sweep-label">
-        扫荡
-        <small>一次 = 30 分钟收益</small>
-      </span>
-      <span v-if="sweepBlocked" class="sweep-wait">
-        <Zap :size="10" :stroke-width="2.4" aria-hidden="true" />
-        {{ sweepMinutes }} 分钟后可扫
-      </span>
-      <template v-else>
-        <button class="sweep-btn" @click="doSweep(1)">
-          ×1
-          <Zap :size="10" :stroke-width="2.4" aria-hidden="true" />
-          {{ sweepOnce.cost }}
-        </button>
-        <button class="sweep-btn" @click="doSweep(sweepBatchTimes)">
-          ×{{ sweepBatchTimes }}
-          <Zap :size="10" :stroke-width="2.4" aria-hidden="true" />
-          {{ sweepOnce.cost * sweepBatchTimes }}
-        </button>
+    <!-- 每日福利折叠卡：体力补给 + 签到 + 扫荡 -->
+    <CollapsibleCard
+      class="perks-card"
+      title="每日福利"
+      :subtitle="perksSubtitle"
+      persist-key="idle.perks"
+      :default-open="comfyDefaultOpen"
+    >
+      <template #icon>
+        <span class="card-sigil perks-sigil" aria-hidden="true"><Coffee :size="13" /></span>
       </template>
-    </div>
+      <template #peek>
+        <span class="perks-peek">{{ perksPeek }}</span>
+      </template>
+
+      <!-- M3-6 每日免费领取体力：全场景可见，不占据挑战/扫荡状态 -->
+      <div class="stamina-row">
+        <span class="stamina-label">
+          体力
+          <small>每 5 分钟恢复 1 点</small>
+        </span>
+        <span class="stamina-num num">{{ dailyClaimState.stamina }}/{{ dailyClaimState.max }}</span>
+        <button
+          v-if="dailyClaimState.claimable"
+          class="stamina-claim-btn"
+          :disabled="dailyClaimState.stamina >= dailyClaimState.max"
+          @click="onDailyClaim"
+        >
+          每日补给 +30（{{ dailyClaimState.remaining }}/3）
+        </button>
+        <span v-else class="stamina-claimed">今日已领 {{ dailyClaimState.remaining }}/3</span>
+        <span v-if="dailyClaimToast" class="stamina-toast">{{ dailyClaimToast }}</span>
+      </div>
+
+      <!-- M4-2 每日签到：七日循环 + 月度累计，断签不重置（信息型福利） -->
+      <div v-if="signInState" class="stamina-row signin-row">
+        <span class="stamina-label">
+          签到
+          <small v-if="signInState.nextMilestoneDays !== null"
+            >本月 {{ signInState.monthCount }} 天 · {{ signInState.nextMilestoneDays }} 天领里程碑</small
+          >
+          <small v-else>本月 {{ signInState.monthCount }} 天 · 里程碑全达成</small>
+        </span>
+        <span class="stamina-num">{{ signInNextReward }}</span>
+        <button v-if="signInState.claimable" class="stamina-claim-btn" @click="onSignIn">签到</button>
+        <span v-else class="stamina-claimed">今日已签</span>
+        <span v-if="signInToast" class="stamina-toast">{{ signInToast }}</span>
+      </div>
+
+      <!-- M3-7 扫荡：仅已通关关卡出现；体力不足时 ×10 自动降级而不是拦人 -->
+      <div v-if="canSweep" class="sweep-row">
+        <span class="sweep-label">
+          扫荡
+          <small>一次 = 30 分钟收益</small>
+        </span>
+        <span v-if="sweepBlocked" class="sweep-wait">
+          <Zap :size="10" :stroke-width="2.4" aria-hidden="true" />
+          {{ sweepMinutes }} 分钟后可扫
+        </span>
+        <template v-else>
+          <button class="sweep-btn" @click="doSweep(1)">
+            ×1
+            <Zap :size="10" :stroke-width="2.4" aria-hidden="true" />
+            {{ sweepOnce.cost }}
+          </button>
+          <button class="sweep-btn" @click="doSweep(sweepBatchTimes)">
+            ×{{ sweepBatchTimes }}
+            <Zap :size="10" :stroke-width="2.4" aria-hidden="true" />
+            {{ sweepOnce.cost * sweepBatchTimes }}
+          </button>
+        </template>
+      </div>
+    </CollapsibleCard>
 
     <SweepResultModal v-if="sweepResult" :result="sweepResult" @close="sweepResult = null" />
 
-    <div class="efficiency-row" :class="efficiencyStatus.level">
-      <span class="efficiency-copy">
-        <strong class="num">战斗效率 {{ efficiencyStatus.percent }}%</strong>
-        <small v-if="efficiencyStatus.detail">· {{ efficiencyStatus.detail }}</small>
-      </span>
-      <span class="efficiency-reference">
-        战力参考
-        <b class="num">{{ abbr(player.cp) }} / {{ abbr(stage.current.recommendCP) }}</b>
-      </span>
-    </div>
+    <!-- 日常任务折叠卡：8 条任务进度 + 四档活跃度宝箱 -->
+    <CollapsibleCard
+      v-if="dailyTaskState"
+      class="daily-card"
+      title="日常任务"
+      :subtitle="dailyTaskSubtitle"
+      persist-key="idle.dailyTasks"
+      :default-open="comfyDefaultOpen"
+    >
+      <template #icon>
+        <span class="card-sigil daily-sigil" aria-hidden="true"><ListChecks :size="13" /></span>
+      </template>
+      <template #peek>
+        <span class="daily-peek">{{ dailyTaskPeek }}</span>
+      </template>
 
-    <ElementMatchupGuide
-      class="idle-element-guide"
-      :attacker-element="player.playerCombatElement"
-      :defender-element="stage.current.element"
-      context="battle"
-    />
+      <DailyTasksView
+        :state="dailyTaskState"
+        :now="staminaNow"
+        :on-claim="onClaimDailyTier"
+      />
+      <span v-if="dailyToast" class="stamina-toast">{{ dailyToast }}</span>
+    </CollapsibleCard>
+
+    <!-- 战斗情报折叠卡：战斗效率 + 属性克制 -->
+    <CollapsibleCard
+      class="intel-card"
+      title="战斗情报"
+      :subtitle="intelSubtitle"
+      persist-key="idle.intel"
+      :default-open="false"
+    >
+      <template #icon>
+        <span class="card-sigil intel-sigil" aria-hidden="true"><Swords :size="13" /></span>
+      </template>
+
+      <div class="efficiency-row" :class="efficiencyStatus.level">
+        <span class="efficiency-copy">
+          <strong class="num">战斗效率 {{ efficiencyStatus.percent }}%</strong>
+          <small v-if="efficiencyStatus.detail">· {{ efficiencyStatus.detail }}</small>
+        </span>
+        <span class="efficiency-reference">
+          战力参考
+          <b class="num">{{ abbr(player.cp) }} / {{ abbr(stage.current.recommendCP) }}</b>
+        </span>
+      </div>
+
+      <ElementMatchupGuide
+        class="idle-element-guide"
+        :attacker-element="player.playerCombatElement"
+        :defender-element="stage.current.element"
+        context="battle"
+      />
+    </CollapsibleCard>
 
     <Transition name="preset-shift">
       <button
@@ -677,6 +773,7 @@ function openLootEntry(entry: { itemId: string; isEquipment: boolean; count: num
 
     <Region5GrowthTrack
       v-if="region5Growth"
+      class="r5-track"
       :snapshot="region5Growth"
       @open-forge="openRegion5Forge"
     />
@@ -870,6 +967,89 @@ function openLootEntry(entry: { itemId: string; isEquipment: boolean; count: num
    * 最终整张卡被压成 1px，玩家反而看不到可点击的掉落。
    */
   min-height: 100%;
+}
+
+/*
+ * 主界面视觉重排（不改 DOM 顺序，只调 CSS order）：
+ * 关卡条 → 战斗窗口（首屏核心）→ 预设提示 → 战斗情报卡 → 每日福利卡 → 日常任务卡 → 其余。
+ * 三张折叠卡记忆玩家开合习惯（localStorage），低频信息默认收起减少滑动。
+ */
+.stage-bar {
+  order: 1;
+}
+
+.battle {
+  order: 2;
+}
+
+.preset-shift {
+  order: 3;
+}
+
+.intel-card {
+  order: 4;
+}
+
+.perks-card {
+  order: 5;
+}
+
+.daily-card {
+  order: 6;
+}
+
+.r5-track {
+  order: 7;
+}
+
+.encounter-entry {
+  order: 8;
+}
+
+.journal-entry {
+  order: 9;
+}
+
+.loot {
+  order: 10;
+}
+
+/* 三张折叠卡的标题图标徽章：与掉落卡的 loot-sigil 同一视觉语言 */
+.card-sigil {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  place-items: center;
+  color: #fff;
+  border: 1px solid rgb(255 255 255 / 88%);
+  border-radius: 8px;
+}
+
+.perks-sigil {
+  background: linear-gradient(145deg, #f5b97a, #e08a4e);
+  box-shadow: 0 3px 8px rgb(224 138 78 / 24%);
+}
+
+.daily-sigil {
+  background: linear-gradient(145deg, #9ecff7, #6ea8e8);
+  box-shadow: 0 3px 8px rgb(110 168 232 / 24%);
+}
+
+.intel-sigil {
+  background: linear-gradient(145deg, #b8a7f5, #8e79e0);
+  box-shadow: 0 3px 8px rgb(142 121 224 / 24%);
+}
+
+/* 折叠卡内部的福利行/扫荡行去掉自带外边距，由卡片统一控制节奏 */
+.perks-card .stamina-row,
+.perks-card .sweep-row {
+  margin-bottom: 0;
+}
+
+.perks-card .stamina-row + .stamina-row,
+.perks-card .sweep-row {
+  margin-top: 6px;
 }
 
 .stage-bar {
