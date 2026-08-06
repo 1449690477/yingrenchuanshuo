@@ -1881,7 +1881,7 @@ function assertPvpBalance(result: ReturnType<typeof pvpBalance>): void {
     }
   }
 
-  // ★ N4 门禁（docs/73 §七 / C1）：跨职业交叉胜率 ∈ [35%, 65%]，Lv60 / Lv100 两档。
+  // ★ N4 门禁（docs/73 §七 / C1）：跨职业交叉胜率 ∈ [33%, 67%]，Lv60 / Lv100 两档。
   const crossViolations: string[] = [];
   for (const level of PVP_GATE_LEVELS) {
     for (const attacker of CLASS_IDS) {
@@ -1893,7 +1893,7 @@ function assertPvpBalance(result: ReturnType<typeof pvpBalance>): void {
         const ok = row.胜率 >= PVP_CROSS_MIN && row.胜率 <= PVP_CROSS_MAX;
         if (!ok) {
           crossViolations.push(
-            `Lv${level} ${attacker} → ${defender} 胜率 ${(row.胜率 * 100).toFixed(1)}%（目标 35%~65%）`,
+            `Lv${level} ${attacker} → ${defender} 胜率 ${(row.胜率 * 100).toFixed(1)}%（目标 33%~67%）`,
           );
         }
       }
@@ -1908,7 +1908,7 @@ function assertPvpBalance(result: ReturnType<typeof pvpBalance>): void {
     );
   }
   if (crossViolations.length === 0) {
-    console.log('  ✔ 跨职业交叉胜率全部落在 [35%, 65%]');
+    console.log('  ✔ 跨职业交叉胜率全部落在 [33%, 67%]');
   }
 }
 
